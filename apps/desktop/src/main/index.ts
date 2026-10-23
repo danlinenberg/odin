@@ -53,6 +53,7 @@ import {
 	getTerminalHostClient,
 } from "./lib/terminal-host/client";
 import { disposeTray, initTray } from "./lib/tray";
+import { startVoiceTrainer } from "./lib/voice-profile";
 import { startNetworkLogger, stopNetworkLogger } from "./network-logger";
 import { flushWindowStateSync, MainWindow } from "./windows/main";
 
@@ -508,6 +509,11 @@ if (!gotTheLock) {
 			});
 
 		startWorktreePruner();
+		startVoiceTrainer(() =>
+			import("lib/trpc/routers/slack").then((slack) =>
+				slack.slackMySentMessages(),
+			),
+		);
 		startDataBackup();
 		startMemoryGuard();
 		startPhone();

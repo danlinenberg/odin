@@ -194,6 +194,19 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "checkout parallel worktree queue",
 	},
 	{
+		label: "Write drafts in my voice",
+		to: "/settings/sessions",
+		section: "Your voice",
+		keywords:
+			"voice tone style draft slack reply jira comment train learn writing corrections",
+	},
+	{
+		label: "Train now",
+		to: "/settings/sessions",
+		section: "Your voice",
+		keywords: "voice train learn style guide slack messages",
+	},
+	{
 		label: "Rename sessions automatically",
 		to: "/settings/sessions",
 		section: "On the board",

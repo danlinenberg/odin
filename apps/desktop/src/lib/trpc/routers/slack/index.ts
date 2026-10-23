@@ -779,6 +779,53 @@ export async function slackConversation(
 }
 
 /**
+ * My most recent sent messages, newest first, for training the voice guide.
+ * Slack search, not history: history is held to a call a minute, search
+ * returns a hundred of mine per call. Needs `search:read`; a token from
+ * before it was asked for gets a "reconnect Slack" error.
+ */
+export async function slackMySentMessages(limit = 300): Promise<string[]> {
+	const token = slackToken();
+	if (!token) throw new Error("Connect Slack in Settings > Connections first.");
+	const me = await getIdentity(token);
+	type Match = { text?: string; subtype?: string };
+	const out: string[] = [];
+	for (let page = 1; out.length < limit && page <= 5; page++) {
+		let result: SlackResponse & {
+			messages?: { matches?: Match[]; paging?: { pages?: number } };
+		};
+		try {
+			result = await slackApi(
+				"search.messages",
+				{
+					query: `from:<@${me.userId}>`,
+					sort: "timestamp",
+					sort_dir: "desc",
+					count: "100",
+					page: String(page),
+				},
+				token,
+			);
+		} catch (error) {
+			if (String(error).includes("missing_scope"))
+				throw new Error(
+					"Reconnect Slack in Settings > Connections so Odin can read your sent messages.",
+				);
+			throw error;
+		}
+		for (const match of result.messages?.matches ?? [])
+			if (match.text && !match.subtype)
+				out.push(
+					(await resolveMentions(match.text, token))
+						.replace(/\s+/g, " ")
+						.trim(),
+				);
+		if (page >= (result.messages?.paging?.pages ?? 1)) break;
+	}
+	return out.slice(0, limit);
+}
+
+/**
  * A file from a thread (a screenshot, a log), fetched with Odin's Slack token.
  * Only files.slack.com links: the token is never sent anywhere else. Null
  * when Slack refuses - a token from before `files:read` was asked for.

@@ -10,6 +10,10 @@ import {
 	myLines,
 	noteConversation,
 	readVoice,
+	setVoiceEnabled,
+	setVoiceNotes,
+	trainingState,
+	trainVoice,
 	voiceText,
 } from "./voice-profile";
 
@@ -19,6 +23,8 @@ const empty = {
 	unlearned: 0,
 	notes: [],
 	updatedAt: null,
+	enabled: true,
+	trainedAt: null,
 };
 
 describe("myLines", () => {
@@ -71,6 +77,7 @@ describe("learnPrompt and voiceText", () => {
 
 	test("corrections lead the guide; nothing known prints nothing", () => {
 		expect(voiceText(empty)).toBe("");
+		expect(voiceText({ ...empty, guide: "G", enabled: false })).toBe("");
 		expect(voiceText({ ...empty, guide: "G", notes: ["shorter"] })).toBe(
 			"Corrections I made - always follow these:\n- shorter\n\nG",
 		);
@@ -109,5 +116,50 @@ describe("noteConversation", () => {
 		await addVoiceNote("  no   emoji ", path);
 		await addVoiceNote("no emoji", path);
 		expect((await readVoice(path)).notes).toEqual(["no emoji"]);
+	});
+});
+
+describe("trainVoice", () => {
+	const fakeClaude = join(tmpdir(), `fake-claude-train-${process.pid}.sh`);
+	writeFileSync(fakeClaude, "#!/bin/sh\necho 'Terse.'\n", { mode: 0o755 });
+
+	test("learns from sent messages right away, newest kept last", async () => {
+		const path = join(mkdtempSync(join(tmpdir(), "voice-")), "voice.json");
+		await trainVoice(
+			async () => ["newest message of mine", "ok", "older message of mine"],
+			{
+				path,
+				claudeBin: fakeClaude,
+			},
+		);
+		const store = await readVoice(path);
+		expect(store.samples).toEqual([
+			"older message of mine",
+			"newest message of mine",
+		]);
+		expect(store.guide).toBe("Terse.");
+		expect(store.trainedAt).not.toBeNull();
+		expect(trainingState()).toEqual({ training: false, error: null });
+	});
+
+	test("a Slack refusal is the error Settings shows", async () => {
+		const path = join(mkdtempSync(join(tmpdir(), "voice-")), "voice.json");
+		await trainVoice(
+			async () => {
+				throw new Error("Reconnect Slack");
+			},
+			{ path, claudeBin: fakeClaude },
+		);
+		expect(trainingState().error).toBe("Reconnect Slack");
+	});
+
+	test("off keeps nothing; corrections are edited as a list", async () => {
+		const path = join(mkdtempSync(join(tmpdir(), "voice-")), "voice.json");
+		await setVoiceEnabled(false, path);
+		await noteConversation("ME: a message while it is off", { path });
+		await trainVoice(async () => ["a message while it is off"], { path });
+		expect((await readVoice(path)).samples).toEqual([]);
+		await setVoiceNotes(["shorter", "", " shorter ", "no emoji"], path);
+		expect((await readVoice(path)).notes).toEqual(["shorter", "no emoji"]);
 	});
 });
