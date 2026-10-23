@@ -6,6 +6,7 @@ import {
 	LuListOrdered,
 	LuPalette,
 	LuPlug,
+	LuSlidersHorizontal,
 	LuSquareTerminal,
 } from "react-icons/lu";
 
@@ -26,7 +27,7 @@ export const SCREENS = [
 	{
 		to: "/settings/sessions",
 		label: "Sessions",
-		hint: "Default folder, Claude command, prompt, limits, idle close",
+		hint: "Default folder, limits, your voice, idle close",
 		icon: LuSquareTerminal,
 	},
 	{
@@ -64,6 +65,12 @@ export const SCREENS = [
 		label: "Keyboard",
 		hint: "Shortcuts for every screen",
 		icon: LuKeyboard,
+	},
+	{
+		to: "/settings/advanced",
+		label: "Advanced",
+		hint: "Claude command, default prompt",
+		icon: LuSlidersHorizontal,
 	},
 ] as const;
 
@@ -153,13 +160,13 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 	},
 	{
 		label: "Claude command",
-		to: "/settings/sessions",
+		to: "/settings/advanced",
 		section: "What they run",
 		keywords: "launch command alias binary claude code cli wrapper",
 	},
 	{
 		label: "Default prompt",
-		to: "/settings/sessions",
+		to: "/settings/advanced",
 		section: "What they run",
 		keywords: "instructions system prompt action items task end",
 	},

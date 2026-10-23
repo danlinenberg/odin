@@ -135,7 +135,7 @@ Search the transcripts of every finished session Odin launched, by word or by wh
 One list across every source in bands: **Now** (due, or asked in the last 4 hours), **Today** (reviews and asks waiting on you), **Later**. A task you add here is Now for 4 hours, then Today; a Low one goes to Later. **Up next** sits on top; drag to reorder. A Live strip shows running sessions ("Go to session →"). Filters: Source, Priority, Place, Status, "Due or overdue only", "Show what's Done" (the graveyard: every row put away, done or dropped, newest first, each with Undo and Open; a row dropped by Review's sweep or a drop rule reads "dropped", with the reason on hover, and the toggle says "Done or Dropped" once there is one). Tick rows to Set status / Up next / Done together.
 
 ## Settings
-The sidebar shows: Connections, Sessions, Remote, Storage, Backlog & Night Agent, Notifications, Appearance, Keyboard - one topic each, with what's on it written under its name. The search box above the list finds any setting by its label, its section or what it does, and scrolls to it. Store settingsScreen holds which one is open.
+The sidebar shows: Connections, Sessions, Remote, Storage, Backlog & Night Agent, Notifications, Appearance, Keyboard, Advanced - one topic each, with what's on it written under its name. The search box above the list finds any setting by its label, its section or what it does, and scrolls to it. Store settingsScreen holds which one is open.
 
 ## Connections (Settings → Connections)
 "The accounts Odin reads your work from." Sign-ins stay on this Mac. Each row has Connect, Reconnect and Disconnect; disconnecting takes that source's items out of every tab. Slack, Jira and Notion first ask for a Client ID and Secret when no OAuth app is set up; Calendar offers that under "Sign in with Google instead". Huginn reaches every connected service's full API with action=service.
@@ -153,12 +153,16 @@ The sidebar shows: Connections, Sessions, Remote, Storage, Backlog & Night Agent
 A session's life on this Mac, top to bottom. Besides the launch gate limits ("When they start", below):
 - **Where they start → Default folder**: where a session starts when no repo is picked. Unset: the folder your repos live in.
 - **Where they start → Full Disk Access**: without it, macOS asks each time a session reads Music, Photos, Desktop or Documents.
-- **What they run → Claude command**: what starts Claude, e.g. an alias for another account. One per line; with two or more, pick one in the top bar. Empty: claude. Store: claudeCommand.
-- **What they run → Default prompt**: added to the end of every task prompt (how to work, the Shell, ACTION ITEMS), with Reset to default. The board reads ACTION ITEMS from each reply. Store: sessionInstructions.
+- **Your voice**: drafts a session writes for you to send follow a guide Odin learns from your Slack messages. A switch turns it off; Train now reads your recent sent messages and rewrites the guide (it also retrains daily); the guide is shown, and Corrections (one per line) always win over it.
 - **On the board → Rename sessions automatically** (default on): renames each card once, after what it turned out to be about. Names you set are kept.
 - **On the board → Compact conversations moved to Idle** (default off): /compact the moment a card is parked in Idle or waits there on others, while Claude's cache of it is still warm.
 - **On the board → Read replies aloud** (default off): once a turn is over, Odin says the reply out loud in the open chat view - its TL;DR when the brief has one, else the reply itself. **Speech speed** sets how fast (0.5x to 2x). The speaker button under the latest reply reads it, or stops it, any time.
 - **On the board → Close idle sessions after** (default 3 hours, 0 = never).
+
+## Advanced (Settings → Advanced)
+What a session runs, rarely changed:
+- **Claude command**: what starts Claude, e.g. an alias for another account. One per line; with two or more, pick one in the top bar. Empty: claude. Store: claudeCommand.
+- **Default prompt**: added to the end of every task prompt (how to work, the Shell, ACTION ITEMS), with Reset to default. The board reads ACTION ITEMS from each reply. Store: sessionInstructions.
 
 ## Remote (Settings → Remote)
 Your sessions when you're not at this Mac.
