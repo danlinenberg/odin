@@ -14,6 +14,8 @@ import {
 	bashCommandOf,
 	commandItem,
 	currentTurn,
+	earlierCommandItem,
+	earlierCommandsText,
 	elapsedLabel,
 	interruptClaude,
 	isAnswerItem,
@@ -910,6 +912,48 @@ describe("commandItem fallback", () => {
 			"Run the reset command above after #1540 applies (you only)",
 		];
 		expect(commandItem("systemctl show user.slice", items)).toBe(1);
+	});
+});
+
+describe("an earlier reply's commands in the action items card", () => {
+	const text = (id: string, t: string) => ({
+		kind: "text" as const,
+		id,
+		text: t,
+	});
+	const checks =
+		"Run these:\n\n```\n!local aws iam list-attached-role-policies --role-name OdinSsmHost\n```\n\nACTION ITEMS\n1. Run both IAM checks above";
+	const later =
+		"CI passed.\n\nACTION ITEMS\n1. Run the two IAM checks from my earlier message and tell me the results (you only)\n2. Choose a path [a | b]";
+
+	test("the card's reply without commands borrows the latest earlier reply's", () => {
+		const items = [
+			text("a", checks),
+			{ kind: "user" as const, id: "u", text: "ok" },
+			text("b", later),
+		];
+		expect(earlierCommandsText(items, "b")).toBe(checks);
+		// A reply with commands of its own keeps to them.
+		expect(earlierCommandsText(items, "a")).toBeUndefined();
+		expect(earlierCommandsText([text("b", later)], "b")).toBeUndefined();
+	});
+
+	test("each goes under the item that asks for it, and never to the card's foot", () => {
+		const items = [
+			"Run the two IAM checks from my earlier message and tell me the results (you only)",
+			"Choose a path [a | b]",
+		];
+		expect(
+			earlierCommandItem(
+				"local aws iam list-attached-role-policies --role-name OdinSsmHost",
+				items,
+			),
+		).toBe(0);
+		// Named by nothing, but an item sends you back to run it.
+		expect(earlierCommandItem("ls -la", items)).toBe(0);
+		expect(
+			earlierCommandItem("ls -la", ["Merge #12", "Decide the branch"]),
+		).toBe(-1);
 	});
 });
 

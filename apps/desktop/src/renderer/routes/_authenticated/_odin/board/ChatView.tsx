@@ -1012,6 +1012,8 @@ interface ItemViewProps {
 	tldr?: Tldr | null;
 	/** The latest reply: what Odin says for it, its TL;DR when there is one. */
 	readAloud?: string | null;
+	/** The card's reply has no `!` commands: the latest earlier reply that has (earlierCommandsText). */
+	earlierText?: string;
 }
 
 function sameItemView(prev: ItemViewProps, next: ItemViewProps): boolean {
@@ -1028,7 +1030,8 @@ function sameItemView(prev: ItemViewProps, next: ItemViewProps): boolean {
 		prev.tldr?.last === next.tldr?.last &&
 		prev.tldr?.urgency === next.tldr?.urgency &&
 		prev.tldr?.long === next.tldr?.long &&
-		prev.readAloud === next.readAloud
+		prev.readAloud === next.readAloud &&
+		prev.earlierText === next.earlierText
 	);
 }
 
@@ -1744,6 +1747,25 @@ export function lastActionsId(items: Item[]): string | undefined {
 	)?.id;
 }
 
+/**
+ * The text of the latest reply before `id` that hands you `!` commands, when
+ * `id`'s own has none: an item that says "run the checks from my earlier
+ * message" gets their Run buttons from there.
+ */
+export function earlierCommandsText(
+	items: Item[],
+	id: string | undefined,
+): string | undefined {
+	const at = items.findIndex((item) => item.id === id);
+	const own = items[at];
+	if (at < 0 || own?.kind !== "text" || bangCommands(own.text).length)
+		return undefined;
+	const earlier = items
+		.slice(0, at)
+		.findLast((item) => item.kind === "text" && bangCommands(item.text).length);
+	return earlier?.kind === "text" ? earlier.text : undefined;
+}
+
 // Words every item uses; sharing one says nothing about which paragraph it means.
 const DETAIL_FILLER = new Set(
 	"tell what with whether also your this that them they then when have will should about from into once after before merge check open review approve decide choose pick confirm".split(
@@ -1984,11 +2006,14 @@ function ActionItems({
 	paneId,
 	tldr,
 	commands = [],
+	earlier = [],
 	onRun,
 }: {
 	text: string;
 	/** The reply's `!` commands: each under the item it belongs to (see commandItem), else at the card's foot. */
 	commands?: string[];
+	/** An earlier reply's `!` commands: each under the item that asks for it (earlierCommandItem), else left out. */
+	earlier?: string[];
 	onRun?: (command: string) => Promise<void>;
 	/** The reply above the items, where each one's explanation is looked up. */
 	body?: string;
@@ -2020,8 +2045,18 @@ function ActionItems({
 			items.map(({ under }) => under),
 		),
 	);
-	const commandsAt = (index: number) =>
-		commands.filter((_, i) => homes[i] === index);
+	const earlierHomes = earlier.map((command) =>
+		commands.includes(command)
+			? -1
+			: earlierCommandItem(
+					command,
+					items.map(({ item }) => item),
+				),
+	);
+	const commandsAt = (index: number) => [
+		...commands.filter((_, i) => homes[i] === index),
+		...earlier.filter((_, i) => earlierHomes[i] === index),
+	];
 	const footCommands = onDo && items.length > 0 ? commandsAt(-1) : commands;
 	const count = onDo ? items.length : actionItemList(text).length;
 	return (
@@ -2185,6 +2220,29 @@ export function commandItem(
 	);
 	if (opens >= 0) return opens;
 	return items.findIndex((item) => /\b(run|execute|install)\b/i.test(item));
+}
+
+/**
+ * The item an earlier reply's `!` command goes under, -1 for none: the item
+ * that names it, else the first that sends you back to an earlier message to
+ * run something. Never the card's foot - unclaimed, it stays where it was.
+ */
+export function earlierCommandItem(command: string, items: string[]): number {
+	let best = -1;
+	let bestScore = 1;
+	items.forEach((item, index) => {
+		const score = commandScore(command, item);
+		if (score > bestScore) {
+			best = index;
+			bestScore = score;
+		}
+	});
+	if (best >= 0) return best;
+	return items.findIndex(
+		(item) =>
+			/\b(run|execute)\b/i.test(item) &&
+			/\b(earlier|last|previous|above)\s+(message|reply)\b/i.test(item),
+	);
 }
 
 function RunCommands({
@@ -2601,6 +2659,7 @@ const ItemView = memo(function ItemView({
 	hideActions = false,
 	tldr,
 	readAloud = null,
+	earlierText,
 }: ItemViewProps) {
 	// A long latest reply opens on its TL;DR; this shows it whole.
 	const [full, setFull] = useState(false);
@@ -2646,7 +2705,13 @@ const ItemView = memo(function ItemView({
 			/>
 		);
 	const commands = onRun ? bangCommands(item.text) : [];
-	const notes = onRun ? bangCommandNotes(item.text) : {};
+	const earlier = onRun && earlierText ? bangCommands(earlierText) : [];
+	const notes = onRun
+		? {
+				...(earlierText ? bangCommandNotes(earlierText) : {}),
+				...bangCommandNotes(item.text),
+			}
+		: {};
 	// A reply you can see whole, its action items included, is never cut and needs no TL;DR.
 	const shown = tldr && taller ? { ...tldr, long: fold } : null;
 	const placement = tldrPlacement(shown, showsActions);
@@ -2686,6 +2751,7 @@ const ItemView = memo(function ItemView({
 							paneId={paneId}
 							tldr={placement === "action-items" ? shown : null}
 							commands={commands}
+							earlier={earlier}
 							onRun={onRun}
 						/>
 					</Leave>
@@ -3153,6 +3219,7 @@ export function ChatView({
 	// Agents repeat their ACTION ITEMS in every reply; show one card, on the
 	// latest reply that has it, also while Claude works on the next one.
 	const actionsId = lastActionsId(items);
+	const earlierText = earlierCommandsText(items, actionsId);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const pinnedRef = useRef(true);
 	const lastScrollTopRef = useRef(0);
@@ -3380,6 +3447,7 @@ export function ChatView({
 								paneId={paneId}
 								onDo={onShowTerminal || onResumeWith ? doItem : undefined}
 								hideActions={segment.id !== actionsId}
+								earlierText={segment.id === actionsId ? earlierText : undefined}
 								tldr={segment.id === lastTextId ? tldr : null}
 								readAloud={segment.id === lastTextId ? readAloud : null}
 								onRun={
