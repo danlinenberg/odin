@@ -162,8 +162,19 @@ document.addEventListener("visibilitychange", () => {
 	if (document.visibilityState === "visible") drop();
 });
 
-/** Longest a request waits for Odin before the socket counts as dead. */
+/** Longest a poll waits for Odin before it gives up on the answer. */
 const ANSWER_MS = 12_000;
+
+/**
+ * Calls that are slow by nature: the brief runs `claude -p`, a reply copies
+ * its files to a remote host, a Run or a menu answer types into the
+ * terminal step by step. And the upload.
+ */
+const SLOW_RE =
+	/^\/(upload|trpc\/(brief|links|reply|run|keys|add|start|interrupt|done)\b)/;
+
+/** When the open channel last answered anything: a live one answers the polls. */
+let heardAt = 0;
 
 /** What the app calls Odin with: tRPC's link and the upload. */
 export type OdinFetch = (
@@ -193,8 +204,8 @@ export function channelFetch(pairing: Pairing): OdinFetch {
 			);
 		}
 		let timer: ReturnType<typeof setTimeout> | undefined;
-		// An upload can take longer than a poll: it gets its own limit.
-		const limit = url.pathname.startsWith("/upload") ? 120_000 : ANSWER_MS;
+		const limit = SLOW_RE.test(url.pathname) ? 120_000 : ANSWER_MS;
+		const asked = Date.now();
 		const answer = await Promise.race([
 			open.request({
 				method: init?.method ?? "GET",
@@ -206,11 +217,18 @@ export function channelFetch(pairing: Pairing): OdinFetch {
 			}),
 			new Promise<never>((_, reject) => {
 				timer = setTimeout(() => {
+					// Other answers came in meanwhile: the socket lives and this
+					// call is just slow. Dropping it then failed every poll with it.
+					if (heardAt > asked) {
+						reject(new TypeError("Odin is slow to answer."));
+						return;
+					}
 					drop();
 					reject(new TypeError("Odin didn't answer. Reconnecting."));
 				}, limit);
 			}),
 		]).finally(() => clearTimeout(timer));
+		heardAt = Date.now();
 		return new Response(answer.status === 204 ? null : answer.body.slice(), {
 			status: answer.status,
 			headers: answer.headers,

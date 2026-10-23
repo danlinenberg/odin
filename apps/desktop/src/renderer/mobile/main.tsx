@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink } from "@trpc/client";
+import { httpBatchLink, httpLink, splitLink } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import type { PhoneRouter } from "main/lib/phone/router";
 import {
@@ -137,10 +137,26 @@ const odinFetch: OdinFetch = pairing
 					...init,
 					headers: { ...init?.headers, authorization: `Bearer ${devToken}` },
 				});
+const SLOW_QUERIES = new Set(["brief", "links"]);
 const phone = createTRPCReact<PhoneRouter>();
 const client = phone.createClient({
 	links: [
-		httpBatchLink({ url: "/trpc", transformer: superjson, fetch: odinFetch }),
+		// A slow call (the brief's `claude -p`, a reply that copies files to a
+		// remote host) goes on its own, so the polls batched beside it don't
+		// wait for it.
+		splitLink({
+			condition: (op) => op.type === "mutation" || SLOW_QUERIES.has(op.path),
+			true: httpLink({
+				url: "/trpc",
+				transformer: superjson,
+				fetch: odinFetch,
+			}),
+			false: httpBatchLink({
+				url: "/trpc",
+				transformer: superjson,
+				fetch: odinFetch,
+			}),
+		}),
 	],
 });
 const queryClient = new QueryClient({
@@ -727,14 +743,18 @@ function Session({ paneId }: { paneId: string }) {
 			uploads.paths.length,
 			uploads.files.flatMap((f) => (f.path && f.preview ? [f.preview] : [])),
 		);
+		// Off the box at once, as the text: it shows in the Sent bubble now.
+		const files = uploads.files;
+		const paths = uploads.paths;
 		setText("");
+		uploads.clear();
 		reply.mutate(
-			{ paneId, text: full, paths: uploads.paths, now },
+			{ paneId, text: full, paths, now },
 			{
-				onSuccess: () => uploads.clear(),
 				onError: () => {
 					forget(item);
 					setText(full);
+					uploads.restore(files);
 				},
 			},
 		);
