@@ -974,6 +974,20 @@ describe("an earlier reply's commands in the action items card", () => {
 			earlierCommandItem("ls -la", ["Merge #12", "Decide the branch"]),
 		).toBe(-1);
 	});
+
+	test("an item that only shares words with an old command never takes it", () => {
+		// A dropped plan's commands landed under an unrelated item on "prod", "profile", "host".
+		const items = [
+			"Decide on the 10 who'd gain prod DB credentials via hosts [allow | limit hosts to developer sets]",
+			"Take #1555 out of draft and get it reviewed (you only)",
+			"Turn on `prod` under Settings > Remote > AWS profiles on the host (you only)",
+		];
+		for (const command of [
+			"local aws iam put-role-policy --profile prod --role-name OdinSsmHost --policy-name OdinHostClaudeSecret",
+			"local aws secretsmanager describe-secret --profile prod --region us-east-1 --secret-id /prod/services/odin-host-claude",
+		])
+			expect(earlierCommandItem(command, items)).toBe(-1);
+	});
 });
 
 describe("nextHostStep - a remote pane's connect step, read off its screen", () => {
