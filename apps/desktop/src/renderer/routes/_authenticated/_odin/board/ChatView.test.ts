@@ -30,6 +30,7 @@ import {
 	launchAttachments,
 	launchRequest,
 	leavePhase,
+	localCommand,
 	messageAttachments,
 	nextHostStep,
 	outputTokens,
@@ -475,6 +476,14 @@ describe("ChatView transcript", () => {
 			options: ["extension", "write around it"],
 		});
 	});
+});
+
+test("a !local block is for your computer, a plain ! block for the session", () => {
+	const text =
+		"```\n!local open ~/Downloads\n```\n\n```\n! gh auth status\n```";
+	const [mine, session] = bangCommands(text);
+	expect(localCommand(mine ?? "")).toBe("open ~/Downloads");
+	expect(localCommand(session ?? "")).toBeNull();
 });
 
 describe("launchAttachments - the images and videos a launch prompt attached", () => {
