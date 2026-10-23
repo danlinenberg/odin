@@ -2175,7 +2175,13 @@ function distinctWords(text: string): string[] {
 		);
 }
 
-/** How well an item names a command: its words the command shares, plus 2 per `quoted` piece of it. */
+/**
+ * How well an item names a command: its words the command shares, an acronym
+ * it writes in capitals (IAM, AWS, SSO) that the command has as a word, plus
+ * 2 per `quoted` piece of it. An item that tells you to run something gets 1
+ * more once it names the command at all: "Run both IAM checks" beats
+ * "Choose a path for prod credentials" for `aws iam ... --profile prod`.
+ */
 function commandScore(command: string, item: string): number {
 	const words = distinctWords(command);
 	const shared = new Set(
@@ -2183,10 +2189,18 @@ function commandScore(command: string, item: string): number {
 			words.some((other) => other.startsWith(word) || word.startsWith(other)),
 		),
 	);
+	const commandWords = new Set(command.toLowerCase().split(/[^a-z0-9]+/));
+	const acronyms = new Set(
+		[...item.matchAll(/\b[A-Z]{2,3}\b/g)]
+			.map(([word]) => word.toLowerCase())
+			.filter((word) => commandWords.has(word)),
+	);
 	const quoted = [...item.matchAll(/`([^`\n]+)`/g)].filter(([, code]) =>
 		command.includes((code ?? "").trim()),
 	);
-	return shared.size + 2 * quoted.length;
+	const score = shared.size + acronyms.size + 2 * quoted.length;
+	const runs = /^(optional:\s*)?(run|execute|install)\b/i.test(item.trim());
+	return score > 0 && runs ? score + 1 : score;
 }
 
 /**

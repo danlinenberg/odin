@@ -913,6 +913,25 @@ describe("commandItem fallback", () => {
 		];
 		expect(commandItem("systemctl show user.slice", items)).toBe(1);
 	});
+
+	test("an acronym the item names in capitals beats a word a choice item happens to share", () => {
+		const items = [
+			"Run the keychain unlock check and follow the result (you only)",
+			"Run both IAM checks and tell me the results (you only)",
+			"Choose a path for prod credentials [laptop-only, close #1432 | personal host, keep #1432 | shared host with one admin]",
+		];
+		for (const command of [
+			"local aws iam list-attached-role-policies --role-name OdinSsmHost --profile prod --output table",
+			"local aws iam simulate-principal-policy --profile prod --policy-source-arn arn:aws:iam::585680601546:role/OdinSsmHost --action-names secretsmanager:GetSecretValue --output text",
+		])
+			expect(commandItem(command, items)).toBe(1);
+		expect(
+			commandItem(
+				"local security unlock-keychain ~/Library/Keychains/login.keychain-db",
+				items,
+			),
+		).toBe(0);
+	});
 });
 
 describe("an earlier reply's commands in the action items card", () => {
