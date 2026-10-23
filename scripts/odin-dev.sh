@@ -119,6 +119,15 @@ echo "     (ODIN_DEV_WATCH=--watch restores restart-on-save, storm included)"
 echo "  ctrl-c here to stop"
 
 cd "$REPO"
+# A pull that adds a dependency left the build dying on `Rollup failed to
+# resolve import "<pkg>"`, and the launcher looked stuck at starting. So install
+# whenever bun.lock is newer than the last install this script ran.
+INSTALL_STAMP="node_modules/.odin-dev-installed"
+if [[ ! -e "$INSTALL_STAMP" || bun.lock -nt "$INSTALL_STAMP" ]]; then
+  echo "    bun.lock changed, running bun install" >>"$LOG"
+  bun install >>"$LOG" 2>&1 && touch "$INSTALL_STAMP"
+fi
+
 # SKIP_ENV_VALIDATION drops the login gate; the debug port lets tooling drive
 # and screenshot the window.
 exec env SKIP_ENV_VALIDATION=1 ODIN_PACKAGE=1 RENDERER_REMOTE_DEBUG_PORT=19223 \
