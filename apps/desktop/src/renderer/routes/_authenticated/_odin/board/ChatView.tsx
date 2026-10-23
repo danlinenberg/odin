@@ -2239,27 +2239,31 @@ export function commandItem(
 }
 
 /**
- * The item an earlier reply's `!` command goes under, -1 for none: the item
- * that names it, else the first that sends you back to an earlier message to
- * run something. Never the card's foot - unclaimed, it stays where it was.
+ * The item an earlier reply's `!` command goes under, -1 for none. Only an item
+ * that sends you back to an earlier message to run something takes one - the
+ * one that names it best, else the first. An item that only shares words with
+ * an old command ("Turn on prod under AWS profiles") never does: that put a
+ * dropped plan's `aws iam put-role-policy` under it. Never the card's foot -
+ * unclaimed, it stays where it was.
  */
 export function earlierCommandItem(command: string, items: string[]): number {
 	let best = -1;
-	let bestScore = 1;
+	let bestScore = -1;
 	items.forEach((item, index) => {
+		if (!sendsBack(item)) return;
 		const score = commandScore(command, item);
 		if (score > bestScore) {
 			best = index;
 			bestScore = score;
 		}
 	});
-	if (best >= 0) return best;
-	return items.findIndex(
-		(item) =>
-			/\b(run|execute)\b/i.test(item) &&
-			/\b(earlier|last|previous|above)\s+(message|reply)\b/i.test(item),
-	);
+	return best;
 }
+
+/** "Run the checks from my earlier message": an item that asks for a reply's commands from before. */
+const sendsBack = (item: string) =>
+	/\b(run|execute)\b/i.test(item) &&
+	/\b(earlier|last|previous|above)\s+(message|reply)\b/i.test(item);
 
 function RunCommands({
 	commands,
