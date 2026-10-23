@@ -161,7 +161,7 @@ describe("buildPrompt", () => {
 		expect(buildPrompt("Fix the board", null)).toContain("One line per item");
 	});
 
-	// Settings -> Sessions -> Default prompt replaces the standing ending.
+	// Settings -> Advanced -> Default prompt replaces the standing ending.
 	it("ends with your own instructions in place of the default", () => {
 		const prompt = buildPrompt(
 			"Fix the board",

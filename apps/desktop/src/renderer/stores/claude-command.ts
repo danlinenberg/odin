@@ -48,7 +48,7 @@ export const CLAUDE_MODELS = [
 export const CROW_DEFAULT_MODEL = "haiku";
 
 /**
- * Settings → Sessions: what Odin types instead of `claude` when it starts or
+ * Settings → Advanced: what Odin types instead of `claude` when it starts or
  * resumes a session. One machine can carry several Claude setups (a Bedrock
  * one, a personal account), and plain `claude` may resolve to the wrong one.
  */

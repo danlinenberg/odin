@@ -40,7 +40,7 @@ export const GUIDELINES_HEADER =
 	"Context and guidelines from me for this session - keep them in mind throughout:";
 
 /**
- * What every task prompt ends with. Settings -> Sessions can replace it
+ * What every task prompt ends with. Settings -> Advanced can replace it
  * (`useSessionInstructions`); this is what Reset goes back to.
  */
 export const DEFAULT_SESSION_INSTRUCTIONS = [
