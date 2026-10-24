@@ -198,6 +198,7 @@ import {
 import {
 	ChatView,
 	filedUnder,
+	hostDeps,
 	interruptClaude,
 	typeIntoClaude,
 } from "./ChatView";
@@ -208,6 +209,7 @@ import {
 } from "./catch-up";
 import { DiffView } from "./DiffView";
 import { escStaysWithTarget } from "./drawer-esc";
+import { deliverOnHost } from "./host-delivery";
 import { hostStartDelay } from "./host-start-gap";
 import { onIdleArrival, restoreAfterCompact } from "./idle-compact";
 import { menuTop } from "./menu-fit";
@@ -5279,7 +5281,30 @@ function DevBoardPage() {
 	// this board's chat box does - on the remote host too.
 	useEffect(() => {
 		setPhoneReply((paneId, text) => {
-			if (agentPaneIdsRef.current.has(paneId)) return "live";
+			if (agentPaneIdsRef.current.has(paneId)) {
+				if (!useTabsStore.getState().panes[paneId]?.odinRemote) return "live";
+				// Remote: as its chat box does, the reply waits while the pane
+				// reconnects to the host, then goes in once Claude is drawn.
+				let typed = false;
+				void deliverOnHost(
+					paneId,
+					{
+						type: async () => {
+							await typeIntoClaude(
+								(input) => electronTrpcClient.terminal.write.mutate(input),
+								paneId,
+								text,
+							);
+							typed = true;
+						},
+						arrived: () => typed,
+						waiting: () => undefined,
+						lost: () => undefined,
+					},
+					hostDeps(paneId),
+				).catch(() => undefined);
+				return "delivered";
+			}
 			const card = [...cardsRef.current.values()]
 				.flat()
 				.find((each) => each.pane.id === paneId);

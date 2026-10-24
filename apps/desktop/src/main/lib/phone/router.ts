@@ -407,7 +407,8 @@ export const phoneRouter = t.router({
 				paneId: input.paneId,
 				text: opening,
 			}).catch(() => null);
-			if (answer !== "resumed")
+			// "delivered": a remote session the board types into once the host is back.
+			if (answer !== "resumed" && answer !== "delivered")
 				await typeIntoClaude(input.paneId, text, sent.paths, input.now);
 			rememberFromPhone(input.paneId, input.text);
 		}),
