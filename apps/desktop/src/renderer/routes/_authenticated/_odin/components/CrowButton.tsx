@@ -294,13 +294,24 @@ function CrowPanel({
 					e.preventDefault();
 					void send(text);
 				}}
-				className="flex items-center gap-2 rounded-full bg-foreground/10 py-1 pl-3.5 pr-1"
+				className="flex items-end gap-2 rounded-[14px] bg-foreground/10 py-1 pl-3.5 pr-1"
 			>
-				<input
+				<textarea
 					// biome-ignore lint/a11y/noAutofocus: the panel only opens on an explicit click, and typing is the next step
 					autoFocus
+					rows={1}
 					value={text}
 					onChange={(e) => setText(e.target.value)}
+					onKeyDown={(e) => {
+						if (
+							e.key === "Enter" &&
+							!e.shiftKey &&
+							!e.nativeEvent.isComposing
+						) {
+							e.preventDefault();
+							e.currentTarget.form?.requestSubmit();
+						}
+					}}
 					onPaste={async (e) => {
 						const pasted = [...e.clipboardData.files].filter((file) =>
 							file.type.startsWith("image/"),
@@ -311,7 +322,8 @@ function CrowPanel({
 						setFiles((current) => [...current, ...read]);
 					}}
 					placeholder="Got a job for me?"
-					className="min-w-0 flex-1 bg-transparent text-[12.5px] text-foreground outline-none placeholder:text-muted-foreground"
+					// Grows with the text, Shift+Enter for a new line, like the chat's reply box.
+					className="max-h-40 min-w-0 flex-1 resize-none self-center bg-transparent py-0.5 text-[12.5px] text-foreground outline-none [field-sizing:content] placeholder:text-muted-foreground"
 				/>
 				<button
 					type="submit"
