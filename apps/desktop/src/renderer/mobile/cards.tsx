@@ -10,6 +10,7 @@ import {
 	LuGitPullRequest,
 	LuHash,
 	LuLaptop,
+	LuSquare,
 	LuStar,
 	LuTag,
 	LuTicket,
@@ -17,6 +18,7 @@ import {
 } from "react-icons/lu";
 import type { ActiveSession } from "shared/active-sessions";
 import type { PaneStatus } from "shared/tabs-types";
+import { SwipeAction, SwipeRow } from "./swipe-row";
 
 /** An older Odin on the Mac sends sessions without these. */
 type Session = Omit<ActiveSession, "starred" | "statusAt"> &
@@ -210,46 +212,99 @@ export function Chips({ details }: { details: Details }) {
 export function SessionCard({
 	session,
 	onStar,
+	onDone,
+	onStop,
 }: {
 	session: Session;
 	onStar: (starred: boolean) => void;
+	/** Swipe left: off the board, as its Done. */
+	onDone?: () => void;
+	/** Swipe left on a working session: stop its turn. */
+	onStop?: () => void;
 }) {
 	const column = session.column as PaneStatus;
 	const at = session.statusAt ?? null;
 	const justDone =
 		column === "review" && at !== null && Date.now() - at < JUST_DONE_MS;
 	return (
-		<div className="mx-3 my-1.5 flex rounded-[10px] border border-border bg-card">
-			<a
-				href={`#/s/${session.paneId}`}
-				className="min-w-0 flex-1 rounded-l-[10px] py-2.5 pl-3 active:bg-accent"
-			>
-				<div className="flex items-start gap-2 text-[15px] font-semibold leading-snug">
-					<span className="mt-[7px]">
-						<Dot status={column} />
-					</span>
-					<span className="line-clamp-2">{session.title}</span>
-				</div>
-				<div className="mt-1 flex items-center gap-2 pl-4 text-xs text-muted-foreground">
-					{justDone && (
-						<span className="shrink-0 rounded-full bg-success/20 px-2 py-0.5 text-[11px] font-semibold text-success-ink">
-							Just done
-						</span>
-					)}
-					<Chips details={session} />
-					{at !== null && <span className="ml-auto shrink-0">{ago(at)}</span>}
-				</div>
-			</a>
-			<button
-				type="button"
-				aria-label={session.starred ? "Unstar" : "Star"}
-				onClick={() => onStar(!session.starred)}
-				className={`flex w-11 shrink-0 items-center justify-center ${session.starred ? "text-attention" : "text-faint-foreground"}`}
-			>
-				<LuStar
-					className={`size-[18px] ${session.starred ? "fill-current" : ""}`}
+		<SwipeRow
+			className="mx-3 my-1.5 rounded-[10px]"
+			left={(close) => (
+				<SwipeAction
+					label={session.starred ? "Unstar" : "Star"}
+					icon={
+						<LuStar
+							className={`size-5 ${session.starred ? "" : "fill-current"}`}
+						/>
+					}
+					onClick={() => {
+						onStar(!session.starred);
+						close();
+					}}
+					className="bg-attention text-black"
 				/>
-			</button>
-		</div>
+			)}
+			right={(close) => (
+				<>
+					{onStop && column === "working" && (
+						<SwipeAction
+							label="Stop"
+							icon={<LuSquare className="size-4 fill-current" />}
+							onClick={() => {
+								onStop();
+								close();
+							}}
+							className="bg-secondary text-foreground"
+						/>
+					)}
+					{onDone && (
+						<SwipeAction
+							label="Done"
+							icon={<LuCheck className="size-5" />}
+							onClick={() => {
+								onDone();
+								close();
+							}}
+							className="bg-success text-black"
+						/>
+					)}
+				</>
+			)}
+		>
+			<div className="flex rounded-[10px] border border-border bg-card">
+				{/* Not draggable: a link drag cancels the row's swipe. */}
+				<a
+					href={`#/s/${session.paneId}`}
+					draggable={false}
+					className="min-w-0 flex-1 rounded-l-[10px] py-2.5 pl-3 [-webkit-touch-callout:none] [-webkit-user-drag:none] active:bg-accent"
+				>
+					<div className="flex items-start gap-2 text-[15px] font-semibold leading-snug">
+						<span className="mt-[7px]">
+							<Dot status={column} />
+						</span>
+						<span className="line-clamp-2">{session.title}</span>
+					</div>
+					<div className="mt-1 flex items-center gap-2 pl-4 text-xs text-muted-foreground">
+						{justDone && (
+							<span className="shrink-0 rounded-full bg-success/20 px-2 py-0.5 text-[11px] font-semibold text-success-ink">
+								Just done
+							</span>
+						)}
+						<Chips details={session} />
+						{at !== null && <span className="ml-auto shrink-0">{ago(at)}</span>}
+					</div>
+				</a>
+				<button
+					type="button"
+					aria-label={session.starred ? "Unstar" : "Star"}
+					onClick={() => onStar(!session.starred)}
+					className={`flex w-11 shrink-0 items-center justify-center ${session.starred ? "text-attention" : "text-faint-foreground"}`}
+				>
+					<LuStar
+						className={`size-[18px] ${session.starred ? "fill-current" : ""}`}
+					/>
+				</button>
+			</div>
+		</SwipeRow>
 	);
 }
