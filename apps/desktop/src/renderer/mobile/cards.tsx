@@ -165,20 +165,20 @@ export type Details = {
 };
 
 /**
- * What the desktop card shows beside its title: who it's for, the feed it
- * came from, the remote host it runs on, the repo and its tags.
+ * What the desktop card shows beside its title: where it runs (Remote or
+ * Local) first, then who it's for, the feed it came from, the repo and its tags.
  */
 export function Chips({ details }: { details: Details }) {
 	const source = details.source ? SOURCES[details.source] : undefined;
 	const chips = [
-		details.contact && { icon: LuUser, label: details.contact },
-		source,
-		// Where it runs; a remote one says whether it's connected to the host.
+		// Where it runs, first; a remote one says whether it's connected to the host.
 		details.remote
 			? details.connected === false
 				? { icon: BsCloudSlash, label: "Remote · offline", off: true }
 				: { icon: BsCloud, label: "Remote", on: details.connected === true }
 			: { icon: LuLaptop, label: "Local" },
+		details.contact && { icon: LuUser, label: details.contact },
+		source,
 		details.repo && { icon: LuFolderGit2, label: details.repo },
 		...(details.tags ?? []).map((tag) => ({ icon: LuTag, label: tag })),
 	].filter((chip): chip is Chip => !!chip);
