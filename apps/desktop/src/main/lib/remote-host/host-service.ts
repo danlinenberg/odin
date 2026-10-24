@@ -384,7 +384,9 @@ export function hostServiceInstallScript(user: string): string {
 		`  printf %s '${Buffer.from(HOST_SERVICE_PY).toString("base64")}' | base64 -d > /usr/local/lib/odin/host-service.py`,
 		"  if [ -f /etc/systemd/system/odin-host.service ]; then systemctl disable --now odin-host >/dev/null 2>&1; rm -f /etc/systemd/system/odin-host.service /var/lib/odin/tokens.json; fi",
 		`  printf '%s\\n' '[Unit]' 'Description=Odin host service for ${user}' 'After=network-online.target' '[Service]' 'User=odin' "ExecStart=/usr/bin/python3 /usr/local/lib/odin/host-service.py ${user} ${hostTokensFile(user)} ${hostPortSh(user)}" 'Restart=always' 'RestartSec=2' '[Install]' 'WantedBy=multi-user.target' > /etc/systemd/system/${unit}.service`,
-		`  systemctl daemon-reload && systemctl enable ${unit} >/dev/null 2>&1 && systemctl restart ${unit}`,
+		// Every user's service runs the one script: all of them restart onto a new one,
+		// or theirs would keep the old one - which, for one, sent no tunnel secret.
+		`  systemctl daemon-reload && systemctl enable ${unit} >/dev/null 2>&1 && systemctl restart ${unit} 'odin-host-*.service'`,
 		"fi",
 	].join("\n");
 }

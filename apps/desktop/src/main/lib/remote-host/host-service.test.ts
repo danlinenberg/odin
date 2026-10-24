@@ -297,6 +297,10 @@ test("setup gives each host user a service of their own, run by odin, which alon
 		"host-service.py odin-dan /var/lib/odin/odin-dan/tokens.json $((40000 + $(id -u odin-dan) % 10000 * 2))",
 	);
 	expect(script).toContain("/etc/systemd/system/odin-host-odin-dan.service");
+	// A new script reaches every user's service, not only the one installing it.
+	expect(script).toContain(
+		"systemctl restart odin-host-odin-dan 'odin-host-*.service'",
+	);
 	expect(() => hostServiceInstallScript("x; rm -rf /")).toThrow();
 });
 
