@@ -38,6 +38,8 @@ public class OdinSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
     /// dictation with many pauses keeps going.
     private var rounds = 0
     private var finished: ((String) -> Void)?
+    /// The iOS 26 recording (Transcription), while one runs.
+    private var modern: AnyObject?
 
     /// The Action Button's press (ToggleDictationIntent), handed to the screens,
     /// which start or stop the reply box's mic.
@@ -59,14 +61,44 @@ public class OdinSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
                     return call.reject("The microphone is off for Odin: Settings > Odin.")
                 }
                 DispatchQueue.main.async {
-                    do {
-                        try self.record(words: call.getArray("words", String.self) ?? [])
-                        call.resolve()
-                    } catch {
-                        call.reject(error.localizedDescription)
+                    let words = call.getArray("words", String.self) ?? []
+                    if #available(iOS 26.0, *) {
+                        Task { @MainActor in
+                            // iOS 26's long-form model, when it has the language;
+                            // else the older recognizer below.
+                            if let locale = await Transcription.locale() {
+                                do {
+                                    self.heard = ""
+                                    let recording = Transcription()
+                                    try await recording.start(
+                                        locale: locale,
+                                        hints: Array((words + Self.vocabulary).prefix(100))
+                                    ) { [weak self] text in
+                                        self?.heard = text
+                                        self?.notifyListeners("partial", data: ["text": text])
+                                    }
+                                    self.modern = recording
+                                    return call.resolve()
+                                } catch {
+                                    // Its model couldn't load: the older recognizer still can.
+                                }
+                            }
+                            self.startLegacy(call, words: words)
+                        }
+                        return
                     }
+                    self.startLegacy(call, words: words)
                 }
             }
+        }
+    }
+
+    private func startLegacy(_ call: CAPPluginCall, words: [String]) {
+        do {
+            try record(words: words)
+            call.resolve()
+        } catch {
+            call.reject(error.localizedDescription)
         }
     }
 
@@ -165,6 +197,15 @@ public class OdinSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func stop(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
+            if #available(iOS 26.0, *), let recording = self.modern as? Transcription {
+                self.modern = nil
+                Task { @MainActor in
+                    let text = await recording.stop()
+                    self.heard = text
+                    call.resolve(["text": text])
+                }
+                return
+            }
             guard self.engine.isRunning else { return call.resolve(["text": self.heard]) }
             self.finished = { text in call.resolve(["text": text]) }
             self.engine.stop()
@@ -173,6 +214,128 @@ public class OdinSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { self.finish() }
         }
+    }
+}
+
+/// One recording on iOS 26's SpeechAnalyzer: the long-form model Notes and
+/// Voice Memos use, on the phone, far closer than SFSpeechRecognizer on long
+/// dictation. It keeps going through pauses on its own; finished phrases add
+/// up, and the one still being heard is shown live after them.
+@available(iOS 26.0, *)
+@MainActor
+final class Transcription {
+    private let engine = AVAudioEngine()
+    private var analyzer: SpeechAnalyzer?
+    private var input: AsyncStream<AnalyzerInput>.Continuation?
+    private var reader: Task<Void, Never>?
+    private var done = ""
+    private var volatile = ""
+
+    var text: String { (done + volatile).trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    /// The phone's language, if the model has it.
+    static func locale() async -> Locale? {
+        guard SpeechTranscriber.isAvailable else { return nil }
+        return await SpeechTranscriber.supportedLocale(equivalentTo: .current)
+    }
+
+    func start(locale: Locale, hints: [String], onText: @escaping (String) -> Void) async throws {
+        let transcriber = SpeechTranscriber(
+            locale: locale,
+            transcriptionOptions: [],
+            reportingOptions: [.volatileResults],
+            attributeOptions: []
+        )
+        // The language's model, once per phone: a download the first time.
+        if let install = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
+            try await install.downloadAndInstall()
+        }
+        guard let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]) else {
+            throw NSError(domain: "OdinSpeech", code: 2, userInfo: [
+                NSLocalizedDescriptionKey: "Speech recognition can't use the microphone's audio.",
+            ])
+        }
+        let analyzer = SpeechAnalyzer(modules: [transcriber])
+        let context = AnalysisContext()
+        context.contextualStrings[.general] = hints
+        try? await analyzer.setContext(context)
+        let (stream, input) = AsyncStream<AnalyzerInput>.makeStream()
+        self.analyzer = analyzer
+        self.input = input
+        reader = Task { @MainActor [weak self] in
+            do {
+                for try await result in transcriber.results {
+                    guard let self else { return }
+                    let words = String(result.text.characters)
+                    if result.isFinal {
+                        self.done += words
+                        self.volatile = ""
+                    } else {
+                        self.volatile = words
+                    }
+                    onText(self.text)
+                }
+            } catch {}
+        }
+        try await analyzer.start(inputSequence: stream)
+
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.record, mode: .measurement, options: .duckOthers)
+        try session.setActive(true, options: .notifyOthersOnDeactivation)
+        let node = engine.inputNode
+        let micFormat = node.outputFormat(forBus: 0)
+        let converter = AVAudioConverter(from: micFormat, to: format)
+        node.removeTap(onBus: 0)
+        node.installTap(onBus: 0, bufferSize: 4096, format: micFormat, block: Self.feed(input, converter, format))
+        engine.prepare()
+        try engine.start()
+    }
+
+    /// The mic's buffers in the model's format, off the main thread.
+    private nonisolated static func feed(
+        _ input: AsyncStream<AnalyzerInput>.Continuation,
+        _ converter: AVAudioConverter?,
+        _ format: AVAudioFormat
+    ) -> AVAudioNodeTapBlock {
+        return { buffer, _ in
+            guard let converter else {
+                input.yield(AnalyzerInput(buffer: buffer))
+                return
+            }
+            let ratio = format.sampleRate / buffer.format.sampleRate
+            let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 1
+            guard let out = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity) else { return }
+            var fed = false
+            var error: NSError?
+            converter.convert(to: out, error: &error) { _, status in
+                if fed {
+                    status.pointee = .noDataNow
+                    return nil
+                }
+                fed = true
+                status.pointee = .haveData
+                return buffer
+            }
+            if error == nil, out.frameLength > 0 { input.yield(AnalyzerInput(buffer: out)) }
+        }
+    }
+
+    /// Stops the mic and waits for the last phrase - at most 2s, so a stuck
+    /// model can't hold the reply box.
+    func stop() async -> String {
+        engine.stop()
+        engine.inputNode.removeTap(onBus: 0)
+        input?.finish()
+        try? await analyzer?.finalizeAndFinishThroughEndOfInput()
+        let reader = self.reader
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await reader?.value }
+            group.addTask { try? await Task.sleep(nanoseconds: 2_000_000_000) }
+            await group.next()
+            group.cancelAll()
+        }
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        return text
     }
 }
 
