@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { type BriefUrgency, freshTldr, latestReply } from "shared/latest-reply";
 import {
@@ -7,6 +7,10 @@ import {
 	localCommand,
 	splitActionItems,
 } from "../routes/_authenticated/_odin/board/action-items";
+import {
+	collectRefs,
+	linkify,
+} from "../routes/_authenticated/_odin/board/chat-links";
 import { launchRequest } from "../routes/_authenticated/_odin/board/launch-request";
 import { ActionCard } from "./action-card";
 import { Markdown } from "./markdown";
@@ -309,6 +313,8 @@ export function Transcript({
 	brief,
 	send,
 	run,
+	dismissed,
+	onDismiss,
 }: {
 	messages: Message[];
 	/** The brief's TL;DR of the latest reply, and which reply it describes. */
@@ -316,7 +322,15 @@ export function Transcript({
 	send: (text: string) => void;
 	/** Runs one of the latest reply's `!` commands; none from an older Odin. */
 	run?: (command: string) => Promise<unknown>;
+	/** Action items you dismissed in this session. */
+	dismissed?: string[];
+	onDismiss?: (item: string) => void;
 }) {
+	// "#676" and "CRR-851" this session has a URL for link to it, as on the board.
+	const refs = useMemo(
+		() => collectRefs(messages.map((message) => message.text)),
+		[messages],
+	);
 	const [open, setOpen] = useState<Set<number>>(() => new Set());
 	const replyAt = messages.findLastIndex((m) => m.role === "assistant");
 	// Never a TL;DR of an older reply on a newer one: freshTldr checks which.
@@ -346,7 +360,7 @@ export function Transcript({
 				)}
 				{body && (
 					<div className="my-2 mr-6 rounded-2xl rounded-bl-md border border-border bg-card px-3 py-2 text-[15px] leading-snug text-soft-foreground">
-						<Markdown text={body} />
+						<Markdown text={linkify(body, refs)} />
 					</div>
 				)}
 				{body && (
@@ -358,7 +372,13 @@ export function Transcript({
 					<RunCard text={message.text} run={run} />
 				)}
 				{index === actionsAt && actions && (
-					<ActionCard actions={actions} send={send} />
+					<ActionCard
+						actions={linkify(actions, refs)}
+						body={body}
+						send={send}
+						dismissed={dismissed}
+						onDismiss={onDismiss}
+					/>
 				)}
 			</div>
 		);

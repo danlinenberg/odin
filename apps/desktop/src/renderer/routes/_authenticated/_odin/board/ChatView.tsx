@@ -85,6 +85,7 @@ import {
 	isApprovalItem,
 	isDoneItem,
 	isYouOnly,
+	itemDetail,
 	itemOptions,
 	itemReply,
 	localCommand,
@@ -1758,6 +1759,7 @@ function ReplyMark({ className }: { className?: string }) {
 }
 
 export {
+	itemDetail,
 	elapsedLabel,
 	tokenLabel,
 	toolDescription,
@@ -1807,60 +1809,6 @@ export function earlierCommandsText(
 		.slice(0, at)
 		.findLast((item) => item.kind === "text" && bangCommands(item.text).length);
 	return earlier?.kind === "text" ? earlier.text : undefined;
-}
-
-// Words every item uses; sharing one says nothing about which paragraph it means.
-const DETAIL_FILLER = new Set(
-	"tell what with whether also your this that them they then when have will should about from into once after before merge check open review approve decide choose pick confirm".split(
-		" ",
-	),
-);
-
-/** An item's or paragraph's telling words; a name with `.`, `-`, `_`, `/` or digits counts twice. */
-function detailWords(text: string): Map<string, number> {
-	const words = new Map<string, number>();
-	const prose = text
-		.toLowerCase()
-		.replace(/\]\([^)]*\)/g, "]")
-		.replace(/https?:\/\/\S+/g, " ");
-	for (const word of prose.match(
-		/[\p{L}\p{N}][\p{L}\p{N}._/-]*[\p{L}\p{N}]/gu,
-	) ?? []) {
-		const name = /[._/\d-]/.test(word);
-		if ((word.length >= 4 || /^\d{2,}$/.test(word)) && !DETAIL_FILLER.has(word))
-			words.set(word, name ? 2 : 1);
-	}
-	return words;
-}
-
-/**
- * The paragraph of the reply that explains an item - one that names it ("item
- * 3 below"), else the one sharing the most of its words, and at least one name
- * or two words. null when none does.
- */
-export function itemDetail(
-	item: string,
-	body: string,
-	number?: number,
-): string | null {
-	const blocks = body.split(/\n\s*\n/);
-	const named =
-		number !== undefined &&
-		blocks.find((block) => new RegExp(`\\bitem ${number}\\b`, "i").test(block));
-	if (named) return named.trim();
-	const words = detailWords(itemOptions(item).text);
-	let best: string | null = null;
-	let top = 1;
-	for (const block of blocks) {
-		let score = 0;
-		for (const [word, weight] of detailWords(block))
-			if (words.has(word)) score += weight;
-		if (score > top) {
-			best = block.trim();
-			top = score;
-		}
-	}
-	return best;
 }
 
 type DoItem = (

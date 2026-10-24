@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { LuCheck } from "react-icons/lu";
+import { LuCheck, LuX } from "react-icons/lu";
+import { isDismissed } from "shared/dismissed-match";
 import {
 	actionItemList,
 	isAnswerItem,
 	isApprovalItem,
 	isDoneItem,
 	isYouOnly,
+	itemDetail,
 	itemOptions,
 } from "../routes/_authenticated/_odin/board/action-items";
 import { Markdown } from "./markdown";
@@ -18,12 +20,24 @@ import { Markdown } from "./markdown";
  */
 export function ActionCard({
 	actions,
+	body,
 	send,
+	dismissed = [],
+	onDismiss,
 }: {
 	actions: string;
+	/** The reply above the items: a tap on an item shows its paragraph. */
+	body: string;
 	send: (text: string) => void;
+	/** Items you closed, here or on the board: hidden, as the board hides them. */
+	dismissed?: string[];
+	/** The X; none from an older Odin. */
+	onDismiss?: (item: string) => void;
 }) {
-	const items = actionItemList(actions);
+	// Numbered as Claude listed them, so "item 3" still means its third.
+	const items = actionItemList(actions)
+		.map((item, index) => ({ item, number: index + 1 }))
+		.filter(({ item }) => !isDismissed(dismissed, item));
 	if (items.length === 0) return null;
 	return (
 		<div className="my-2 rounded-xl border border-attention/35 bg-attention/[0.07] px-3 py-2.5">
@@ -31,13 +45,14 @@ export function ActionCard({
 				Action items
 			</div>
 			<ol className="space-y-2.5">
-				{items.map((item, index) => (
+				{items.map(({ item, number }) => (
 					<ActionRow
-						// biome-ignore lint/suspicious/noArrayIndexKey: the list is fixed for its reply
-						key={index}
+						key={number}
 						item={item}
-						number={index + 1}
+						number={number}
+						detail={itemDetail(item, body, number)}
 						send={send}
+						onDismiss={onDismiss && (() => onDismiss(item))}
 					/>
 				))}
 			</ol>
@@ -52,13 +67,19 @@ const BUTTON =
 function ActionRow({
 	item,
 	number,
+	detail,
 	send,
+	onDismiss,
 }: {
 	item: string;
 	number: number;
+	/** The reply's paragraph about this item, shown on a tap. */
+	detail: string | null;
 	send: (text: string) => void;
+	onDismiss?: () => void;
 }) {
 	const [sent, setSent] = useState(false);
+	const [why, setWhy] = useState(false);
 	const [typed, setTyped] = useState("");
 	const { text, options } = itemOptions(item);
 	const approve = isApprovalItem(item);
@@ -78,7 +99,32 @@ function ActionRow({
 				<div className="min-w-0 flex-1">
 					<Markdown text={text} />
 				</div>
+				{onDismiss && (
+					<button
+						type="button"
+						aria-label="Dismiss this item"
+						onClick={onDismiss}
+						className="-mr-1 flex size-8 shrink-0 items-center justify-center text-muted-foreground"
+					>
+						<LuX className="size-4" />
+					</button>
+				)}
 			</div>
+			{/* The paragraph of the reply this item comes from: the board's hover. */}
+			{detail && (
+				<button
+					type="button"
+					onClick={() => setWhy(!why)}
+					className="mt-0.5 ml-5 py-0.5 text-[13px] font-medium text-muted-foreground"
+				>
+					{why ? "Hide why" : "Why?"}
+				</button>
+			)}
+			{why && detail && (
+				<div className="mt-1 ml-5 border-l-2 border-attention/30 pl-2.5 text-[14px] text-muted-foreground">
+					<Markdown text={detail} />
+				</div>
+			)}
 			<div className="mt-1.5 flex flex-wrap gap-1.5 pl-5">
 				{sent ? (
 					<span className="flex items-center gap-1 text-sm text-muted-foreground">

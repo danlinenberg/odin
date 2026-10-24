@@ -15,6 +15,7 @@ import {
 	useClaudeCommand,
 } from "renderer/stores/claude-command";
 import { type CrowChat, useCrowChats } from "renderer/stores/crow-chats";
+import { useDismissedActions } from "renderer/stores/dismissed-actions";
 import { useDoneStore } from "renderer/stores/done";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
 import { useOneByOne } from "renderer/stores/one-by-one";
@@ -716,6 +717,23 @@ function runOdinAction(
 			return "No session with that paneId.";
 		void runInSessionShell(pane.id, workspaceId, args.command, "local");
 		return "ok";
+	}
+	// The phone's X on an action item: as the board's, it hides the item in
+	// later replies, and the next message tells Claude.
+	if (action === "dismiss-item") {
+		if (!args.paneId || !args.item) return "Need paneId and item.";
+		useDismissedActions.getState().dismiss(args.paneId, args.item);
+		return "ok";
+	}
+	// The items dismissed in a session; `take` also hands over the ones Claude
+	// hasn't been told about yet, for the phone's reply to carry.
+	if (action === "dismissed") {
+		const paneId = args.paneId ?? "";
+		const store = useDismissedActions.getState();
+		const items =
+			store.panes.find((pane) => pane.paneId === paneId)?.items ?? [];
+		const untold = args.take === "true" ? store.takeUntold(paneId) : [];
+		return JSON.stringify({ items, untold });
 	}
 	// The phone stopped a turn: as the board's Stop, the card leaves Working.
 	if (action === "interrupted") {

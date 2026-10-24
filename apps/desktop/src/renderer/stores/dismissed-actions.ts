@@ -1,4 +1,4 @@
-import { DISMISSED_HEAD } from "shared/user-text";
+import { isDismissed, withDismissalNote } from "shared/dismissed-match";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -55,35 +55,11 @@ export const useDismissedActions = create<{
 	),
 );
 
-const words = (item: string) =>
-	new Set(
-		item
-			.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // a link shows its words
-			.replace(/\[[^\]]*\|[^\]]*\]/g, " ") // the choices change between replies
-			.replace(/\(you only\)/gi, " ")
-			.toLowerCase()
-			.replace(/[^a-z0-9#/]+/g, " ")
-			.split(" ")
-			.filter(Boolean),
-	);
-
-/**
- * Whether `item` is one you dismissed, in the same or new words.
- */
-export function isDismissed(dismissed: string[], item: string): boolean {
-	const a = words(item);
-	return dismissed.some((other) => {
-		const b = words(other);
-		const shared = [...a].filter((word) => b.has(word)).length;
-		const all = new Set([...a, ...b]).size;
-		return all > 0 && shared / all >= 0.6;
-	});
-}
-
 /** `text` plus the items you dismissed since Claude was last told. */
 export function withDismissals(paneId: string, text: string): string {
 	const untold = useDismissedActions.getState().takeUntold(paneId);
 	if (!untold.length) return text;
-	const list = untold.map((item) => `- ${item}`).join("\n");
-	return `${text}\n\n${DISMISSED_HEAD}\n${list})`;
+	return withDismissalNote(text, untold);
 }
+
+export { isDismissed };
