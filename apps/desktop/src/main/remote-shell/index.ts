@@ -26,6 +26,7 @@ import {
 } from "../lib/remote-host/session";
 import {
 	awsClientConfig,
+	keyRefused,
 	openSsmStream,
 	pushOneTimeKey,
 } from "../lib/remote-host/ssm";
@@ -384,13 +385,28 @@ async function signInAgain(spec: RemoteSessionSpec): Promise<void> {
 	}
 }
 
+/** Set once the host refused an Instance Connect key: this pane's logins write theirs over SSM. */
+let keyOverSsm = false;
+
 async function login(
 	spec: RemoteSessionSpec,
 	target: Parameters<typeof openSsmStream>[0],
 ): Promise<Client> {
 	const key = utils.generateKeyPairSync("ed25519");
-	await pushOneTimeKey(target, spec.user, key.public);
+	// An Instance Connect key lasts 60s: pushed before a slow SSM session
+	// start, it ran out before the handshake, and every retry did the same
+	// ("All configured authentication methods failed"). So it goes once the
+	// stream is open; the SSM key lasts 3 minutes and goes first.
+	if (keyOverSsm)
+		await pushOneTimeKey(target, spec.user, key.public, { overSsm: true });
 	const sock = await openSsmStream(target);
+	if (!keyOverSsm)
+		await pushOneTimeKey(target, spec.user, key.public).catch(
+			(err: unknown) => {
+				sock.destroy();
+				throw err;
+			},
+		);
 	const client = new Client();
 	await new Promise<void>((resolve, reject) => {
 		// Not once: a handshake timeout emits an error, then the SSM socket's
@@ -419,6 +435,10 @@ async function connectOnce(
 	target: Parameters<typeof openSsmStream>[0],
 ): Promise<Client> {
 	return login(spec, target).catch(async (err: unknown) => {
+		if (keyRefused(err) && !keyOverSsm) {
+			keyOverSsm = true;
+			return login(spec, target);
+		}
 		if (!ssoExpired(err)) throw err;
 		await signInAgain(spec);
 		return login(spec, target);

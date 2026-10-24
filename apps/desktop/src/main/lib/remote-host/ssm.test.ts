@@ -1,7 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { pluginArgs, pluginBuild } from "./ssm";
+import { keyRefused, pluginArgs, pluginBuild } from "./ssm";
 
 describe("ssm", () => {
+	test("a host that took none of the offered keys reads as a refused key", () => {
+		expect(
+			keyRefused(new Error("All configured authentication methods failed")),
+		).toBe(true);
+		expect(keyRefused(new Error("Timed out while waiting for handshake"))).toBe(
+			false,
+		);
+	});
+
 	test("the plugin gets the session, region, profile and request the aws CLI gives it", () => {
 		const request = {
 			Target: "i-1",
