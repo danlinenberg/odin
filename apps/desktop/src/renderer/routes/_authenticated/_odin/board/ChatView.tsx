@@ -217,6 +217,19 @@ export function transcriptPath(home: string, cwd: string, sessionId: string) {
 	return `${home}/.claude/projects/${cwd.replace(/[^A-Za-z0-9]/g, "-")}/${sessionId}.jsonl`;
 }
 
+/**
+ * The transcript at `path` is filed under `cwd`'s folder: the conversation
+ * belongs to that folder here, as one moved from the remote host (Run here)
+ * is, though its lines still name the host's paths.
+ */
+export function filedUnder(
+	path: string,
+	cwd: string,
+	sessionId: string,
+): boolean {
+	return path.endsWith(transcriptPath("", cwd, sessionId));
+}
+
 /** What a user turn shows: no hook/system chatter, a slash command as itself. */
 export function userText(text: string): string | null {
 	const command = text.match(/<command-name>([^<]*)<\/command-name>/);

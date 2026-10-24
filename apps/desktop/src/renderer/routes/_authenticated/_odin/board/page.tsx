@@ -195,7 +195,12 @@ import {
 	sourceLink,
 	watchedPullRequests,
 } from "./brief";
-import { ChatView, interruptClaude, typeIntoClaude } from "./ChatView";
+import {
+	ChatView,
+	filedUnder,
+	interruptClaude,
+	typeIntoClaude,
+} from "./ChatView";
 import {
 	type CatchUpSuggestion,
 	catchUpOrder,
@@ -4971,8 +4976,14 @@ function DevBoardPage() {
 				// A host session's card that lost its host (an older Session
 				// History resume) ran `claude --resume` here, in a folder only the
 				// host has, and exited 1 on every click. Put it back on the host.
+				// Not one moved here (Run here): its copy is filed under this
+				// card's folder, while its lines still name the host's paths -
+				// read as lost, every move resumed on the host again.
+				const here = sessionCwd(card.pane);
 				const host =
-					transcript.local === false && !card.pane.odinRemote
+					transcript.local === false &&
+					!card.pane.odinRemote &&
+					!(here && filedUnder(transcript.path, here, sessionId))
 						? (await utils.client.remoteHost.get.query().catch(() => null))
 								?.host
 						: null;
