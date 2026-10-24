@@ -57,7 +57,7 @@ import { channelFetch, type OdinFetch } from "./odin-fetch";
 import { type Pairing, parsePairLink } from "./pair-link";
 import { MenuCard, PlanCard, QuestionCard } from "./prompt-cards";
 import { markStarted, useScreensUpdate } from "./screens-update";
-import { SearchBox, SearchResults, useSettled } from "./search";
+import { SearchBox, SearchResults, titleMatches, useSettled } from "./search";
 import { NEW_TASK_EVENT, SharePicker, useSharedFiles } from "./share";
 import {
 	boardWords,
@@ -381,12 +381,18 @@ function Home() {
 	const sessions = board.data?.sessions ?? [];
 	// Every session's conversation, searched on the Mac as the desktop's ⌘F does.
 	const [query, setQuery] = useState("");
-	const settled = useSettled(query.trim());
-	const searching = settled.length >= 2;
+	const typed = query.trim();
+	const settled = useSettled(typed);
+	const searching = typed.length >= 2;
 	const search = phone.search.useQuery(
 		{ query: settled },
-		{ enabled: searching, retry: false, staleTime: 30_000 },
+		{ enabled: settled.length >= 2, retry: false, staleTime: 30_000 },
 	);
+	// The Mac's answer once it's for what's typed; the board's titles till then.
+	const hits =
+		settled === typed && search.data
+			? search.data
+			: titleMatches(sessions, typed);
 	return (
 		<div className="min-h-dvh pb-24">
 			<header className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-2 backdrop-blur">
@@ -420,7 +426,10 @@ function Home() {
 				</div>
 			)}
 			{searching && (
-				<SearchResults hits={search.data} loading={search.isFetching} />
+				<SearchResults
+					hits={hits}
+					loading={settled !== typed || search.isFetching}
+				/>
 			)}
 			<ErrorLine
 				error={
