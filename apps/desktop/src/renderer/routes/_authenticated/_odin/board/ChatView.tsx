@@ -4009,9 +4009,20 @@ function Composer({
 	filesCwd?: string | null;
 }) {
 	const [draft, setDraft] = useState(() => draftFor(paneId));
+	// Saved once typing pauses, and on the way out: a save rewrites every
+	// draft to localStorage, too much to do on each keystroke.
+	const savedDraft = useRef(draft);
+	savedDraft.current = draft;
+	useEffect(() => {
+		const timer = setTimeout(
+			() => useChatDrafts.getState().save(paneId, draft),
+			400,
+		);
+		return () => clearTimeout(timer);
+	}, [paneId, draft]);
 	useEffect(
-		() => useChatDrafts.getState().save(paneId, draft),
-		[paneId, draft],
+		() => () => useChatDrafts.getState().save(paneId, savedDraft.current),
+		[paneId],
 	);
 	// "!" on an empty box switches to bash mode, like the terminal's prompt.
 	const [bash, setBash] = useState(false);
@@ -4140,14 +4151,6 @@ function Composer({
 		setSelected(0);
 	};
 	useEffect(() => inputRef.current?.focus(), []);
-	// Grow with the text, up to ~10 lines, like the desktop app's box.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: re-measure on every draft change
-	useEffect(() => {
-		const el = inputRef.current;
-		if (!el) return;
-		el.style.height = "auto";
-		el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
-	}, [draft]);
 	const send = async (now = false) => {
 		const body = draft.trim();
 		const sending = bash ? [] : attached;
@@ -4158,6 +4161,7 @@ function Composer({
 		setDraft("");
 		// Now, not via the effect: sending can remount this box (a resume, a
 		// menu), and the new one would read the sent text back as a draft.
+		savedDraft.current = "";
 		useChatDrafts.getState().save(paneId, "");
 		setBash(false);
 		if (!bash) setAttached([]);
@@ -4380,8 +4384,10 @@ function Composer({
 										? "Run a shell command"
 										: placeholder
 						}
+						// Grows with the text up to ~10 lines, sized by CSS: measuring
+						// it in JS forced a layout of the whole conversation per key.
 						className={cn(
-							"block max-h-[220px] w-full resize-none bg-transparent text-[13.5px] leading-relaxed text-foreground outline-none placeholder:text-faint-foreground",
+							"block max-h-[220px] w-full resize-none bg-transparent text-[13.5px] leading-relaxed text-foreground outline-none [field-sizing:content] placeholder:text-faint-foreground",
 							bash && "font-mono",
 						)}
 					/>
