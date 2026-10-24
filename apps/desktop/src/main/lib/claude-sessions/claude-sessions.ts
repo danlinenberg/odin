@@ -450,9 +450,14 @@ export async function searchSessions({
 	let scanned = 0;
 	const start = terms.length > 0 ? 0 : cursor;
 	let index = start;
+	// A session moved between machines has its log twice (the mirror and the
+	// moved copy): the newest one stands for it, as files run newest first.
+	const seen = new Set<string>();
 
 	for (; index < files.length; index++) {
 		const file = files[index];
+		if (seen.has(file.sessionId)) continue;
+		seen.add(file.sessionId);
 		// Browsing wants the newest `limit`; searching has to see everything it
 		// can before ranking, or the best hit may never be read.
 		if (terms.length === 0 && scored.length >= limit) break;
