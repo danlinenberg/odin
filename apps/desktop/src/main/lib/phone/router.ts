@@ -29,6 +29,7 @@ import {
 } from "renderer/routes/_authenticated/_odin/board/brief";
 import { parseScreenMenu } from "renderer/routes/_authenticated/_odin/board/screen-menu";
 import { boardSection } from "shared/board-section";
+import { withDismissalNote } from "shared/dismissed-match";
 import { interruptClaude } from "shared/interrupt-claude";
 import { boardTags } from "shared/odin-tags";
 import stripAnsi from "strip-ansi";
@@ -391,7 +392,14 @@ export const phoneRouter = t.router({
 				{ text: input.text.trim(), paths: input.paths },
 				(message) => filesToHost(message),
 			);
-			const text = sent.text;
+			// As a reply from the board: it carries the items you dismissed since.
+			const untold: string[] = await board("dismissed", {
+				paneId: input.paneId,
+				take: "true",
+			})
+				.then((answer) => JSON.parse(answer).untold ?? [])
+				.catch(() => []);
+			const text = withDismissalNote(sent.text, untold);
 			// Claude has exited that session: the board resumes it with the reply,
 			// files named on their own lines, as its chat box does.
 			const opening = [...sent.paths, text].filter(Boolean).join("\n");
@@ -403,6 +411,21 @@ export const phoneRouter = t.router({
 				await typeIntoClaude(input.paneId, text, sent.paths, input.now);
 			rememberFromPhone(input.paneId, input.text);
 		}),
+
+	/** The action items you dismissed in this session, as the board hides them. */
+	dismissed: t.procedure.input(paneInput).query(async ({ input }) => {
+		const answer = await board("dismissed", { paneId: input.paneId }).catch(
+			() => null,
+		);
+		return answer ? (JSON.parse(answer).items as string[]) : [];
+	}),
+
+	/** The board's X on an action item: hidden from now on, and Claude is told. */
+	dismiss: t.procedure
+		.input(paneInput.extend({ item: z.string().min(1).max(4_000) }))
+		.mutation(({ input }) =>
+			board("dismiss-item", { paneId: input.paneId, item: input.item }),
+		),
 
 	/** The board's Stop: Ctrl+C the turn, never at an idle prompt. */
 	interrupt: t.procedure.input(paneInput).mutation(async ({ input }) => {

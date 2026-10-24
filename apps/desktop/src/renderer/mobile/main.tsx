@@ -682,6 +682,16 @@ function Session({ paneId }: { paneId: string }) {
 	const key = phone.key.useMutation({ onSuccess: refetch });
 	const interrupt = phone.interrupt.useMutation({ onSuccess: refetch });
 	const runCommand = phone.run.useMutation({ onSuccess: refetch });
+	// The board's dismissals too: an item closed there is gone here.
+	const dismissed = phone.dismissed.useQuery(
+		{ paneId },
+		{ refetchInterval: 15_000, retry: false },
+	);
+	const dismiss = phone.dismiss.useMutation({
+		onMutate: ({ item }) =>
+			utils.dismissed.setData({ paneId }, (items) => [...(items ?? []), item]),
+		onSettled: () => void dismissed.refetch(),
+	});
 	const keys = phone.keys.useMutation({ onSuccess: refetch });
 	const sendKeys = (sequence: string[]) =>
 		keys.mutate({ paneId, keys: sequence });
@@ -911,6 +921,8 @@ function Session({ paneId }: { paneId: string }) {
 					}
 					send={sendText}
 					run={(command) => runCommand.mutateAsync({ paneId, command })}
+					dismissed={dismissed.data}
+					onDismiss={(item) => dismiss.mutate({ paneId, item })}
 				/>
 				{waiting.map((item) => (
 					<div
