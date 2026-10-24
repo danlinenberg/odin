@@ -646,16 +646,18 @@ function OdinShell() {
 					</ZoomStable>
 				))}
 				<div className="h-full min-w-0 flex-1 [-webkit-app-region:drag]" />
-				{/* The board's Sessions / Board view toggle portals in here: dead
-				    centre of the bar, apart from the status badges, and it never
-				    moves when the session drawer opens. no-drag: it sits over the
-				    drag filler. z-50: above the drawer's full-window backdrop
-				    (z-40), or a click closes the drawer. */}
-				<div className="absolute left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 [-webkit-app-region:no-drag]">
+				{/* The board's Sessions / Board view toggle portals in here: centred
+				    in the free space between two drag fillers, so a narrow window
+				    shrinks the fillers instead of sliding the toggle over the
+				    status badges. It never moves when the session drawer opens.
+				    z-50: above the drawer's full-window backdrop (z-40), or a click
+				    closes the drawer. */}
+				<div className="relative z-50 shrink-0">
 					<ZoomStable enabled={isMac}>
 						<div id="odin-view-toggle" />
 					</ZoomStable>
 				</div>
+				<div className="h-full min-w-0 flex-1 [-webkit-app-region:drag]" />
 				<ZoomStable enabled={isMac}>
 					<div className="flex items-center gap-1.5">
 						<ClaudeCommandPicker />
