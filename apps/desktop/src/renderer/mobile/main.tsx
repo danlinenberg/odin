@@ -362,6 +362,13 @@ function Home() {
 			utils.board.setData(undefined, context?.before);
 		},
 	});
+	// A card's swipe actions; the board reads again once Odin did them.
+	const doneCard = phone.done.useMutation({
+		onSuccess: () => void board.refetch(),
+	});
+	const stopCard = phone.interrupt.useMutation({
+		onSuccess: () => void board.refetch(),
+	});
 	const [adding, setAdding] = useState(false);
 	useEffect(() => {
 		const open = () => setAdding(true);
@@ -412,7 +419,7 @@ function Home() {
 			{searching && (
 				<SearchResults hits={search.data} loading={search.isFetching} />
 			)}
-			<ErrorLine error={search.error} />
+			<ErrorLine error={search.error ?? doneCard.error ?? stopCard.error} />
 			{(board.data && !searching ? boardSections(sessions) : []).map(
 				(section) => (
 					<section key={section.key}>
@@ -431,6 +438,8 @@ function Home() {
 								onStar={(starred) =>
 									star.mutate({ paneId: session.paneId, starred })
 								}
+								onDone={() => doneCard.mutate({ paneId: session.paneId })}
+								onStop={() => stopCard.mutate({ paneId: session.paneId })}
 							/>
 						))}
 					</section>
