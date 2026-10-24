@@ -143,12 +143,16 @@ async function unzip(
  * images have it). A sign-in AWS doesn't allow that for (its own IAM action,
  * which `ec2:*` doesn't cover) gets the key through SSM Run Command instead,
  * which `ssm:*` does - so nobody needs a new permission to use a host.
+ * `overSsm` goes straight to SSM, for a host that refused the Instance
+ * Connect key (keyRefused).
  */
 export async function pushOneTimeKey(
 	target: SsmTarget,
 	osUser: string,
 	publicKey: string,
+	{ overSsm = false }: { overSsm?: boolean } = {},
 ): Promise<void> {
+	if (overSsm) return pushKeyOverSsm(target, osUser, publicKey);
 	const client = new EC2InstanceConnectClient(awsClientConfig(target));
 	const result = await client
 		.send(
@@ -169,6 +173,14 @@ export async function pushOneTimeKey(
 			`AWS did not accept the login key for ${target.instanceId}.`,
 		);
 }
+
+/**
+ * ssh2's error when the host took none of the keys offered. An Instance
+ * Connect key that ran out (it lasts 60s) or that the host could not look up
+ * reads like this; the key written over SSM lasts longer and needs no lookup.
+ */
+export const keyRefused = (err: unknown) =>
+	/All configured authentication methods failed/i.test(String(err));
 
 /** The key's line lasts this long: one handshake, with room for a slow SSM. */
 const KEY_LIFETIME_MS = 3 * 60_000;

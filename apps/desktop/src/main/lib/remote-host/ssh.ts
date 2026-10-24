@@ -1,5 +1,5 @@
 import { Client, utils } from "ssh2";
-import { openSsmStream, pushOneTimeKey } from "./ssm";
+import { keyRefused, openSsmStream, pushOneTimeKey } from "./ssm";
 
 export interface HostLogin {
 	instanceId: string;
@@ -26,6 +26,7 @@ export async function connectHost(host: HostLogin): Promise<Client> {
 		try {
 			return await connectOnce(host);
 		} catch (err) {
+			if (keyRefused(err)) return await connectOnce(host, { overSsm: true });
 			const level = (err as { level?: string }).level;
 			const handshake = level === "client-timeout" || level === "client-socket";
 			if (!handshake || attempt === 3) throw err;
@@ -34,15 +35,28 @@ export async function connectHost(host: HostLogin): Promise<Client> {
 	}
 }
 
-async function connectOnce(host: HostLogin): Promise<Client> {
+async function connectOnce(
+	host: HostLogin,
+	{ overSsm = false }: { overSsm?: boolean } = {},
+): Promise<Client> {
 	const target = {
 		instanceId: host.instanceId,
 		profile: host.profile,
 		region: host.region,
 	};
 	const key = utils.generateKeyPairSync("ed25519");
-	await pushOneTimeKey(target, host.user, key.public);
+	// An Instance Connect key lasts 60s, so it goes once the stream is open;
+	// the SSM one lasts 3 minutes and goes first.
+	if (overSsm)
+		await pushOneTimeKey(target, host.user, key.public, { overSsm: true });
 	const sock = await openSsmStream(target);
+	if (!overSsm)
+		await pushOneTimeKey(target, host.user, key.public).catch(
+			(err: unknown) => {
+				sock.destroy();
+				throw err;
+			},
+		);
 	const client = new Client();
 	await new Promise<void>((resolve, reject) => {
 		// Not once: a handshake timeout emits an error, then the SSM socket's
