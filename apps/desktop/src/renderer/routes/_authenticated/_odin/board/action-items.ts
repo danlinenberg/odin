@@ -34,6 +34,13 @@ export function isApprovalItem(item: string): boolean {
 /** The numbered or bulleted lines of an ACTION ITEMS block; [] for "none". */
 export const actionItemList = actionItemLines;
 
+/** An ACTION ITEMS block that says nothing is left ("none - shipped"). */
+export function noActionItems(actions: string): boolean {
+	return (
+		/^[\W\d]*none\b/i.test(actions) && actionItemList(actions).length === 0
+	);
+}
+
 /**
  * An item that asks you to tell Claude something - a choice, a value, a
  * preference. It gets a reply box instead of a bare "Do it".
