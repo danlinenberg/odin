@@ -208,18 +208,20 @@ them down for smaller iPhones. Files in
 
 1. `01-board.png` - the board: Needs you, Working, Final review, Idle, Backlog
 2. `02-session.png` - a session as a chat, with its TL;DR and action items
-3. `03-brief.png` - the brief: goal, progress, next step, PRs with CI, Jira, Slack
+3. `03-brief.png` - the brief panel: goal, progress, next step, PRs with CI, Jira, Slack
 4. `04-new-task.png` - a new task with repository and priority
 5. `05-pair.png` - pairing in four steps, and "Try the demo"
 
 The data is fake-odin's sample sessions (`apps/mobile/scripts/fake-odin.ts`).
-Regenerate with `bun run screenshots` in `apps/mobile` (about 3 minutes; it
-shuts down other booted simulators), and again after any change to the phone
-screens: a screenshot has to show the app as it is (Guideline 2.3.3).
+Regenerate with `bun run screenshots` in `apps/mobile` (about 30 seconds) after
+any change to the phone screens: a screenshot has to show the app as it is
+(Guideline 2.3.3). It needs no simulator: headless Google Chrome renders the
+phone screens at the 6.9-inch size with the phone's safe areas, so the top
+holds an empty status bar area.
 
 The files must have no alpha channel. App Store Connect refuses a PNG that
-has one, even when every pixel is opaque, and `xcrun simctl io screenshot`
-always writes one. `bun run screenshots` strips it at the end
+has one, even when every pixel is opaque. `bun run screenshots` strips it at
+the end
 (`scripts/strip-alpha.py`, standard library Python). After making a
 screenshot any other way, run `python3 scripts/strip-alpha.py
 store/screenshots/iphone-6.9/*.png` in `apps/mobile`; `sips -g hasAlpha
