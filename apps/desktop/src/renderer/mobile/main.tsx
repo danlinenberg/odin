@@ -464,7 +464,7 @@ function Home() {
 				type="button"
 				aria-label="New task"
 				onClick={() => setAdding(true)}
-				className="fixed right-5 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg"
+				className="fixed right-5 flex size-14 items-center justify-center rounded-full bg-(--brand) text-primary-foreground shadow-lg"
 				style={{ bottom: "calc(env(safe-area-inset-bottom) + 20px)" }}
 			>
 				<LuPlus className="size-7" />
@@ -592,7 +592,7 @@ function NewTask({ onClose }: { onClose: () => void }) {
 					type="button"
 					disabled={!ready}
 					onClick={() => void save(true)}
-					className="h-10 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-40"
+					className="h-10 rounded-full bg-(--brand) px-4 text-sm font-semibold text-primary-foreground disabled:opacity-40"
 				>
 					Start now
 				</button>
@@ -937,13 +937,13 @@ function Session({ paneId }: { paneId: string }) {
 					}
 					send={sendText}
 					run={(command) => runCommand.mutateAsync({ paneId, command })}
-					dismissed={dismissed.data}
+					dismissed={dismissed.data ?? []}
 					onDismiss={(item) => dismiss.mutate({ paneId, item })}
 				/>
 				{waiting.map((item) => (
 					<div
 						key={item.at}
-						className="my-2 ml-10 select-text whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-primary/70 px-3 py-2 text-[15px] leading-snug text-primary-foreground"
+						className="my-2 ml-10 select-text whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-(--brand)/70 px-3 py-2 text-[15px] leading-snug text-primary-foreground"
 					>
 						<Thumbnails images={item.previews} />
 						{item.text}
@@ -1005,7 +1005,7 @@ function Session({ paneId }: { paneId: string }) {
 							onClick={() => key.mutate({ paneId, key: k })}
 							className={
 								k === "1"
-									? "h-9 min-w-11 rounded-full bg-primary px-3 text-sm font-semibold text-primary-foreground"
+									? "h-9 min-w-11 rounded-full bg-(--brand) px-3 text-sm font-semibold text-primary-foreground"
 									: "h-9 min-w-11 rounded-full border border-border bg-secondary px-3 text-sm font-semibold"
 							}
 						>
@@ -1147,7 +1147,7 @@ function ScreensUpdate() {
 			<button
 				type="button"
 				onClick={() => location.reload()}
-				className="pointer-events-auto rounded-full bg-primary px-4 py-1.5 text-[13px] font-semibold text-primary-foreground shadow-lg"
+				className="pointer-events-auto rounded-full bg-(--brand) px-4 py-1.5 text-[13px] font-semibold text-primary-foreground shadow-lg"
 			>
 				Odin updated the app - tap to reload
 			</button>

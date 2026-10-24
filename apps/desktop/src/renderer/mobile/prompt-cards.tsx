@@ -23,7 +23,7 @@ const CARD =
 const LABEL =
 	"mb-2 text-[11px] font-semibold uppercase tracking-wide text-attention";
 const PRIMARY =
-	"h-9 rounded-lg bg-primary px-3.5 text-sm font-semibold text-primary-foreground disabled:opacity-50";
+	"h-9 rounded-lg bg-(--brand) px-3.5 text-sm font-semibold text-primary-foreground disabled:opacity-50";
 const SECONDARY =
 	"h-9 rounded-lg border border-border bg-secondary px-3.5 text-sm font-semibold disabled:opacity-50";
 const INPUT =
