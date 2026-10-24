@@ -3881,7 +3881,7 @@ export async function typeIntoClaude(
 }
 
 /** The live pane `deliverOnHost` reads and waits on. */
-function hostDeps(paneId: string): HostDeps {
+export function hostDeps(paneId: string): HostDeps {
 	return {
 		readScreen: () =>
 			electronTrpcClient.terminal.readScreen
