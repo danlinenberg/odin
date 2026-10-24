@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Odin</title>
-<meta name="description" content="Odin runs many coding agents in parallel on your own machine, next to the work that drives them. One queue, one board, and a ping when an agent needs you.">
-<meta property="og:title" content="Odin: parallelize agents at the speed of thought">
-<meta property="og:description" content="One queue across Slack, Jira, GitHub, Notion, Email and ClickUp, a board over live agent state, and a ping when an agent needs you.">
+<meta name="description" content="Odin runs many coding agents in parallel, on your Mac or a cloud host, next to the work that drives them. One queue, one board, and a ping when an agent needs you.">
+<meta property="og:title" content="Odin: parallelize agents, like a god">
+<meta property="og:description" content="One queue across Slack, Jira, GitHub, Notion, Email, Calendar and ClickUp, a board over live agent state, and a ping when an agent needs you.">
 <meta property="og:image" content="https://danlinenberg.github.io/odin/icon.png">
 <link rel="icon" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -33,8 +33,8 @@
 	<main>
 		<div class="hero">
 			<a class="pill" href="#phone"><b>New</b>Odin for iPhone, end to end encrypted</a>
-			<h1>Parallelize agents<br><span class="dim">at the speed of thought.</span></h1>
-			<p class="lede">Running six agents at once is easy now. Keeping track of six is not. Odin keeps your agents next to the work that drives them, and tells you when one needs you.</p>
+			<h1>Parallelize agents,<br><span class="dim">like a god.</span></h1>
+			<p class="lede">Running a dozen agents at once is easy now. Seeing all of them is not. Odin keeps every agent next to the work that drives them, on your Mac or a cloud host, and tells you the moment one needs you.</p>
 			<div class="ctas">
 				<a class="btn primary" href="https://github.com/danlinenberg/odin/releases/latest/download/Odin-arm64.dmg">
 					<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.37 12.6c-.02-2.3 1.88-3.4 1.96-3.46-1.07-1.56-2.73-1.77-3.32-1.8-1.41-.14-2.76.84-3.47.84-.72 0-1.82-.82-3-.8-1.54.02-2.96.9-3.76 2.27-1.6 2.78-.41 6.9 1.15 9.15.76 1.1 1.67 2.34 2.86 2.3 1.15-.05 1.58-.74 2.97-.74 1.38 0 1.77.74 2.98.72 1.23-.02 2.01-1.12 2.77-2.23.87-1.28 1.23-2.52 1.25-2.58-.03-.01-2.4-.92-2.42-3.66ZM14.1 5.84c.63-.77 1.06-1.83.94-2.89-.91.04-2.01.6-2.66 1.37-.58.67-1.09 1.75-.96 2.79 1.02.08 2.05-.52 2.68-1.27Z"/></svg>
@@ -84,7 +84,7 @@
 				</div>
 			</div>
 			<div class="sources" aria-label="Sources">
-				<span>Slack</span><span>Jira</span><span>GitHub</span><span>Notion</span><span>Email</span><span>ClickUp</span><span>Your own tasks</span>
+				<span>Slack</span><span>Jira</span><span>GitHub</span><span>Notion</span><span>Email</span><span>Calendar</span><span>ClickUp</span><span>Your own tasks</span>
 			</div>
 			<figure class="window session-shot">
 				<div class="chrome"><i></i><i></i><i></i><span>Odin · Fix flaky upload test</span></div>
@@ -101,12 +101,22 @@
 				<div>
 					<i data-lucide="inbox" aria-hidden="true"></i>
 					<h3>One queue</h3>
-					<p>Slack, Jira, GitHub, Notion, Email, ClickUp and your own tasks in one list. Badges count what waits on you, not every row.</p>
+					<p>Slack, Jira, GitHub, Notion, Email, Calendar, ClickUp and your own tasks in one list. Badges count what waits on you, not every row.</p>
 				</div>
 				<div>
 					<i data-lucide="kanban" aria-hidden="true"></i>
 					<h3>A board by agent state</h3>
 					<p>Working, Needs you, Final review, Idle. Cards move by what the agent is doing, read from its own hooks.</p>
+				</div>
+				<div>
+					<i data-lucide="message-square" aria-hidden="true"></i>
+					<h3>Chat view</h3>
+					<p>Each session reads as a conversation: replies folded to a TL;DR, its steps while it works, screenshots and files in, the reply read aloud.</p>
+				</div>
+				<div>
+					<i data-lucide="cloud" aria-hidden="true"></i>
+					<h3>Remote host</h3>
+					<p>When the laptop is full, run sessions on an EC2 host in your own account. Set up over SSM, no open port. Run here brings one back.</p>
 				</div>
 				<div>
 					<i data-lucide="bell-ring" aria-hidden="true"></i>
@@ -126,17 +136,37 @@
 				<div>
 					<i data-lucide="bird" aria-hidden="true"></i>
 					<h3>Huginn</h3>
-					<p>Odin's raven. Ask in plain words for anything Odin can do, and he does it. No hunting for the right screen.</p>
+					<p>Odin's raven. Ask in plain words for anything Odin can do, and he does it. He writes standing rules for your agents too.</p>
+				</div>
+				<div>
+					<i data-lucide="pen-line" aria-hidden="true"></i>
+					<h3>Drafts in your voice</h3>
+					<p>Odin learns how you write from your own Slack messages, so the replies agents draft for you sound like you.</p>
+				</div>
+				<div>
+					<i data-lucide="git-compare" aria-hidden="true"></i>
+					<h3>Diff review</h3>
+					<p>A session's changes since main, PR or not. Comment on lines, send them to the agent, tick files as reviewed.</p>
 				</div>
 				<div>
 					<i data-lucide="moon" aria-hidden="true"></i>
 					<h3>Night Agent</h3>
-					<p>Queue tonight's work. It runs in parallel while the computer stays awake, and waits for review in the morning.</p>
+					<p>Queue tonight's work. It runs in parallel overnight, on the Mac or the host, and waits for review in the morning.</p>
 				</div>
 				<div>
 					<i data-lucide="history" aria-hidden="true"></i>
 					<h3>Session History</h3>
 					<p>Search every agent conversation on the machine by what was said in it. Read it, resume it.</p>
+				</div>
+				<div>
+					<i data-lucide="search" aria-hidden="true"></i>
+					<h3>Search all</h3>
+					<p>⌘K finds any row, board card or past conversation, through a typo, with its actions one key away.</p>
+				</div>
+				<div>
+					<i data-lucide="alarm-clock" aria-hidden="true"></i>
+					<h3>Reminders</h3>
+					<p>Bring back a row, a thread or a note of your own on the day you pick. Snooze it if today is not the day.</p>
 				</div>
 				<div>
 					<i data-lucide="activity" aria-hidden="true"></i>
@@ -203,7 +233,8 @@
 					<p>Pair once by scanning a QR code on your Mac. Then answer an agent from the train, or start a task from a meeting, on Wi-Fi or mobile data.</p>
 					<ul class="points">
 						<li><b>The whole board</b><span>Every column, with stars and briefs.</span></li>
-						<li><b>Reply in the chat</b><span>Type, dictate, or attach photos.</span></li>
+						<li><b>Reply in the chat</b><span>Type, dictate with the Action Button, or attach photos.</span></li>
+						<li><b>Action items</b><span>Approve, run or dismiss, and swipe a card for its actions.</span></li>
 						<li><b>New tasks</b><span>Pick the repo and start an agent.</span></li>
 						<li><b>Every profile</b><span>Work and personal, one tap apart.</span></li>
 					</ul>
@@ -223,8 +254,8 @@
 			<div class="grid three">
 				<div>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-					<h3>Runs on your machine</h3>
-					<p>Your queue, sessions and briefs stay in your home folder. Released builds send no analytics and no crash reports.</p>
+					<h3>Runs on hardware you own</h3>
+					<p>Your queue, sessions and briefs stay in your home folder, and a remote host lives in your own cloud account. Released builds send no analytics and no crash reports.</p>
 				</div>
 				<div>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 17 6-6-6-6M12 19h8"/></svg>
