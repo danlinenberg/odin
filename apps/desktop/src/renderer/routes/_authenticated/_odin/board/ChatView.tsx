@@ -4015,8 +4015,9 @@ function Composer({
 	);
 	// "!" on an empty box switches to bash mode, like the terminal's prompt.
 	const [bash, setBash] = useState(false);
+	// A pasted screenshot shows at once; its path comes when its save lands.
 	const [attached, setAttached] = useState<
-		{ preview: Preview; path: string }[]
+		{ preview: Preview; path: Promise<string> }[]
 	>([]);
 	const attach = (files: File[]) => {
 		const media = files.filter(
@@ -4032,29 +4033,37 @@ function Composer({
 			setAttached((list) => [
 				...list,
 				...others.map(({ name, path }) => ({
-					path,
+					path: Promise.resolve(path),
 					preview: { url: path, name, file: true as const },
 				})),
 			]);
 			inputRef.current?.focus();
 		}
 		if (media.length === 0) return others.length > 0;
-		void attachmentPaths(media).then(
+		// Saving a screenshot (read, sent to the main process, written) takes
+		// a while for a big one: the preview doesn't wait for it.
+		const saving = attachmentPaths(media);
+		const items = media.map((file, index): (typeof attached)[number] => ({
+			path: saving.then(
+				(paths) => paths[index] ?? "",
+				() => "",
+			),
+			preview: file.type.startsWith("video/")
+				? { url: URL.createObjectURL(file), video: true as const }
+				: URL.createObjectURL(file),
+		}));
+		setAttached((list) => [...list, ...items]);
+		inputRef.current?.focus();
+		saving.then(
 			(paths) => {
 				if (useTabsStore.getState().panes[paneId]?.odinRemote)
 					for (const path of paths)
 						if (path) void copyToHost(path).catch(() => undefined);
-				setAttached((list) => [
-					...list,
-					...media.map((file, index) => ({
-						path: paths[index] ?? "",
-						preview: file.type.startsWith("video/")
-							? { url: URL.createObjectURL(file), video: true as const }
-							: URL.createObjectURL(file),
-					})),
-				]);
 			},
-			(error) => toast.error(String(error)),
+			(error) => {
+				setAttached((list) => list.filter((item) => !items.includes(item)));
+				toast.error(String(error));
+			},
 		);
 		return true;
 	};
@@ -4146,13 +4155,13 @@ function Composer({
 		// Not in bash mode: the note would run as part of the command.
 		const text = bash ? `!${body}` : withDismissals(paneId, body);
 		if (bash) sentAsBash.add(body);
-		const paths = sending.map((item) => item.path);
 		setDraft("");
 		// Now, not via the effect: sending can remount this box (a resume, a
 		// menu), and the new one would read the sent text back as a draft.
 		useChatDrafts.getState().save(paneId, "");
 		setBash(false);
 		if (!bash) setAttached([]);
+		const paths = await Promise.all(sending.map((item) => item.path));
 		// A session on the remote host can't read this computer's files:
 		// they go there first, and it gets the copies' paths.
 		const onHost =
@@ -4257,7 +4266,9 @@ function Composer({
 					<PreviewStrip
 						previews={attached.map((item) => item.preview)}
 						onRemove={(index) => {
-							hostCopies.delete(attached[index]?.path ?? "");
+							void attached[index]?.path.then((path) =>
+								hostCopies.delete(path),
+							);
 							setAttached((list) => list.filter((_, i) => i !== index));
 						}}
 						className="mb-2"
