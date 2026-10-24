@@ -8,7 +8,7 @@
 export const DISMISSED_HEAD =
 	"(I dismissed these action items - do not list them again:";
 
-const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** Claude Code files a long message as pasted text, between these tags. */
 const PASTED =
@@ -16,7 +16,7 @@ const PASTED =
 
 /** Odin's note at the end of a message, through its closing parenthesis. */
 const DISMISSED = new RegExp(
-	`\\s*${escape(DISMISSED_HEAD)}\\n[\\s\\S]*?\\)\\s*$`,
+	`\\s*${escapeRegExp(DISMISSED_HEAD)}\\n[\\s\\S]*?\\)\\s*$`,
 );
 
 /** Claude Code's marker for a turn you stopped: an event, not a message. */
