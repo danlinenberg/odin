@@ -92,61 +92,37 @@ function Time({
 /**
  * What your bubble shows: of a launch prompt (task + standing rules + reply
  * format), just the request you typed, as on the board; the whole prompt
- * once you ask for Odin's part. `long` clamps it to a few lines.
+ * once you ask for Odin's part.
  */
 export function userBubbleText(
 	text: string,
 	{ full, images }: { full: boolean; images: boolean },
-): { shown: string; folds: boolean; long: boolean } {
+): { shown: string; folds: boolean } {
 	const request = launchRequest(text);
 	const raw = request === null || full ? text : request;
 	const shown = images ? raw.replace(/\[Image #\d+\]\s*/g, "").trim() : raw;
-	return {
-		shown,
-		folds: request !== null,
-		long: shown.length > 400 || shown.split("\n").length > 6,
-	};
+	return { shown, folds: request !== null };
 }
 
-/** Your message: a launch prompt folds to your request; a long one clamps. */
+/** Your message, whole: a launch prompt folds to your request. */
 function UserBubble({ message }: { message: Message }) {
 	const [full, setFull] = useState(false);
-	const [open, setOpen] = useState(false);
-	const { shown, folds, long } = userBubbleText(message.text, {
+	const { shown, folds } = userBubbleText(message.text, {
 		full,
 		images: !!message.images,
 	});
-	const clamped = long && !open;
 	return (
 		<div className="my-2 ml-10 select-text break-words rounded-2xl rounded-br-md bg-primary px-3 py-2 text-[15px] leading-snug text-primary-foreground">
 			<Thumbnails images={message.images} />
-			<div className={`whitespace-pre-wrap ${clamped ? "line-clamp-6" : ""}`}>
-				{shown}
-			</div>
-			{(long || folds) && (
-				<div className="mt-1 flex flex-wrap gap-x-4 text-[13px] font-medium text-primary-foreground/80">
-					{long && (
-						<button
-							type="button"
-							onClick={() => setOpen(!open)}
-							className="py-1 underline underline-offset-2"
-						>
-							{open ? "Show less" : "Show more"}
-						</button>
-					)}
-					{folds && (
-						<button
-							type="button"
-							onClick={() => {
-								setFull(!full);
-								setOpen(false);
-							}}
-							className="py-1 underline underline-offset-2"
-						>
-							{full ? "Hide Odin's prompt" : "Show Odin's prompt"}
-						</button>
-					)}
-				</div>
+			<div className="whitespace-pre-wrap">{shown}</div>
+			{folds && (
+				<button
+					type="button"
+					onClick={() => setFull(!full)}
+					className="mt-1 py-1 text-[13px] font-medium text-primary-foreground/80 underline underline-offset-2"
+				>
+					{full ? "Hide Odin's prompt" : "Show Odin's prompt"}
+				</button>
 			)}
 			<Time at={message.at} className="mt-1 text-right opacity-70" />
 		</div>
@@ -303,15 +279,10 @@ export type ReplyBrief =
 	| null
 	| undefined;
 
-/**
- * The latest reply's TL;DR, marked Needs you or FYI as the brief judged it:
- * the top strip of that reply's own card, so it reads as its summary.
- */
-function TldrStrip({ tldr }: { tldr: string }) {
-	// One quiet look: the header already says Needs you, and the action
-	// items below carry the color.
+/** The latest reply's TL;DR, right above its action items. */
+function TldrCard({ tldr }: { tldr: string }) {
 	return (
-		<div className="bg-secondary/60 px-3 py-2">
+		<div className="my-2 mr-6 rounded-2xl border border-border bg-secondary/60 px-3 py-2 text-[15px] leading-snug">
 			<div className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-faint-foreground">
 				TL;DR
 			</div>
@@ -323,10 +294,8 @@ function TldrStrip({ tldr }: { tldr: string }) {
 }
 
 /**
- * The TL;DR that leads the latest reply: only one too long to read whole,
- * which folds under it. A short reply is its own summary, and a strip over it
- * said the same thing twice. The board's chat does the same, by the reply's
- * height on screen.
+ * The latest reply's TL;DR: only for one too long to read at a glance. A
+ * short reply is its own summary, and a TL;DR under it said the same twice.
  */
 export function leadingTldr<T extends { long: boolean }>(
 	tldr: T | null,
@@ -349,7 +318,6 @@ export function Transcript({
 	run?: (command: string) => Promise<unknown>;
 }) {
 	const [open, setOpen] = useState<Set<number>>(() => new Set());
-	const [fullReply, setFullReply] = useState(false);
 	const replyAt = messages.findLastIndex((m) => m.role === "assistant");
 	// Never a TL;DR of an older reply on a newer one: freshTldr checks which.
 	const tldr = freshTldr(latestReply(messages), brief);
@@ -369,53 +337,23 @@ export function Transcript({
 			return <UserBubble key={index} message={message} />;
 		const { body, actions } = splitActionItems(message.text);
 		const latest = index === replyAt ? leadingTldr(tldr) : null;
-		// The board's chat: a long latest reply folds under its TL;DR.
-		const folded = !!latest && !fullReply;
 		return (
 			<div key={index}>
-				{(body || latest) && (
+				{body && (
 					<div className="mt-3 -mb-1 ml-1 text-[11px] font-semibold uppercase tracking-wide text-faint-foreground">
 						Odin
 					</div>
 				)}
-				{(body || latest) && (
-					<div
-						className={`my-2 mr-6 overflow-hidden rounded-2xl rounded-bl-md border bg-card text-[15px] leading-snug text-soft-foreground border-border`}
-					>
-						{latest && <TldrStrip tldr={latest.last} />}
-						{body && (
-							<div
-								className={`px-3 py-2 ${latest ? "border-t border-border" : ""}`}
-							>
-								{latest && (
-									<div className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-faint-foreground">
-										Full reply
-									</div>
-								)}
-								<div className={folded ? "line-clamp-5" : undefined}>
-									<Markdown text={body} />
-								</div>
-								{latest && (
-									<button
-										type="button"
-										onClick={() => setFullReply((shown) => !shown)}
-										className="mt-1 flex items-center gap-1 text-[13px] font-medium text-primary"
-									>
-										{fullReply ? (
-											<LuChevronDown className="size-4" />
-										) : (
-											<LuChevronRight className="size-4" />
-										)}
-										{fullReply ? "Show less" : "Show full reply"}
-									</button>
-								)}
-							</div>
-						)}
+				{body && (
+					<div className="my-2 mr-6 rounded-2xl rounded-bl-md border border-border bg-card px-3 py-2 text-[15px] leading-snug text-soft-foreground">
+						<Markdown text={body} />
 					</div>
 				)}
-				{(body || latest) && (
+				{body && (
 					<Time at={message.at} className="-mt-1 ml-1 text-faint-foreground" />
 				)}
+				{/* The summary sits right above what it asks of you, as on the board. */}
+				{latest && <TldrCard tldr={latest.last} />}
 				{index === commandsAt && run && (
 					<RunCard text={message.text} run={run} />
 				)}
