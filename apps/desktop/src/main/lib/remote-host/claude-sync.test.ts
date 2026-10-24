@@ -20,7 +20,13 @@ import {
  * with a line on stderr for the command `fail`. And a client signed in to it.
  */
 async function sshHost() {
-	const key = utils.generateKeyPairSync("ed25519");
+	// ssh2 now and then can't parse an ed25519 key it just generated ("Malformed
+	// OpenSSH private key"), which failed unrelated PRs' CI. Take the first one
+	// it reads back.
+	let key = utils.generateKeyPairSync("ed25519");
+	while (utils.parseKey(key.private) instanceof Error) {
+		key = utils.generateKeyPairSync("ed25519");
+	}
 	const received: number[] = [];
 	const server = new Server({ hostKeys: [key.private] }, (connection) => {
 		connection.on("authentication", (context) => context.accept());
