@@ -33,8 +33,9 @@ public class OdinSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
     private var part = ""
     private var hints: [String] = []
     private var recognizer: SFSpeechRecognizer?
-    /// Recognitions started in this recording: a cap, so one that fails at
-    /// once can't spin.
+    /// Recognitions in a row that heard nothing: a cap, so one that fails at
+    /// once can't spin. A round that hears words resets it, so a long
+    /// dictation with many pauses keeps going.
     private var rounds = 0
     private var finished: ((String) -> Void)?
 
@@ -123,6 +124,7 @@ public class OdinSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
             DispatchQueue.main.async {
                 if let result {
                     let part = result.bestTranscription.formattedString
+                    if !part.isEmpty { self.rounds = 0 }
                     // After a pause, iOS can start the text over in the same
                     // recognition: keep what came before it.
                     if Self.startedOver(part, after: self.part) {
@@ -144,9 +146,12 @@ public class OdinSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    /// A new text that doesn't continue the last one: shorter, and not how it began.
+    /// A new text that doesn't continue the last one: shorter, and either not
+    /// how it began or less than half as long. A revision drops a word or two;
+    /// a restart that happens to open with the same word ("I") drops the rest.
     static func startedOver(_ text: String, after last: String) -> Bool {
         guard !text.isEmpty, text.count < last.count else { return false }
+        if last.count >= 12 && text.count * 2 < last.count { return true }
         let head = { (s: String) in String(s.lowercased().prefix(6)) }
         return !last.lowercased().hasPrefix(head(text))
     }
