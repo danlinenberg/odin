@@ -207,9 +207,10 @@ export function answer(
 }
 
 /**
- * One request in tRPC's batch wire format, superjson-wrapped
- * (`{ "0": { json: input } }`), answered from the samples. `/upload` keeps
- * nothing and answers a made-up path.
+ * One tRPC request, superjson-wrapped, answered from the samples: a batch
+ * (`?batch=1`, `{ "0": { json: input } }`, answered with a list) or a single
+ * call (`{ json: input }`, answered with one result), which the slow queries
+ * and every mutation use. `/upload` keeps nothing and answers a made-up path.
  */
 export function demoAnswer(
 	path: string,
@@ -222,16 +223,18 @@ export function demoAnswer(
 			path: `/demo/attachments/${Date.now()}.${new URLSearchParams(query).get("ext")}`,
 		});
 	if (!path.startsWith("/trpc/")) return new Response("demo", { status: 404 });
-	const raw = new URLSearchParams(query).get("input") ?? body;
-	const batch = (raw ? JSON.parse(raw) : {}) as Record<string, unknown>;
+	const params = new URLSearchParams(query);
+	const raw = params.get("input") ?? body;
+	const parsed = (raw ? JSON.parse(raw) : {}) as Record<string, unknown>;
+	const one = (procedure: string, wrapped: unknown) => {
+		const input = (wrapped as { json?: Record<string, string> })?.json;
+		log?.(procedure, input ? JSON.stringify(input) : "");
+		return { result: { data: { json: answer(procedure, input) } } };
+	};
+	const procedures = path.slice("/trpc/".length);
+	if (params.get("batch") !== "1")
+		return Response.json(one(procedures, parsed));
 	return Response.json(
-		path
-			.slice("/trpc/".length)
-			.split(",")
-			.map((procedure, i) => {
-				const input = (batch[i] as { json?: Record<string, string> })?.json;
-				log?.(procedure, input ? JSON.stringify(input) : "");
-				return { result: { data: { json: answer(procedure, input) } } };
-			}),
+		procedures.split(",").map((procedure, i) => one(procedure, parsed[i])),
 	);
 }
