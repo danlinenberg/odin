@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
 	BUILT_IN_COMMANDS,
+	completeTaskSkill,
 	enterPicks,
 	insertSkill,
 	matchSkills,
 	skillToken,
+	taskSkillToken,
 } from "./skill-picker";
 
 const SKILLS = [
@@ -69,4 +71,31 @@ test("/compact is Claude's command, not a skill that mentions compacting", () =>
 	expect(first?.name).toBe("compact");
 	expect(enterPicks("compact", "compact")).toBe(true);
 	expect(enterPicks("recall", "compact")).toBe(false);
+});
+
+describe("taskSkillToken", () => {
+	test("opens on a slash token heading the title", () => {
+		expect(taskSkillToken("/")).toBe("");
+		expect(taskSkillToken("/odin-")).toBe("odin-");
+		expect(taskSkillToken("!!! /imagen-core:da")).toBe("imagen-core:da");
+		expect(taskSkillToken("/gd\nthe brief")).toBe("gd");
+	});
+
+	test("stays closed once the title moves on, or for a slash mid-title", () => {
+		expect(taskSkillToken("")).toBeUndefined();
+		expect(taskSkillToken("/gdpr audit")).toBeUndefined();
+		expect(taskSkillToken("check the /gd")).toBeUndefined();
+		expect(taskSkillToken("title\n/gd")).toBeUndefined();
+	});
+});
+
+describe("completeTaskSkill", () => {
+	test("swaps the token for the skill and leaves room for the title", () => {
+		expect(completeTaskSkill("/odin-", "odin-release-announcement")).toBe(
+			"/odin-release-announcement ",
+		);
+		expect(completeTaskSkill("!! /gd\nthe brief", "gdpr")).toBe(
+			"!! /gdpr \nthe brief",
+		);
+	});
 });
