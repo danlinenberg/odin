@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs";
+import {
+	copyFileSync,
+	mkdirSync,
+	mkdtempSync,
+	utimesSync,
+	writeFileSync,
+} from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { PR_RULES_HEADER } from "shared/odin-rules";
@@ -292,6 +298,19 @@ describe("summarizeTranscript", () => {
 });
 
 describe("searchSessions", () => {
+	test("a session on disk twice (a move between machines) lists once", async () => {
+		const root = fixtureRoot();
+		const id = "aaaa1111-2222-3333-4444-555566667777";
+		const moved = join(root, "-Users-dan-dev-odin");
+		mkdirSync(moved);
+		copyFileSync(
+			join(root, "-Users-dan-dev-private-odin", `${id}.jsonl`),
+			join(moved, `${id}.jsonl`),
+		);
+		const { sessions } = await searchSessions({ root, query: "hotkey" });
+		expect(sessions.filter((s) => s.sessionId === id)).toHaveLength(1);
+	});
+
 	test("browsing lists every top-level session, newest first, never subagents", async () => {
 		const root = fixtureRoot();
 		const { sessions, total, terms } = await searchSessions({ root });

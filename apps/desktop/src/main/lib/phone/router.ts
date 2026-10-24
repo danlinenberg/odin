@@ -440,9 +440,14 @@ export const phoneRouter = t.router({
 			const { sessionPeople } = await import(
 				"lib/trpc/routers/terminal/session-people"
 			);
+			const panes = Object.values(appState.data.tabsState.panes ?? {});
 			const titles: Record<string, string> = {};
 			for (const [id, brief] of await cachedBriefs())
 				if (brief.title) titles[id] = brief.title;
+			// The name its card has on the board: what you'd type to find it.
+			for (const pane of panes)
+				if (pane.claudeSessionId && pane.odinTaskTitle)
+					titles[pane.claudeSessionId] = pane.odinTaskTitle;
 			Object.assign(titles, cardTitles());
 			const { sessions } = await searchSessions({
 				query: input.query,
@@ -450,7 +455,6 @@ export const phoneRouter = t.router({
 				people: sessionPeople(),
 				titles,
 			});
-			const panes = Object.values(appState.data.tabsState.panes ?? {});
 			return sessions.map((session) => ({
 				sessionId: session.sessionId,
 				paneId:
