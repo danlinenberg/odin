@@ -179,6 +179,7 @@ function forward(loopbackPort: number, token: string) {
 	return async (request: ChannelRequest): Promise<ChannelResponse> => {
 		if (!/^\/(trpc\/|upload\?)/.test(request.path)) return status(404);
 		const method = request.method.toUpperCase();
+		const asked = Date.now();
 		const response = await fetch(
 			`http://127.0.0.1:${loopbackPort}${request.path}`,
 			{
@@ -196,12 +197,17 @@ function forward(loopbackPort: number, token: string) {
 						: request.body.slice(),
 			},
 		);
+		const body = new Uint8Array(await response.arrayBuffer());
+		// A slow answer on the Mac's side, to tell it from a slow channel.
+		const took = Date.now() - asked;
+		if (took > 1_000)
+			console.log(`[phone] ${request.path.split("?")[0]} took ${took}ms`);
 		return {
 			status: response.status,
 			headers: {
 				"content-type": response.headers.get("content-type") ?? "",
 			},
-			body: new Uint8Array(await response.arrayBuffer()),
+			body,
 		};
 	};
 }

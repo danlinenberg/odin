@@ -15,6 +15,41 @@ export type SearchHit = {
 	status?: PaneStatus | null;
 };
 
+/**
+ * The board's own sessions whose title, contact or repo has every typed word:
+ * shown at each keystroke, with no round trip, until the Mac's search (every
+ * session's conversation) answers for what's typed.
+ */
+export function titleMatches(
+	sessions: {
+		paneId: string;
+		title: string;
+		contact?: string | null;
+		repo?: string | null;
+		statusAt?: number | null;
+		column: PaneStatus;
+	}[],
+	query: string,
+): SearchHit[] {
+	const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+	return sessions
+		.filter((session) => {
+			const text =
+				`${session.title} ${session.contact ?? ""} ${session.repo ?? ""}`.toLowerCase();
+			return words.every((word) => text.includes(word));
+		})
+		.map((session) => ({
+			sessionId: session.paneId,
+			paneId: session.paneId,
+			title: session.title,
+			snippet: "",
+			person: session.contact ?? null,
+			updatedAt: session.statusAt ?? 0,
+			status: session.column,
+		}))
+		.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
 /** The typed query, once typing pauses: every keystroke would rescan the logs. */
 export function useSettled(value: string, ms = 350): string {
 	const [settled, setSettled] = useState(value);
@@ -66,7 +101,7 @@ export function SearchResults({
 	hits: SearchHit[] | undefined;
 	loading: boolean;
 }) {
-	if (loading && !hits)
+	if (loading && !hits?.length)
 		return (
 			<div className="flex items-center gap-2 px-4 py-6 text-sm text-muted-foreground">
 				<LuLoaderCircle className="size-4 animate-spin" />
@@ -93,9 +128,11 @@ export function SearchResults({
 							<span className="line-clamp-2 min-w-0 flex-1 text-[15px] font-medium">
 								{hit.title}
 							</span>
-							<span className="shrink-0 text-[12px] text-faint-foreground">
-								{ago(hit.updatedAt)}
-							</span>
+							{hit.updatedAt > 0 && (
+								<span className="shrink-0 text-[12px] text-faint-foreground">
+									{ago(hit.updatedAt)}
+								</span>
+							)}
 						</div>
 						{hit.snippet && (
 							<div className="mt-0.5 line-clamp-2 text-[13px] text-muted-foreground">
@@ -126,6 +163,12 @@ export function SearchResults({
 					</li>
 				);
 			})}
+			{loading && (
+				<li className="flex items-center gap-2 px-4 py-3 text-[13px] text-muted-foreground">
+					<LuLoaderCircle className="size-3.5 animate-spin" />
+					Searching every conversation
+				</li>
+			)}
 		</ul>
 	);
 }
