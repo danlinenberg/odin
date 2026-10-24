@@ -8,7 +8,8 @@
 export const DISMISSED_HEAD =
 	"(I dismissed these action items - do not list them again:";
 
-const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRegExp = (text: string) =>
+	text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** Claude Code files a long message as pasted text, between these tags. */
 const PASTED =
