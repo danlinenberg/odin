@@ -48,7 +48,8 @@ const EMPTY: Record<PaneStatus, string> = {
 
 /**
  * The board's sections: every column - Needs you, Working, Final Review,
- * Idle - empty or not, with starred sessions at the top of their own column.
+ * Idle - empty or not, with starred sessions at the top of their own column
+ * and the rest by last activity, newest first.
  */
 export function boardSections(sessions: Session[]) {
 	return ORDER.map((column) => ({
@@ -56,8 +57,11 @@ export function boardSections(sessions: Session[]) {
 		label: STATUS[column].label,
 		rows: sessions
 			.filter((s) => s.column === column)
-			// Stable: within starred and unstarred, the Mac's order stays.
-			.sort((a, b) => Number(!!b.starred) - Number(!!a.starred)),
+			.sort(
+				(a, b) =>
+					Number(!!b.starred) - Number(!!a.starred) ||
+					(b.statusAt ?? 0) - (a.statusAt ?? 0),
+			),
 		empty: EMPTY[column],
 	}));
 }
