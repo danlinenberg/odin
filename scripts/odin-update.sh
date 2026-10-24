@@ -104,6 +104,19 @@ fi
 xattr -dr com.apple.quarantine /Applications/Odin.app >/dev/null 2>&1 || true
 touch /Applications/Odin.app
 
+# usernoted snapshots an app's icon the first time it sees the bundle ID and
+# never re-reads it, and NotificationCenter keeps its own in-memory copy, so
+# banners kept the first-ever Odin icon through every icon change since. When
+# the icon moved, re-register the bundle and bounce both (launchd restarts
+# them), the same as patch-dev-protocol.ts does for the dev bundle.
+ICNS="Contents/Resources/icon.icns"
+if [[ ! -f "$STALE/$ICNS" ]] || ! cmp -s "$STALE/$ICNS" "/Applications/Odin.app/$ICNS"; then
+  log "app icon changed - refreshing the notification icon cache"
+  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+    -f /Applications/Odin.app >/dev/null 2>&1 || true
+  killall usernoted NotificationCenter >/dev/null 2>&1 || true
+fi
+
 log "relaunching…"
 open -a /Applications/Odin.app
 log "=== done ==="
