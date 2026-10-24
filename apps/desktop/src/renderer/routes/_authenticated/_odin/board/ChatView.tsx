@@ -2738,6 +2738,9 @@ const ItemView = memo(function ItemView({
 	// The card stays in the tree while it collapses away: its Run buttons move
 	// out from under it only once it is gone.
 	const card = useLeave(showsActions);
+	const remote = useTabsStore(
+		(state) => !!state.panes[paneId ?? ""]?.odinRemote,
+	);
 	if (item.kind === "tool") return <ToolRow item={item} />;
 	if (item.kind === "compact") return <CompactRow item={item} />;
 	if (item.kind === "user" && item.shell)
@@ -2752,8 +2755,12 @@ const ItemView = memo(function ItemView({
 				at={item.at}
 			/>
 		);
-	const commands = onRun ? bangCommands(item.text) : [];
-	const earlier = onRun && earlierText ? bangCommands(earlierText) : [];
+	// `!local` is for a session on the remote host: in one running here, its
+	// Run on my computer is the same computer, and only adds a button.
+	const runnable = (text: string) =>
+		bangCommands(text).filter((command) => remote || !localCommand(command));
+	const commands = onRun ? runnable(item.text) : [];
+	const earlier = onRun && earlierText ? runnable(earlierText) : [];
 	const notes = onRun
 		? {
 				...(earlierText ? bangCommandNotes(earlierText) : {}),
