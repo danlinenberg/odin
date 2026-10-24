@@ -4,7 +4,7 @@
 <h1 align="center">Odin</h1>
 
 <p align="center">
-  <b>Parallelize agents, like a god.</b>
+  <b>Command every agent. See them all, like a god.</b>
   <br><sub><b>O</b>rchestrator for <b>D</b>elegating <b>I</b>nbound <b>N</b>oise</sub>
 </p>
 
