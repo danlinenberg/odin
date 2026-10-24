@@ -53,12 +53,12 @@ const firstName = () => {
 	return user && user[0].toUpperCase() + user.slice(1);
 };
 
-/** The raven's models: New Session's, less "Default model" - his own default is Haiku. */
+/** The raven's models: New Session's, less "Default model" - his own default is Opus. */
 const CROW_MODELS = CLAUDE_MODELS.filter((option) => option.value);
 
 /**
- * Which Claude the raven runs on. Haiku is quick and cheap; a bigger one
- * for a question it gets wrong. Kept for later chats; useCrow moves the
+ * Which Claude the raven runs on. Opus by default; Haiku is quicker and
+ * cheaper for a simple question. Kept for later chats; useCrow moves the
  * spare and an open conversation over.
  */
 function CrowModelPicker() {
@@ -68,7 +68,7 @@ function CrowModelPicker() {
 	return (
 		<select
 			aria-label="Model"
-			title="The model the raven runs on. Haiku is quick and cheap; pick a bigger one for a hard question. Kept for later chats, and an open chat continues on it."
+			title="The model the raven runs on. Opus by default; Haiku is quicker and cheaper for a simple question. Kept for later chats, and an open chat continues on it."
 			value={known ? model : CROW_DEFAULT_MODEL}
 			onChange={(event) => setModel(event.target.value)}
 			className="h-6 shrink-0 cursor-pointer rounded-md bg-foreground/10 pl-1.5 pr-1 text-[11.5px] text-muted-foreground outline-none [color-scheme:inherit] hover:text-foreground"

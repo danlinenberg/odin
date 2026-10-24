@@ -2,20 +2,20 @@ import { expect, test } from "bun:test";
 import { useClaudeCommand } from "renderer/stores/claude-command";
 import { crowCli } from "./useCrow";
 
-test("crowCli: the raven runs on the picked model, Haiku by default", () => {
+test("crowCli: the raven runs on the picked model, Opus by default", () => {
 	useClaudeCommand.setState({ commands: [], active: "" });
-	expect(useClaudeCommand.getInitialState().crowModel).toBe("haiku");
-	expect(crowCli()).toStartWith(
-		"claude --dangerously-skip-permissions --model haiku --disallowedTools ",
-	);
-	useClaudeCommand.setState({ crowModel: "opus" });
+	expect(useClaudeCommand.getInitialState().crowModel).toBe("opus");
 	expect(crowCli()).toStartWith(
 		"claude --dangerously-skip-permissions --model opus --disallowedTools ",
 	);
-	// Only a known alias reaches the shell; anything else is Haiku again.
-	useClaudeCommand.setState({ crowModel: "opus; rm -rf ~" });
+	useClaudeCommand.setState({ crowModel: "haiku" });
 	expect(crowCli()).toStartWith(
 		"claude --dangerously-skip-permissions --model haiku --disallowedTools ",
 	);
-	useClaudeCommand.setState({ crowModel: "haiku" });
+	// Only a known alias reaches the shell; anything else is Opus again.
+	useClaudeCommand.setState({ crowModel: "haiku; rm -rf ~" });
+	expect(crowCli()).toStartWith(
+		"claude --dangerously-skip-permissions --model opus --disallowedTools ",
+	);
+	useClaudeCommand.setState({ crowModel: "opus" });
 });

@@ -26,11 +26,11 @@ test("modelFlag", () => {
 	expect(modelFlag("opus; rm -rf ~")).toBe("");
 });
 
-test("crowModelFlag: the pick, Haiku for none or one it doesn't know", () => {
-	expect(useClaudeCommand.getInitialState().crowModel).toBe("haiku");
-	expect(crowModelFlag("opus")).toBe(" --model opus");
-	expect(crowModelFlag("")).toBe(" --model haiku");
-	expect(crowModelFlag("opus; rm -rf ~")).toBe(" --model haiku");
+test("crowModelFlag: the pick, Opus for none or one it doesn't know", () => {
+	expect(useClaudeCommand.getInitialState().crowModel).toBe("opus");
+	expect(crowModelFlag("haiku")).toBe(" --model haiku");
+	expect(crowModelFlag("")).toBe(" --model opus");
+	expect(crowModelFlag("haiku; rm -rf ~")).toBe(" --model opus");
 });
 
 test("remoteControlFlag: always named [Odin] <task>", () => {
