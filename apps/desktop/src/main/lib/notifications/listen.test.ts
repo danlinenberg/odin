@@ -10,9 +10,14 @@ import path from "node:path";
 process.env.ODIN_HOME_DIR = fs.mkdtempSync(
 	path.join(os.tmpdir(), "odin-test-"),
 );
-const { getNotificationsPort, listenForHooks, PORT_FILE } = await import(
-	"./listen"
-);
+const {
+	getNotificationsPort,
+	listenForHooks,
+	listenForTunnel,
+	PORT_FILE,
+	TUNNEL_PORT_FILE,
+	tunnelSecretMatches,
+} = await import("./listen");
 
 function occupy(): Promise<http.Server> {
 	return new Promise((resolve) => {
@@ -54,5 +59,41 @@ describe("listenForHooks", () => {
 			handle.close();
 			squatter.close();
 		}
+	});
+});
+
+describe("listenForTunnel", () => {
+	it("answers only requests that carry the host user's secret", async () => {
+		const handle = listenForTunnel(
+			(_req, res) => res.end("odin"),
+			() => "s3cret",
+		);
+		try {
+			let port = "";
+			for (let i = 0; i < 40 && !port; i++) {
+				port = fs.existsSync(TUNNEL_PORT_FILE)
+					? fs.readFileSync(TUNNEL_PORT_FILE, "utf8")
+					: "";
+				if (!port) await Bun.sleep(25);
+			}
+			const url = `http://127.0.0.1:${port}/health`;
+			// Another user on the host, straight at the tunnel's port: refused.
+			expect((await fetch(url)).status).toBe(403);
+			expect(
+				(await fetch(url, { headers: { "X-Odin-Tunnel": "guess" } })).status,
+			).toBe(403);
+			const ok = await fetch(url, { headers: { "X-Odin-Tunnel": "s3cret" } });
+			expect(ok.status).toBe(200);
+			expect(await ok.text()).toBe("odin");
+		} finally {
+			handle.close();
+		}
+	});
+
+	it("never matches an empty secret", () => {
+		expect(tunnelSecretMatches("", "")).toBe(false);
+		expect(tunnelSecretMatches(undefined, "x")).toBe(false);
+		expect(tunnelSecretMatches(["x"], "x")).toBe(false);
+		expect(tunnelSecretMatches("x", "x")).toBe(true);
 	});
 });

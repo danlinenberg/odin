@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
@@ -90,4 +91,57 @@ export function listenForHooks(
 
 	bind(preferredPort);
 	return { close: () => current?.close() };
+}
+
+/** Where the pane helper reads the tunnel listener's port (remote-shell). */
+export const TUNNEL_PORT_FILE = path.join(ODIN_HOME_DIR, "tunnel-port");
+
+/** The header a remote host's service sends on every request through the tunnel. */
+export const TUNNEL_HEADER = "x-odin-tunnel";
+
+/** Whether `given` is the tunnel secret, in constant time. */
+export function tunnelSecretMatches(
+	given: string | string[] | undefined,
+	secret: string,
+): boolean {
+	if (typeof given !== "string" || !secret) return false;
+	const a = Buffer.from(given);
+	const b = Buffer.from(secret);
+	return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+/**
+ * The listener a remote host's tunnel reaches this computer's Odin through.
+ * Same routes as the hook server, but only for requests carrying the tunnel
+ * secret: on a shared host the tunnel's port is open to every user there, and
+ * only this user's own host service (which answers their Linux user alone)
+ * holds the secret. Anyone else gets 403, so they can't use this computer's
+ * Odin - its Shell, its connectors - through it.
+ */
+export function listenForTunnel(
+	requestHandler: http.RequestListener,
+	secret: () => string,
+): { close: () => void } {
+	const server = http.createServer((req, res) => {
+		if (!tunnelSecretMatches(req.headers[TUNNEL_HEADER], secret())) {
+			res.writeHead(403, { "Content-Type": "text/plain" });
+			res.end("Not this host user's Odin.\n");
+			return;
+		}
+		requestHandler(req, res);
+	});
+	server.once("error", (error) =>
+		console.error("[notifications] Tunnel listener failed to bind:", error),
+	);
+	server.listen(0, "127.0.0.1", () => {
+		const address = server.address() as AddressInfo | null;
+		if (!address) return;
+		try {
+			fs.mkdirSync(ODIN_HOME_DIR, { recursive: true });
+			fs.writeFileSync(TUNNEL_PORT_FILE, String(address.port));
+		} catch (error) {
+			console.error("[notifications] Could not write tunnel port file:", error);
+		}
+	});
+	return { close: () => server.close() };
 }

@@ -134,6 +134,33 @@ describe.skipIf(!live)("Odin's host service", () => {
 		expect(asleep.status).toBe(503);
 	});
 
+	test("passes requests on to the laptop with the user's tunnel secret", async () => {
+		const tokensFile = join(dir, "tokens.json");
+		const before = readFileSync(tokensFile, "utf8");
+		writeFileSync(
+			tokensFile,
+			JSON.stringify({ ...JSON.parse(before), tunnel: "s3cret" }),
+		);
+		const seen: (string | null)[] = [];
+		// The laptop's end of the tunnel, on the port the service passes to.
+		const laptop = Bun.serve({
+			port: PORT + 1,
+			hostname: "127.0.0.1",
+			fetch: (req) => {
+				seen.push(req.headers.get("x-odin-tunnel"));
+				return new Response("board");
+			},
+		});
+		try {
+			const res = await post({ action: "sessions" });
+			expect(await res.text()).toBe("board");
+			expect(seen).toEqual(["s3cret"]);
+		} finally {
+			laptop.stop(true);
+			writeFileSync(tokensFile, before);
+		}
+	});
+
 	test("a session's GitHub token: the host's own sign-in while it has time left", async () => {
 		writeFileSync(
 			pairFile("dan-work"),

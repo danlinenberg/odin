@@ -14,8 +14,10 @@
  *   host's own sign-in for the account, refreshed here before it expires or
  *   when GitHub refuses it, else the laptop's latest copy.
  * - Everything else (board actions, hooks, file reads) goes on to Odin on the
- *   laptop through the session helper's tunnel, and says plainly when the
- *   laptop is asleep.
+ *   laptop through the session helper's tunnel, with the user's tunnel secret:
+ *   the tunnel's port is open to every user on the host, and Odin on the
+ *   laptop answers only requests that carry it. Says plainly when the laptop
+ *   is asleep.
  *
  * One per host user: each Odin user has a Linux user of their own on the
  * host, and their own service, port and tokens. The service runs as the
@@ -76,6 +78,8 @@ export interface HostTokensFile {
 	githubAccounts?: Record<string, string>;
 	/** Sessions may call the GitHub API through the service (the GitHub connector). */
 	githubConnector?: boolean;
+	/** What the service sends on every request it passes to this computer's Odin (listenForTunnel). */
+	tunnel?: string;
 }
 
 /** argv: the host user it serves, their tokens file, its port (the tunnel's is next). */
@@ -346,7 +350,9 @@ class Handler(BaseHTTPRequestHandler):
             form = {k: v[-1] for k, v in urllib.parse.parse_qs(raw.decode("utf-8", "replace")).items()}
             if form.get("action") == "service":
                 return self.reply(*call_service(form))
-        req = urllib.request.Request(TUNNEL + self.path, data=raw or None, method=self.command, headers={k: v for k, v in self.headers.items() if k.lower() in ("content-type", "accept")})
+        headers = {k: v for k, v in self.headers.items() if k.lower() in ("content-type", "accept")}
+        headers["X-Odin-Tunnel"] = tokens().get("tunnel") or ""
+        req = urllib.request.Request(TUNNEL + self.path, data=raw or None, method=self.command, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=120) as res:
                 return self.reply(res.status, res.read(), res.headers.get("Content-Type", "text/plain"))
