@@ -149,6 +149,21 @@ test("board cards match on contact, repo, brief and tags", () => {
 	expect(rankSessions("grace", sessions)).toEqual([]);
 });
 
+test("board cards you opened lately come first, within a tier", () => {
+	const sessions = [
+		session("a", "Fix the deploy"),
+		session("b", "Fix the build"),
+		session("c", "Review the fix"),
+	];
+	const viewedAt = { b: 2, c: 3 };
+	expect(
+		rankSessions("", sessions, viewedAt).map((hit) => hit.item.paneId),
+	).toEqual(["c", "b", "a"]);
+	expect(
+		rankSessions("fix", sessions, viewedAt).map((hit) => hit.item.paneId),
+	).toEqual(["b", "a", "c"]);
+});
+
 test("closed reads the same in every source's words", () => {
 	for (const status of ["Done", "closed", "Resolved", "Won't Do", "Merged"])
 		expect(isClosedStatus(status)).toBe(true);

@@ -183,15 +183,20 @@ export function rankRows<Row extends SearchableRow>(
 	);
 }
 
-/** Board cards that match, best tier first, then in the board's column order. */
+/**
+ * Board cards that match, best tier first, then the ones you opened most
+ * recently (`viewedAt`, by pane id), then in the board's column order.
+ */
 export function rankSessions(
 	query: string,
 	sessions: SessionHit[],
+	viewedAt: Record<string, number> = {},
 ): Ranked<SessionHit>[] {
+	const seen = (hit: Ranked<SessionHit>) => viewedAt[hit.item.paneId] ?? 0;
 	return rankBy(query, sessions, (session) => [
 		session.title,
 		[session.contact, session.repo, session.brief, ...session.tags],
-	]);
+	]).sort((a, b) => a.tier - b.tier || seen(b) - seen(a));
 }
 
 export interface ResultGroup<T> {
