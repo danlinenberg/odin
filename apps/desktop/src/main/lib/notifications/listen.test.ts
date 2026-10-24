@@ -15,7 +15,6 @@ const {
 	listenForHooks,
 	listenForTunnel,
 	PORT_FILE,
-	TUNNEL_PORT_FILE,
 	tunnelSecretMatches,
 } = await import("./listen");
 
@@ -64,16 +63,20 @@ describe("listenForHooks", () => {
 
 describe("listenForTunnel", () => {
 	it("answers only requests that carry the host user's secret", async () => {
+		// Its own port file: never the running app's.
+		const portFile = path.join(
+			fs.mkdtempSync(path.join(os.tmpdir(), "odin-tunnel-")),
+			"tunnel-port",
+		);
 		const handle = listenForTunnel(
 			(_req, res) => res.end("odin"),
 			() => "s3cret",
+			portFile,
 		);
 		try {
 			let port = "";
 			for (let i = 0; i < 40 && !port; i++) {
-				port = fs.existsSync(TUNNEL_PORT_FILE)
-					? fs.readFileSync(TUNNEL_PORT_FILE, "utf8")
-					: "";
+				port = fs.existsSync(portFile) ? fs.readFileSync(portFile, "utf8") : "";
 				if (!port) await Bun.sleep(25);
 			}
 			const url = `http://127.0.0.1:${port}/health`;

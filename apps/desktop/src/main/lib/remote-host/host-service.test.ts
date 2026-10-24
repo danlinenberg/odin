@@ -6,6 +6,7 @@ import {
 	readFileSync,
 	rmSync,
 	statSync,
+	utimesSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir, userInfo } from "node:os";
@@ -132,6 +133,46 @@ describe.skipIf(!live)("Odin's host service", () => {
 		).toStartWith("notion isn't on this host.");
 		const asleep = await post({ action: "sessions" });
 		expect(asleep.status).toBe(503);
+	});
+
+	test("a copy older than a push is replaced by the laptop's current tokens, fetched with the secret", async () => {
+		const tokensFile = join(dir, "tokens.json");
+		const before = readFileSync(tokensFile, "utf8");
+		writeFileSync(
+			tokensFile,
+			JSON.stringify({
+				githubLogin: "sleeper",
+				github: "gho_stale",
+				tunnel: "s3cret",
+			}),
+		);
+		// Last written an hour ago: the laptop slept through its sends.
+		const hourAgo = new Date(Date.now() - 3600_000);
+		utimesSync(tokensFile, hourAgo, hourAgo);
+		const seen: (string | null)[] = [];
+		const laptop = Bun.serve({
+			port: PORT + 1,
+			hostname: "127.0.0.1",
+			fetch: (req) => {
+				seen.push(req.headers.get("x-odin-tunnel"));
+				return Response.json({
+					githubLogin: "sleeper",
+					github: "gho_fresh",
+					tunnel: "s3cret",
+				});
+			},
+		});
+		try {
+			const res = await token("service=github&login=sleeper");
+			expect(await res.text()).toBe("gho_fresh");
+			expect(seen).toEqual(["s3cret"]);
+			expect(JSON.parse(readFileSync(tokensFile, "utf8")).github).toBe(
+				"gho_fresh",
+			);
+		} finally {
+			laptop.stop(true);
+			writeFileSync(tokensFile, before);
+		}
 	});
 
 	test("passes requests on to the laptop with the user's tunnel secret", async () => {

@@ -1,10 +1,12 @@
-import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { env } from "shared/env.shared";
 import { ODIN_HOME_DIR } from "../app-environment";
+import { TUNNEL_HEADER, tunnelSecretMatches } from "./tunnel-secret";
+
+export { TUNNEL_HEADER, tunnelSecretMatches };
 
 /**
  * The port the hook server actually bound.
@@ -96,20 +98,6 @@ export function listenForHooks(
 /** Where the pane helper reads the tunnel listener's port (remote-shell). */
 export const TUNNEL_PORT_FILE = path.join(ODIN_HOME_DIR, "tunnel-port");
 
-/** The header a remote host's service sends on every request through the tunnel. */
-export const TUNNEL_HEADER = "x-odin-tunnel";
-
-/** Whether `given` is the tunnel secret, in constant time. */
-export function tunnelSecretMatches(
-	given: string | string[] | undefined,
-	secret: string,
-): boolean {
-	if (typeof given !== "string" || !secret) return false;
-	const a = Buffer.from(given);
-	const b = Buffer.from(secret);
-	return a.length === b.length && crypto.timingSafeEqual(a, b);
-}
-
 /**
  * The listener a remote host's tunnel reaches this computer's Odin through.
  * Same routes as the hook server, but only for requests carrying the tunnel
@@ -121,6 +109,7 @@ export function tunnelSecretMatches(
 export function listenForTunnel(
 	requestHandler: http.RequestListener,
 	secret: () => string,
+	portFile: string = TUNNEL_PORT_FILE,
 ): { close: () => void } {
 	const server = http.createServer((req, res) => {
 		if (!tunnelSecretMatches(req.headers[TUNNEL_HEADER], secret())) {
@@ -138,7 +127,7 @@ export function listenForTunnel(
 		if (!address) return;
 		try {
 			fs.mkdirSync(ODIN_HOME_DIR, { recursive: true });
-			fs.writeFileSync(TUNNEL_PORT_FILE, String(address.port));
+			fs.writeFileSync(portFile, String(address.port));
 		} catch (error) {
 			console.error("[notifications] Could not write tunnel port file:", error);
 		}

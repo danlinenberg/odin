@@ -137,6 +137,38 @@ def tokens():
     return t if isinstance(t, dict) else {}
 
 
+# Odin on the laptop sends fresh tokens every half hour while it is awake. A
+# copy older than that means it slept through a send: ask it through the
+# tunnel instead, at most once a minute. No refresh token is kept on the host.
+STALE_AFTER = 35 * 60
+pull_lock = threading.Lock()
+last_pull = [0.0]
+
+
+def fresh_from_laptop():
+    """Replaces a stale tokens file with the laptop's current one, when the laptop answers."""
+    try:
+        if time.time() - os.path.getmtime(TOKENS) < STALE_AFTER:
+            return
+    except OSError:
+        return
+    with pull_lock:
+        if time.time() - last_pull[0] < 60:
+            return
+        last_pull[0] = time.time()
+    secret = tokens().get("tunnel")
+    if not secret:
+        return
+    req = urllib.request.Request(TUNNEL + "/remote-host/tokens", headers={"X-Odin-Tunnel": secret})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as res:
+            got = json.loads(res.read().decode("utf-8", "replace"))
+    except Exception:
+        return
+    if isinstance(got, dict) and got.get("tunnel"):
+        write_json(TOKENS, got)
+
+
 def pair_path(login):
     return os.path.join(GITHUB_DIR, login + ".json")
 
@@ -234,6 +266,7 @@ def send(url, headers, body, method):
 
 
 def call_service(form):
+    fresh_from_laptop()
     name = form.get("service", "")
     base, headers = service_base(name, tokens())
     if not base:
@@ -280,6 +313,7 @@ class Handler(BaseHTTPRequestHandler):
         if (login and not LOGIN.fullmatch(login)) or (owner and not LOGIN.fullmatch(owner)):
             return self.reply(400, "Not a GitHub login.\\n")
         rejected = raw.decode("utf-8", "replace").strip() if self.command == "POST" else ""
+        fresh_from_laptop()
         token = github_token(pick_login(login, owner), rejected or None)
         if not token:
             return self.reply(404, "No GitHub token for this account on the host. Odin: Settings > Sessions > Remote host > GitHub accounts on the host.\\n")
