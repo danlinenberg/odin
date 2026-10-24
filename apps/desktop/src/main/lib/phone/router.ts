@@ -620,6 +620,13 @@ export const phoneRouter = t.router({
 	done: t.procedure
 		.input(paneInput)
 		.mutation(({ input }) => board("done", { paneId: input.paneId })),
+
+	/** Remind me: off the board now, back on `day` (YYYY-MM-DD), as the board's bell. */
+	remind: t.procedure
+		.input(paneInput.extend({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
+		.mutation(({ input }) =>
+			board("remind", { paneId: input.paneId, day: input.day }),
+		),
 });
 
 export type PhoneRouter = typeof phoneRouter;

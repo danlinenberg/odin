@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { IconType } from "react-icons";
 import { BsCloud, BsCloudSlash } from "react-icons/bs";
 import {
+	LuBellRing,
 	LuCheck,
 	LuChevronDown,
 	LuChevronRight,
@@ -204,6 +205,34 @@ export function Chips({ details }: { details: Details }) {
 	);
 }
 
+/** Tomorrow as YYYY-MM-DD, local time: the earliest day Remind me takes. */
+function tomorrow(): string {
+	const day = new Date(Date.now() + 86_400_000);
+	const pad = (n: number) => String(n).padStart(2, "0");
+	return `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
+}
+
+/**
+ * Remind me under a swiped card, as the board's bell: a tap lands on the
+ * date field laid over it, so the system date picker opens.
+ */
+function RemindAction({ onPick }: { onPick: (day: string) => void }) {
+	return (
+		<label className="relative flex w-[76px] flex-col items-center justify-center gap-1 bg-attention text-[12px] font-semibold text-black">
+			<LuBellRing className="size-5" />
+			Remind me
+			<input
+				type="date"
+				aria-label="Remind me"
+				min={tomorrow()}
+				value=""
+				onChange={(event) => event.target.value && onPick(event.target.value)}
+				className="absolute inset-0 size-full opacity-0"
+			/>
+		</label>
+	);
+}
+
 /**
  * One session on the board: its column's dot, the title (two lines), where
  * it runs and how long since its status changed, a Just done pill for a turn
@@ -212,11 +241,14 @@ export function Chips({ details }: { details: Details }) {
 export function SessionCard({
 	session,
 	onStar,
+	onRemind,
 	onDone,
 	onStop,
 }: {
 	session: Session;
 	onStar: (starred: boolean) => void;
+	/** Swipe right: off the board now, back on the day picked. */
+	onRemind?: (day: string) => void;
 	/** Swipe left: off the board, as its Done. */
 	onDone?: () => void;
 	/** Swipe left on a working session: stop its turn. */
@@ -229,21 +261,17 @@ export function SessionCard({
 	return (
 		<SwipeRow
 			className="mx-3 my-1.5 rounded-[10px]"
-			left={(close) => (
-				<SwipeAction
-					label={session.starred ? "Unstar" : "Star"}
-					icon={
-						<LuStar
-							className={`size-5 ${session.starred ? "" : "fill-current"}`}
-						/>
-					}
-					onClick={() => {
-						onStar(!session.starred);
-						close();
-					}}
-					className="bg-attention text-black"
-				/>
-			)}
+			left={
+				onRemind &&
+				((close) => (
+					<RemindAction
+						onPick={(day) => {
+							onRemind(day);
+							close();
+						}}
+					/>
+				))
+			}
 			right={(close) => (
 				<>
 					{onStop && column === "working" && (
