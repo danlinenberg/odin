@@ -163,30 +163,73 @@ const NAV_HOTKEY_OPTIONS = {
 	enableOnContentEditable: false,
 } as const;
 
+type StatusTone = "ok" | "attention" | "danger";
+
+/** One line of the status pill: its words on the bar, its sentence on hover. */
+type StatusItem = { tone: StatusTone; bar: string; detail: string };
+
+const TONE_PILL: Record<StatusTone, string> = {
+	ok: "bg-secondary text-muted-foreground",
+	attention: PILL.attention,
+	danger: PILL.danger,
+};
+
+const TONE_TEXT: Record<StatusTone, string> = {
+	ok: "",
+	attention: "text-attention-ink",
+	danger: "text-danger-ink",
+};
+
 /**
- * The load badge's colour: the app's own status palette, walked up as the Mac
- * gets tighter - grey while there's slack, amber when it's filling up, red
- * when agents are queueing or the memory is gone.
+ * This Mac's line, walked up as it gets tighter - fine while there's slack,
+ * amber when it's filling up (naming what is), red when agents are queueing
+ * or the memory is gone.
  */
-function badgeTone(load: MachineLoad, limits: LaunchLimits): string {
-	if (load.busy) {
-		return PILL.danger;
-	}
-	if (
-		load.cpuPercent >= limits.hostCpuPercent - 15 ||
-		load.availableMemoryGb < limits.minFreeMemoryGb + 1 ||
-		(load.diskFreePercent !== null &&
-			load.diskFreePercent < limits.minFreeDiskPercent + 10)
-	) {
-		return PILL.attention;
-	}
-	return "bg-secondary text-muted-foreground";
+function loadStatus(
+	load: MachineLoad,
+	limits: LaunchLimits,
+	freeing: boolean,
+): StatusItem {
+	const detail = `${
+		load.busy
+			? `${load.reason} - new sessions wait until that clears. ${load.agentCount} session(s) using ${load.agentMemoryGb} GB; this Mac is ${load.cpuPercent}% busy with ${load.availableMemoryGb} GB free.`
+			: `This Mac: ${load.agentCount} session(s) using ${load.agentMemoryGb} GB of memory, ${load.availableMemoryGb} GB free. Agents are on ${load.agentCpuPercent}% of the CPU · this Mac is ${load.cpuPercent}% busy.`
+	}${
+		load.diskFreePercent !== null
+			? ` Disk ${load.diskFreePercent}% free; new sessions wait below ${limits.minFreeDiskPercent}% (Settings → Sessions).`
+			: ""
+	}`;
+	if (freeing) return { tone: "attention", bar: "Freeing disk…", detail };
+	if (load.busy)
+		return { tone: "danger", bar: `${load.reason} · launches waiting`, detail };
+	const tight = [
+		load.cpuPercent >= limits.hostCpuPercent - 15 && `CPU ${load.cpuPercent}%`,
+		load.availableMemoryGb < limits.minFreeMemoryGb + 1 &&
+			`${load.availableMemoryGb} GB free`,
+		load.diskFreePercent !== null &&
+			load.diskFreePercent < limits.minFreeDiskPercent + 10 &&
+			`disk ${load.diskFreePercent}%`,
+	].filter(Boolean);
+	return tight.length > 0
+		? { tone: "attention", bar: tight.join(" · "), detail }
+		: { tone: "ok", bar: "", detail };
 }
 
-function usageTone(percent: number): string {
-	if (percent >= 90) return PILL.danger;
-	if (percent >= 75) return PILL.attention;
-	return "bg-secondary text-muted-foreground";
+function usageStatus(
+	label: string,
+	name: string,
+	window: ClaudeUsageWindow,
+): StatusItem {
+	return {
+		tone:
+			window.percent >= 90
+				? "danger"
+				: window.percent >= 75
+					? "attention"
+					: "ok",
+		bar: `${label} ${window.percent}%`,
+		detail: `${name}: ${window.percent}% used${resetsIn(window.resetsAt)}.`,
+	};
 }
 
 function resetsIn(resetsAt: string | null): string {
@@ -335,8 +378,6 @@ function OdinShell() {
 			counts.set(host, (counts.get(host) ?? 0) + 1);
 		return [...counts];
 	}, [remoteHostLines]);
-	const disk =
-		load?.diskFreePercent != null ? ` · disk ${load.diskFreePercent}%` : "";
 	const diskFull =
 		load?.diskFreePercent != null && load.diskFreePercent < minFreeDiskPercent;
 	// The disk pill offers what the 10-minute pruner would delete anyway (the
@@ -661,76 +702,12 @@ function OdinShell() {
 				<ZoomStable enabled={isMac}>
 					<div className="flex items-center gap-1.5">
 						<ClaudeCommandPicker />
-						{usage && (usage.fiveHour || usage.week) && (
-							<Tooltip delayDuration={300}>
-								<TooltipTrigger asChild>
-									<span
-										className={cn(
-											"rounded-[6px] px-2 py-[3px] text-[11px] font-semibold tabular-nums",
-											usageTone(
-												Math.max(
-													usage.fiveHour?.percent ?? 0,
-													usage.week?.percent ?? 0,
-												),
-											),
-										)}
-									>
-										{[
-											usage.fiveHour && `5h ${usage.fiveHour.percent}%`,
-											usage.week && `week ${usage.week.percent}%`,
-										]
-											.filter(Boolean)
-											.join(" · ")}
-									</span>
-								</TooltipTrigger>
-								<TooltipContent side="bottom" className="max-w-[280px]">
-									{[
-										usage.fiveHour &&
-											`5-hour window: ${usage.fiveHour.percent}% used${resetsIn(usage.fiveHour.resetsAt)}.`,
-										usage.week &&
-											`This week: ${usage.week.percent}% used${resetsIn(usage.week.resetsAt)}.`,
-									]
-										.filter(Boolean)
-										.join(" ")}
-								</TooltipContent>
-							</Tooltip>
-						)}
-						{/* What the agents hold and what the Mac has left - every
-						    build, not just internal ones: "can I start another?" is a
-						    question on a stable release too. Two measurements, no
-						    forecast: see MachineLoad.availableMemoryGb. */}
-						{load && (
-							<Tooltip delayDuration={300}>
-								<TooltipTrigger asChild>
-									<button
-										type="button"
-										onClick={() => diskFull && void freeDisk()}
-										className={cn(
-											"rounded-[6px] px-2 py-[3px] text-[11px] font-semibold tabular-nums",
-											diskFull ? "hover:brightness-125" : "cursor-default",
-											badgeTone(load, limits),
-										)}
-									>
-										{freeing
-											? "Freeing disk…"
-											: load.busy
-												? `${load.reason} · launches waiting`
-												: `${load.agentCount} ${load.agentCount === 1 ? "session" : "sessions"} using ${load.agentMemoryGb} GB · ${load.availableMemoryGb} GB free${disk}`}
-									</button>
-								</TooltipTrigger>
-								<TooltipContent side="bottom" className="max-w-[280px]">
-									{load.busy
-										? `${load.reason} - new sessions wait until that clears. ${load.agentCount} session(s) using ${load.agentMemoryGb} GB; this Mac is ${load.cpuPercent}% busy with ${load.availableMemoryGb} GB free.`
-										: `${load.agentCount} session(s) using ${load.agentMemoryGb} GB of memory. This Mac has ${load.availableMemoryGb} GB free. Agents are on ${load.agentCpuPercent}% of the CPU · this Mac is ${load.cpuPercent}% busy.`}
-									{load.diskFreePercent !== null &&
-										` Disk ${load.diskFreePercent}% free; new sessions wait below ${limits.minFreeDiskPercent}% (Settings → Sessions).`}
-									{diskFull && " Click to delete unused worktrees."}
-								</TooltipContent>
-							</Tooltip>
-						)}
-						{remoteHosts.map(([host, sessions]) => (
-							<HostPill key={host} host={host} sessions={sessions} />
-						))}
+						<StatusPill
+							usage={usage}
+							thisMac={load && loadStatus(load, limits, freeing)}
+							remoteHosts={remoteHosts}
+							onClick={diskFull ? () => void freeDisk() : undefined}
+						/>
 					</div>
 				</ZoomStable>
 			</div>
@@ -816,40 +793,87 @@ function OdinShell() {
 }
 
 /**
- * One remote host's pill: shown while sessions run there, from the readings
- * their panes send every 30s, so it costs the host nothing more. A host you
- * moved away from keeps its own pill while its sessions finish.
+ * Claude usage, this Mac and each remote host in one pill. The bar shows only
+ * what's amber or red, worst first; hover lists everything. With nothing
+ * wrong it shrinks to a dot. Remote hosts are read from the readings their
+ * panes send every 30s, so it costs a host nothing more. A host you moved
+ * away from stays listed while its sessions finish.
  */
-function HostPill({ host, sessions }: { host: string; sessions: number }) {
-	const { data: gate } = electronTrpc.remoteHost.launchGate.useQuery(
-		{ host },
-		{ refetchInterval: 15_000 },
+function StatusPill({
+	usage,
+	thisMac,
+	remoteHosts,
+	onClick,
+}: {
+	usage: ClaudeUsage | null;
+	thisMac: StatusItem | null;
+	remoteHosts: [string, number][];
+	/** Set while the disk is full: a click deletes unused worktrees. */
+	onClick?: () => void;
+}) {
+	const gates = electronTrpc.useQueries((t) =>
+		remoteHosts.map(([host]) =>
+			t.remoteHost.launchGate({ host }, { refetchInterval: 15_000 }),
+		),
 	);
+	const items: StatusItem[] = [
+		usage?.fiveHour && usageStatus("5h", "5-hour window", usage.fiveHour),
+		usage?.week && usageStatus("week", "This week", usage.week),
+		thisMac,
+		...remoteHosts.map(([host, sessions], i): StatusItem => {
+			const gate = gates[i]?.data;
+			if (gate?.frozen)
+				return {
+					tone: "danger",
+					bar: `${host} out of memory · sessions frozen`,
+					detail: gate.frozen,
+				};
+			if (gate?.reason)
+				return {
+					tone: "attention",
+					bar: `${gate.reason} · launches there wait`,
+					detail: `${gate.reason} - new sessions there wait until that clears.`,
+				};
+			return {
+				tone: "ok",
+				bar: "",
+				detail: `${host}: ${sessions} session(s).${gate?.freeGb != null ? ` It has ${gate.freeGb} GB free.` : " No memory reading yet."}`,
+			};
+		}),
+	].filter((item): item is StatusItem => !!item);
+	if (items.length === 0) return null;
+	const warnings = [
+		...items.filter((item) => item.tone === "danger"),
+		...items.filter((item) => item.tone === "attention"),
+	];
+	const tone = warnings[0]?.tone ?? "ok";
 	return (
 		<Tooltip delayDuration={300}>
 			<TooltipTrigger asChild>
-				<span
+				<button
+					type="button"
+					aria-label="Usage and machine status"
+					onClick={onClick}
 					className={cn(
-						"cursor-default rounded-[6px] px-2 py-[3px] text-[11px] font-semibold tabular-nums",
-						gate?.frozen
-							? PILL.danger
-							: gate?.reason
-								? PILL.attention
-								: "bg-secondary text-muted-foreground",
+						"flex h-[22px] items-center rounded-[6px] px-2 text-[11px] font-semibold tabular-nums",
+						onClick ? "hover:brightness-125" : "cursor-default",
+						TONE_PILL[tone],
 					)}
 				>
-					{gate?.frozen
-						? `${host} out of memory · sessions frozen`
-						: gate?.reason
-							? `${gate.reason} · launches there wait`
-							: `${host} · ${sessions} ${sessions === 1 ? "session" : "sessions"}${gate?.freeGb != null ? ` · ${gate.freeGb} GB free` : ""}`}
-				</span>
+					{warnings.length > 0 ? (
+						warnings.map((item) => item.bar).join(" · ")
+					) : (
+						<span className="size-1.5 rounded-full bg-success" />
+					)}
+				</button>
 			</TooltipTrigger>
-			<TooltipContent side="bottom" className="max-w-[280px]">
-				{gate?.frozen ??
-					(gate?.reason
-						? `${gate.reason} - new sessions there wait until that clears.`
-						: `${sessions} session(s) on the remote host ${host}.${gate?.freeGb != null ? ` It has ${gate.freeGb} GB free.` : " No memory reading yet."}`)}
+			<TooltipContent side="bottom" className="max-w-[320px] space-y-1">
+				{items.map((item) => (
+					<p key={item.detail} className={TONE_TEXT[item.tone]}>
+						{item.detail}
+					</p>
+				))}
+				{onClick && <p>Click to delete unused worktrees.</p>}
 			</TooltipContent>
 		</Tooltip>
 	);
