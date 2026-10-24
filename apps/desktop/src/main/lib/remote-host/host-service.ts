@@ -14,8 +14,10 @@
  *   host's own sign-in for the account, refreshed here before it expires or
  *   when GitHub refuses it, else the laptop's latest copy.
  * - Everything else (board actions, hooks, file reads) goes on to Odin on the
- *   laptop through the session helper's tunnel, and says plainly when the
- *   laptop is asleep.
+ *   laptop through the session helper's tunnel, with the user's tunnel secret:
+ *   the tunnel's port is open to every user on the host, and Odin on the
+ *   laptop answers only requests that carry it. Says plainly when the laptop
+ *   is asleep.
  *
  * One per host user: each Odin user has a Linux user of their own on the
  * host, and their own service, port and tokens. The service runs as the
@@ -76,6 +78,8 @@ export interface HostTokensFile {
 	githubAccounts?: Record<string, string>;
 	/** Sessions may call the GitHub API through the service (the GitHub connector). */
 	githubConnector?: boolean;
+	/** What the service sends on every request it passes to this computer's Odin (listenForTunnel). */
+	tunnel?: string;
 }
 
 /** argv: the host user it serves, their tokens file, its port (the tunnel's is next). */
@@ -131,6 +135,38 @@ def write_json(path, data):
 def tokens():
     t = read_json(TOKENS)
     return t if isinstance(t, dict) else {}
+
+
+# Odin on the laptop sends fresh tokens every half hour while it is awake. A
+# copy older than that means it slept through a send: ask it through the
+# tunnel instead, at most once a minute. No refresh token is kept on the host.
+STALE_AFTER = 35 * 60
+pull_lock = threading.Lock()
+last_pull = [0.0]
+
+
+def fresh_from_laptop():
+    """Replaces a stale tokens file with the laptop's current one, when the laptop answers."""
+    try:
+        if time.time() - os.path.getmtime(TOKENS) < STALE_AFTER:
+            return
+    except OSError:
+        return
+    with pull_lock:
+        if time.time() - last_pull[0] < 60:
+            return
+        last_pull[0] = time.time()
+    secret = tokens().get("tunnel")
+    if not secret:
+        return
+    req = urllib.request.Request(TUNNEL + "/remote-host/tokens", headers={"X-Odin-Tunnel": secret})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as res:
+            got = json.loads(res.read().decode("utf-8", "replace"))
+    except Exception:
+        return
+    if isinstance(got, dict) and got.get("tunnel"):
+        write_json(TOKENS, got)
 
 
 def pair_path(login):
@@ -230,6 +266,7 @@ def send(url, headers, body, method):
 
 
 def call_service(form):
+    fresh_from_laptop()
     name = form.get("service", "")
     base, headers = service_base(name, tokens())
     if not base:
@@ -276,6 +313,7 @@ class Handler(BaseHTTPRequestHandler):
         if (login and not LOGIN.fullmatch(login)) or (owner and not LOGIN.fullmatch(owner)):
             return self.reply(400, "Not a GitHub login.\\n")
         rejected = raw.decode("utf-8", "replace").strip() if self.command == "POST" else ""
+        fresh_from_laptop()
         token = github_token(pick_login(login, owner), rejected or None)
         if not token:
             return self.reply(404, "No GitHub token for this account on the host. Odin: Settings > Sessions > Remote host > GitHub accounts on the host.\\n")
@@ -346,7 +384,9 @@ class Handler(BaseHTTPRequestHandler):
             form = {k: v[-1] for k, v in urllib.parse.parse_qs(raw.decode("utf-8", "replace")).items()}
             if form.get("action") == "service":
                 return self.reply(*call_service(form))
-        req = urllib.request.Request(TUNNEL + self.path, data=raw or None, method=self.command, headers={k: v for k, v in self.headers.items() if k.lower() in ("content-type", "accept")})
+        headers = {k: v for k, v in self.headers.items() if k.lower() in ("content-type", "accept")}
+        headers["X-Odin-Tunnel"] = tokens().get("tunnel") or ""
+        req = urllib.request.Request(TUNNEL + self.path, data=raw or None, method=self.command, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=120) as res:
                 return self.reply(res.status, res.read(), res.headers.get("Content-Type", "text/plain"))
@@ -378,7 +418,9 @@ export function hostServiceInstallScript(user: string): string {
 		`  printf %s '${Buffer.from(HOST_SERVICE_PY).toString("base64")}' | base64 -d > /usr/local/lib/odin/host-service.py`,
 		"  if [ -f /etc/systemd/system/odin-host.service ]; then systemctl disable --now odin-host >/dev/null 2>&1; rm -f /etc/systemd/system/odin-host.service /var/lib/odin/tokens.json; fi",
 		`  printf '%s\\n' '[Unit]' 'Description=Odin host service for ${user}' 'After=network-online.target' '[Service]' 'User=odin' "ExecStart=/usr/bin/python3 /usr/local/lib/odin/host-service.py ${user} ${hostTokensFile(user)} ${hostPortSh(user)}" 'Restart=always' 'RestartSec=2' '[Install]' 'WantedBy=multi-user.target' > /etc/systemd/system/${unit}.service`,
-		`  systemctl daemon-reload && systemctl enable ${unit} >/dev/null 2>&1 && systemctl restart ${unit}`,
+		// Every user's service runs the one script: all of them restart onto a new one,
+		// or theirs would keep the old one - which, for one, sent no tunnel secret.
+		`  systemctl daemon-reload && systemctl enable ${unit} >/dev/null 2>&1 && systemctl restart ${unit} 'odin-host-*.service'`,
 		"fi",
 	].join("\n");
 }

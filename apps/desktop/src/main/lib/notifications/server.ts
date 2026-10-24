@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import express from "express";
+import { readOdinConfig } from "lib/trpc/routers/odin-config";
 import { awsSsoLogin } from "lib/trpc/routers/terminal/aws-sso";
 import { NOTIFICATION_EVENTS } from "shared/constants";
 import { env } from "shared/env.shared";
@@ -13,11 +14,14 @@ import type {
 import { callProcedure, clip, listProcedures } from "../odin-api";
 import { callService, fetchFile, readLink } from "../read-link";
 import { recordHostLoad } from "../remote-host/host-load";
+import type { HostConnector } from "../remote-host/host-service";
+import { hostTokens, hostTunnelSecret } from "../remote-host/host-tokens";
 import { redeemTicket } from "../remote-host/session";
 import { createSessionWorktree } from "../session-worktree";
 import { HOOK_PROTOCOL_VERSION } from "../terminal/env";
 import { mapEventType } from "./map-event-type";
 import { resolvePaneId } from "./resolve-pane-id";
+import { TUNNEL_HEADER, tunnelSecretMatches } from "./tunnel-secret";
 
 // Re-export types for backwards compatibility
 export type {
@@ -387,6 +391,23 @@ app.post("/remote-host/load", (req, res) => {
 		return res.status(400).send("");
 	recordHostLoad({ instanceId, ...load, at });
 	res.status(204).end();
+});
+
+/**
+ * This user's tokens for their host, fresh, for their host service to fetch
+ * through the tunnel when its copy is older than a push: a laptop that slept
+ * through its pushes, or one that just woke. Only with the tunnel secret,
+ * which only that service holds - never to anything else on this computer.
+ */
+app.get("/remote-host/tokens", async (req, res) => {
+	if (
+		req.headers.origin ||
+		!tunnelSecretMatches(req.headers[TUNNEL_HEADER], hostTunnelSecret())
+	)
+		return res.status(403).send("");
+	const host = readOdinConfig().remoteHost;
+	if (!host?.on) return res.status(404).send("No remote host is on.\n");
+	res.json(await hostTokens((host.connectors ?? []) as HostConnector[]));
 });
 
 // Health check

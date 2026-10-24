@@ -3,7 +3,7 @@ import { existsSync, statSync } from "node:fs";
 import { homedir, userInfo } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { app, safeStorage, shell } from "electron";
+import { app, powerMonitor, safeStorage, shell } from "electron";
 import { getNotifyScriptPath } from "main/lib/agent-setup/notify-hook";
 import { githubOwner, onGithubTokensChanged } from "main/lib/github-token";
 import { apiKeyFallbackOn } from "main/lib/remote-host/api-key-fallback";
@@ -365,6 +365,12 @@ async function refreshHostTokens(): Promise<void> {
 }
 setInterval(() => void refreshHostTokens(), 30 * 60_000).unref();
 setTimeout(() => void refreshHostTokens(), 20_000).unref();
+// The half-hourly timer doesn't run while this computer sleeps: send fresh
+// copies the moment it wakes or unlocks, not up to half an hour later.
+void app.whenReady().then(() => {
+	powerMonitor.on("resume", () => void refreshHostTokens());
+	powerMonitor.on("unlock-screen", () => void refreshHostTokens());
+});
 let tokenChangePush: ReturnType<typeof setTimeout> | null = null;
 onGithubTokensChanged(() => {
 	// Several accounts refreshing together go as one write.

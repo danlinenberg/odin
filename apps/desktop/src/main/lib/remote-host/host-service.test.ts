@@ -6,6 +6,7 @@ import {
 	readFileSync,
 	rmSync,
 	statSync,
+	utimesSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir, userInfo } from "node:os";
@@ -132,6 +133,73 @@ describe.skipIf(!live)("Odin's host service", () => {
 		).toStartWith("notion isn't on this host.");
 		const asleep = await post({ action: "sessions" });
 		expect(asleep.status).toBe(503);
+	});
+
+	test("a copy older than a push is replaced by the laptop's current tokens, fetched with the secret", async () => {
+		const tokensFile = join(dir, "tokens.json");
+		const before = readFileSync(tokensFile, "utf8");
+		writeFileSync(
+			tokensFile,
+			JSON.stringify({
+				githubLogin: "sleeper",
+				github: "gho_stale",
+				tunnel: "s3cret",
+			}),
+		);
+		// Last written an hour ago: the laptop slept through its sends.
+		const hourAgo = new Date(Date.now() - 3600_000);
+		utimesSync(tokensFile, hourAgo, hourAgo);
+		const seen: (string | null)[] = [];
+		const laptop = Bun.serve({
+			port: PORT + 1,
+			hostname: "127.0.0.1",
+			fetch: (req) => {
+				seen.push(req.headers.get("x-odin-tunnel"));
+				return Response.json({
+					githubLogin: "sleeper",
+					github: "gho_fresh",
+					tunnel: "s3cret",
+				});
+			},
+		});
+		try {
+			const res = await token("service=github&login=sleeper");
+			expect(await res.text()).toBe("gho_fresh");
+			expect(seen).toEqual(["s3cret"]);
+			expect(JSON.parse(readFileSync(tokensFile, "utf8")).github).toBe(
+				"gho_fresh",
+			);
+		} finally {
+			laptop.stop(true);
+			writeFileSync(tokensFile, before);
+		}
+	});
+
+	test("passes requests on to the laptop with the user's tunnel secret", async () => {
+		const tokensFile = join(dir, "tokens.json");
+		const before = readFileSync(tokensFile, "utf8");
+		writeFileSync(
+			tokensFile,
+			JSON.stringify({ ...JSON.parse(before), tunnel: "s3cret" }),
+		);
+		const seen: (string | null)[] = [];
+		// The laptop's end of the tunnel, on the port the service passes to.
+		const laptop = Bun.serve({
+			port: PORT + 1,
+			hostname: "127.0.0.1",
+			fetch: (req) => {
+				seen.push(req.headers.get("x-odin-tunnel"));
+				return new Response("board");
+			},
+		});
+		try {
+			const res = await post({ action: "sessions" });
+			expect(await res.text()).toBe("board");
+			expect(seen).toEqual(["s3cret"]);
+		} finally {
+			laptop.stop(true);
+			writeFileSync(tokensFile, before);
+		}
 	});
 
 	test("a session's GitHub token: the host's own sign-in while it has time left", async () => {
@@ -270,6 +338,10 @@ test("setup gives each host user a service of their own, run by odin, which alon
 		"host-service.py odin-dan /var/lib/odin/odin-dan/tokens.json $((40000 + $(id -u odin-dan) % 10000 * 2))",
 	);
 	expect(script).toContain("/etc/systemd/system/odin-host-odin-dan.service");
+	// A new script reaches every user's service, not only the one installing it.
+	expect(script).toContain(
+		"systemctl restart odin-host-odin-dan 'odin-host-*.service'",
+	);
 	expect(() => hostServiceInstallScript("x; rm -rf /")).toThrow();
 });
 

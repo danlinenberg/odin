@@ -1,9 +1,11 @@
 import { execFile } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { promisify } from "node:util";
 import {
 	readOdinConfig,
 	resolveNotionToken,
 	resolveSlackToken,
+	updateOdinConfig,
 } from "lib/trpc/routers/odin-config";
 import type { Client } from "ssh2";
 import { jiraRequestContext } from "../jira-token";
@@ -74,7 +76,20 @@ export async function hostTokens(
 	const accounts = await hostGithubTokens(config, HOST_GITHUB_TOKEN_MARGIN_MS);
 	if (Object.keys(accounts).length) tokens.githubAccounts = accounts;
 	if (connectors.includes("github") && github) tokens.githubConnector = true;
+	tokens.tunnel = hostTunnelSecret();
 	return tokens;
+}
+
+/**
+ * The secret this computer's Odin asks of every request through a host's
+ * tunnel (listenForTunnel), made the first time it is needed and kept.
+ */
+export function hostTunnelSecret(): string {
+	const saved = readOdinConfig().hostTunnelSecret;
+	if (saved) return saved;
+	const secret = randomBytes(32).toString("hex");
+	updateOdinConfig({ hostTunnelSecret: secret });
+	return secret;
 }
 
 /** The connectors a tokens file serves. */

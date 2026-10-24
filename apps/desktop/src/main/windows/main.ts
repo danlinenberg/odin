@@ -18,7 +18,7 @@ import { getIconPath } from "../lib/dock-icon";
 import { attachEditContextMenu } from "../lib/edit-context-menu";
 import { createApplicationMenu } from "../lib/menu";
 import { playNotificationSound } from "../lib/notification-sound";
-import { listenForHooks } from "../lib/notifications/listen";
+import { listenForHooks, listenForTunnel } from "../lib/notifications/listen";
 import { NotificationManager } from "../lib/notifications/notification-manager";
 import {
 	notificationsApp,
@@ -29,6 +29,7 @@ import {
 	getNotificationTitle,
 } from "../lib/notifications/utils";
 import { setOdinApiRouter } from "../lib/odin-api";
+import { hostTunnelSecret } from "../lib/remote-host/host-tokens";
 import { exitCause } from "../lib/terminal/exit-cause";
 import {
 	getInitialWindowBounds,
@@ -186,6 +187,8 @@ export async function MainWindow() {
 	}
 
 	const server = listenForHooks(notificationsApp);
+	// A remote host's tunnel reaches Odin here only, with its user's secret.
+	const tunnel = listenForTunnel(notificationsApp, hostTunnelSecret);
 
 	const notificationManager = new NotificationManager({
 		isSupported: () => Notification.isSupported(),
@@ -347,6 +350,7 @@ export async function MainWindow() {
 
 		browserManager.unregisterAll();
 		server.close();
+		tunnel.close();
 		notificationManager.dispose();
 		notificationsEmitter.removeAllListeners();
 		getWorkspaceRuntimeRegistry().getDefault().terminal.detachAllListeners();

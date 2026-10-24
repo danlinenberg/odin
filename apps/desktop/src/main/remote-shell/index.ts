@@ -45,6 +45,24 @@ function odinPort(): string | undefined {
 	}
 }
 
+/**
+ * The tunnel listener's port (listenForTunnel), read at each connection: only
+ * there does this computer's Odin answer a host, and only with the host
+ * user's secret. Never Odin's own port, which asks nothing of its callers.
+ */
+function tunnelPort(): number | null {
+	try {
+		// listen.ts TUNNEL_PORT_FILE; that module brings the app's env with it.
+		const port = Number.parseInt(
+			readFileSync(join(ODIN_HOME_DIR, "tunnel-port"), "utf8"),
+			10,
+		);
+		return Number.isNaN(port) ? null : port;
+	} catch {
+		return null;
+	}
+}
+
 const say = (text: string) => process.stderr.write(`\r\nOdin: ${text}\r\n`);
 
 async function tokens(ticket: string | undefined): Promise<string> {
@@ -93,7 +111,8 @@ async function upload(sftp: SFTPWrapper, files: RemoteFile[]): Promise<void> {
 }
 
 /**
- * The host user's tunnel port (hostPorts), to Odin's server on this computer.
+ * The host user's tunnel port (hostPorts), to Odin's tunnel listener on this
+ * computer (tunnelPort).
  * Every pane of this user forwards the same port to the same Odin, so one
  * holding it is enough; the others try again in case that one closes.
  */
@@ -105,9 +124,10 @@ async function forwardOdin(client: Client): Promise<void> {
 	if (!odinPort() || Number.isNaN(uid)) return;
 	const { tunnel } = hostPorts(uid);
 	client.on("tcp connection", (info, accept, reject) => {
-		if (info.destPort !== tunnel) return reject();
+		const port = tunnelPort();
+		if (info.destPort !== tunnel || !port) return reject();
 		const remote = accept();
-		const odin = connect(Number(odinPort()), "127.0.0.1");
+		const odin = connect(port, "127.0.0.1");
 		remote.pipe(odin).pipe(remote);
 		odin.on("error", () => remote.end());
 		remote.on("error", () => odin.destroy());

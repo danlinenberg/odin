@@ -91,6 +91,12 @@ export interface OdinFileConfig {
 		/** AWS profile names defined on the host, signed in with its instance role (main/lib/remote-host/aws-on-host). */
 		awsProfiles?: string[];
 	};
+	/**
+	 * The secret a remote host's service sends with every request through the
+	 * tunnel to this computer's Odin (main/lib/notifications/listen
+	 * listenForTunnel); made once, sent with the host user's tokens.
+	 */
+	hostTunnelSecret?: string;
 	/** `claude setup-token`'s token for remote sessions, encrypted with safeStorage. */
 	claudeToken?: string;
 	/** An Anthropic API key host sessions move to at the plan limit, in place of ANTHROPIC_API_KEY, encrypted with safeStorage. */
