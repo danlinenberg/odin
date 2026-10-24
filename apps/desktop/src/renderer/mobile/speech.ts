@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * Speech to text for the phone's text boxes, on the phone itself: in the iOS
@@ -192,4 +192,20 @@ export function useSpeech(onText: (text: string) => void) {
 	}
 
 	return { listening, transcribing, live, error, toggle, finish };
+}
+
+/**
+ * The iPhone's Action Button, once you set it to Odin's "Start or stop
+ * dictation" (OdinSpeech.swift): each press calls `onPress`. iOS sends it only
+ * while Odin is on screen. An app built before the button sends nothing.
+ */
+export function useActionButton(onPress: () => void) {
+	const latest = useRef(onPress);
+	latest.current = onPress;
+	useEffect(() => {
+		const listener = capacitor?.addListener?.("OdinSpeech", "action", () =>
+			latest.current(),
+		);
+		return () => listener?.remove();
+	}, []);
 }

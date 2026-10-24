@@ -1,3 +1,4 @@
+import AppIntents
 import AVFoundation
 import Capacitor
 import Speech
@@ -36,6 +37,16 @@ public class OdinSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
     /// once can't spin.
     private var rounds = 0
     private var finished: ((String) -> Void)?
+
+    /// The Action Button's press (ToggleDictationIntent), handed to the screens,
+    /// which start or stop the reply box's mic.
+    override public func load() {
+        NotificationCenter.default.addObserver(
+            forName: .odinToggleDictation, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.notifyListeners("action", data: [:])
+        }
+    }
 
     @objc func start(_ call: CAPPluginCall) {
         SFSpeechRecognizer.requestAuthorization { status in
@@ -157,5 +168,47 @@ public class OdinSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { self.finish() }
         }
+    }
+}
+
+extension Notification.Name {
+    static let odinToggleDictation = Notification.Name("OdinToggleDictation")
+}
+
+/// What the Action Button runs once you pick it there (Settings > Action
+/// Button > Shortcut > Odin): starts or stops dictation in the reply box.
+/// Only while Odin is on screen - iOS gives the button to one action for the
+/// whole phone, and a press anywhere else does nothing.
+@available(iOS 16.0, *)
+struct ToggleDictationIntent: AppIntent {
+    static var title: LocalizedStringResource = "Start or stop dictation"
+    static var description = IntentDescription(
+        "Starts or stops dictation in Odin's reply box. Does nothing when Odin isn't open."
+    )
+    static var openAppWhenRun = false
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        let onScreen = UIApplication.shared.connectedScenes.contains {
+            $0.activationState == .foregroundActive
+                || $0.activationState == .foregroundInactive
+        }
+        if onScreen {
+            NotificationCenter.default.post(name: .odinToggleDictation, object: nil)
+        }
+        return .result()
+    }
+}
+
+/// Lists the action in Shortcuts and the Action Button's picker, no setup needed.
+@available(iOS 16.0, *)
+struct OdinShortcuts: AppShortcutsProvider {
+    static var appShortcuts: [AppShortcut] {
+        AppShortcut(
+            intent: ToggleDictationIntent(),
+            phrases: ["Dictate in \(.applicationName)"],
+            shortTitle: "Dictate",
+            systemImageName: "mic"
+        )
     }
 }
