@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { VOICE_RULE } from "../../../shared/constants";
 import {
 	attachScript,
 	CLAUDE_LOGIN_SCRIPT,
@@ -484,6 +485,16 @@ test("the host note tells the agent how to hand me a command for my computer", (
 		pane: "0d202ff3aa",
 	});
 	expect(note).toContain("first line starts with `!local `");
+});
+
+test("the host note tells the agent to write in my voice and record corrections", () => {
+	const note = hostNote({
+		user: "ubuntu",
+		name: "odin-remote",
+		repoName: "odin",
+		pane: "0d202ff3aa",
+	});
+	expect(note).toContain(VOICE_RULE);
 });
 
 test("the host falls back to the API key only while the plan is limited", () => {
