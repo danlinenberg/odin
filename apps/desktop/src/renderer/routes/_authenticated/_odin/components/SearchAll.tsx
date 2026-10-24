@@ -16,6 +16,7 @@ import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { openUrl } from "renderer/stores/in-app-browser";
+import { useRecentlyViewed } from "renderer/stores/recently-viewed";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { AllItem } from "../all/all-items";
 import { useSearchableItems } from "../all/use-all-items";
@@ -149,6 +150,7 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 	const contacts = usePaneMeta((s) => s.contactByPane);
 	const briefs = usePaneMeta((s) => s.briefByPane);
 	const sessionIdByPane = usePaneMeta((s) => s.sessionIdByPane);
+	const viewedAt = useRecentlyViewed((s) => s.viewedAt);
 	const { activeId, isLoading } = useOdinProfile();
 	const sessions = useMemo(
 		() =>
@@ -199,10 +201,13 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 			[
 				{
 					id: BOARD,
-					hits: wrapHits(rankSessions(query, sessions), (session) => ({
-						kind: "board",
-						session,
-					})),
+					hits: wrapHits(
+						rankSessions(query, sessions, viewedAt),
+						(session) => ({
+							kind: "board",
+							session,
+						}),
+					),
 				},
 				...[...bySource].map(([id, hits]) => ({
 					id,
@@ -217,7 +222,7 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 			expanded,
 			[BOARD, HISTORY],
 		);
-	}, [query, rows, sessions, pastSessions, expanded]);
+	}, [query, rows, sessions, viewedAt, pastSessions, expanded]);
 
 	const go = (to: () => void) => {
 		onClose();
