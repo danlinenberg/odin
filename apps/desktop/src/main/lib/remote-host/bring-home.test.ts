@@ -9,6 +9,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Readable } from "node:stream";
+import type { SFTPWrapper } from "ssh2";
 import {
 	bringMirrorHome,
 	claudeProjectDir,
@@ -16,6 +18,7 @@ import {
 	movedNote,
 	packScript,
 	parsePacked,
+	readTranscript,
 	removeWorktreeScript,
 	unpackWork,
 } from "./bring-home";
@@ -221,5 +224,59 @@ describe("bringMirrorHome", () => {
 		expect(
 			await bringMirrorHome("none", async () => "/x", projects),
 		).toBeNull();
+	});
+});
+
+describe("readTranscript - only the bytes past the mirror cross the link", () => {
+	/** An SFTP over a buffer that counts the bytes it hands out. */
+	const fakeSftp = (host: Buffer) => {
+		const sent = { bytes: 0 };
+		const sftp = {
+			stat: (_: string, cb: (err: null, st: { size: number }) => void) =>
+				cb(null, { size: host.length }),
+			createReadStream: (
+				_: string,
+				{ start, end }: { start: number; end: number },
+			) => {
+				const part = host.subarray(start, end + 1);
+				sent.bytes += part.length;
+				return Readable.from([part]);
+			},
+		} as unknown as SFTPWrapper;
+		return { sftp, sent };
+	};
+	const setup = (mirror: string | null) => {
+		const projects = mkdtempSync(join(tmpdir(), "odin-read-"));
+		if (mirror !== null) {
+			mkdirSync(join(projects, "-home-x"));
+			writeFileSync(join(projects, "-home-x", "s1.jsonl"), mirror);
+		}
+		return projects;
+	};
+	const head = "x".repeat(10_000);
+
+	test("a mirror that matches: the host sends only its overlap and what's new", async () => {
+		const host = Buffer.from(`${head}new lines`);
+		const { sftp, sent } = fakeSftp(host);
+		const out = await readTranscript(sftp, "/r", "s1", setup(head));
+		expect(out.equals(host)).toBe(true);
+		expect(sent.bytes).toBe(4096 + "new lines".length);
+	});
+
+	test("no mirror, or one that differs: the whole file", async () => {
+		const host = Buffer.from(`${head}new lines`);
+		const none = fakeSftp(host);
+		expect(
+			(await readTranscript(none.sftp, "/r", "s1", setup(null))).equals(host),
+		).toBe(true);
+		expect(none.sent.bytes).toBe(host.length);
+		const other = fakeSftp(host);
+		const out = await readTranscript(
+			other.sftp,
+			"/r",
+			"s1",
+			setup("y".repeat(10_000)),
+		);
+		expect(out.equals(host)).toBe(true);
 	});
 });
