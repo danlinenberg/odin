@@ -411,7 +411,10 @@ export const CLAUDE_LOGIN_SCRIPT = [
  * The run script starts over inside its own user scope, capped at this
  * percent of the host's RAM with no swap. A runaway build (12 GB of bun) then
  * meets the kernel's out-of-memory killer inside this session only, which
- * stops its biggest process, instead of freezing every session on the host. It needs no
+ * stops its biggest process, instead of freezing every session on the host.
+ * OOMPolicy=continue keeps the rest of the session (Claude, tmux) running:
+ * systemd's default stops the whole scope on the first kill. An older systemd
+ * that rejects OOMPolicy on a scope still gets the cap. It needs no
  * setup: the user's systemd manager does it, as on Ubuntu 24.04. Where that
  * fails (no user manager, another distro) the script runs without a cap.
  */
@@ -423,6 +426,7 @@ export const MEMORY_LIMIT_SCRIPT = [
 	'  [ -n "$DBUS_SESSION_BUS_ADDRESS" ] || [ ! -S "$XDG_RUNTIME_DIR/bus" ] || export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"',
 	`  max=$(awk '/^MemTotal:/ { printf "%dK", $2 * ${SESSION_MEMORY_PERCENT} / 100 }' /proc/meminfo 2>/dev/null)`,
 	'  limit="systemd-run --user --scope --quiet -p MemoryMax=$max -p MemorySwapMax=0"',
+	'  $limit -p OOMPolicy=continue true >/dev/null 2>&1 && limit="$limit -p OOMPolicy=continue"',
 	'  if [ -n "$max" ] && $limit true >/dev/null 2>&1; then exec $limit bash "$0"; fi',
 	"fi",
 ].join("\n");

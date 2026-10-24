@@ -137,6 +137,9 @@ describe("remote session scripts", () => {
 		expect(MEMORY_LIMIT_SCRIPT).toContain(
 			"systemd-run --user --scope --quiet -p MemoryMax=$max -p MemorySwapMax=0",
 		);
+		expect(MEMORY_LIMIT_SCRIPT).toContain(
+			'$limit -p OOMPolicy=continue true >/dev/null 2>&1 && limit="$limit -p OOMPolicy=continue"',
+		);
 		expect(MEMORY_LIMIT_SCRIPT).toContain('exec $limit bash "$0"');
 		const dir = mkdtempSync(join(tmpdir(), "odin-mem-"));
 		try {
