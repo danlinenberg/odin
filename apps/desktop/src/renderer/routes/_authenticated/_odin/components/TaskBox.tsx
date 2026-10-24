@@ -24,7 +24,12 @@ import { ROW_PRIMARY_BUTTON } from "./FeedChrome";
 import { readFile } from "./OdinPromptDialog";
 import { BUTTON, PILL } from "./pill";
 import { matchRepos, repoLabel } from "./repo-picker";
-import { matchSkills } from "./skill-picker";
+import {
+	completeTaskSkill,
+	enterPicks,
+	matchSkills,
+	taskSkillToken,
+} from "./skill-picker";
 import { WherePicker } from "./WherePicker";
 
 /** Adds lines under the task, as their own paragraph when it has only a title. */
@@ -250,6 +255,60 @@ export function TaskBox({
 	latest.current = value;
 	const [focused, setFocused] = useState(false);
 	const folded = !!compact && !focused && !value.trim();
+	// Typing "/" at the head of the title opens the skill menu, like the
+	// session composer's. Opened by an edit, not by the text: an edit box that
+	// already reads "/gdpr" mustn't open on a menu.
+	const textbox = useRef<HTMLTextAreaElement>(null);
+	const [menuAt, setMenuAt] = useState<{ left: number; top: number } | null>(
+		null,
+	);
+	const [selectedSkill, setSelectedSkill] = useState(0);
+	const token = menuAt && skills ? taskSkillToken(text) : undefined;
+	const skillHits =
+		token === undefined || !skills ? [] : matchSkills(skills, token, 7);
+	const activeSkill = Math.min(
+		selectedSkill,
+		Math.max(skillHits.length - 1, 0),
+	);
+	const pickSkill = (name: string) => {
+		const next = completeTaskSkill(text, name);
+		change(next);
+		setMenuAt(null);
+		// The caret goes after the skill, where the title is typed next.
+		const end = next.split("\n")[0]?.length ?? 0;
+		requestAnimationFrame(() => textbox.current?.setSelectionRange(end, end));
+	};
+	const skillKeys = (event: React.KeyboardEvent) => {
+		if (skillHits.length === 0) return;
+		// While the menu is open it owns these keys - Escape closes the menu,
+		// not the box, and Enter picks rather than starting a new line.
+		if (event.key === "Escape") {
+			event.preventDefault();
+			event.stopPropagation();
+			setMenuAt(null);
+			return;
+		}
+		if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+			event.preventDefault();
+			const step = event.key === "ArrowDown" ? 1 : skillHits.length - 1;
+			setSelectedSkill((index) => (index + step) % skillHits.length);
+			return;
+		}
+		const match = skillHits[activeSkill];
+		if (!match) return;
+		// Enter picks only a name you were typing, so "/foo" + Enter on a
+		// description-only hit is still a newline.
+		const pick =
+			event.key === "Tab" ||
+			(event.key === "Enter" &&
+				!isHotkey("SUBMIT", event.nativeEvent) &&
+				enterPicks(match.name, token ?? ""));
+		if (pick) {
+			event.preventDefault();
+			event.stopPropagation();
+			pickSkill(match.name);
+		}
+	};
 	// Send (⌘Enter unless rebound) submits from anywhere in the box - Skill,
 	// Repo and Priority too, since they are where you finish a task.
 	const keys = (event: React.KeyboardEvent) => {
@@ -300,16 +359,35 @@ export function TaskBox({
 				)}
 			>
 				<textarea
+					ref={textbox}
 					value={text}
 					placeholder={placeholder ?? "What needs doing?"}
 					// biome-ignore lint/a11y/noAutofocus: the edit box replaces the row you clicked
 					autoFocus={autoFocus}
 					rows={folded ? 1 : 3}
 					aria-label="Task"
-					onChange={(event) => change(event.target.value)}
+					onChange={(event) => {
+						change(event.target.value);
+						// Fixed, measured here: the compose rows sit in a scroll
+						// container that would clip a menu positioned inside it.
+						const rect = event.target.getBoundingClientRect();
+						setMenuAt({ left: rect.left + 8, top: rect.top + 30 });
+						setSelectedSkill(0);
+					}}
+					onKeyDown={skillKeys}
+					onBlur={() => setMenuAt(null)}
 					className="w-full min-h-0 grow resize-none bg-transparent px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground"
 				/>
 			</fieldset>
+			{menuAt && skillHits.length > 0 && (
+				<SkillMenu
+					at={menuAt}
+					skills={skillHits}
+					active={activeSkill}
+					onHover={setSelectedSkill}
+					onPick={pickSkill}
+				/>
+			)}
 			{paths.length > 0 && (
 				<div className="flex flex-wrap gap-1.5">
 					{paths.map((path) => (
@@ -572,37 +650,66 @@ function SkillSelect({
 				<span className="text-[11px] text-muted-foreground">not installed</span>
 			)}
 			{at && matches.length > 0 && (
-				<div
-					style={{ left: at.left, top: at.top }}
-					className="fixed z-50 w-[340px] overflow-hidden rounded-[7px] border border-border bg-card shadow-[0_12px_40px_rgba(0,0,0,0.6)]"
-				>
-					{matches.map((skill, index) => (
-						<button
-							key={skill.name}
-							type="button"
-							onMouseEnter={() => setSelected(index)}
-							// The input keeps focus: mousedown fires before blur, so the
-							// pick lands instead of the blur committing the query.
-							onMouseDown={(event) => {
-								event.preventDefault();
-								commit(skill.name);
-							}}
-							className={cn(
-								"flex w-full items-baseline gap-2 px-2.5 py-1 text-left",
-								index === active && "bg-secondary",
-							)}
-						>
-							<span className="shrink-0 font-mono text-[11px] font-semibold text-foreground">
-								/{skill.name}
-							</span>
-							<span className="min-w-0 flex-1 truncate text-[10.5px] text-muted-foreground">
-								{skill.description}
-							</span>
-						</button>
-					))}
-				</div>
+				<SkillMenu
+					at={at}
+					skills={matches}
+					active={active}
+					onHover={setSelected}
+					onPick={commit}
+				/>
 			)}
 		</>
+	);
+}
+
+/**
+ * The list of skill matches - under the Skill field, and under the title when
+ * you type "/" there. `fixed`, in viewport coordinates, so a scroll container
+ * around the box can't clip it.
+ */
+function SkillMenu({
+	at,
+	skills,
+	active,
+	onHover,
+	onPick,
+}: {
+	at: { left: number; top: number };
+	skills: AgentSkill[];
+	active: number;
+	onHover: (index: number) => void;
+	onPick: (name: string) => void;
+}) {
+	return (
+		<div
+			style={{ left: at.left, top: at.top }}
+			className="fixed z-50 w-[340px] overflow-hidden rounded-[7px] border border-border bg-card shadow-[0_12px_40px_rgba(0,0,0,0.6)]"
+		>
+			{skills.map((skill, index) => (
+				<button
+					key={skill.name}
+					type="button"
+					onMouseEnter={() => onHover(index)}
+					// The box keeps focus: mousedown fires before blur, so the pick
+					// lands instead of the blur closing or committing the search.
+					onMouseDown={(event) => {
+						event.preventDefault();
+						onPick(skill.name);
+					}}
+					className={cn(
+						"flex w-full items-baseline gap-2 px-2.5 py-1 text-left",
+						index === active && "bg-secondary",
+					)}
+				>
+					<span className="shrink-0 font-mono text-[11px] font-semibold text-foreground">
+						/{skill.name}
+					</span>
+					<span className="min-w-0 flex-1 truncate text-[10.5px] text-muted-foreground">
+						{skill.description}
+					</span>
+				</button>
+			))}
+		</div>
 	);
 }
 

@@ -64,3 +64,22 @@ export const enterPicks = (name: string, token: string): boolean =>
 export function insertSkill(prompt: string, name: string): string {
 	return prompt.replace(/\/[\w:-]*$/, `/${name} `);
 }
+
+/**
+ * The skill being typed into a task's title: a `/token` that is all of the
+ * first line so far, after any priority "!"s. A task's skill is the leading
+ * `/name` only, so a slash later in the title is text, not a command.
+ */
+export function taskSkillToken(text: string): string | undefined {
+	const first = text.split("\n")[0] ?? "";
+	return /^\s*!*\s*\/([\w:-]*)$/.exec(first)?.[1];
+}
+
+/**
+ * The first line with the typed token swapped for the picked skill, plus a
+ * space so the title follows on. The brief below it is left alone.
+ */
+export function completeTaskSkill(text: string, name: string): string {
+	const [first = "", ...rest] = text.split("\n");
+	return [first.replace(/\/[\w:-]*$/, `/${name} `), ...rest].join("\n");
+}
