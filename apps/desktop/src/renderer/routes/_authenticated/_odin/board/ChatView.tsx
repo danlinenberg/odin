@@ -2021,19 +2021,24 @@ function ActionItems({
 	);
 	const dismiss = useDismissedActions((s) => s.dismiss);
 	// Numbered as Claude wrote them, so "action item 3" still means its 3.
-	const items = (onDo ? actionItemEntries(text) : [])
-		.map(({ text: item, fences }, index) => ({
+	// Commands are placed among every item, dismissed ones included, so a
+	// command goes away with the item you dismissed rather than to the foot.
+	const entries = (onDo ? actionItemEntries(text) : []).map(
+		({ text: item, fences }, index) => ({
 			item,
 			number: index + 1,
 			under: fences.flatMap(bangCommands),
-		}))
-		.filter(({ item }) => !isDismissed(dismissed ?? [], item));
+		}),
+	);
+	const items = entries.filter(
+		({ item }) => !isDismissed(dismissed ?? [], item),
+	);
 	const buttonColumn = !items.every(({ item }) => isYouOnly(item));
 	const homes = commands.map((command) =>
 		commandItem(
 			command,
-			items.map(({ item }) => item),
-			items.map(({ under }) => under),
+			entries.map(({ item }) => item),
+			entries.map(({ under }) => under),
 		),
 	);
 	const earlierHomes = earlier.map((command) =>
@@ -2041,14 +2046,14 @@ function ActionItems({
 			? -1
 			: earlierCommandItem(
 					command,
-					items.map(({ item }) => item),
+					entries.map(({ item }) => item),
 				),
 	);
 	const commandsAt = (index: number) => [
 		...commands.filter((_, i) => homes[i] === index),
 		...earlier.filter((_, i) => earlierHomes[i] === index),
 	];
-	const footCommands = onDo && items.length > 0 ? commandsAt(-1) : commands;
+	const footCommands = onDo && entries.length > 0 ? commandsAt(-1) : commands;
 	const count = onDo ? items.length : actionItemList(text).length;
 	return (
 		<div
@@ -2083,7 +2088,7 @@ function ActionItems({
 				<div className="text-[13px] text-muted-foreground">None left.</div>
 			) : onDo && items.length > 0 ? (
 				<ol className="flex flex-col gap-1">
-					{items.map(({ item, number }, index) => (
+					{items.map(({ item, number }) => (
 						<ActionItemRow
 							key={number}
 							item={item}
@@ -2092,7 +2097,7 @@ function ActionItems({
 							onDo={onDo}
 							onDismiss={paneId ? () => dismiss(paneId, item) : undefined}
 							buttonColumn={buttonColumn}
-							commands={commandsAt(index)}
+							commands={commandsAt(number - 1)}
 							onRun={onRun}
 						/>
 					))}
