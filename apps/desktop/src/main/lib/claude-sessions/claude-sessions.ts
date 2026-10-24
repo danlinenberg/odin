@@ -209,10 +209,6 @@ function oneLine(text: string): string {
 	return text.replace(/\s+/g, " ").trim();
 }
 
-function escapeRegExp(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 /**
  * Split a query into keywords. You don't remember a session's exact wording -
  * you remember roughly what it was about ("optimizing datadog costs" for a
@@ -255,32 +251,31 @@ function countTerms(
  * `terms` (case-insensitive, over what you typed and what Claude said only -
  * injected context, tool output and file contents would bury the real hits).
  */
-export function summarizeTranscript(
-	jsonl: string,
-	terms: string[] = [],
-): Omit<
-	SessionSummary,
-	"project" | "sessionId" | "updatedAt" | "bytes" | "title" | "person"
-> & {
+export function summarizeTranscript(jsonl: string, terms: string[] = []) {
+	return scoreDigest(digestTranscript(jsonl), terms);
+}
+
+/**
+ * What a search reads from one transcript: its title, opening prompt and
+ * where it ran, and every turn you typed or Claude wrote - a few percent of
+ * the file, which is mostly tool output. Kept per file between searches.
+ */
+type TranscriptDigest = {
 	aiTitle: string | null;
 	cardTitle: string | null;
-	bodyTerms: Set<string>;
+	prompt: string | null;
 	fromOdin: boolean;
-} {
+	cwd: string | null;
+	turns: { role: "user" | "assistant"; text: string }[];
+};
+
+function digestTranscript(jsonl: string): TranscriptDigest {
 	let aiTitle: string | null = null;
 	let cardTitle: string | null = null;
 	let prompt: string | null = null;
 	let fromOdin = false;
 	let cwd: string | null = null;
-	let messages = 0;
-	let matches = 0;
-	const bodyTerms = new Set<string>();
-	// More candidates than we keep, so the most informative ones can win.
-	const candidates: {
-		role: "user" | "assistant";
-		text: string;
-		hits: number;
-	}[] = [];
+	const turns: TranscriptDigest["turns"] = [];
 
 	for (const line of jsonl.split("\n")) {
 		if (!line) continue;
@@ -307,7 +302,7 @@ export function summarizeTranscript(
 		// Only what you typed and what Claude said - injected context is neither,
 		// and it's identical in every session, so it can't tell them apart.
 		if (role === "user" && !isTypedByUser(entry, text)) continue;
-		messages++;
+		turns.push({ role, text });
 		if (role === "user" && !prompt) {
 			// Before cleanPrompt, which strips the marker off the stored prompt.
 			fromOdin = ODIN_LAUNCH_MARKER.test(text);
@@ -318,7 +313,32 @@ export function summarizeTranscript(
 				/^(?:Task:|\/[\w:-]+)[ \t]+(.+)/.exec(text)?.[1]?.trim() || null;
 			prompt = cleanPrompt(text).slice(0, 600) || null;
 		}
-		if (terms.length === 0) continue;
+	}
+	return { aiTitle, cardTitle, prompt, fromOdin, cwd, turns };
+}
+
+function scoreDigest(
+	digest: TranscriptDigest,
+	terms: string[],
+): Omit<
+	SessionSummary,
+	"project" | "sessionId" | "updatedAt" | "bytes" | "title" | "person"
+> & {
+	aiTitle: string | null;
+	cardTitle: string | null;
+	bodyTerms: Set<string>;
+	fromOdin: boolean;
+} {
+	const { aiTitle, cardTitle, prompt, fromOdin, cwd } = digest;
+	let matches = 0;
+	const bodyTerms = new Set<string>();
+	// More candidates than we keep, so the most informative ones can win.
+	const candidates: {
+		role: "user" | "assistant";
+		text: string;
+		hits: number;
+	}[] = [];
+	for (const { role, text } of terms.length > 0 ? digest.turns : []) {
 		const haystack = text.toLowerCase();
 		const { hit, total } = countTerms(haystack, terms);
 		if (hit.size === 0) continue;
@@ -355,7 +375,7 @@ export function summarizeTranscript(
 		cardTitle,
 		prompt,
 		cwd,
-		messages,
+		messages: digest.turns.length,
 		matches,
 		snippets,
 		bodyTerms,
@@ -411,6 +431,14 @@ function scoreOf(
  * ranked alongside the prose: "ofek" finds the sessions Ofek asked for, even
  * though nobody ever typed his name into one.
  */
+/**
+ * Transcript digests by path, kept while the file's size and mtime hold: a
+ * search reads the store once, and the next query (every pause in typing on
+ * the phone) matches only what changed. About 20 MB for 400 sessions; files
+ * that fall out of the newest `maxFiles` are dropped after a search.
+ */
+const digests = new Map<string, { key: string; digest: TranscriptDigest }>();
+
 export async function searchSessions({
 	query = "",
 	limit = 40,
@@ -443,9 +471,7 @@ export async function searchSessions({
 }> {
 	const files = await listTranscripts(root);
 	const terms = queryTerms(query);
-	// Raw-file reject: the file text is a superset of the prose, so a term absent
-	// here can't be in the conversation. Saves parsing most of the store.
-	const rejects = terms.map((term) => new RegExp(escapeRegExp(term), "i"));
+	const kept = new Set<string>();
 	const scored: { session: SessionSummary; score: number }[] = [];
 	let scanned = 0;
 	const start = terms.length > 0 ? 0 : cursor;
@@ -471,15 +497,17 @@ export async function searchSessions({
 				? countTerms(personText(who), terms).hit
 				: new Set<string>();
 		try {
-			const jsonl = await readFile(file.path, "utf-8");
-			if (
-				rejects.length > 0 &&
-				whoTerms.size === 0 &&
-				!rejects.some((re) => re.test(jsonl))
-			) {
-				continue;
+			const key = `${file.bytes}:${file.updatedAt}`;
+			let digest = digests.get(file.path);
+			if (digest?.key !== key) {
+				digest = {
+					key,
+					digest: digestTranscript(await readFile(file.path, "utf-8")),
+				};
+				digests.set(file.path, digest);
 			}
-			const summary = summarizeTranscript(jsonl, terms);
+			kept.add(file.path);
+			const summary = scoreDigest(digest.digest, terms);
 			// Nothing you ever typed and no title Claude gave itself: a
 			// programmatic run (`promptSource: "sdk"` - vibe-kanban and friends) or
 			// a session that died before its first turn. Those list as
@@ -536,6 +564,10 @@ export async function searchSessions({
 			// unreadable transcript - skip it
 		}
 	}
+	// A search walks the newest maxFiles: anything it didn't is gone or older.
+	if (terms.length > 0)
+		for (const path of digests.keys())
+			if (!kept.has(path)) digests.delete(path);
 	// Best match first when searching; newest first when browsing (already sorted).
 	if (terms.length > 0) {
 		scored.sort(

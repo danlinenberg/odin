@@ -298,6 +298,30 @@ describe("summarizeTranscript", () => {
 });
 
 describe("searchSessions", () => {
+	test("a transcript that changed is read again, not answered from the last search", async () => {
+		const root = fixtureRoot();
+		const file = join(
+			root,
+			"-Users-dan-dev-private-odin",
+			"aaaa1111-2222-3333-4444-555566667777.jsonl",
+		);
+		expect(
+			(await searchSessions({ root, query: "kangaroo" })).sessions,
+		).toEqual([]);
+		writeFileSync(
+			file,
+			[
+				task("rebind the board hotkey"),
+				assistant("A kangaroo ate the registry."),
+			].join("\n"),
+		);
+		utimesSync(file, new Date(), new Date(Date.now() + 5_000));
+		const { sessions } = await searchSessions({ root, query: "kangaroo" });
+		expect(sessions.map((s) => s.sessionId)).toEqual([
+			"aaaa1111-2222-3333-4444-555566667777",
+		]);
+	});
+
 	test("a session on disk twice (a move between machines) lists once", async () => {
 		const root = fixtureRoot();
 		const id = "aaaa1111-2222-3333-4444-555566667777";
