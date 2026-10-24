@@ -518,6 +518,14 @@ export const createTerminalRouter = () => {
 				return shellCwds(input.pids);
 			}),
 
+		/** Odin fork: what each live shell is running, by pid (see shell-commands.ts). */
+		shellCommands: publicProcedure
+			.input(z.object({ pids: z.array(z.number().int().positive()).max(500) }))
+			.query(async ({ input }) => {
+				const { shellCommands } = await import("./shell-commands");
+				return shellCommands(input.pids);
+			}),
+
 		pullRequestStates: publicProcedure
 			.input(z.object({ urls: z.array(z.string().url()).max(200) }))
 			.query(async ({ input }) => {
