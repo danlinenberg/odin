@@ -1,3 +1,5 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import {
 	readOdinConfig,
 	resolveNotionToken,
@@ -93,6 +95,43 @@ export function keptConnectors(tokens: HostTokensFile): string[] {
  */
 export const HELPERS_AS_USER = `mkdir -p "$HOME/.odin" && exec 9>"$HOME/.odin/setup.lock" && flock -w 120 9\n${GITHUB_HELPERS_SCRIPT}\ntrue\n`;
 
+/** This computer's git `user.name` and `user.email`, either missing when unset. */
+export async function localGitIdentity(): Promise<{
+	name?: string;
+	email?: string;
+}> {
+	const get = (key: string) =>
+		promisify(execFile)("git", ["config", "--global", "--get", key], {
+			timeout: 5_000,
+		}).then(
+			({ stdout }) => stdout.trim() || undefined,
+			() => undefined,
+		);
+	const [name, email] = await Promise.all([
+		get("user.name"),
+		get("user.email"),
+	]);
+	return { name, email };
+}
+
+/**
+ * Run as the host user: their git identity there is this computer's, so the
+ * commits in a PR their own GitHub token opens are theirs too. A value the user
+ * set on the host themselves stays.
+ */
+export function gitIdentityScript(identity: {
+	name?: string;
+	email?: string;
+}): string {
+	return (["name", "email"] as const)
+		.filter((key) => identity[key])
+		.map(
+			(key) =>
+				`git config --global --get user.${key} >/dev/null || git config --global user.${key} ${sh(identity[key] ?? "")}`,
+		)
+		.join("\n");
+}
+
 /** Prints "current" when this user's service is installed and runs this Odin's script; read as the user. */
 export const SERVICE_CURRENT_SCRIPT = (user: string) =>
 	`[ -f /etc/systemd/system/odin-host-${user}.service ] && cmp -s /usr/local/lib/odin/host-service.py - && echo current; true`;
@@ -165,7 +204,12 @@ export async function pushHostTokens(
 			postToServiceScript("/tokens"),
 			JSON.stringify({ tokens, githubKeep: allowed }),
 		);
-		await runOnHost(client, "bash", `${HELPERS_AS_USER}${awsConfig}\n`);
+		const identity = gitIdentityScript(await localGitIdentity());
+		await runOnHost(
+			client,
+			"bash",
+			`${HELPERS_AS_USER}${awsConfig}\n${identity}\ntrue\n`,
+		);
 	} catch (error) {
 		throw new Error(
 			`Couldn't send the tokens to the host: ${error instanceof Error ? error.message : String(error)}. ${adminHint(host)}`,

@@ -1,11 +1,34 @@
 import { expect, test } from "bun:test";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { hostGithubLoginFile } from "./host-service";
 import {
+	gitIdentityScript,
 	HELPERS_AS_USER,
 	keptConnectors,
 	postToServiceScript,
 	SERVICE_CURRENT_SCRIPT,
 } from "./host-tokens";
+
+test("the host user's git identity is this computer's, unless they set their own there", () => {
+	const home = mkdtempSync(join(tmpdir(), "odin-git-identity-"));
+	const run = (script: string) =>
+		execFileSync("sh", ["-c", `HOME=${home}\n${script}`]);
+	const get = (key: string) =>
+		execFileSync("sh", ["-c", `HOME=${home} git config --global --get ${key}`])
+			.toString()
+			.trim();
+	run(gitIdentityScript({ name: "Dan O'Neil", email: "dan@example.com" }));
+	expect(get("user.name")).toBe("Dan O'Neil");
+	expect(get("user.email")).toBe("dan@example.com");
+	// A later push never overwrites what is there.
+	run(gitIdentityScript({ name: "Someone Else", email: "else@example.com" }));
+	expect(get("user.name")).toBe("Dan O'Neil");
+	// Nothing known here: nothing written.
+	expect(gitIdentityScript({})).toBe("");
+});
 
 test("tokens go to the user's own service on loopback, from stdin, with no sudo", () => {
 	const post = postToServiceScript("/tokens");
