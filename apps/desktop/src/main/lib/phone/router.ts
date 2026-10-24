@@ -455,16 +455,32 @@ export const phoneRouter = t.router({
 				people: sessionPeople(),
 				titles,
 			});
-			return sessions.map((session) => ({
-				sessionId: session.sessionId,
-				paneId:
-					panes.find((pane) => pane.claudeSessionId === session.sessionId)
-						?.id ?? null,
-				title: session.title,
-				snippet: session.snippets[0]?.text ?? session.prompt ?? "",
-				person: session.person,
-				updatedAt: session.updatedAt,
-			}));
+			// The board's column for a session on it, as its card shows it.
+			const columns = new Map(
+				(await loadSessions(true, activeProfileId())).map((row) => [
+					row.paneId,
+					row.column,
+				]),
+			);
+			return (
+				sessions
+					.map((session) => {
+						const paneId =
+							panes.find((pane) => pane.claudeSessionId === session.sessionId)
+								?.id ?? null;
+						return {
+							sessionId: session.sessionId,
+							paneId,
+							title: session.title,
+							snippet: session.snippets[0]?.text ?? session.prompt ?? "",
+							person: session.person,
+							updatedAt: session.updatedAt,
+							status: (paneId && columns.get(paneId)) || null,
+						};
+					})
+					// Last activity first: the session you were just in is the one you want.
+					.sort((a, b) => b.updatedAt - a.updatedAt)
+			);
 		}),
 
 	/** The board's Stop: Ctrl+C the turn, never at an idle prompt. */
