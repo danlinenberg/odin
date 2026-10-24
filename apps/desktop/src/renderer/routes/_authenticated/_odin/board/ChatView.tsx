@@ -89,6 +89,7 @@ import {
 	itemOptions,
 	itemReply,
 	localCommand,
+	noActionItems,
 	splitActionItems,
 } from "./action-items";
 import {
@@ -2700,7 +2701,9 @@ const ItemView = memo(function ItemView({
 		item.kind === "text"
 			? splitActionItems(linkify(item.text, refs))
 			: { body: "", actions: null };
-	const showsActions = !!actions && !hideActions;
+	// "ACTION ITEMS: none" still marks the card Done, but shows no empty card.
+	const cardActions = actions && !noActionItems(actions) ? actions : null;
+	const showsActions = !!cardActions && !hideActions;
 	// The card stays in the tree while it collapses away: its Run buttons move
 	// out from under it only once it is gone.
 	const card = useLeave(showsActions);
@@ -2763,10 +2766,10 @@ const ItemView = memo(function ItemView({
 				{placement === "card" && shown && (
 					<TldrCard tldr={shown} full={full} onToggle={toggleFull} />
 				)}
-				{actions && (
+				{cardActions && (
 					<Leave phase={card}>
 						<ActionItems
-							text={actions}
+							text={cardActions}
 							body={body}
 							onDo={onDo}
 							paneId={paneId}
