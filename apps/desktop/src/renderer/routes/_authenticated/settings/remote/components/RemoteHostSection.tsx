@@ -106,15 +106,6 @@ export function RemoteHostSection() {
 		onError,
 	});
 	const githubAccounts = current?.githubAccounts ?? [];
-	const setAwsProfiles = electronTrpc.remoteHost.setAwsProfiles.useMutation({
-		onSuccess: refresh,
-		onError,
-	});
-	const awsOnHost = new Set(
-		setAwsProfiles.isPending
-			? setAwsProfiles.variables
-			: (current?.host?.awsProfiles ?? []),
-	);
 	const toggleGithubAccount = (login: string, on: boolean) =>
 		setGithubOnHost.mutate(
 			githubAccounts
@@ -616,14 +607,9 @@ export function RemoteHostSection() {
 					stacked
 					description={
 						<span className="select-text cursor-text">
-							Usable by host sessions with this computer shut. Sessions never
-							see the tokens, but anyone with a shell on the instance can read
-							them. A task whose connector is off here starts on this computer.
+							Lets host sessions use them while this computer is off.
 							{setConnectors.isPending && (
-								<span className="mt-1 block">
-									Saving on the host - the first time also installs Odin's
-									service there.
-								</span>
+								<span className="mt-1 block">Saving on the host...</span>
 							)}
 							{setConnectors.error && (
 								<span className="mt-1 block text-destructive">
@@ -658,68 +644,28 @@ export function RemoteHostSection() {
 					</div>
 				</SettingRow>
 			)}
-			{current?.host && profiles.length > 0 && (
-				<SettingRow
-					label="AWS profiles on the host"
-					stacked
-					description={
-						<span className="select-text cursor-text">
-							These profile names work on the host too, signed in with the
-							instance's own role: it may do what the host policy above allows.
-							None of this computer's AWS credentials go there.
-							{setAwsProfiles.isPending && (
-								<span className="mt-1 block">Saving on the host...</span>
-							)}
-						</span>
-					}
-				>
-					<div className="flex flex-wrap items-center gap-4">
-						{profiles.map((name) => (
-							<label
-								key={name}
-								htmlFor={`host-aws-${name}`}
-								className="flex items-center gap-2 text-sm"
-							>
-								<Switch
-									id={`host-aws-${name}`}
-									checked={awsOnHost.has(name)}
-									disabled={setAwsProfiles.isPending}
-									onCheckedChange={(on) =>
-										setAwsProfiles.mutate(
-											profiles.filter((p) =>
-												p === name ? on : awsOnHost.has(p),
-											),
-										)
-									}
-								/>
-								{name}
-							</label>
-						))}
-					</div>
-				</SettingRow>
-			)}
 			{current?.host && (
 				<SettingRow
 					label="Claude setup on the host"
 					stacked
 					description={
 						<span className="select-text cursor-text">
-							Copies these parts of ~/.claude to the host. Never your login or
-							history. Sync again after you change them.
+							Copies ~/.claude to the host, never your login or history.
 							{syncingSetup && (
 								<span className="mt-1 block">Copying to the host...</span>
 							)}
 							{current.host.claudeSetupSyncedAt && (
 								<span className="mt-1 block">
-									Last synced{" "}
-									{new Date(current.host.claudeSetupSyncedAt).toLocaleString()}.
+									Synced{" "}
+									{new Date(
+										current.host.claudeSetupSyncedAt,
+									).toLocaleDateString()}
 								</span>
 							)}
 							{!!current.host.claudeSetupDropped?.length && (
 								<details className="mt-1">
 									<summary className="cursor-pointer">
-										{current.host.claudeSetupDropped.length} hooks left out:
-										they need files the host doesn't have
+										{current.host.claudeSetupDropped.length} hooks skipped
 									</summary>
 									<ul className="mt-1 space-y-0.5 font-mono text-xs">
 										{current.host.claudeSetupDropped.map((hook) => (
