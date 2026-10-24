@@ -27,6 +27,7 @@ import {
 	LuScanQrCode,
 	LuStar,
 	LuUser,
+	LuX,
 } from "react-icons/lu";
 import { LIMIT_HIT_RE } from "shared/limit-hit";
 import { odinActivity, odinScreenStatus } from "shared/odin-screen-status";
@@ -869,10 +870,7 @@ function Session({ paneId }: { paneId: string }) {
 						<button
 							type="button"
 							aria-label={briefOpen ? "Close the brief" : "Open the brief"}
-							onClick={() => {
-								setBriefOpen((shown) => !shown);
-								scroller.current?.scrollTo({ top: 0, behavior: "smooth" });
-							}}
+							onClick={() => setBriefOpen((shown) => !shown)}
 							className={`flex items-center gap-1 py-1.5 text-[15px] ${briefOpen ? "text-primary" : "text-muted-foreground"}`}
 						>
 							<LuFileText className="size-4" />
@@ -927,14 +925,6 @@ function Session({ paneId }: { paneId: string }) {
 				}}
 			>
 				<ErrorLine error={session.error ?? done.error} />
-				<BriefCard
-					brief={brief.data}
-					loading={brief.isLoading}
-					open={briefOpen}
-					onToggle={() => setBriefOpen((shown) => !shown)}
-					links={links.data}
-					linksLoading={links.isLoading && briefOpen}
-				/>
 				<Transcript
 					messages={data?.messages ?? []}
 					brief={
@@ -989,6 +979,40 @@ function Session({ paneId }: { paneId: string }) {
 				)}
 				<div ref={bottom} />
 			</main>
+			{/* The brief beside the chat, as the board's drawer has it: the
+			    conversation stays where you were reading. */}
+			{briefOpen && (
+				<>
+					<button
+						type="button"
+						aria-label="Close the brief"
+						onClick={() => setBriefOpen(false)}
+						className="fixed inset-0 z-40 bg-black/50"
+					/>
+					<aside className="fixed inset-y-0 right-0 z-50 flex w-[88%] max-w-md flex-col border-l border-border bg-background shadow-2xl animate-in slide-in-from-right duration-200">
+						<div className="flex items-center justify-between border-b border-border px-3.5 pt-[calc(env(safe-area-inset-top)+10px)] pb-2">
+							<span className="text-[17px] font-semibold">Brief</span>
+							<button
+								type="button"
+								aria-label="Close the brief"
+								onClick={() => setBriefOpen(false)}
+								className="-mr-1.5 flex size-9 items-center justify-center text-muted-foreground"
+							>
+								<LuX className="size-5" />
+							</button>
+						</div>
+						<div className="flex-1 overflow-y-auto px-2.5 pt-2.5 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+							<BriefCard
+								brief={brief.data}
+								loading={brief.isLoading}
+								open
+								links={links.data}
+								linksLoading={links.isLoading}
+							/>
+						</div>
+					</aside>
+				</>
+			)}
 			{!atBottom && (
 				<button
 					type="button"
