@@ -749,7 +749,7 @@ export function RemoteHostSection() {
 							description={
 								search.trim()
 									? "No host matches the search."
-									: "Only instances tagged Odin = host are listed. docs/remote-host.md in the Odin repo says how to make one."
+									: "Hosts are EC2 instances tagged Odin = host."
 							}
 						/>
 					)}
