@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { LuLoaderCircle, LuSearch, LuX } from "react-icons/lu";
-import { ago } from "./cards";
+import type { PaneStatus } from "shared/tabs-types";
+import { ago, Dot, STATUS } from "./cards";
 
 export type SearchHit = {
 	sessionId: string;
@@ -10,6 +11,8 @@ export type SearchHit = {
 	snippet: string;
 	person: string | null;
 	updatedAt: number;
+	/** Its board column; null off the board, or from an older Odin on the Mac. */
+	status?: PaneStatus | null;
 };
 
 /** The typed query, once typing pauses: every keystroke would rescan the logs. */
@@ -82,6 +85,11 @@ export function SearchResults({
 				const body = (
 					<>
 						<div className="flex items-baseline gap-2">
+							{hit.status && (
+								<span className="shrink-0 self-start pt-[7px]">
+									<Dot status={hit.status} />
+								</span>
+							)}
 							<span className="line-clamp-2 min-w-0 flex-1 text-[15px] font-medium">
 								{hit.title}
 							</span>
@@ -92,6 +100,11 @@ export function SearchResults({
 						{hit.snippet && (
 							<div className="mt-0.5 line-clamp-2 text-[13px] text-muted-foreground">
 								{hit.snippet}
+							</div>
+						)}
+						{hit.status && (
+							<div className="mt-0.5 text-[12px] text-muted-foreground">
+								{STATUS[hit.status].label}
 							</div>
 						)}
 						{!hit.paneId && (
