@@ -196,6 +196,11 @@ export function agentOnScreen(screen: string): boolean {
 	);
 }
 
+/** Claude's first-run setup is on screen: what's typed there picks its options. */
+export function claudeSetup(screen: string): boolean {
+	return SETUP.test(screen);
+}
+
 /** Claude's own screen is drawn: its input box, or a state only Claude shows. */
 export function claudeDrawn(screen: string): boolean {
 	return (

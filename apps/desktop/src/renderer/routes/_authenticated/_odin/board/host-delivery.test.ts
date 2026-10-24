@@ -192,4 +192,39 @@ describe("deliverOnHost", () => {
 		expect(typedAt).toEqual([]);
 		expect(log.at(-1)).toBe("A lost");
 	});
+
+	test("a screen that can't be read holds the message only a while, not until the host comes back", async () => {
+		const { clock, deps } = pane([[0, ""]]);
+		const log: string[] = [];
+		const { msg, typedAt } = message("A", log, clock);
+		await deliverOnHost("p8", msg, deps);
+		expect(log[0]).toBe("A waiting");
+		expect(typedAt.length).toBe(1);
+		expect(typedAt[0]).toBeGreaterThanOrEqual(20_000);
+		expect(typedAt[0]).toBeLessThan(25_000);
+		expect(log).not.toContain("A lost");
+	});
+
+	test("the session's tmux with Claude not read as ready gets the message after a while", async () => {
+		const { clock, deps } = pane([[0, "\n❯ \n\n[odin-abc:claude*"]]);
+		const { msg, typedAt } = message("A", [], clock);
+		await deliverOnHost("p9", msg, deps);
+		expect(typedAt.length).toBe(1);
+		expect(typedAt[0]).toBeLessThan(25_000);
+	});
+
+	test("a bare shell or Claude's first-run setup is never typed into", async () => {
+		for (const [id, screen] of [
+			["p10", "user@host:~$ "],
+			["p11", "Do you trust the files in this folder?"],
+		]) {
+			let reads = 0;
+			const { clock, deps } = pane([[0, screen]], () => ++reads < 240);
+			const log: string[] = [];
+			const { msg, typedAt } = message("A", log, clock);
+			await deliverOnHost(id, msg, deps);
+			expect(typedAt).toEqual([]);
+			expect(log.at(-1)).toBe("A lost");
+		}
+	});
 });
