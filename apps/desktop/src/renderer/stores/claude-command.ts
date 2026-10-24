@@ -8,7 +8,7 @@ interface ClaudeCommandState {
 	active: string;
 	/** `--model` for new sessions; "" leaves it to Claude's own default. */
 	model: string;
-	/** `--model` for the raven: Haiku unless his panel's picker says otherwise. */
+	/** `--model` for the raven: Opus unless his panel's picker says otherwise. */
 	crowModel: string;
 	/** New Session: park the prompt on My Tasks instead of starting it. */
 	toBacklog: boolean;
@@ -44,8 +44,8 @@ export const CLAUDE_MODELS = [
 	{ value: "haiku", label: "Haiku" },
 ];
 
-/** What the raven runs on out of the box: quick and cheap, the alias always the latest Haiku. */
-export const CROW_DEFAULT_MODEL = "haiku";
+/** What the raven runs on out of the box: the alias always the latest Opus. */
+export const CROW_DEFAULT_MODEL = "opus";
 
 /**
  * Settings → Advanced: what Odin types instead of `claude` when it starts or
@@ -87,14 +87,17 @@ export const useClaudeCommand = create<ClaudeCommandState>()(
 		}),
 		{
 			name: "odin-claude-command",
-			version: 1,
+			version: 2,
 			// v0 stored Remote Control as a boolean: true meant every session.
+			// v1 stored the raven's old Haiku default, so it moves to Opus.
 			migrate: (state, version) => {
 				const s = state as Omit<ClaudeCommandState, "remoteControl"> & {
 					remoteControl: unknown;
 				};
 				if (version < 1)
 					s.remoteControl = s.remoteControl === true ? "all" : "off";
+				if (version < 2 && s.crowModel === "haiku")
+					s.crowModel = CROW_DEFAULT_MODEL;
 				return s;
 			},
 		},
@@ -140,7 +143,7 @@ export function modelFlag(model: string): string {
 		: "";
 }
 
-/** The raven's ` --model x`: his pick, else Haiku - he always runs on a named one. */
+/** The raven's ` --model x`: his pick, else Opus - he always runs on a named one. */
 export function crowModelFlag(model: string): string {
 	return modelFlag(model) || modelFlag(CROW_DEFAULT_MODEL);
 }

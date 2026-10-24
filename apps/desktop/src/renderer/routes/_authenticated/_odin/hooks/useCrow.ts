@@ -57,8 +57,8 @@ export const crowPane = (panes: Record<string, Pane>): Pane | undefined =>
 	Object.values(panes).find((pane) => pane.odinTags?.includes(CROW_TAG));
 
 /**
- * Claude, told it is the crow and how to drive Odin. On Haiku - quick and
- * cheap, the alias always the latest one - unless the panel's picker says
+ * Claude, told it is the crow and how to drive Odin. On Opus - the alias
+ * always the latest one - unless the panel's picker says
  * otherwise; the board's sessions pick their own. Without Claude's own task
  * list, so "add a task" reaches Odin's backlog, and without its auto-memory,
  * so "always do X" becomes an Odin rule, not a memory file.
