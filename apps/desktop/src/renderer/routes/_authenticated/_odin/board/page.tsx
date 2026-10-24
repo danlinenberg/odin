@@ -5261,6 +5261,8 @@ function DevBoardPage() {
 					"The host did not answer, so the conversation moved without its code. The session may still run on the host.",
 				);
 			await resumeCard({ ...card, pane }, false, note, true);
+			if (!offline)
+				toast.success("Moved to this computer", { description: cwd });
 		} catch (error) {
 			toast.dismiss(loading);
 			toast.error(error instanceof Error ? error.message : String(error));

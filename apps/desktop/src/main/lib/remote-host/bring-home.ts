@@ -1,6 +1,13 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import {
+	copyFile,
+	mkdir,
+	readdir,
+	readFile,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
@@ -113,7 +120,7 @@ export async function bringSessionHome(
 			new Promise<Buffer>((resolve, reject) =>
 				sftp.readFile(path, (err, buf) => (err ? reject(err) : resolve(buf))),
 			);
-		const data = await read(remote);
+		const data = await readTranscript(sftp, remote, sessionId);
 		const hostCwd = lastCwd(data.toString("utf8"));
 		let work: HostWork | null = null;
 		if (hostCwd) {
@@ -138,6 +145,55 @@ export async function bringSessionHome(
 	}
 }
 
+/** Bytes of the mirror's end that must match the host's copy before only the rest is read. */
+const OVERLAP = 4096;
+
+/**
+ * The host's transcript. A connected pane keeps a mirror of it here, so only
+ * the bytes past the mirror cross the SSM link: reading all of it, one small
+ * SFTP read after another, took most of a 20s move. The mirror's last bytes
+ * must match the host's at the same place, else the whole file is read.
+ */
+export async function readTranscript(
+	sftp: SFTPWrapper,
+	remote: string,
+	sessionId: string,
+	projects = join(homedir(), ".claude", "projects"),
+): Promise<Buffer> {
+	const range = (start: number, end: number) =>
+		new Promise<Buffer>((resolve, reject) => {
+			const chunks: Buffer[] = [];
+			sftp
+				.createReadStream(remote, { start, end: end - 1 })
+				.on("data", (chunk: Buffer) => chunks.push(chunk))
+				.on("error", reject)
+				.on("close", () => resolve(Buffer.concat(chunks)));
+		});
+	const size = await new Promise<number>((resolve, reject) =>
+		sftp.stat(remote, (err, st) => (err ? reject(err) : resolve(st.size))),
+	);
+	const mirror = await findMirror(sessionId, projects);
+	const local = mirror ? await readFile(mirror).catch(() => null) : null;
+	if (local && local.length >= OVERLAP && local.length <= size) {
+		const from = local.length - OVERLAP;
+		const rest = await range(from, size);
+		if (rest.subarray(0, OVERLAP).equals(local.subarray(from)))
+			return Buffer.concat([local, rest.subarray(OVERLAP)]);
+	}
+	return size ? range(0, size) : Buffer.alloc(0);
+}
+
+async function findMirror(
+	sessionId: string,
+	projects: string,
+): Promise<string | undefined> {
+	const file = `${sessionId}.jsonl`;
+	const dirs = await readdir(projects).catch(() => []);
+	return dirs
+		.map((dir) => join(projects, dir, file))
+		.find((path) => existsSync(path));
+}
+
 /**
  * The session's transcript mirror here (a remote terminal keeps one in
  * ~/.claude/projects), copied to the folder `placeIn` picks, for a host that
@@ -150,10 +206,7 @@ export async function bringMirrorHome(
 	projects = join(homedir(), ".claude", "projects"),
 ): Promise<string | null> {
 	const file = `${sessionId}.jsonl`;
-	const dirs = await readdir(projects).catch(() => []);
-	const mirror = dirs
-		.map((dir) => join(projects, dir, file))
-		.find((path) => existsSync(path));
+	const mirror = await findMirror(sessionId, projects);
 	if (!mirror) return null;
 	const cwd = await placeIn(null);
 	const dir = join(projects, claudeProjectDir(cwd));
