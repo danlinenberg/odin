@@ -366,6 +366,9 @@ function Home() {
 	const doneCard = phone.done.useMutation({
 		onSuccess: () => void board.refetch(),
 	});
+	const remindCard = phone.remind.useMutation({
+		onSuccess: () => void board.refetch(),
+	});
 	const stopCard = phone.interrupt.useMutation({
 		onSuccess: () => void board.refetch(),
 	});
@@ -419,7 +422,11 @@ function Home() {
 			{searching && (
 				<SearchResults hits={search.data} loading={search.isFetching} />
 			)}
-			<ErrorLine error={search.error ?? doneCard.error ?? stopCard.error} />
+			<ErrorLine
+				error={
+					search.error ?? doneCard.error ?? remindCard.error ?? stopCard.error
+				}
+			/>
 			{(board.data && !searching ? boardSections(sessions) : []).map(
 				(section) => (
 					<section key={section.key}>
@@ -437,6 +444,9 @@ function Home() {
 								session={session}
 								onStar={(starred) =>
 									star.mutate({ paneId: session.paneId, starred })
+								}
+								onRemind={(day) =>
+									remindCard.mutate({ paneId: session.paneId, day })
 								}
 								onDone={() => doneCard.mutate({ paneId: session.paneId })}
 								onStop={() => stopCard.mutate({ paneId: session.paneId })}

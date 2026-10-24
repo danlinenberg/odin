@@ -33,12 +33,14 @@ import { CROW_TAG } from "shared/odin-tags";
 import stripAnsi from "strip-ansi";
 import { create } from "zustand";
 import { phoneReply } from "../board/phone-resume";
+import { remindSession } from "../board/SessionReminders";
 import { type PromptImage, sessionTitle } from "../components/OdinPromptDialog";
 import { readState, runAction, writeState } from "./crow-state";
 import { endSession, useDone } from "./useDone";
 import { useOdinProfile } from "./useOdinProfile";
 import { taskPrompt, useMyTasks, useOdinTasks } from "./useOdinTasks";
 import { useOdinWorkspace } from "./useOdinWorkspace";
+import { usePaneMeta } from "./usePaneMeta";
 
 /**
  * Marks the spare. A tag rather than a pane field of its own: `odinTags`
@@ -756,5 +758,23 @@ function runOdinAction(
 		endSession(args.paneId);
 		return `Marked ${panes[args.paneId].odinTaskTitle ?? args.paneId} done.`;
 	}
-	return `Unknown action "${action}" - use guide, tasks, start, add, star, sessions, night, done, state, set, open, api or call.`;
+	// The phone's Remind me: as the board's bell, done now and back on `day`.
+	if (action === "remind") {
+		const pane = args.paneId ? panes[args.paneId] : undefined;
+		if (!pane || !args.day)
+			return "Need the paneId of a session and a day (YYYY-MM-DD).";
+		const meta = usePaneMeta.getState();
+		const sessionId = pane.claudeSessionId ?? meta.sessionIdByPane[pane.id];
+		const cwd = pane.cwd ?? pane.initialCwd;
+		if (!sessionId || !cwd)
+			return "This session has no conversation id - can't resume it later.";
+		const title = pane.odinTaskTitle ?? pane.name ?? "Session";
+		remindSession(
+			{ sessionId, cwd, title, brief: meta.briefByPane[pane.id] },
+			args.day,
+		);
+		endSession(pane.id);
+		return `Reminding you ${args.day} - ${title}.`;
+	}
+	return `Unknown action "${action}" - use guide, tasks, start, add, star, sessions, night, done, remind, state, set, open, api or call.`;
 }
