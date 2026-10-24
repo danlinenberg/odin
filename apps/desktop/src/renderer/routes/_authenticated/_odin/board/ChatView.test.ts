@@ -17,6 +17,7 @@ import {
 	earlierCommandItem,
 	earlierCommandsText,
 	elapsedLabel,
+	filedUnder,
 	interruptClaude,
 	isAnswerItem,
 	isApprovalItem,
@@ -1129,4 +1130,13 @@ describe("ToolGroup", () => {
 		expect(html).toContain("h-7 items-center");
 		expect(html).not.toContain("flex-1");
 	});
+});
+
+test("filedUnder: a session moved here is filed under its folder here, a host mirror is not", () => {
+	const id = "b7645aeb";
+	const moved = `/Users/dan/.claude/projects/-Users-dan-dev-odin/${id}.jsonl`;
+	const mirror = `/Users/dan/.claude/projects/-home-odin-repos/${id}.jsonl`;
+	expect(filedUnder(moved, "/Users/dan/dev/odin", id)).toBe(true);
+	expect(filedUnder(mirror, "/Users/dan/dev/odin", id)).toBe(false);
+	expect(filedUnder(moved, "/Users/dan/dev/odin-2", id)).toBe(false);
 });
