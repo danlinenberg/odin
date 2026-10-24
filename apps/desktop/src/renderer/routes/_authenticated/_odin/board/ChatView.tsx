@@ -4,10 +4,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { cn } from "@odin/ui/utils";
 import {
 	createContext,
+	type Dispatch,
 	isValidElement,
 	memo,
 	type ReactElement,
 	type ReactNode,
+	type SetStateAction,
 	useCallback,
 	useContext,
 	useEffect,
@@ -467,6 +469,17 @@ const NO_HANDLE: SentHandle = {
  * vanishing until Claude has booted and written the message.
  */
 const carried = new Map<string, Sent[]>();
+
+/**
+ * Each pane's mounted view's setPending. A reply to a remote session keeps
+ * going after the view that sent it is gone - a switch to the terminal and
+ * back remounts it - so what it says about its bubble goes to the view showing
+ * the pane now, or to `carried` while none does.
+ */
+const pendingSetters = new Map<string, Dispatch<SetStateAction<Sent[]>>>();
+
+/** Replies still waiting for the host, by bubble id: a remounted view keeps them. */
+const waitingIds = new Set<number>();
 
 /**
  * Claude took something since the send: a user row that wasn't there, or the
@@ -3046,6 +3059,13 @@ export function ChatView({
 		else carried.delete(paneId);
 	}, [paneId, pending]);
 	useEffect(() => {
+		pendingSetters.set(paneId, setPending);
+		return () => {
+			if (pendingSetters.get(paneId) === setPending)
+				pendingSetters.delete(paneId);
+		};
+	}, [paneId]);
+	useEffect(() => {
 		setPending((list) => list.filter((sent) => !isEchoed(items, sent)));
 	}, [items]);
 	// The turn began with your last message; "Working..." counts from it and
@@ -3092,11 +3112,10 @@ export function ChatView({
 	const stepsShown = showSteps && hasSteps;
 	// Not mid-turn or queued: Claude writes a queued message only when it takes it.
 	// Not while it waits for the host either: it hasn't been typed yet.
-	const waitingIds = useRef(new Set<number>());
 	const expireLater = (id: number, text: string) => {
 		const expire = () =>
 			workingRef.current ||
-			waitingIds.current.has(id) ||
+			waitingIds.has(id) ||
 			yourQueued(queuedRef.current).some((queuedText) =>
 				queuedText.includes(text),
 			)
@@ -3150,21 +3169,27 @@ export function ChatView({
 				);
 			}, 10_000);
 		expireLater(id, text);
-		const mark = (change: Partial<Sent>) =>
-			setPending((list) =>
-				list.map((sent) => (sent.id === id ? { ...sent, ...change } : sent)),
-			);
+		const mark = (change: Partial<Sent>) => {
+			const apply = (list: Sent[]) =>
+				list.map((sent) => (sent.id === id ? { ...sent, ...change } : sent));
+			const set = pendingSetters.get(paneId);
+			if (set) set(apply);
+			else {
+				const list = carried.get(paneId);
+				if (list) carried.set(paneId, apply(list));
+			}
+		};
 		return {
 			arrived: () =>
 				arrived(itemsRef.current, queuedRef.current, { text, seen }),
 			waiting: (on) => {
-				if (on) waitingIds.current.add(id);
-				else waitingIds.current.delete(id);
+				if (on) waitingIds.add(id);
+				else waitingIds.delete(id);
 				mark({ waiting: on, lost: false });
 				if (!on) for (const ms of [500, 1500, 3000]) setTimeout(poke, ms);
 			},
 			lost: () => {
-				waitingIds.current.delete(id);
+				waitingIds.delete(id);
 				// No transcript yet: nothing to tell a lost message from a slow one.
 				mark({ lost: itemsRef.current.length > 0, waiting: false });
 			},
