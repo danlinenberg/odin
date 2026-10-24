@@ -1,3 +1,4 @@
+import { VOICE_RULE } from "../../../shared/constants";
 import { tmuxSession } from "../../../shared/remote-reconnect";
 import { HOST_PORT_SH } from "./host-service";
 
@@ -704,6 +705,10 @@ export function hostNote(spec: {
 						: []),
 				].join("\n"),
 		"git and gh are signed in to GitHub with my account.",
+		// The laptop delivers this with a SessionStart hook ($ODIN_HOME_DIR/hooks/shell-rule.sh)
+		// that the host never has, so a host session would draft in its own voice and keep
+		// corrections out of Settings.
+		VOICE_RULE,
 	].join("\n");
 }
 
