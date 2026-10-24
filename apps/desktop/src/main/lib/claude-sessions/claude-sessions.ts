@@ -8,6 +8,7 @@ import {
 } from "renderer/routes/_authenticated/_odin/board/shell-output";
 import { toolDescription } from "renderer/routes/_authenticated/_odin/board/tool-description";
 import { PR_RULES_HEADER } from "shared/odin-rules";
+import { isInterruptMarker, withoutWrapping } from "shared/user-text";
 import { type SessionCredential, transcriptCredential } from "./credential";
 import { type SessionUsage, transcriptUsage } from "./usage";
 
@@ -579,9 +580,11 @@ export function spokenText(text: string): string | null {
 	const command = text.match(/<command-name>([^<]*)<\/command-name>/);
 	if (command) return command[1] || null;
 	if (/^\s*<(local-command|task-notification)/.test(text)) return null;
+	if (isInterruptMarker(text)) return null;
 	return (
-		text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "").trim() ||
-		null
+		withoutWrapping(
+			text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, ""),
+		) || null
 	);
 }
 

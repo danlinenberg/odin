@@ -63,6 +63,7 @@ import {
 	remoteConnectLine,
 } from "shared/odin-screen-status";
 import { typedText } from "shared/typed-text";
+import { isInterruptMarker, withoutWrapping } from "shared/user-text";
 import { fileToken, insertFile, matchFiles } from "../components/file-picker";
 import {
 	BUILT_IN_COMMANDS,
@@ -221,10 +222,10 @@ export function userText(text: string): string | null {
 	const command = text.match(/<command-name>([^<]*)<\/command-name>/);
 	if (command) return command[1] ?? null;
 	if (/^\s*<(local-command|task-notification)/.test(text)) return null;
-	if (text.startsWith("Caveat:")) return null;
-	const stripped = text
-		.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
-		.trim();
+	if (text.startsWith("Caveat:") || isInterruptMarker(text)) return null;
+	const stripped = withoutWrapping(
+		text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, ""),
+	);
 	return stripped || null;
 }
 
@@ -3092,10 +3093,12 @@ export function ChatView({
 			expireLater(sent.id, sent.text);
 	}, []);
 	const onSent = (
-		text: string,
+		message: string,
 		previews?: Preview[],
 		onHost = false,
 	): SentHandle => {
+		// As its row will read: without the dismissal note it carries to Claude.
+		const text = withoutWrapping(message);
 		const id = Date.now();
 		pinnedRef.current = true;
 		// A /btw never reaches the transcript - its answer card shows it instead,
