@@ -17,6 +17,7 @@ import {
 	LuCheck,
 	LuChevronDown,
 	LuChevronLeft,
+	LuChevronRight,
 	LuCornerDownLeft,
 	LuFileText,
 	LuLoaderCircle,
@@ -143,6 +144,30 @@ const odinFetch: OdinFetch = pairing
 					...init,
 					headers: { ...init?.headers, authorization: `Bearer ${devToken}` },
 				});
+/** The board sections you folded, kept on this phone. */
+const FOLDED_KEY = "odin.folded-sections";
+
+function useFolded(): [string[], (key: string) => void] {
+	const [folded, setFolded] = useState<string[]>(() => {
+		try {
+			return JSON.parse(localStorage.getItem(FOLDED_KEY) ?? "[]");
+		} catch {
+			return [];
+		}
+	});
+	const fold = (key: string) =>
+		setFolded((now) => {
+			const next = now.includes(key)
+				? now.filter((k) => k !== key)
+				: [...now, key];
+			try {
+				localStorage.setItem(FOLDED_KEY, JSON.stringify(next));
+			} catch {}
+			return next;
+		});
+	return [folded, fold];
+}
+
 const SLOW_QUERIES = new Set(["brief", "links", "screens", "search"]);
 const phone = createTRPCReact<PhoneRouter>();
 const client = phone.createClient({
@@ -381,6 +406,7 @@ function Home() {
 	const sessions = board.data?.sessions ?? [];
 	// Every session's conversation, searched on the Mac as the desktop's ⌘F does.
 	const [query, setQuery] = useState("");
+	const [folded, fold] = useFolded();
 	const typed = query.trim();
 	const settled = useSettled(typed);
 	const searching = typed.length >= 2;
@@ -439,28 +465,41 @@ function Home() {
 			{(board.data && !searching ? boardSections(sessions) : []).map(
 				(section) => (
 					<section key={section.key}>
-						<h2 className="px-4 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-faint-foreground">
-							{section.label} · {section.rows.length}
+						<h2>
+							<button
+								type="button"
+								aria-expanded={!folded.includes(section.key)}
+								onClick={() => fold(section.key)}
+								className="flex w-full items-center gap-1 px-4 pt-4 pb-1 text-left text-[11px] font-semibold uppercase tracking-wide text-faint-foreground"
+							>
+								{folded.includes(section.key) ? (
+									<LuChevronRight className="size-3.5" />
+								) : (
+									<LuChevronDown className="size-3.5" />
+								)}
+								{section.label} · {section.rows.length}
+							</button>
 						</h2>
-						{section.rows.length === 0 && (
+						{folded.includes(section.key) ? null : section.rows.length === 0 ? (
 							<div className="mx-3 my-1.5 rounded-[10px] border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">
 								{section.empty}
 							</div>
+						) : (
+							section.rows.map((session) => (
+								<SessionCard
+									key={session.paneId}
+									session={session}
+									onStar={(starred) =>
+										star.mutate({ paneId: session.paneId, starred })
+									}
+									onRemind={(day) =>
+										remindCard.mutate({ paneId: session.paneId, day })
+									}
+									onDone={() => doneCard.mutate({ paneId: session.paneId })}
+									onStop={() => stopCard.mutate({ paneId: session.paneId })}
+								/>
+							))
 						)}
-						{section.rows.map((session) => (
-							<SessionCard
-								key={session.paneId}
-								session={session}
-								onStar={(starred) =>
-									star.mutate({ paneId: session.paneId, starred })
-								}
-								onRemind={(day) =>
-									remindCard.mutate({ paneId: session.paneId, day })
-								}
-								onDone={() => doneCard.mutate({ paneId: session.paneId })}
-								onStop={() => stopCard.mutate({ paneId: session.paneId })}
-							/>
-						))}
 					</section>
 				),
 			)}
