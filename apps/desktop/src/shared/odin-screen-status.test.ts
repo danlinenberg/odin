@@ -3,6 +3,7 @@ import stripAnsi from "strip-ansi";
 import {
 	agentOnScreen,
 	awaitsAwsSignIn,
+	blockedOnAwsSignIn,
 	escIsHandledOnScreen,
 	inputBoxEmpty,
 	inputBoxRows,
@@ -451,5 +452,22 @@ describe("awaitsAwsSignIn", () => {
 			awaitsAwsSignIn(remoteConnectLine("\nOdin: connecting to i-0abc...\n")),
 		).toBe(false);
 		expect(awaitsAwsSignIn(undefined)).toBe(false);
+	});
+});
+
+describe("blockedOnAwsSignIn", () => {
+	it("is the line a new session shows while its AWS sign-in is expired", () => {
+		const screen =
+			"\nOdin: Blocked: your AWS sign-in expired, so this session can't reach i-0abc.\n" +
+			"  To fix it:\n  1. Approve the AWS sign-in in the browser tab Odin just opened.\n";
+		expect(blockedOnAwsSignIn(remoteConnectLine(screen))).toBe(true);
+		expect(awaitsAwsSignIn(remoteConnectLine(screen))).toBe(false);
+	});
+
+	it("is not the line after a sign-in that was not approved, or no line", () => {
+		const screen =
+			"\nOdin: Still blocked: the AWS sign-in was not approved, so this session is not connected.\n";
+		expect(blockedOnAwsSignIn(remoteConnectLine(screen))).toBe(false);
+		expect(blockedOnAwsSignIn(undefined)).toBe(false);
 	});
 });

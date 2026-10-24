@@ -48,6 +48,25 @@ export function awsSsoLogin(
 
 const pending = new Map<string | null, SsoLogin>();
 
+/**
+ * Opens the approval page again for a sign-in already waiting on it - the tab
+ * Odin opened was closed, or never came up - or starts a new sign-in, which
+ * opens its own. Nothing opens when the profile turns out to be signed in.
+ */
+export async function reopenAwsSignIn(profile: string | null): Promise<void> {
+	const waiting = pending.get(profile);
+	const { link, done } = awsSsoLogin(profile);
+	if (!waiting) return;
+	const url = await Promise.race([
+		link,
+		done.then(
+			() => null,
+			() => null,
+		),
+	]);
+	if (url) await shell.openExternal(url);
+}
+
 /** The last URL the CLI printed: in the device flow, the one with the code filled in. */
 export const approvalLink = (output: string): string | null =>
 	output.match(/https:\/\/\S+/g)?.at(-1) ?? null;

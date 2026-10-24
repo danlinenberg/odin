@@ -241,6 +241,15 @@ export function awaitsAwsSignIn(connectLine: string | undefined): boolean {
 }
 
 /**
+ * The connect line while a remote session waits on its first AWS sign-in: the
+ * approval tab Odin opened is all there is to click, and it may never have
+ * come up.
+ */
+export function blockedOnAwsSignIn(connectLine: string | undefined): boolean {
+	return !!connectLine?.startsWith("Blocked: your AWS sign-in");
+}
+
+/**
  * Does Esc mean something *inside* Claude right now?
  *
  * Claude prints the affordance whenever it is - "Esc to go back" (or "Esc to

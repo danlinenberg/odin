@@ -100,7 +100,7 @@ import {
 	updateOdinConfig,
 } from "../odin-config";
 import { scanRepos } from "../repos";
-import { awsSsoLogin } from "../terminal/aws-sso";
+import { awsSsoLogin, reopenAwsSignIn } from "../terminal/aws-sso";
 import { getProcessEnvWithShellEnv } from "../workspaces/utils/shell-env";
 
 const run = promisify(execFile);
@@ -406,6 +406,10 @@ export const createRemoteHostRouter = () =>
 					() => false,
 				);
 		}),
+		/** The approval page for the host's AWS sign-in, for a pane blocked on it whose tab never came up. */
+		openAwsSignIn: publicProcedure.mutation(() =>
+			reopenAwsSignIn(readOdinConfig().remoteHost?.profile || null),
+		),
 		awsTags: publicProcedure
 			.input(awsTarget)
 			.query(({ input }) => listTagChoices(input)),

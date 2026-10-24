@@ -61,6 +61,7 @@ import { LIMIT_HIT_RE } from "shared/limit-hit";
 import {
 	agentOnScreen,
 	awaitsAwsSignIn,
+	blockedOnAwsSignIn,
 	claudeDrawn,
 	remoteConnectLine,
 } from "shared/odin-screen-status";
@@ -1738,7 +1739,32 @@ function AwsSignInButton({ onClick }: { onClick: () => void }) {
 			type="button"
 			title="Open a new AWS sign-in in the browser"
 			onClick={onClick}
-			className="h-6 shrink-0 rounded-md border border-attention/35 bg-attention/[0.07] px-2.5 text-[12px] font-medium text-attention hover:bg-attention/15"
+			className={AWS_SIGN_IN_BUTTON}
+		>
+			Sign in to AWS
+		</button>
+	);
+}
+
+const AWS_SIGN_IN_BUTTON =
+	"h-6 shrink-0 rounded-md border border-attention/35 bg-attention/[0.07] px-2.5 text-[12px] font-medium text-attention hover:bg-attention/15";
+
+/**
+ * Opens the AWS approval page again while a new remote session waits on its
+ * first sign-in: the tab Odin opened may never have come up, and the pane
+ * then showed only a spinner. The helper connects by itself once approved.
+ */
+function OpenAwsSignInButton() {
+	const open = electronTrpc.remoteHost.openAwsSignIn.useMutation({
+		onError: (error) => toast.error(`AWS sign-in failed: ${error.message}`),
+	});
+	return (
+		<button
+			type="button"
+			title="Open the AWS sign-in page in the browser"
+			disabled={open.isPending}
+			onClick={() => open.mutate()}
+			className={AWS_SIGN_IN_BUTTON}
 		>
 			Sign in to AWS
 		</button>
@@ -3435,6 +3461,7 @@ export function ChatView({
 							{awaitsAwsSignIn(connecting) && (
 								<AwsSignInButton onClick={() => void sendKeys(["\r"])} />
 							)}
+							{blockedOnAwsSignIn(connecting) && <OpenAwsSignInButton />}
 							{/* Before its first turn the CLI can stop on a terminal-only
 							    prompt (folder trust, bypass-permissions warning) that no
 							    transcript ever shows. */}
@@ -3673,6 +3700,7 @@ export function ChatView({
 							{awaitsAwsSignIn(connecting) && (
 								<AwsSignInButton onClick={() => void sendKeys(["\r"])} />
 							)}
+							{blockedOnAwsSignIn(connecting) && <OpenAwsSignInButton />}
 							{!noTerminal && (
 								<button
 									type="button"
