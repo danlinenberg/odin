@@ -127,7 +127,8 @@ export function BriefCard({
 	brief: Brief;
 	loading: boolean;
 	open: boolean;
-	onToggle: () => void;
+	/** The header's tap; none where the card is always open (the side panel). */
+	onToggle?: () => void;
 	links: BriefLinks;
 	linksLoading: boolean;
 }) {
@@ -142,12 +143,13 @@ export function BriefCard({
 		<div className="mb-2 rounded-[10px] border border-border border-l-[3px] border-l-primary bg-card text-sm leading-snug text-soft-foreground">
 			<button
 				type="button"
+				disabled={!onToggle}
 				onClick={onToggle}
 				className="block w-full p-2.5 text-left"
 			>
 				<div className="flex items-center justify-between text-[10px] font-semibold text-faint-foreground">
 					{open ? "BRIEF" : "TL;DR"}
-					<Chevron className="size-4" />
+					{onToggle && <Chevron className="size-4" />}
 				</div>
 				{loading ? "Writing the TL;DR…" : !open && (tldr ?? "No summary yet.")}
 			</button>
