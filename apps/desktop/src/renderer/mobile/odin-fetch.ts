@@ -171,7 +171,7 @@ const ANSWER_MS = 12_000;
  * terminal step by step. And the upload.
  */
 const SLOW_RE =
-	/^\/(upload|trpc\/(brief|links|screens|reply|run|keys|add|start|interrupt|done)\b)/;
+	/^\/(upload|trpc\/(brief|links|screens|search|reply|run|keys|add|start|interrupt|done)\b)/;
 
 /** When the open channel last answered anything: a live one answers the polls. */
 let heardAt = 0;

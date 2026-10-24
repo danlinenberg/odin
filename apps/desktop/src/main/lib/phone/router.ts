@@ -427,6 +427,42 @@ export const phoneRouter = t.router({
 			board("dismiss-item", { paneId: input.paneId, item: input.item }),
 		),
 
+	/**
+	 * Every session's conversation, searched as Session History does (the
+	 * desktop's ⌘F): titles, prompts and what was said. A session on the board
+	 * comes with its paneId, which the phone opens.
+	 */
+	search: t.procedure
+		.input(z.object({ query: z.string().trim().min(2).max(200) }))
+		.query(async ({ input }) => {
+			const { searchSessions } = await import("main/lib/claude-sessions");
+			const { cardTitles } = await import("main/lib/card-titles");
+			const { sessionPeople } = await import(
+				"lib/trpc/routers/terminal/session-people"
+			);
+			const titles: Record<string, string> = {};
+			for (const [id, brief] of await cachedBriefs())
+				if (brief.title) titles[id] = brief.title;
+			Object.assign(titles, cardTitles());
+			const { sessions } = await searchSessions({
+				query: input.query,
+				limit: 30,
+				people: sessionPeople(),
+				titles,
+			});
+			const panes = Object.values(appState.data.tabsState.panes ?? {});
+			return sessions.map((session) => ({
+				sessionId: session.sessionId,
+				paneId:
+					panes.find((pane) => pane.claudeSessionId === session.sessionId)
+						?.id ?? null,
+				title: session.title,
+				snippet: session.snippets[0]?.text ?? session.prompt ?? "",
+				person: session.person,
+				updatedAt: session.updatedAt,
+			}));
+		}),
+
 	/** The board's Stop: Ctrl+C the turn, never at an idle prompt. */
 	interrupt: t.procedure.input(paneInput).mutation(async ({ input }) => {
 		const sent = await interruptClaude(

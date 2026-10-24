@@ -56,6 +56,7 @@ import { channelFetch, type OdinFetch } from "./odin-fetch";
 import { type Pairing, parsePairLink } from "./pair-link";
 import { MenuCard, PlanCard, QuestionCard } from "./prompt-cards";
 import { markStarted, useScreensUpdate } from "./screens-update";
+import { SearchBox, SearchResults, useSettled } from "./search";
 import { NEW_TASK_EVENT, SharePicker, useSharedFiles } from "./share";
 import {
 	boardWords,
@@ -140,7 +141,7 @@ const odinFetch: OdinFetch = pairing
 					...init,
 					headers: { ...init?.headers, authorization: `Bearer ${devToken}` },
 				});
-const SLOW_QUERIES = new Set(["brief", "links", "screens"]);
+const SLOW_QUERIES = new Set(["brief", "links", "screens", "search"]);
 const phone = createTRPCReact<PhoneRouter>();
 const client = phone.createClient({
 	links: [
@@ -366,6 +367,14 @@ function Home() {
 		return () => removeEventListener(NEW_TASK_EVENT, open);
 	}, []);
 	const sessions = board.data?.sessions ?? [];
+	// Every session's conversation, searched on the Mac as the desktop's ⌘F does.
+	const [query, setQuery] = useState("");
+	const settled = useSettled(query.trim());
+	const searching = settled.length >= 2;
+	const search = phone.search.useQuery(
+		{ query: settled },
+		{ enabled: searching, retry: false, staleTime: 30_000 },
+	);
 	return (
 		<div className="min-h-dvh pb-24">
 			<header className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-2 backdrop-blur">
@@ -373,6 +382,7 @@ function Home() {
 					<h1 className="text-2xl font-bold">Board</h1>
 					<ProfilePicker />
 				</div>
+				<SearchBox value={query} onChange={setQuery} />
 			</header>
 			{demo && (
 				<div className="mx-3 mt-3 flex items-center gap-3 rounded-[10px] border border-primary/40 bg-primary/10 px-3 py-2 text-sm">
@@ -397,27 +407,33 @@ function Home() {
 					</span>
 				</div>
 			)}
-			{(board.data ? boardSections(sessions) : []).map((section) => (
-				<section key={section.key}>
-					<h2 className="px-4 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-faint-foreground">
-						{section.label} · {section.rows.length}
-					</h2>
-					{section.rows.length === 0 && (
-						<div className="mx-3 my-1.5 rounded-[10px] border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">
-							{section.empty}
-						</div>
-					)}
-					{section.rows.map((session) => (
-						<SessionCard
-							key={session.paneId}
-							session={session}
-							onStar={(starred) =>
-								star.mutate({ paneId: session.paneId, starred })
-							}
-						/>
-					))}
-				</section>
-			))}
+			{searching && (
+				<SearchResults hits={search.data} loading={search.isFetching} />
+			)}
+			<ErrorLine error={search.error} />
+			{(board.data && !searching ? boardSections(sessions) : []).map(
+				(section) => (
+					<section key={section.key}>
+						<h2 className="px-4 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-faint-foreground">
+							{section.label} · {section.rows.length}
+						</h2>
+						{section.rows.length === 0 && (
+							<div className="mx-3 my-1.5 rounded-[10px] border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">
+								{section.empty}
+							</div>
+						)}
+						{section.rows.map((session) => (
+							<SessionCard
+								key={session.paneId}
+								session={session}
+								onStar={(starred) =>
+									star.mutate({ paneId: session.paneId, starred })
+								}
+							/>
+						))}
+					</section>
+				),
+			)}
 			{!!board.data?.backlog.length && (
 				<section>
 					<h2 className="px-4 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-faint-foreground">
