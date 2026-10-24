@@ -17,6 +17,13 @@ export const isTypingElsewhere = (active: Element | null) =>
 		// the menu out from under a hovering pointer.
 		!!active.closest('[role="menu"],[role="listbox"],[role="dialog"]'));
 
-/** The unprompted-refocus guard, at the call sites that just want to ask. */
+/**
+ * The unprompted-refocus guard, at the call sites that just want to ask.
+ *
+ * An open modal (New task, a prompt dialog) also holds the keyboard when focus
+ * has slipped to <body>: a click on its header, padding or resize corner blurs
+ * the field, and the drawer's next poll would hand the keys to the session.
+ */
 export const canClaimKeyboard = () =>
-	!isTypingElsewhere(document.activeElement);
+	!isTypingElsewhere(document.activeElement) &&
+	!document.querySelector('[aria-modal="true"]');

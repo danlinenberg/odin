@@ -1,5 +1,5 @@
-import { describe, expect, it } from "bun:test";
-import { isTypingElsewhere } from "./keyboard";
+import { afterEach, describe, expect, it } from "bun:test";
+import { canClaimKeyboard, isTypingElsewhere } from "./keyboard";
 
 /** No DOM in bun:test - the predicate reads four properties, so a stand-in
     carrying those four exercises every branch. */
@@ -34,5 +34,28 @@ describe("isTypingElsewhere", () => {
 		).toBe(false);
 		expect(isTypingElsewhere(element("BODY"))).toBe(false);
 		expect(isTypingElsewhere(null)).toBe(false);
+	});
+});
+
+describe("canClaimKeyboard", () => {
+	const realDocument = globalThis.document;
+	afterEach(() => {
+		globalThis.document = realDocument;
+	});
+	const withDocument = (activeElement: Element | null, modalOpen: boolean) => {
+		globalThis.document = {
+			activeElement,
+			querySelector: () => (modalOpen ? {} : null),
+		} as unknown as Document;
+	};
+
+	it("claims an idle page", () => {
+		withDocument(element("BODY"), false);
+		expect(canClaimKeyboard()).toBe(true);
+	});
+
+	it("leaves the keyboard alone while a modal is open, even with focus on body", () => {
+		withDocument(element("BODY"), true);
+		expect(canClaimKeyboard()).toBe(false);
 	});
 });
