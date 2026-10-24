@@ -1247,7 +1247,8 @@ export async function transcriptTail({
 	let text = buffer.toString("utf-8");
 	// Cut in the middle of a line: start at the next whole one.
 	if (start > 0) text = text.slice(text.indexOf("\n") + 1);
-	const messages = parseTranscript(text, 60, 6000, true, true);
+	// The phone shows a reply whole: the cut is only against a runaway one.
+	const messages = parseTranscript(text, 60, 100_000, true, true);
 	tails.set(sessionId, {
 		key,
 		messages,

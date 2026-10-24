@@ -10,7 +10,7 @@ import {
 const user = (text: string) => ({ role: "user" as const, text });
 const odin = (text: string) => ({ role: "assistant" as const, text });
 
-test("a TL;DR leads only a reply too long to read whole", () => {
+test("a TL;DR shows only for a reply too long to read at a glance", () => {
 	const short = { last: "Fixed the sort.", urgency: null, long: false };
 	expect(leadingTldr(short)).toBeNull();
 	expect(leadingTldr({ ...short, long: true })).toEqual({
@@ -64,19 +64,18 @@ test("a launch prompt shows only your request until you ask for Odin's part", ()
 		"Work in the current workspace. Investigate, make the changes.",
 	].join("\n");
 	const folded = userBubbleText(prompt, { full: false, images: false });
-	expect(folded).toEqual({ shown: "Task: Test", folds: true, long: false });
+	expect(folded).toEqual({ shown: "Task: Test", folds: true });
 	const full = userBubbleText(prompt, { full: true, images: false });
 	expect(full.shown).toBe(prompt);
 	expect(full.folds).toBe(true);
 });
 
-test("a typed message shows whole; a long one clamps; image tags go", () => {
+test("a typed message shows whole, however long; image tags go", () => {
 	expect(
 		userBubbleText("Fix it\n\nThanks", { full: false, images: false }),
-	).toEqual({ shown: "Fix it\n\nThanks", folds: false, long: false });
-	expect(
-		userBubbleText("a\nb\nc\nd\ne\nf\ng", { full: false, images: false }).long,
-	).toBe(true);
+	).toEqual({ shown: "Fix it\n\nThanks", folds: false });
+	const long = "a\nb\nc\nd\ne\nf\ng".repeat(50);
+	expect(userBubbleText(long, { full: false, images: false }).shown).toBe(long);
 	expect(
 		userBubbleText("Look [Image #1] here", { full: false, images: true }).shown,
 	).toBe("Look here");
