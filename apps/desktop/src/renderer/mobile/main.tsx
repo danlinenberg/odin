@@ -62,6 +62,7 @@ import {
 	boardWords,
 	setVocabulary,
 	speechAvailable,
+	useActionButton,
 	useSpeech,
 } from "./speech";
 import { Thumbnails, Transcript } from "./transcript";
@@ -507,6 +508,8 @@ function NewTask({ onClose }: { onClose: () => void }) {
 	const speech = useSpeech((words) =>
 		setText((typed) => appendWords(typed, words)),
 	);
+	// The Action Button starts and stops the mic, as a tap on it does.
+	useActionButton(() => void speech.toggle());
 	// Recording counts as text: Save or Start mid-dictation takes the words too.
 	const ready =
 		(text.trim() || uploads.paths.length || speech.listening) &&
@@ -758,6 +761,8 @@ function Session({ paneId }: { paneId: string }) {
 	const speech = useSpeech((words) =>
 		setText((typed) => appendWords(typed, words)),
 	);
+	// The Action Button starts and stops the mic, as a tap on it does.
+	useActionButton(() => void speech.toggle());
 	// Recording counts as text: Send mid-dictation stops it and sends the words.
 	const ready =
 		(text.trim() || uploads.paths.length || speech.listening) &&
