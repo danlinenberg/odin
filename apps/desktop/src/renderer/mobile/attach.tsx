@@ -249,7 +249,7 @@ export function MicButton({
 			className={`relative flex size-10 shrink-0 items-center justify-center rounded-full ${
 				speech.listening
 					? "bg-danger text-white"
-					: "bg-primary text-primary-foreground"
+					: "bg-(--brand) text-primary-foreground"
 			}`}
 		>
 			{speech.listening && (
@@ -273,7 +273,7 @@ export function SendButton({ disabled }: { disabled: boolean }) {
 			type="submit"
 			aria-label="Send"
 			disabled={disabled}
-			className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-40"
+			className="flex size-10 shrink-0 items-center justify-center rounded-full bg-(--brand) text-primary-foreground disabled:opacity-40"
 		>
 			<LuArrowUp className="size-5" />
 		</button>

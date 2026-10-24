@@ -114,3 +114,13 @@ body {
 	height: 4px;
 	animation: speech-level 0.9s ease-in-out infinite;
 }
+
+/* Odin's purple, from the app icon. Filled things (your messages, the main
+   buttons, the mic) are the icon's own purple with white on it; purple text
+   and outlines are the same hue made light, which the dark background needs
+   to be readable (the icon's purple on it is 1.4:1). */
+:root {
+	--brand: #3b0883;
+	--primary: #b888fc;
+	--primary-foreground: #ffffff;
+}

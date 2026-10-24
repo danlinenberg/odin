@@ -116,7 +116,7 @@ function UserBubble({ message }: { message: Message }) {
 		images: !!message.images,
 	});
 	return (
-		<div className="my-2 ml-10 select-text break-words rounded-2xl rounded-br-md bg-primary px-3 py-2 text-[15px] leading-snug text-primary-foreground">
+		<div className="my-2 ml-10 select-text break-words rounded-2xl rounded-br-md bg-(--brand) px-3 py-2 text-[15px] leading-snug text-primary-foreground">
 			<Thumbnails images={message.images} />
 			<div className="whitespace-pre-wrap">{shown}</div>
 			{folds && (
