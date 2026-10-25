@@ -23,6 +23,10 @@ on:
         description: A draft release only collaborators see, versioned <next patch>-pre.<run>
         type: boolean
         default: false
+      version:
+        description: With private, the version to pre-release instead of the next patch (1.1.0 gives 1.1.0-pre.<run>)
+        type: string
+        default: ""
 
 permissions:
   contents: write
@@ -61,6 +65,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REF_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          PRE_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           V=$(jq -r .version apps/desktop/package.json)
@@ -70,7 +75,9 @@ jobs:
             # A private draft: the next patch as a pre-release, so the real
             # one still updates it. Bumped in place, never committed.
             NEWEST=$(gh release list --exclude-drafts --limit 1 --json tagName -q '.[0].tagName')
-            NEW="$(awk -F. '{print $1"."$2"."$3+1}' <<<"${NEWEST#v}")-pre.${{ github.run_number }}"
+            BASE="${PRE_VERSION:-$(awk -F. '{print $1"."$2"."$3+1}' <<<"${NEWEST#v}")}"
+            [[ "$BASE" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "version must be x.y.z, got $BASE" >&2; exit 1; }
+            NEW="$BASE-pre.${{ github.run_number }}"
             for f in apps/desktop/package.json packages/host-service/package.json; do
               jq --arg v "$NEW" '.version = $v' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
             done
