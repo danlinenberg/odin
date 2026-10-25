@@ -2784,6 +2784,11 @@ function DevBoardPage() {
 	// The ticket (or PR) this session was launched from - the drawer's title says
 	// "CRR-862: …" and until now there was no way to open CRR-862.
 	const drawerLink = drawerCard ? sourceLink(drawerCard.pane.odinBrief) : null;
+	// drawerCard is a snapshot taken when the drawer opened, so the star reads
+	// the live pane - otherwise a click saves but the button never changes.
+	const drawerStarred = !!(
+		drawerCard && panes[drawerCard.pane.id]?.odinStarred
+	);
 	// Open wide by default - a session needs room to read the terminal. Held as
 	// a fraction of the width beside the icon rail, not px: a px width measured
 	// once went stale when the window was minimized/resized, and the drawer
@@ -6117,15 +6122,13 @@ function DevBoardPage() {
 				</span>
 				<button
 					type="button"
-					title={
-						drawerCard.pane.odinStarred ? "Unstar" : "Star - pin to the top"
-					}
-					aria-label={drawerCard.pane.odinStarred ? "Unstar" : "Star"}
-					aria-pressed={!!drawerCard.pane.odinStarred}
+					title={drawerStarred ? "Unstar" : "Star - pin to the top"}
+					aria-label={drawerStarred ? "Unstar" : "Star"}
+					aria-pressed={drawerStarred}
 					onClick={() => toggleStar(drawerCard.pane.id)}
 					className="mr-auto shrink-0 rounded-[5px] px-1 text-[13px] text-attention hover:bg-attention/15"
 				>
-					{drawerCard.pane.odinStarred ? "★" : "☆"}
+					{drawerStarred ? "★" : "☆"}
 				</button>
 				{drawerCard.pane.type === "terminal" && !inCatchUp && (
 					<button
