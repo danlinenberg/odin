@@ -962,6 +962,20 @@ export const createWorkRouter = () => {
 			},
 		),
 
+		/** Right-click "Ignore mail like this": its sender is junk from now on, and the model learns from it. */
+		ignoreEmail: publicProcedure
+			.input(
+				z.object({
+					from: z.string().nullable(),
+					fromEmail: z.string().nullable(),
+					subject: z.string(),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				const { ignoreEmail } = await import("main/lib/email-triage");
+				ignoreEmail(input);
+			}),
+
 		/** Open tasks assigned to me, across every ClickUp workspace the token reaches. */
 		myClickupTasks: publicProcedure.query(
 			async (): Promise<{ tasks: ClickupTaskRow[] }> => {

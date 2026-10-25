@@ -27,6 +27,13 @@ export interface GithubAccount {
 	expiresAt?: number;
 }
 
+/** One email I told Odin to ignore mail like. */
+export interface IgnoredEmail {
+	from: string | null;
+	fromEmail: string | null;
+	subject: string;
+}
+
 export interface OdinFileConfig {
 	/** Notion OAuth access token. */
 	notionToken?: string;
@@ -161,6 +168,8 @@ export interface OdinFileConfig {
 	 */
 	gmailAddress?: string;
 	gmailAppPassword?: string;
+	/** Mail I right-clicked "Ignore mail like this" on: its sender is junk, and the triage model sees it as an example. Newest last, capped. */
+	ignoredEmails?: IgnoredEmail[];
 
 	/**
 	 * ClickUp personal API token (`pk_…`), pasted like Gmail's app password:
