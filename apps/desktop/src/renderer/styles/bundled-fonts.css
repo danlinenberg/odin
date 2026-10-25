@@ -35,3 +35,15 @@
 	font-style: italic;
 	font-display: swap;
 }
+
+/* SF Hebrew for Hebrew letters only (unicode-range), so a Hebrew reply reads in
+   the system font instead of Chromium's thin Arial Hebrew fallback. Latin text
+   falls through to the next font in the stack. */
+@font-face {
+	font-family: "Odin Hebrew";
+	src: url("odin-font://fonts/SFHebrew.ttf") format("truetype");
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+	unicode-range: U+0590-05FF, U+FB1D-FB4F;
+}
