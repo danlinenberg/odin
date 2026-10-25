@@ -47,18 +47,14 @@ under Advanced, and select **Use** on it. The first setup takes a few minutes.
 - The instance has no `Odin = host` tag (the first command above adds it).
 - Your AWS sign-in has expired: `aws sso login --profile <profile>`.
 
-## Users without an administrator role
+## Who can use a host
 
-A host can be shared with users whose AWS role may not run commands on it as
-root. Each one needs two things:
+Anyone whose AWS role has these on instances tagged `Odin = host`:
 
-- Their Linux user on the host. An administrator makes it once, in Settings >
-  Remote > Set up a user on this host, by the name that user's Settings show
-  after "Yours is" (`odin-` and their GitHub login).
-- These permissions on instances tagged `Odin = host`:
-  `ssm:StartSession` (the `AWS-StartSSHSession` document) and
-  `ec2-instance-connect:SendSSHPublicKey`. Limit the second one to `odin-*`
-  logins with the condition `StringLike: {"ec2:osuser": "odin-*"}`, so nobody
-  logs in as the instance's own admin user.
+- `ssm:StartSession`, `ssm:SendCommand` (the `AWS-RunShellScript` document)
+  and `ssm:GetCommandInvocation`
+- `ec2-instance-connect:SendSSHPublicKey`
 
-Without the Linux user, the session stops and says which name to set up.
+With them, Use and the first session set up that user's own Linux user on the
+host. Nobody else has to do anything. A role without them gets a session that
+stops and says which user an administrator sets up in Settings > Remote.
