@@ -9,11 +9,13 @@ import { BUTTON, PILL } from "./pill";
  * One header row per feed. Every view used to stack two bars - the sources on
  * top, its own filters underneath - which read as two competing tab strips
  * over a list. They're one row now: sources, a hairline, this feed's filters,
- * then its tools on the right.
+ * then its tools on the right. It wraps: on a narrow window the tools drop to a
+ * second line instead of running off the edge, where Sync and the last chips
+ * were cut off with no way to reach them.
  */
 export function FeedHeader({ children }: { children?: ReactNode }) {
 	return (
-		<div className="flex items-center gap-2.5 border-b border-border px-[18px] py-2.5">
+		<div className="flex flex-wrap items-center gap-2.5 border-b border-border px-[18px] py-2.5">
 			<FeedTabs />
 			{children}
 		</div>
