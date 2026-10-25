@@ -193,7 +193,7 @@ export interface InstanceList {
  * it knows; an instance that never registered with SSM is left out. The
  * filter takes 100 ids and a page holds 50, so it goes in chunks.
  */
-async function ssmPing(
+export async function ssmPing(
 	ssm: SSMClient,
 	ids: string[],
 ): Promise<Map<string, string>> {

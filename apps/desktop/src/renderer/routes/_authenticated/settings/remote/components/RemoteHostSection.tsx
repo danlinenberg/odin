@@ -16,7 +16,13 @@ import { toast } from "@odin/ui/sonner";
 import { Switch } from "@odin/ui/switch";
 import { cn } from "@odin/ui/utils";
 import { useEffect, useRef, useState } from "react";
-import { HiChevronDown } from "react-icons/hi2";
+import {
+	HiCheckCircle,
+	HiChevronDown,
+	HiExclamationTriangle,
+	HiMinusCircle,
+	HiXCircle,
+} from "react-icons/hi2";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { hostPackagesProblem, hostPolicyArnProblem } from "shared/host-setup";
 import { SettingRow, SettingsSection } from "../../components/SettingsPage";
@@ -99,6 +105,7 @@ export function RemoteHostSection() {
 		onSuccess: ({ user }) => {
 			setNewUser("");
 			toast.success(`${user} is set up on the host.`);
+			void utils.remoteHost.health.invalidate();
 		},
 		onError,
 	});
@@ -394,6 +401,13 @@ export function RemoteHostSection() {
 						onCheckedChange={(on) => setOn.mutate(on)}
 					/>
 				</SettingRow>
+			)}
+			{current?.host && (
+				<HostHealthRow
+					hostUser={current.hostUser}
+					settingUp={setUpUser.isPending}
+					onSetUpUser={() => setUpUser.mutate(current.hostUser)}
+				/>
 			)}
 			<SettingRow
 				label="Claude sign-in"
@@ -937,5 +951,105 @@ function SwitchGrid<Id extends string>({
 				</label>
 			))}
 		</div>
+	);
+}
+
+const HEALTH_ICONS = {
+	ok: <HiCheckCircle className="size-4 shrink-0 text-emerald-500" />,
+	fail: <HiXCircle className="size-4 shrink-0 text-destructive" />,
+	warn: <HiExclamationTriangle className="size-4 shrink-0 text-amber-500" />,
+	skipped: <HiMinusCircle className="size-4 shrink-0 text-muted-foreground" />,
+} as const;
+
+/**
+ * Whether new sessions can start on the host: each step they need, done or
+ * missing, with its fix (the remote-host router's health). Runs when the page
+ * opens and on Check again; it logs in to the host, so it takes seconds.
+ */
+function HostHealthRow({
+	hostUser,
+	settingUp,
+	onSetUpUser,
+}: {
+	hostUser: string;
+	settingUp: boolean;
+	onSetUpUser: () => void;
+}) {
+	const health = electronTrpc.remoteHost.health.useQuery(undefined, {
+		retry: false,
+		refetchOnWindowFocus: false,
+		staleTime: 5 * 60_000,
+	});
+	const checking = health.isFetching || settingUp;
+	const result = health.data;
+	const missing =
+		result?.checks.filter((check) => check.state === "fail").length ?? 0;
+	const userMissing = result?.checks.some(
+		(check) => check.id === "user" && check.state === "fail",
+	);
+	return (
+		<SettingRow
+			label="Connection check"
+			stacked
+			description={
+				<span className="select-text cursor-text">
+					{checking && !result
+						? "Checking what new sessions on the host need..."
+						: health.error
+							? `The check could not run: ${health.error.message}`
+							: !result
+								? null
+								: result.healthy
+									? "New sessions can start on the host."
+									: `New sessions can't start on the host: ${missing} ${missing === 1 ? "step is" : "steps are"} missing.`}
+					{result && (
+						<span className="ml-1 text-muted-foreground">
+							Checked {new Date(result.at).toLocaleTimeString()}.
+						</span>
+					)}
+				</span>
+			}
+		>
+			<div className="flex flex-col gap-2">
+				{result && (
+					<ul className="flex flex-col gap-1.5 text-sm">
+						{result.checks.map((check) => (
+							<li key={check.id} className="flex items-start gap-2">
+								<span className="mt-0.5">{HEALTH_ICONS[check.state]}</span>
+								<span
+									className={cn(
+										"select-text cursor-text",
+										check.state === "skipped" && "text-muted-foreground",
+									)}
+								>
+									{check.label}
+									{check.detail && (
+										<span className="text-muted-foreground">
+											{" - "}
+											{check.detail}
+										</span>
+									)}
+								</span>
+							</li>
+						))}
+					</ul>
+				)}
+				<div className="flex items-center gap-2">
+					<Button
+						size="sm"
+						variant="outline"
+						disabled={checking}
+						onClick={() => void health.refetch()}
+					>
+						{checking ? "Checking..." : "Check again"}
+					</Button>
+					{userMissing && (
+						<Button size="sm" disabled={settingUp} onClick={onSetUpUser}>
+							{settingUp ? "Setting up..." : `Set up ${hostUser}`}
+						</Button>
+					)}
+				</div>
+			</div>
+		</SettingRow>
 	);
 }

@@ -50,6 +50,7 @@ import {
 	hostFileSources,
 	rememberHostFiles,
 } from "main/lib/remote-host/host-files";
+import { checkHostHealth, hostProbe } from "main/lib/remote-host/host-health";
 import { hostLoad } from "main/lib/remote-host/host-load";
 import {
 	HOST_CONNECTORS,
@@ -533,6 +534,16 @@ export const createRemoteHostRouter = () =>
 				return { user: input, tools };
 			}),
 
+		/**
+		 * Whether new sessions can start on the host: each step they need,
+		 * done or missing, with the fix for a missing one (checkHostHealth).
+		 * Logs in to the host, so it takes seconds; null with no host.
+		 */
+		health: publicProcedure.query(async () => {
+			const host = readOdinConfig().remoteHost;
+			if (!host) return null;
+			return checkHostHealth(host, Boolean(claudeToken()), hostProbe(host));
+		}),
 		/** The host sessions start on; `on: false` keeps them on this computer. */
 		get: publicProcedure.query(() => ({
 			host: readOdinConfig().remoteHost ?? null,
