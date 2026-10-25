@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import type { IconType } from "react-icons";
 import { BsCloud, BsCloudSlash } from "react-icons/bs";
 import {
@@ -209,31 +210,107 @@ export function Chips({ details }: { details: Details }) {
 	);
 }
 
-/** Tomorrow as YYYY-MM-DD, local time: the earliest day Remind me takes. */
-function tomorrow(): string {
-	const day = new Date(Date.now() + 86_400_000);
+/** A day `days` from today as YYYY-MM-DD, local time. */
+function dayFrom(days: number): string {
+	const day = new Date();
+	day.setDate(day.getDate() + days);
 	const pad = (n: number) => String(n).padStart(2, "0");
 	return `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
 }
 
+/** Days until next Monday: a week on a Monday, never today. */
+const toMonday = () => (8 - new Date().getDay()) % 7 || 7;
+
 /**
- * Remind me under a swiped card, as the board's bell: a tap lands on the
- * date field laid over it, so the system date picker opens.
+ * Remind me under a swiped card: a sheet of days, tomorrow at the earliest.
+ * Nothing happens until a button is tapped - iOS fills an empty date field
+ * the moment its picker opens, so a pick-on-change snoozed at once.
  */
 function RemindAction({ onPick }: { onPick: (day: string) => void }) {
+	const [open, setOpen] = useState(false);
+	const [day, setDay] = useState("");
+	const pick = (value: string) => {
+		setOpen(false);
+		setDay("");
+		onPick(value);
+	};
+	const quick: [string, string][] = [
+		["Tomorrow", dayFrom(1)],
+		["In 3 days", dayFrom(3)],
+		["Next Monday", dayFrom(toMonday())],
+	];
 	return (
-		<label className="relative flex w-[76px] flex-col items-center justify-center gap-1 bg-attention text-[12px] font-semibold text-black">
-			<LuBellRing className="size-5" />
-			Remind me
-			<input
-				type="date"
-				aria-label="Remind me"
-				min={tomorrow()}
-				value=""
-				onChange={(event) => event.target.value && onPick(event.target.value)}
-				className="absolute inset-0 size-full opacity-0"
-			/>
-		</label>
+		<>
+			<button
+				type="button"
+				onClick={() => setOpen(true)}
+				className="flex w-[76px] flex-col items-center justify-center gap-1 bg-attention text-[12px] font-semibold text-black"
+			>
+				<LuBellRing className="size-5" />
+				Remind me
+			</button>
+			{open &&
+				createPortal(
+					<div
+						role="dialog"
+						aria-label="Remind me"
+						className="fixed inset-0 z-50 flex items-end"
+					>
+						<button
+							type="button"
+							aria-label="Cancel"
+							onClick={() => setOpen(false)}
+							className="absolute inset-0 bg-black/50"
+						/>
+						<div className="relative w-full rounded-t-2xl border-t border-border bg-card px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+16px)]">
+							<div className="mb-3 text-[15px] font-semibold">
+								Remind me - off the board until
+							</div>
+							<div className="flex flex-col gap-2">
+								{quick.map(([label, value]) => (
+									<button
+										key={label}
+										type="button"
+										onClick={() => pick(value)}
+										className="flex h-11 items-center justify-between rounded-[10px] bg-secondary px-3 text-[15px]"
+									>
+										{label}
+										<span className="text-[13px] text-muted-foreground">
+											{value}
+										</span>
+									</button>
+								))}
+								<div className="flex gap-2">
+									<input
+										type="date"
+										aria-label="Another day"
+										min={dayFrom(1)}
+										value={day}
+										onChange={(event) => setDay(event.target.value)}
+										className="h-11 min-w-0 flex-1 rounded-[10px] border border-input bg-secondary px-3 text-[15px]"
+									/>
+									<button
+										type="button"
+										disabled={!day}
+										onClick={() => pick(day)}
+										className="h-11 rounded-[10px] bg-attention px-4 text-[15px] font-semibold text-black disabled:opacity-40"
+									>
+										Remind me
+									</button>
+								</div>
+								<button
+									type="button"
+									onClick={() => setOpen(false)}
+									className="h-11 text-[15px] text-muted-foreground"
+								>
+									Cancel
+								</button>
+							</div>
+						</div>
+					</div>,
+					document.body,
+				)}
+		</>
 	);
 }
 
