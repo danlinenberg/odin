@@ -446,6 +446,29 @@ export function launchPullRequest(
 	return pullRequests([{ role: "assistant", text: url, at: null }])[0] ?? null;
 }
 
+/** The Slack message a session was launched on, when its launch brief is a Slack row. */
+export function launchSlackLink(
+	brief: string | null | undefined,
+): string | null {
+	const url = sourceLink(brief)?.url;
+	return url && linkKind(url) === "slack" ? url : null;
+}
+
+/**
+ * The PR urls a message lists. A session launched on a message that lists
+ * PRs - a builder's "In review" post - is about those PRs, the same way a
+ * session launched on a PR row is about that PR, whoever opened them.
+ */
+export function listedPullRequests(
+	text: string | null | undefined,
+): Set<string> {
+	return new Set(
+		pullRequests([{ role: "assistant", text: text ?? "", at: null }]).map(
+			(pr) => pr.url,
+		),
+	);
+}
+
 /**
  * The PRs "Ping me" waits on for approval: every PR the session's brief
  * lists. That is the one it launched on, every one it printed across the

@@ -25,9 +25,11 @@ import {
 	jiraKey,
 	type LinkKind,
 	launchPullRequest,
+	launchSlackLink,
 	linkContext,
 	linkKind,
 	linkLabel,
+	listedPullRequests,
 	mergeConflicts,
 	notionPage,
 	parseLinks,
@@ -633,6 +635,7 @@ export function SessionBrief({
 	// opened it and the replies only call it "#12": a review lists what it
 	// reviewed.
 	const launchPr = launchPullRequest(launch);
+	const launchThread = launchSlackLink(launch);
 	const linkedPrs = linkSource ? pullRequests(linkSource) : [];
 	const allPrs =
 		launchPr && !linkedPrs.some((pr) => pr.url === launchPr.url)
@@ -680,7 +683,11 @@ export function SessionBrief({
 
 	// Channel, author and opening line for every Slack link on the panel, so
 	// two "Slack thread"s say which conversation each one is. Cached in main.
-	const slackUrls = [foundThread, ...allAdded.map((link) => link.url)].filter(
+	const slackUrls = [
+		foundThread,
+		launchThread,
+		...allAdded.map((link) => link.url),
+	].filter(
 		(url): url is string => !!url && /\.slack\.com\/archives\//.test(url),
 	);
 	const { data: previews } = electronTrpc.slack.previews.useQuery(
@@ -779,9 +786,17 @@ export function SessionBrief({
 			typeof link === "string" ? link : (link as BriefLink).url,
 		),
 	);
+	// The PRs the Slack message it was launched on lists are its subject too:
+	// a review of a builder's "In review" post lists what it reviewed.
+	const launchListed = listedPullRequests(
+		launchThread &&
+			(previews?.[launchThread]?.full ??
+				postedMessage(transcript?.messages ?? [], launchThread)),
+	);
 	const ownPrs = prs.filter(
 		(pr) =>
 			pr.url === launchPr?.url ||
+			launchListed.has(pr.url) ||
 			addedUrls.has(pr.url) ||
 			prStates?.[pr.url]?.mine !== false,
 	);
