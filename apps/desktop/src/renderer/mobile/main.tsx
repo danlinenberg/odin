@@ -360,8 +360,12 @@ function Home() {
 			),
 		);
 	}, [board.data]);
+	// Start opens the new session, as Start now does.
 	const start = phone.start.useMutation({
-		onSuccess: () => void board.refetch(),
+		onSuccess: ({ paneId }) => {
+			void board.refetch();
+			if (paneId) location.hash = `#/s/${paneId}`;
+		},
 	});
 	const utils = phone.useUtils();
 	// The star moves on tap; the Mac's answer only confirms it (or undoes it).
@@ -593,7 +597,13 @@ function NewTask({ onClose }: { onClose: () => void }) {
 	const [text, setText] = useState("");
 	const [repo, setRepo] = useState("");
 	const [mark, setMark] = useState("");
-	const add = phone.add.useMutation({ onSuccess: onClose });
+	// Start now opens the new session; Save stays on the board.
+	const add = phone.add.useMutation({
+		onSuccess: ({ paneId }) => {
+			onClose();
+			if (paneId) location.hash = `#/s/${paneId}`;
+		},
+	});
 	// An older Odin on the Mac has no repo list: the picker just doesn't show.
 	const repos = phone.repos.useQuery(undefined, { retry: false });
 	const uploads = useUploads(odinFetch);

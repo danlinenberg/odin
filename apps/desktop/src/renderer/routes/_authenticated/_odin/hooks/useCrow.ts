@@ -534,6 +534,7 @@ export function useCrow() {
 async function launchTask(
 	task: CrowDeps["todos"][number],
 	deps: CrowDeps,
+	onCreated?: (paneId: string) => void,
 ): Promise<string | null> {
 	const ensured = await deps.ensureWorkspace(null, { askForFolder: false });
 	if (!ensured.ok) {
@@ -548,6 +549,7 @@ async function launchTask(
 		brief: taskPrompt(task),
 		skill: task.skill,
 		repoPath: task.repo,
+		onCreated: onCreated && ((created) => onCreated(created.paneId)),
 	});
 	if (!result.ok) {
 		toast.error(`${task.title}: ${result.error}`);
@@ -555,6 +557,23 @@ async function launchTask(
 	}
 	deps.setPane(task.id, result.paneId);
 	return result.paneId;
+}
+
+/**
+ * Start a task and answer its paneId as JSON the moment its card is on the
+ * board - not when the launch resolves, which can sit behind the capacity gate.
+ */
+function openedPane(
+	task: CrowDeps["todos"][number],
+	deps: CrowDeps,
+): Promise<string> {
+	return new Promise((resolve) => {
+		const answer = (paneId: string | null) =>
+			resolve(
+				JSON.stringify(paneId ? { paneId } : { error: "Couldn't start it." }),
+			);
+		void launchTask(task, deps, answer).then(answer);
+	});
 }
 
 /** The backlog: My Tasks minus automations and what's put away as Done. */
@@ -614,6 +633,8 @@ function runOdinAction(
 		const task =
 			args.start === "true" ? useOdinTasks.getState().tasks[0] : undefined;
 		if (!task) return `Added "${title}" to the backlog.`;
+		// The phone opens the new session: its paneId as JSON, once its card is up.
+		if (args.open === "true") return openedPane(task, deps);
 		// Not awaited: a launch can sit behind the machine's capacity gate.
 		void launchTask(task, deps);
 		return `Added "${title}" and started it on the board.`;
@@ -663,6 +684,8 @@ function runOdinAction(
 			const title = (id: string) => tasks.find((task) => task.id === id)?.title;
 			return `Lined up ${added.length} to run one by one (${line.length + added.length} waiting) - Odin starts each when the last stops working: ${added.map(title).join("; ")}`;
 		}
+		if (args.open === "true" && tasks.length === 1)
+			return openedPane(tasks[0], deps);
 		// Not awaited: a launch can sit behind the machine's capacity gate.
 		void (async () => {
 			for (const task of tasks) await launchTask(task, deps);
