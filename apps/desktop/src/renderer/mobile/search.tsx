@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LuLoaderCircle, LuSearch, LuX } from "react-icons/lu";
+import { LuLoaderCircle, LuRotateCcw, LuSearch, LuX } from "react-icons/lu";
 import type { PaneStatus } from "shared/tabs-types";
 import { ago, Dot, STATUS } from "./cards";
 
@@ -93,13 +93,21 @@ export function SearchBox({
 	);
 }
 
-/** What the search found: one row per session, its best line under its title. */
+/**
+ * What the search found: one row per session, its best line under its title.
+ * A session off the board (Done, or closed) has Resume, which puts it back.
+ */
 export function SearchResults({
 	hits,
 	loading,
+	onResume,
+	resuming,
 }: {
 	hits: SearchHit[] | undefined;
 	loading: boolean;
+	onResume: (hit: SearchHit) => void;
+	/** The session a Resume is starting, if any. */
+	resuming: string | null;
 }) {
 	if (loading && !hits?.length)
 		return (
@@ -146,7 +154,7 @@ export function SearchResults({
 						)}
 						{!hit.paneId && (
 							<div className="mt-0.5 text-[12px] text-faint-foreground">
-								Not on the board - resume it on your Mac
+								Not on the board
 							</div>
 						)}
 					</>
@@ -158,7 +166,22 @@ export function SearchResults({
 								{body}
 							</a>
 						) : (
-							<div className="px-4 py-2.5 opacity-70">{body}</div>
+							<div className="flex items-center gap-3 px-4 py-2.5">
+								<div className="min-w-0 flex-1 opacity-70">{body}</div>
+								<button
+									type="button"
+									disabled={resuming !== null}
+									onClick={() => onResume(hit)}
+									className="flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border px-3 text-[13px] font-medium text-primary disabled:opacity-50"
+								>
+									{resuming === hit.sessionId ? (
+										<LuLoaderCircle className="size-3.5 animate-spin" />
+									) : (
+										<LuRotateCcw className="size-3.5" />
+									)}
+									Resume
+								</button>
+							</div>
 						)}
 					</li>
 				);

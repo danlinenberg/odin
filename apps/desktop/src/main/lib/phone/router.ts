@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { basename, resolve, sep } from "node:path";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { activeProfileId, listProfiles } from "lib/trpc/routers/odin-config";
@@ -482,6 +483,51 @@ export const phoneRouter = t.router({
 					// Last activity first: the session you were just in is the one you want.
 					.sort((a, b) => b.updatedAt - a.updatedAt)
 			);
+		}),
+
+	/**
+	 * Resume a session that left the board (Done, or closed), as Session
+	 * History's Resume does: a new card running `claude --resume` where it ran.
+	 * The new card's paneId, which the phone opens.
+	 */
+	resume: t.procedure
+		.input(
+			z.object({
+				sessionId: z.string().min(1),
+				title: z.string().max(500).default(""),
+			}),
+		)
+		.mutation(async ({ input }) => {
+			const { transcriptOf, lastCwd, firstPrompt } = await import(
+				"main/lib/claude-sessions"
+			);
+			const file = await transcriptOf(input.sessionId);
+			if (!file)
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: "That conversation isn't on your Mac.",
+				});
+			const jsonl = await readFile(file.path, "utf8");
+			const cwd = lastCwd(jsonl);
+			if (!cwd)
+				throw new TRPCError({
+					code: "PRECONDITION_FAILED",
+					message: "This transcript has no recorded directory.",
+				});
+			const answer = JSON.parse(
+				await board("resume", {
+					sessionId: input.sessionId,
+					cwd,
+					title: input.title,
+					prompt: firstPrompt(jsonl) ?? "",
+				}),
+			) as { paneId?: string; error?: string };
+			if (!answer.paneId)
+				throw new TRPCError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: answer.error ?? "Odin couldn't resume it.",
+				});
+			return { paneId: answer.paneId };
 		}),
 
 	/** The board's Stop: Ctrl+C the turn, never at an idle prompt. */
