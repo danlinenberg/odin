@@ -24,7 +24,7 @@
 #
 # Usage: scripts/prune-worktrees.sh [--dry-run] [--only <name>] [repo]     (repo defaults to this one)
 # A worktree's name is its folder under <repo>/.worktrees/, or its absolute
-# path when it lives anywhere else (.wt/, a sibling folder, ~/.superset/...).
+# path when it lives anywhere else (.wt/, a sibling folder, ~/.odin/...).
 # --only checks just that one, by the same rules (Settings -> Storage).
 # --only <name> --force removes it whatever it holds (Settings -> Storage, after
 # a warning): its branch stays, and uncommitted files go to refs/pruned/<ref>,

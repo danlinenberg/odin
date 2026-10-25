@@ -227,7 +227,7 @@ rehash 2>/dev/null || true
 # versions: the legacy v1 daemon scans for OSC 777, the current scanner (v1
 # post-refactor + v2 host-service) scans for OSC 133;A (FinalTerm standard).
 # Wrappers are rewritten on every app launch, so main always ships the
-# superset of markers; daemons that only get restarted on protocol bumps
+# full set of markers; daemons that only get restarted on protocol bumps
 # still match against their own scanner.
 # Protocol ref: https://gitlab.freedesktop.org/Per_Bothner/specifications/blob/master/proposals/semantic-prompts.md
 __odin_prompt_mark() {
