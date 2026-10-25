@@ -135,6 +135,31 @@ export async function currentLaunchBlocker(
 	);
 }
 
+/** Queued panes a start is under way for. */
+const startingQueued = new Set<string>();
+
+/**
+ * Start now on a card and the queue's own tick can both start the same pane.
+ * The second start killed the agent the first had just spawned, so only the
+ * first one runs, and a pane already started (no longer queued) is left alone.
+ */
+export async function startQueuedPane(
+	client: TrpcClient,
+	pane: Pane,
+): Promise<void> {
+	if (
+		startingQueued.has(pane.id) ||
+		!useTabsStore.getState().panes[pane.id]?.odinQueued
+	)
+		return;
+	startingQueued.add(pane.id);
+	try {
+		await spawnQueuedPane(client, pane);
+	} finally {
+		startingQueued.delete(pane.id);
+	}
+}
+
 /**
  * Start a task that was held back: spawn the command its launch parked on the
  * pane, and clear the queue flag so the card leaves the Queued section.
@@ -145,10 +170,7 @@ export async function currentLaunchBlocker(
  * so the agent would never start. `allowKilled` for the same reason the pane
  * needs killing at all.
  */
-export async function startQueuedPane(
-	client: TrpcClient,
-	pane: Pane,
-): Promise<void> {
+async function spawnQueuedPane(client: TrpcClient, pane: Pane): Promise<void> {
 	const queued = pane.odinQueued;
 	if (!queued) return;
 	const tab = useTabsStore.getState().tabs.find((tab) => tab.id === pane.tabId);

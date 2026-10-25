@@ -12,6 +12,7 @@ import {
 	macPaceBlocker,
 	markStarted,
 	QUEUE_POLL,
+	startQueuedPane,
 } from "./useTaskQueue";
 
 const odin = "/Users/me/odin";
@@ -82,5 +83,42 @@ describe("QUEUE_POLL", () => {
 		client.clear();
 		focusManager.setFocused(undefined);
 		expect(fetches).toBeGreaterThan(2);
+	});
+});
+
+describe("startQueuedPane", () => {
+	test("Start now and the queue's tick start a pane once", async () => {
+		const { useTabsStore } = await import("renderer/stores/tabs/store");
+		const queued = pane("q", {
+			odinQueued: { command: "claude --session-id s", reason: "busy" },
+		});
+		useTabsStore.setState({
+			tabs: [{ id: "t", workspaceId: "w" }] as never,
+			panes: { q: queued },
+		});
+		const calls: string[] = [];
+		const client = {
+			terminal: {
+				kill: {
+					mutate: async () => {
+						calls.push("kill");
+					},
+				},
+				createOrAttach: {
+					mutate: async () => {
+						await new Promise((resolve) => setTimeout(resolve, 10));
+						calls.push("spawn");
+					},
+				},
+			},
+		} as never;
+		await Promise.all([
+			startQueuedPane(client, queued),
+			startQueuedPane(client, queued),
+		]);
+		// Started already: a later tick holding the old pane leaves it alone.
+		await startQueuedPane(client, queued);
+		expect(calls).toEqual(["kill", "spawn"]);
+		expect(useTabsStore.getState().panes.q?.odinQueued).toBeUndefined();
 	});
 });
