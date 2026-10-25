@@ -49,6 +49,7 @@ export const BUILT_IN_COMMANDS = [
 	{ name: "rewind", description: "Go back to an earlier point" },
 	{ name: "review", description: "Review a pull request" },
 	{ name: "memory", description: "Edit the memory files" },
+	{ name: "mcp", description: "Manage MCP servers and sign in to them" },
 	{ name: "status", description: "Show the session's status" },
 	{ name: "help", description: "Show the commands" },
 ];

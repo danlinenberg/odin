@@ -46,7 +46,44 @@ const INPUT = `
   ? for shortcuts
 `;
 
+const MCP = `
+❯ /mcp
+
+────────────────────────────────────────────────────────────
+  Manage MCP servers
+  6 servers
+
+    User MCPs (/Users/dan/.claude.json)
+    ✔ canva                  46 tools
+    ✔ gmail                  21 tools
+
+    claude.ai
+  ❯ △ claude.ai Hex          needs authentication
+    ✔ claude.ai Sentry       12 tools
+
+    Built-in MCPs (always available)
+    ✔ plugin:Notion:notion   66 tools
+    ✔ plugin:slack:slack     27 tools
+
+  https://code.claude.com/docs/en/mcp for help
+ ↑/↓ to navigate · Enter to confirm · Esc to cancel
+`;
+
 describe("parseScreenMenu", () => {
+	it("reads /mcp's grouped list, skipping the group headers", () => {
+		const menu = parseScreenMenu(MCP);
+		expect(menu?.options).toEqual([
+			"✔ canva                  46 tools",
+			"✔ gmail                  21 tools",
+			"△ claude.ai Hex          needs authentication",
+			"✔ claude.ai Sentry       12 tools",
+			"✔ plugin:Notion:notion   66 tools",
+			"✔ plugin:slack:slack     27 tools",
+		]);
+		expect(menu?.selected).toBe(2);
+		expect(menu?.title).toBe("Manage MCP servers\n6 servers");
+	});
+
 	it("reads an unnumbered menu with a footer", () => {
 		const menu = parseScreenMenu(BYPASS);
 		expect(menu?.options).toEqual(["No, exit", "Yes, I accept"]);
