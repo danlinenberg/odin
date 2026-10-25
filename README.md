@@ -5,7 +5,6 @@
 
 <p align="center">
   <b>Make AI work for you. Not the other way around.</b>
-  <br><sub><b>O</b>rchestrator for <b>D</b>elegating <b>I</b>nbound <b>N</b>oise</sub>
 </p>
 
 <p align="center">
