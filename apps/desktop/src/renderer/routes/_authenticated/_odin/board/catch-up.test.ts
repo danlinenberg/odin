@@ -16,6 +16,12 @@ describe("catchUpSuggestion", () => {
 		expect(s).toMatchObject({ kind: "done", why: "Thread answered" });
 	});
 
+	it("takes the session's own DROPPED line", () => {
+		expect(
+			catchUpSuggestion({ selfDropped: "Fixed by Ayelet", duplicateOf: "X" }),
+		).toMatchObject({ kind: "done", why: "Fixed by Ayelet", from: "Session" });
+	});
+
 	it("names the other card on a duplicate", () => {
 		expect(catchUpSuggestion({ duplicateOf: "Fix HDR" })).toMatchObject({
 			kind: "duplicate",

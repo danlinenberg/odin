@@ -24,6 +24,8 @@ export interface CatchUpSuggestion {
 export interface CatchUpSignals {
 	/** The Review sweep's evidence, when it said drop this. */
 	sweptDrop?: string | null;
+	/** The session's own "DROPPED: <why>" - the ask was already settled. */
+	selfDropped?: string | null;
 	/** The PR it reviewed was merged. */
 	prMerged?: boolean;
 	/** Its PRs were closed unmerged. */
@@ -37,6 +39,8 @@ export interface CatchUpSignals {
 export function catchUpSuggestion(s: CatchUpSignals): CatchUpSuggestion {
 	if (s.sweptDrop)
 		return { kind: "done", why: s.sweptDrop, from: "Review sweep" };
+	if (s.selfDropped)
+		return { kind: "done", why: s.selfDropped, from: "Session" };
 	if (s.prMerged)
 		return {
 			kind: "done",

@@ -17,6 +17,12 @@ describe("buildThreadPrompt", () => {
 		);
 	});
 
+	it("has a settled thread end on a DROPPED line, which the board drops it by", () => {
+		expect(buildThreadPrompt(THREAD, "hi")).toContain(
+			"Make your reply's first line `DROPPED: <who settled it, and how>`",
+		);
+	});
+
 	it("reads the thread through Odin's connection, not an MCP", () => {
 		expect(buildThreadPrompt(THREAD, "hi")).toContain(
 			`/read" --data-urlencode "url=${THREAD}"`,
