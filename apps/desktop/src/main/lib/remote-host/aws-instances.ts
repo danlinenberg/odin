@@ -8,6 +8,7 @@ import {
 	DescribeTagsCommand,
 	EC2Client,
 	type Filter,
+	RebootInstancesCommand,
 	RunInstancesCommand,
 	StartInstancesCommand,
 } from "@aws-sdk/client-ec2";
@@ -277,6 +278,15 @@ export async function startInstance(
 ): Promise<void> {
 	await new EC2Client(awsClientConfig(target)).send(
 		new StartInstancesCommand({ InstanceIds: [id] }),
+	);
+}
+
+export async function rebootInstance(
+	target: AwsTarget,
+	id: string,
+): Promise<void> {
+	await new EC2Client(awsClientConfig(target)).send(
+		new RebootInstancesCommand({ InstanceIds: [id] }),
 	);
 }
 

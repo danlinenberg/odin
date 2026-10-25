@@ -14,6 +14,7 @@ import {
 	listInstances,
 	listLaunchTemplates,
 	listTagChoices,
+	rebootInstance,
 	setUpHost,
 	type UseHostStep,
 	waitForHost,
@@ -543,6 +544,18 @@ export const createRemoteHostRouter = () =>
 			const host = readOdinConfig().remoteHost;
 			if (!host) return null;
 			return checkHostHealth(host, Boolean(claudeToken()), hostProbe(host));
+		}),
+		/** The connection check's Sign in to AWS: the host profile's SSO sign-in, done once approved in the browser. */
+		signInAws: publicProcedure.mutation(async () => {
+			const host = readOdinConfig().remoteHost;
+			if (!host) throw new Error("No remote host is set up.");
+			await awsSsoLogin(host.profile ?? null).done;
+		}),
+		/** The connection check's Reboot: a host out of memory refuses logins until it restarts. */
+		rebootHost: publicProcedure.mutation(async () => {
+			const host = readOdinConfig().remoteHost;
+			if (!host) throw new Error("No remote host is set up.");
+			await withAwsSignIn(host, () => rebootInstance(host, host.instanceId));
 		}),
 		/** The host sessions start on; `on: false` keeps them on this computer. */
 		get: publicProcedure.query(() => ({
