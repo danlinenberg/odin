@@ -31,6 +31,7 @@ import { boardConversationIds } from "../sessions/live-sessions";
 import { agoLabel, repoLabel } from "../sessions/row-labels";
 import { ROW_META } from "./FeedChrome";
 import { FEED_TABS } from "./feed-counts";
+import { PersonChip } from "./PersonChip";
 import {
 	boardSessions,
 	groupResults,
@@ -349,9 +350,12 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 					<span className="min-w-0 flex-1 truncate">
 						{emojify(session.title)}
 					</span>
-					<span className={cn(ROW_META, "shrink-0")}>
-						{[session.contact, session.repo].filter(Boolean).join(" · ")}
-					</span>
+					{session.contact && (
+						<PersonChip name={session.contact} className="max-w-[160px]" />
+					)}
+					{session.repo && (
+						<span className={cn(ROW_META, "shrink-0")}>{session.repo}</span>
+					)}
 				</CommandItem>
 			);
 		}
@@ -368,8 +372,11 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 						<span className="min-w-0 flex-1 truncate">
 							{emojify(row.title)}
 						</span>
+						{row.person && (
+							<PersonChip name={row.person} className="max-w-[160px]" />
+						)}
 						<span className={cn(ROW_META, "shrink-0")}>
-							{[row.person, repoLabel(row.cwd), agoLabel(row.updatedAt)]
+							{[repoLabel(row.cwd), agoLabel(row.updatedAt)]
 								.filter(Boolean)
 								.join(" · ")}
 						</span>
@@ -399,9 +406,7 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 					</span>
 				)}
 				{row.person && (
-					<span className={cn(ROW_META, "max-w-[140px] truncate")}>
-						{row.person}
-					</span>
+					<PersonChip name={row.person} className="max-w-[160px]" />
 				)}
 			</CommandItem>
 		);
