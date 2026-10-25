@@ -41,6 +41,7 @@ import { useOdinProfile } from "./useOdinProfile";
 import { taskPrompt, useMyTasks, useOdinTasks } from "./useOdinTasks";
 import { useOdinWorkspace } from "./useOdinWorkspace";
 import { usePaneMeta } from "./usePaneMeta";
+import { resumeSession } from "./useResumeSession";
 
 /**
  * Marks the spare. A tag rather than a pane field of its own: `odinTags`
@@ -758,6 +759,28 @@ function runOdinAction(
 		endSession(args.paneId);
 		return `Marked ${panes[args.paneId].odinTaskTitle ?? args.paneId} done.`;
 	}
+	// The phone's Resume on a session off the board: as Session History's,
+	// a new card resuming the conversation. Answers its paneId as JSON.
+	if (action === "resume") {
+		if (!args.sessionId || !args.cwd) return "Need sessionId and cwd.";
+		const live = Object.values(panes).find(
+			(pane) => pane.claudeSessionId === args.sessionId && !pane.completed,
+		);
+		if (live) return JSON.stringify({ paneId: live.id });
+		return resumeSession(
+			{
+				sessionId: args.sessionId,
+				cwd: args.cwd,
+				title: args.title || "Session",
+				prompt: args.prompt || null,
+			},
+			deps,
+		).then((result) =>
+			JSON.stringify(
+				result.ok ? { paneId: result.paneId } : { error: result.error },
+			),
+		);
+	}
 	// The phone's Remind me: as the board's bell, done now and back on `day`.
 	if (action === "remind") {
 		const pane = args.paneId ? panes[args.paneId] : undefined;
@@ -776,5 +799,5 @@ function runOdinAction(
 		endSession(pane.id);
 		return `Reminding you ${args.day} - ${title}.`;
 	}
-	return `Unknown action "${action}" - use guide, tasks, start, add, star, sessions, night, done, remind, state, set, open, api or call.`;
+	return `Unknown action "${action}" - use guide, tasks, start, add, star, sessions, night, done, remind, resume, state, set, open, api or call.`;
 }

@@ -397,6 +397,13 @@ function Home() {
 	const stopCard = phone.interrupt.useMutation({
 		onSuccess: () => void board.refetch(),
 	});
+	// Resume on a session off the board: back on it, and open.
+	const resume = phone.resume.useMutation({
+		onSuccess: ({ paneId }) => {
+			void board.refetch();
+			location.hash = `#/s/${paneId}`;
+		},
+	});
 	const [adding, setAdding] = useState(false);
 	useEffect(() => {
 		const open = () => setAdding(true);
@@ -455,11 +462,21 @@ function Home() {
 				<SearchResults
 					hits={hits}
 					loading={settled !== typed || search.isFetching}
+					onResume={(hit) =>
+						resume.mutate({ sessionId: hit.sessionId, title: hit.title })
+					}
+					resuming={
+						resume.isPending ? (resume.variables?.sessionId ?? null) : null
+					}
 				/>
 			)}
 			<ErrorLine
 				error={
-					search.error ?? doneCard.error ?? remindCard.error ?? stopCard.error
+					search.error ??
+					resume.error ??
+					doneCard.error ??
+					remindCard.error ??
+					stopCard.error
 				}
 			/>
 			{(board.data && !searching ? boardSections(sessions) : []).map(
