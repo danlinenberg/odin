@@ -843,7 +843,8 @@ export async function slackMySentAfter(
 		text?: string;
 		subtype?: string;
 		permalink?: string;
-		channel?: { id?: string; user?: string };
+		// A DM's match names the other person in `user` or `name`.
+		channel?: { id?: string; user?: string; name?: string };
 	};
 	try {
 		const me = await getIdentity(token);
@@ -868,7 +869,9 @@ export async function slackMySentAfter(
 				!match.subtype &&
 				match.text &&
 				Number(match.ts) * 1000 > afterMs &&
-				(match.channel?.id === channel || match.channel?.user === channel) &&
+				[match.channel?.id, match.channel?.user, match.channel?.name].includes(
+					channel,
+				) &&
 				(!thread ||
 					match.ts === thread ||
 					match.permalink?.includes(`thread_ts=${thread}`)),

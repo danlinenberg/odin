@@ -52,14 +52,19 @@ export const createVoiceRouter = () =>
 				if (!(await readVoice()).enabled) return;
 				const file = await transcriptOf(input.sessionId);
 				if (!file) return;
-				const drafts = slackDraftCalls(
-					await readFile(file.path, "utf-8"),
-				).filter((draft) => Number.isFinite(draft.at) && draft.text);
+				// The last draft per conversation: an earlier one was rewritten, not sent.
+				const byPlace = new Map(
+					slackDraftCalls(await readFile(file.path, "utf-8"))
+						.filter((draft) => Number.isFinite(draft.at) && draft.text)
+						.map((draft) => [`${draft.channel}:${draft.thread}`, draft]),
+				);
+				const drafts = [...byPlace.values()];
 				if (drafts.length === 0) return;
 				void Promise.all(
 					drafts.map(async ({ channel, thread, at, text }) => ({
 						draft: text,
-						sent: await slackMySentAfter(channel, thread, at),
+						// The first few: later ones in a DM are about something else.
+						sent: (await slackMySentAfter(channel, thread, at)).slice(0, 3),
 					})),
 				).then((pairs) => learnFromDrafts(pairs));
 			}),
