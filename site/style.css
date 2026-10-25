@@ -88,14 +88,14 @@ code {
 	text-decoration: none;
 	font-family: var(--display);
 	font-weight: 700;
-	font-size: 40px;
+	font-size: 36px;
 	letter-spacing: 0.06em;
 }
 
 .brand img {
-	width: 112px;
-	height: 112px;
-	border-radius: 26px;
+	width: 96px;
+	height: 96px;
+	border-radius: 22px;
 }
 
 .top nav {
@@ -650,12 +650,12 @@ footer a:hover {
 		display: none;
 	}
 	.brand {
-		font-size: 32px;
+		font-size: 30px;
 	}
 	.brand img {
-		width: 76px;
-		height: 76px;
-		border-radius: 18px;
+		width: 68px;
+		height: 68px;
+		border-radius: 16px;
 	}
 	.grid,
 	.grid.three,
