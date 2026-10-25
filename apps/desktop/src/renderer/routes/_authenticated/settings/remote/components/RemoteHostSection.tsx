@@ -23,7 +23,10 @@ import {
 	HiMinusCircle,
 	HiXCircle,
 } from "react-icons/hi2";
-import { electronTrpc } from "renderer/lib/electron-trpc";
+import {
+	type ElectronRouterOutputs,
+	electronTrpc,
+} from "renderer/lib/electron-trpc";
 import { hostPackagesProblem, hostPolicyArnProblem } from "shared/host-setup";
 import { SettingRow, SettingsSection } from "../../components/SettingsPage";
 
@@ -121,7 +124,20 @@ export function RemoteHostSection() {
 				.map((account) => account.login),
 		);
 	const renew = electronTrpc.remoteHost.renewClaudeToken.useMutation({
-		onSuccess: refresh,
+		onSuccess: () => {
+			void utils.remoteHost.health.invalidate();
+			return refresh();
+		},
+		onError,
+	});
+	// The connection check's own fixes; each runs the check again when it lands.
+	const signInAws = electronTrpc.remoteHost.signInAws.useMutation({
+		onSuccess: () => utils.remoteHost.health.invalidate(),
+		onError,
+	});
+	const rebootHost = electronTrpc.remoteHost.rebootHost.useMutation({
+		onSuccess: () =>
+			toast.success("The host is rebooting. Check again in a minute."),
 		onError,
 	});
 	// A GitHub sign-in of the host's own, one account at a time: the device
@@ -405,8 +421,33 @@ export function RemoteHostSection() {
 			{current?.host && (
 				<HostHealthRow
 					hostUser={current.hostUser}
-					settingUp={setUpUser.isPending}
-					onSetUpUser={() => setUpUser.mutate(current.hostUser)}
+					fixing={
+						renew.isPending
+							? "claude"
+							: signInAws.isPending
+								? "aws"
+								: setUpUser.isPending
+									? "setup"
+									: bringUp.isPending
+										? "start"
+										: rebootHost.isPending
+											? "reboot"
+											: null
+					}
+					onFix={(fix) => {
+						const host = current.host;
+						if (!host) return;
+						if (fix === "claude") renew.mutate();
+						else if (fix === "aws") signInAws.mutate();
+						else if (fix === "setup") setUpUser.mutate(current.hostUser);
+						else if (fix === "start")
+							bringUp.mutate({
+								profile: host.profile,
+								region: host.region,
+								id: host.instanceId,
+							});
+						else rebootHost.mutate();
+					}}
 				/>
 			)}
 			<SettingRow
@@ -961,39 +1002,52 @@ const HEALTH_ICONS = {
 	skipped: <HiMinusCircle className="size-4 shrink-0 text-muted-foreground" />,
 } as const;
 
+/** A failed step's button, by its fix (main/lib/remote-host/host-health HealthFix). */
+type HealthFix = NonNullable<
+	NonNullable<
+		ElectronRouterOutputs["remoteHost"]["health"]
+	>["checks"][number]["fix"]
+>;
+
 /**
  * Whether new sessions can start on the host: each step they need, done or
- * missing, with its fix (the remote-host router's health). Runs when the page
- * opens and on Check again; it logs in to the host, so it takes seconds.
+ * missing, and beside a missing one Odin can fix from here, its button. Runs
+ * when the page opens, on Check again and after a fix; it logs in to the
+ * host, so it takes seconds.
  */
 function HostHealthRow({
 	hostUser,
-	settingUp,
-	onSetUpUser,
+	fixing,
+	onFix,
 }: {
 	hostUser: string;
-	settingUp: boolean;
-	onSetUpUser: () => void;
+	/** The fix under way, from here or the rest of the page. */
+	fixing: HealthFix | null;
+	onFix: (fix: HealthFix) => void;
 }) {
 	const health = electronTrpc.remoteHost.health.useQuery(undefined, {
 		retry: false,
 		refetchOnWindowFocus: false,
 		staleTime: 5 * 60_000,
 	});
-	const checking = health.isFetching || settingUp;
+	const checking = health.isFetching || !!fixing;
 	const result = health.data;
 	const missing =
 		result?.checks.filter((check) => check.state === "fail").length ?? 0;
-	const userMissing = result?.checks.some(
-		(check) => check.id === "user" && check.state === "fail",
-	);
+	const FIX_LABELS: Record<HealthFix, [string, string]> = {
+		claude: ["Sign in to Claude", "Approve in your browser..."],
+		aws: ["Sign in to AWS", "Approve in your browser..."],
+		setup: [`Set up ${hostUser}`, "Setting up..."],
+		start: ["Start host", "Starting..."],
+		reboot: ["Reboot host", "Rebooting..."],
+	};
 	return (
 		<SettingRow
 			label="Connection check"
 			stacked
 			description={
 				<span className="select-text cursor-text">
-					{checking && !result
+					{health.isFetching && !result
 						? "Checking what new sessions on the host need..."
 						: health.error
 							? `The check could not run: ${health.error.message}`
@@ -1018,7 +1072,7 @@ function HostHealthRow({
 								<span className="mt-0.5">{HEALTH_ICONS[check.state]}</span>
 								<span
 									className={cn(
-										"select-text cursor-text",
+										"min-w-0 flex-1 select-text cursor-text",
 										check.state === "skipped" && "text-muted-foreground",
 									)}
 								>
@@ -1030,6 +1084,17 @@ function HostHealthRow({
 										</span>
 									)}
 								</span>
+								{check.fix && (
+									<Button
+										size="sm"
+										className="h-7 shrink-0"
+										variant={check.state === "fail" ? "default" : "outline"}
+										disabled={checking}
+										onClick={() => check.fix && onFix(check.fix)}
+									>
+										{FIX_LABELS[check.fix][fixing === check.fix ? 1 : 0]}
+									</Button>
+								)}
 							</li>
 						))}
 					</ul>
@@ -1041,13 +1106,8 @@ function HostHealthRow({
 						disabled={checking}
 						onClick={() => void health.refetch()}
 					>
-						{checking ? "Checking..." : "Check again"}
+						{health.isFetching ? "Checking..." : "Check again"}
 					</Button>
-					{userMissing && (
-						<Button size="sm" disabled={settingUp} onClick={onSetUpUser}>
-							{settingUp ? "Setting up..." : `Set up ${hostUser}`}
-						</Button>
-					)}
 				</div>
 			</div>
 		</SettingRow>

@@ -43,9 +43,10 @@ test("a host with everything in place is healthy", async () => {
 	const health = await checkHostHealth(host, true, probe());
 	expect(health.healthy).toBe(true);
 	expect(Object.values(states(health)).every((s) => s === "ok")).toBe(true);
+	expect(health.checks.some((check) => check.fix)).toBe(false);
 });
 
-test("a missing Linux user fails that step, says how to set it up, and skips the rest", async () => {
+test("a missing Linux user fails that step, offers Set up, and skips the rest", async () => {
 	const health = await checkHostHealth(
 		host,
 		true,
@@ -66,7 +67,7 @@ test("a missing Linux user fails that step, says how to set it up, and skips the
 		tools: "skipped",
 	});
 	const user = health.checks.find((check) => check.id === "user");
-	expect(user?.detail).toContain("Set up a user on this host");
+	expect(user?.fix).toBe("setup");
 });
 
 test("an expired AWS sign-in stops before SSM", async () => {
@@ -84,18 +85,17 @@ test("an expired AWS sign-in stops before SSM", async () => {
 	);
 	expect(asked).toBe(false);
 	expect(states(health)).toMatchObject({ aws: "fail", ssm: "skipped" });
+	expect(health.checks.find((c) => c.id === "aws")?.fix).toBe("aws");
 });
 
-test("a stopped host and a refused key say what fixes them", async () => {
+test("a stopped host offers Start, a refused key Reboot", async () => {
 	const stopped = await checkHostHealth(
 		host,
 		true,
 		probe({ ssmStatus: async () => "ConnectionLost" }),
 	);
 	expect(states(stopped).ssm).toBe("fail");
-	expect(stopped.checks.find((c) => c.id === "ssm")?.detail).toContain(
-		"Change host",
-	);
+	expect(stopped.checks.find((c) => c.id === "ssm")?.fix).toBe("start");
 	const refused = await checkHostHealth(
 		host,
 		true,
@@ -106,9 +106,7 @@ test("a stopped host and a refused key say what fixes them", async () => {
 		}),
 	);
 	expect(states(refused).login).toBe("fail");
-	expect(refused.checks.find((c) => c.id === "login")?.detail).toContain(
-		"reboot",
-	);
+	expect(refused.checks.find((c) => c.id === "login")?.fix).toBe("reboot");
 });
 
 test("no Claude sign-in fails; missing gh, a down service or low memory only warn", async () => {
@@ -125,6 +123,14 @@ test("no Claude sign-in fails; missing gh, a down service or low memory only war
 		tools: "warn",
 		service: "warn",
 		room: "warn",
+	});
+	expect(
+		Object.fromEntries(health.checks.map((check) => [check.id, check.fix])),
+	).toMatchObject({
+		claude: "claude",
+		tools: undefined,
+		service: "setup",
+		room: "reboot",
 	});
 	const ok = await checkHostHealth(host, true, probe({}, output));
 	expect(ok.healthy).toBe(true);

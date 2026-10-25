@@ -23,7 +23,12 @@ export interface HealthCheck {
 	state: HealthState;
 	/** What was found, and for a fail or warn, what fixes it. */
 	detail: string;
+	/** The button Settings shows beside a fail or warn that Odin can fix from there. */
+	fix?: HealthFix;
 }
+
+/** claude/aws: sign in. setup: set up the user (Linux user, tools, service). start: start the stopped host. reboot: reboot it. */
+export type HealthFix = "claude" | "aws" | "setup" | "start" | "reboot";
 
 export interface HostHealth {
 	/** No step failed: a new session can start on the host. */
@@ -76,7 +81,7 @@ export function parseHealthOutput(output: string): Map<string, string> {
 }
 
 const ADMIN_FIX =
-	"Set up a user on this host, below, by your name - it needs an AWS administrator role, so ask one if yours isn't.";
+	"Set it up - your AWS role needs to allow ssm:SendCommand on the host, so ask an administrator if it doesn't.";
 const expired = (err: unknown) =>
 	/SSO session|token (has expired|is expired)|ExpiredToken|could not load credentials/i.test(
 		String(err),
@@ -101,8 +106,12 @@ export async function checkHostHealth(
 		HealthCheck["id"],
 		Omit<HealthCheck, "id" | "label">
 	>();
-	const set = (id: HealthCheck["id"], state: HealthState, detail: string) =>
-		checks.set(id, { state, detail });
+	const set = (
+		id: HealthCheck["id"],
+		state: HealthState,
+		detail: string,
+		fix?: HealthFix,
+	) => checks.set(id, { state, detail, ...(fix && { fix }) });
 	const done = (): HostHealth => {
 		const list = ORDER.map((id) => ({
 			id,
@@ -121,7 +130,8 @@ export async function checkHostHealth(
 		hasClaudeToken ? "ok" : "fail",
 		hasClaudeToken
 			? "Saved on this computer."
-			: "No Claude sign-in saved. Turn the host on above, or Sign in again, and approve Claude in the browser.",
+			: "No Claude sign-in saved. Sign in and approve Claude in the browser.",
+		hasClaudeToken ? undefined : "claude",
 	);
 
 	const profile = host.profile || "default";
@@ -129,7 +139,8 @@ export async function checkHostHealth(
 		set(
 			"aws",
 			"fail",
-			`The AWS sign-in for the ${profile} profile is missing or expired. Start a session on the host and approve the AWS sign-in it opens in your browser.`,
+			`The AWS sign-in for the ${profile} profile is missing or expired. Sign in and approve it in your browser.`,
+			"aws",
 		);
 		return done();
 	}
@@ -143,8 +154,9 @@ export async function checkHostHealth(
 			ping === "error"
 				? "Could not ask SSM about the host. Your AWS role may not allow ssm:DescribeInstanceInformation."
 				: ping
-					? `SSM reports ${host.instanceId} as ${ping}: it is stopped, rebooting or cut off. Use it under Change host to start it.`
+					? `SSM reports ${host.instanceId} as ${ping}: it is stopped, rebooting or cut off. Start it.`
 					: `SSM does not list ${host.instanceId}: it was never set up for SSM, it is gone, or your AWS role can't see it. ${SSM_UNSEEN}`,
+			ping && ping !== "error" ? "start" : undefined,
 		);
 		return done();
 	}
@@ -159,12 +171,14 @@ export async function checkHostHealth(
 				"user",
 				"fail",
 				`${host.instanceId} has no Linux user ${host.user}, so Odin can't log in as you. ${ADMIN_FIX}`,
+				"setup",
 			);
 		} else if (expired(err)) {
 			set(
 				"aws",
 				"fail",
-				`The AWS sign-in for the ${profile} profile expired during the check. Start a session on the host and approve the AWS sign-in.`,
+				`The AWS sign-in for the ${profile} profile expired during the check. Sign in and approve it in your browser.`,
+				"aws",
 			);
 		} else {
 			set(
@@ -176,8 +190,9 @@ export async function checkHostHealth(
 				"login",
 				"fail",
 				keyRefused(err)
-					? "The host refused Odin's one-time key. A host out of memory does this: reboot it (press R in a pane that can't connect). If it keeps happening, your user may be missing its setup."
+					? "The host refused Odin's one-time key. A host out of memory does this: reboot it. If it keeps happening, your user may be missing its setup."
 					: `Could not log in: ${firstLine(err)}`,
+				keyRefused(err) ? "reboot" : undefined,
 			);
 		}
 		return done();
@@ -196,6 +211,7 @@ export async function checkHostHealth(
 				"tools",
 				"fail",
 				`Missing for ${host.user}: ${missing.join(", ")}. ${ADMIN_FIX}`,
+				"setup",
 			);
 		else if (noGh)
 			set(
@@ -214,12 +230,14 @@ export async function checkHostHealth(
 				"service",
 				"warn",
 				`Not answering, so connectors and GitHub tokens don't reach sessions there and they can't reach Odin here. ${ADMIN_FIX}`,
+				"setup",
 			);
 		else if (current !== "current")
 			set(
 				"service",
 				"warn",
 				`Running an older version than this Odin. It updates itself when an administrator's Odin sends tokens; else ${ADMIN_FIX.charAt(0).toLowerCase()}${ADMIN_FIX.slice(1)}`,
+				"setup",
 			);
 		else set("service", "ok", "Running, and up to date.");
 
@@ -236,6 +254,7 @@ export async function checkHostHealth(
 			low.length
 				? `Only ${low.join(" and ")}: new sessions may stall. End sessions you're done with, or reboot the host.`
 				: `${memMb} MB memory and ${diskGb} GB disk free.`,
+			low.length ? "reboot" : undefined,
 		);
 	} catch (err) {
 		set(
