@@ -11,6 +11,7 @@ import {
 	MAC_START_GAP_MS,
 	macPaceBlocker,
 	markStarted,
+	QUEUE_POLL,
 } from "./useTaskQueue";
 
 const odin = "/Users/me/odin";
@@ -58,5 +59,28 @@ describe("start pacing", () => {
 		expect(hostReadSinceStart(6_000)).toBe(true);
 		// No reading to be had lets it through, as a failed read does.
 		expect(hostReadSinceStart(null)).toBe(true);
+	});
+});
+
+describe("QUEUE_POLL", () => {
+	test("keeps polling while Odin isn't the focused app", async () => {
+		const { focusManager, QueryClient, QueryObserver } = await import(
+			"@tanstack/react-query"
+		);
+		focusManager.setFocused(false);
+		const client = new QueryClient();
+		let fetches = 0;
+		const observer = new QueryObserver(client, {
+			queryKey: ["queue-poll"],
+			queryFn: () => ++fetches,
+			...QUEUE_POLL,
+			refetchInterval: 10,
+		});
+		const stop = observer.subscribe(() => {});
+		await new Promise((resolve) => setTimeout(resolve, 80));
+		stop();
+		client.clear();
+		focusManager.setFocused(undefined);
+		expect(fetches).toBeGreaterThan(2);
 	});
 });
