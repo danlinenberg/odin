@@ -475,8 +475,11 @@ export function DiffView({
 								// pierre scrolls each file sideways inside itself (and paint-
 								// contains it), so the bar sat under the file's last line.
 								// Unclipped, this panel's own box - one screen tall - scrolls.
+								// Odin's body is user-select: none, and the code inherits it
+								// through the shadow root: text, so you can mark and copy it.
+								// The line numbers keep pierre's own none.
 								unsafeCSS:
-									"[data-code] { overflow-x: visible; contain: none; }",
+									"[data-code] { overflow-x: visible; contain: none; user-select: text; cursor: text; }",
 								// GitHub's +: click it for one line, drag it for several.
 								enableGutterUtility: true,
 								onGutterUtilityClick: (range) =>

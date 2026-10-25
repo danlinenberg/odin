@@ -115,11 +115,15 @@ test("renderDiff shows uncommitted work, and the last commit when there is none"
 	writeFileSync(join(repo, "b.txt"), "untracked\n");
 	const dirty = await renderDiff(repo);
 	expect(dirty.source).toBe("uncommitted changes");
-	expect(dirty.note).toBe("1 untracked file(s), not shown: b.txt");
+	// A new file git doesn't track yet shows in full, after the edits.
+	expect(dirty.note).toBe("");
 	expect(dirty.files).toMatchObject([
 		{ path: "a.txt", added: 1, removed: 1, binary: false },
+		{ path: "b.txt", added: 1, removed: 0, binary: false },
 	]);
 	expect(dirty.files[0].patch).toContain("+two");
+	expect(dirty.files[1].patch).toContain("new file mode");
+	expect(dirty.files[1].patch).toContain("+untracked");
 
 	// Another session's edits in the shared tree stay out of this one's diff.
 	writeFileSync(join(repo, "c.txt"), "theirs\n");
@@ -171,13 +175,19 @@ test("renderBranchDiff shows a branch's commits and edits since main, with no PR
 	git("add", "later.txt");
 	git("commit", "-qm", "later");
 	git("checkout", "-q", "feature");
-	// An edit not committed yet rides along.
+	// An edit not committed yet rides along, and so does a new file.
 	writeFileSync(join(repo, "a.txt"), "one\nmore\n");
+	writeFileSync(join(repo, "new.txt"), "fresh\n");
 
 	const diff = await renderBranchDiff(repo);
 	expect(diff.source).toBe("feature vs main · 2 commits");
-	expect(diff.files.map((file) => file.path)).toEqual(["a.txt", "b.txt"]);
+	expect(diff.files.map((file) => file.path)).toEqual([
+		"a.txt",
+		"b.txt",
+		"new.txt",
+	]);
 	expect(diff.files[0].patch).toContain("+more");
+	expect(diff.files[2].patch).toContain("+fresh");
 });
 
 test("renderPullRequestDiff reads the PR through gh, and says when nobody can", async () => {

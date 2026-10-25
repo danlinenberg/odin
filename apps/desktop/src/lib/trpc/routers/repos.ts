@@ -186,6 +186,44 @@ function diffOf(all: DiffFile[], note: string[] = []) {
 	return { files, note: note.join(" · ") };
 }
 
+/** Most new files a diff lists in full; past it the note counts the rest. */
+const MAX_UNTRACKED = 200;
+
+/**
+ * Files git doesn't track yet, each as an all-added patch, so a diff shows
+ * the new files an agent wrote and not only its edits. `--no-index` reads the
+ * working tree and never touches the index; it exits 1 when there is a
+ * difference, which for a new file is always.
+ */
+async function untrackedFiles(
+	cwd: string,
+	paths: string[],
+): Promise<{ files: DiffFile[]; note: string[] }> {
+	const shown = paths.slice(0, MAX_UNTRACKED);
+	const patches = await Promise.all(
+		shown.map(async (path) => {
+			const args = ["--no-pager", "diff", "--no-index", "--no-color"];
+			try {
+				return (
+					await execWithShellEnv("git", [...args, "--", "/dev/null", path], {
+						cwd,
+						maxBuffer: 64 * 1024 * 1024,
+						timeout: 30_000,
+					})
+				).stdout;
+			} catch (error) {
+				const stdout = (error as { stdout?: unknown }).stdout;
+				return typeof stdout === "string" ? stdout : "";
+			}
+		}),
+	);
+	const rest = paths.length - shown.length;
+	return {
+		files: splitPatch(patches.join("")),
+		note: rest ? [`${rest} more untracked file(s), not shown`] : [],
+	};
+}
+
 /**
  * What changed in a checkout, file by file.
  *
@@ -221,7 +259,13 @@ export async function renderDiff(
 	let patch = await git(["diff", "--no-color", ...context, "HEAD"]);
 	const ownsFile = (path: string) =>
 		transcript === undefined || transcript.includes(path);
-	if (!patch.trim() || !splitPatch(patch).some((file) => ownsFile(file.path))) {
+	const untracked = (await git(["ls-files", "--others", "--exclude-standard"]))
+		.split("\n")
+		.filter((path) => path && ownsFile(path));
+	if (
+		!untracked.length &&
+		(!patch.trim() || !splitPatch(patch).some((file) => ownsFile(file.path)))
+	) {
 		// Empty on a repo with no commits at all - same answer as a commit that
 		// isn't this session's: there is nothing of its to show.
 		const sha = (await git(["rev-parse", "HEAD"]).catch(() => "")).trim();
@@ -236,21 +280,18 @@ export async function renderDiff(
 	}
 
 	const all = splitPatch(patch);
-	const files =
+	const tracked =
 		source === "last commit" ? all : all.filter((file) => ownsFile(file.path));
-	const untracked = (await git(["ls-files", "--others", "--exclude-standard"]))
-		.split("\n")
-		.filter((path) => path && ownsFile(path));
-	const note = untracked.length
-		? [
-				`${untracked.length} untracked file(s), not shown: ${untracked.slice(0, 3).join(", ")}${untracked.length > 3 ? ", …" : ""}`,
-			]
-		: [];
-	const others = all.length - files.length;
+	const added =
+		source === "last commit"
+			? { files: [], note: [] }
+			: await untrackedFiles(cwd, untracked);
+	const note = added.note;
+	const others = all.length - tracked.length;
 	if (others)
 		note.push(`${others} file(s) changed by other sessions, not shown`);
 
-	return { ...diffOf(files, note), source, cwd };
+	return { ...diffOf([...tracked, ...added.files], note), source, cwd };
 }
 
 /**
@@ -384,13 +425,9 @@ export async function renderBranchDiff(
 	const untracked = (await git(["ls-files", "--others", "--exclude-standard"]))
 		.split("\n")
 		.filter(Boolean);
-	const note = untracked.length
-		? [
-				`${untracked.length} untracked file(s), not shown: ${untracked.slice(0, 3).join(", ")}${untracked.length > 3 ? ", …" : ""}`,
-			]
-		: [];
+	const added = await untrackedFiles(cwd, untracked);
 	return {
-		...diffOf(splitPatch(patch), note),
+		...diffOf([...splitPatch(patch), ...added.files], added.note),
 		source: `${branch} vs ${base} · ${commits} ${commits === 1 ? "commit" : "commits"}`,
 		cwd,
 	};
