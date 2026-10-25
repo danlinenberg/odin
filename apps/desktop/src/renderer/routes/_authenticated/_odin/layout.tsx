@@ -29,7 +29,7 @@ import {
 } from "react-icons/hi2";
 import { ClaudeCommandPicker } from "renderer/components/ClaudeCommandPicker";
 import { ZoomStable } from "renderer/components/ZoomStable/ZoomStable";
-import { useTaskQueue } from "renderer/hooks/useTaskQueue";
+import { QUEUE_POLL, useTaskQueue } from "renderer/hooks/useTaskQueue";
 import { useZoomFactor } from "renderer/hooks/useZoomFactor";
 import { parseBinding, useBinding, useHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
@@ -347,10 +347,11 @@ function OdinShell() {
 	// What the agents are costing this Mac - the same reading that decides
 	// whether a new session starts now or waits (see useLaunchTaskSession).
 	// The one poller of this snapshot: the board's pills and chips read it
-	// without their own interval.
+	// without their own interval. It keeps polling while Odin is in the
+	// background, because the task queue (useTaskQueue) starts on its readings.
 	const { data: metrics } = electronTrpc.resourceMetrics.getSnapshot.useQuery(
 		undefined,
-		{ refetchInterval: 5_000 },
+		QUEUE_POLL,
 	);
 	const hostCpuPercent = useLaunchLimits((s) => s.hostCpuPercent);
 	const minFreeMemoryGb = useLaunchLimits((s) => s.minFreeMemoryGb);

@@ -47,6 +47,17 @@ export function livePanes(
 type TrpcClient = ReturnType<typeof electronTrpc.useUtils>["client"];
 
 /**
+ * How the queue's readings poll: every 5s, and on while Odin isn't the focused
+ * app. React Query stops a refetchInterval when the window blurs (the
+ * focusManager listens to blur, ElectronTRPCProvider), so a task queued while
+ * you were in another app sat there until you came back to Odin.
+ */
+export const QUEUE_POLL = {
+	refetchInterval: 5_000,
+	refetchIntervalInBackground: true,
+} as const;
+
+/**
  * When a session last started on this Mac and on the remote host, from any
  * path: a launch, a Resume, the queue. The gates read the machine's load, and
  * a reading lags a start, so a burst - a bulk Resume, Huginn starting five
@@ -124,6 +135,31 @@ export async function currentLaunchBlocker(
 	);
 }
 
+/** Queued panes a start is under way for. */
+const startingQueued = new Set<string>();
+
+/**
+ * Start now on a card and the queue's own tick can both start the same pane.
+ * The second start killed the agent the first had just spawned, so only the
+ * first one runs, and a pane already started (no longer queued) is left alone.
+ */
+export async function startQueuedPane(
+	client: TrpcClient,
+	pane: Pane,
+): Promise<void> {
+	if (
+		startingQueued.has(pane.id) ||
+		!useTabsStore.getState().panes[pane.id]?.odinQueued
+	)
+		return;
+	startingQueued.add(pane.id);
+	try {
+		await spawnQueuedPane(client, pane);
+	} finally {
+		startingQueued.delete(pane.id);
+	}
+}
+
 /**
  * Start a task that was held back: spawn the command its launch parked on the
  * pane, and clear the queue flag so the card leaves the Queued section.
@@ -134,10 +170,7 @@ export async function currentLaunchBlocker(
  * so the agent would never start. `allowKilled` for the same reason the pane
  * needs killing at all.
  */
-export async function startQueuedPane(
-	client: TrpcClient,
-	pane: Pane,
-): Promise<void> {
+async function spawnQueuedPane(client: TrpcClient, pane: Pane): Promise<void> {
 	const queued = pane.odinQueued;
 	if (!queued) return;
 	const tab = useTabsStore.getState().tabs.find((tab) => tab.id === pane.tabId);
@@ -343,19 +376,19 @@ export function useTaskQueue(): void {
 	const utils = electronTrpc.useUtils();
 	const { data: workConfig } = electronTrpc.work.getConfig.useQuery();
 	const { data: remoteHost } = electronTrpc.remoteHost.get.useQuery(undefined, {
+		...QUEUE_POLL,
 		refetchInterval: 30_000,
 	});
 	// Cards that can't go to the host, so the queue doesn't retry them forever.
 	const stayHere = useRef(new Set<string>());
-	// The same 5s snapshot the header chip reads and polls - one shared query.
+	// The same 5s snapshot the header chip reads and polls - one shared query,
+	// polled by the Odin layout with QUEUE_POLL.
 	const { data: metrics } = electronTrpc.resourceMetrics.getSnapshot.useQuery();
 	// Which PTYs are actually running. A restart kills every PTY but keeps each
 	// pane's "working" status, so without this a dead card counted toward the
 	// cap - and held its checkout - for good, and the queue never drained.
 	const { data: daemonSessions } =
-		electronTrpc.terminal.listDaemonSessions.useQuery(undefined, {
-			refetchInterval: 5_000,
-		});
+		electronTrpc.terminal.listDaemonSessions.useQuery(undefined, QUEUE_POLL);
 	// The host's memory and load, read only while something waits to go
 	// there: remote panes report it every 30s, so this costs the host nothing
 	// more then.
@@ -367,7 +400,7 @@ export function useTaskQueue(): void {
 	);
 	const hostGate = electronTrpc.remoteHost.launchGate.useQuery(undefined, {
 		enabled: waitingForHost && !!remoteHost?.host,
-		refetchInterval: 5_000,
+		...QUEUE_POLL,
 	});
 	// A spawn takes a second or two; without this the next poll starts the same
 	// card again while the first attach is still in flight.
