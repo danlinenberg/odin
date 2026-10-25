@@ -308,6 +308,10 @@ export async function openSsmStream(target: SsmTarget): Promise<Duplex> {
 		stderr = (stderr + chunk.toString()).slice(-2_000);
 	});
 	const stream = Duplex.from({ readable: child.stdout, writable: child.stdin });
+	// destroy() on this stream emits an AbortError. Before ssh2 attaches its
+	// own listener (a login key that failed to push), nothing heard it and
+	// the helper crashed with "Unhandled 'error' event".
+	stream.on("error", () => {});
 	child.on("exit", (code) => {
 		if (!stream.destroyed)
 			stream.destroy(
