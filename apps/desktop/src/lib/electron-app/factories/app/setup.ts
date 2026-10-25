@@ -1,6 +1,7 @@
 import { app, BrowserWindow, session, shell } from "electron";
 import { env } from "main/env.main";
 import { loadReactDevToolsExtension } from "main/lib/extensions";
+import { attachInAppBrowserContextMenu } from "main/lib/in-app-browser-context-menu";
 import { IN_APP_BROWSER_PARTITION, PLATFORM } from "shared/constants";
 import { opensInOdin } from "shared/in-odin-links";
 import { makeAppId } from "shared/utils";
@@ -60,6 +61,11 @@ export async function makeAppSetup(
 			contents.getType() === "webview" ||
 			contents.session === session.fromPartition(IN_APP_BROWSER_PARTITION)
 		) {
+			// Browser panes bring their own menu (browser-manager); the in-app
+			// browser's webviews and their popups get this one.
+			if (contents.session === inAppBrowser) {
+				attachInAppBrowserContextMenu(contents);
+			}
 			contents.setWindowOpenHandler(({ url, disposition }) => {
 				// A sized window.open is a sign-in popup (Notion's "Continue with
 				// Google"): it needs a real window that can report back to its
