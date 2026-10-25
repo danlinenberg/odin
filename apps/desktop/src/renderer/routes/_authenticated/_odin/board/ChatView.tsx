@@ -235,6 +235,24 @@ export function filedUnder(
 	return path.endsWith(transcriptPath("", cwd, sessionId));
 }
 
+/**
+ * The transcript at `path` was moved here (Run here) into `cwd`'s folder. A
+ * host session's mirror is filed under the host folder it started in, so a
+ * card whose cwd is that same host folder is not one moved here: its
+ * conversation is still on the host.
+ */
+export function movedHere(
+	path: string,
+	cwd: string,
+	startCwd: string | null,
+	sessionId: string,
+): boolean {
+	return (
+		filedUnder(path, cwd, sessionId) &&
+		!(startCwd && filedUnder(path, startCwd, sessionId))
+	);
+}
+
 /** What a user turn shows: no hook/system chatter, a slash command as itself. */
 export function userText(text: string): string | null {
 	const command = text.match(/<command-name>([^<]*)<\/command-name>/);
