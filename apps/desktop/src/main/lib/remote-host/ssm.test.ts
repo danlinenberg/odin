@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { keyRefused, pluginArgs, pluginBuild } from "./ssm";
+import { keyRefused, pluginArgs, pluginBuild, userMissing } from "./ssm";
 
 describe("ssm", () => {
 	test("a host that took none of the offered keys reads as a refused key", () => {
@@ -9,6 +9,19 @@ describe("ssm", () => {
 		expect(keyRefused(new Error("Timed out while waiting for handshake"))).toBe(
 			false,
 		);
+	});
+
+	test("a host without the login's Linux user reads as a missing user", () => {
+		expect(
+			userMissing(
+				new Error(
+					"The login key did not reach i-1 (Failed): id: 'odin-dan': no such user\ninstall: invalid user 'odin-dan'",
+				),
+			),
+		).toBe(true);
+		expect(
+			userMissing(new Error("Timed out while waiting for handshake")),
+		).toBe(false);
 	});
 
 	test("the plugin gets the session, region, profile and request the aws CLI gives it", () => {

@@ -182,6 +182,13 @@ export async function pushOneTimeKey(
 export const keyRefused = (err: unknown) =>
 	/All configured authentication methods failed/i.test(String(err));
 
+/**
+ * The host has no Linux user by that name - the SSM key script fails with
+ * this. Retrying cannot help; setting the user up does (setUpHost).
+ */
+export const userMissing = (err: unknown) =>
+	/no such user|invalid user/i.test(String(err));
+
 /** The key's line lasts this long: one handshake, with room for a slow SSM. */
 const KEY_LIFETIME_MS = 3 * 60_000;
 

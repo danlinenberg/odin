@@ -15,6 +15,7 @@ import { EC2Client, RebootInstancesCommand } from "@aws-sdk/client-ec2";
 import { Client, type SFTPWrapper, utils } from "ssh2";
 import { HOST_LOAD_COMMAND, parseHostLoad } from "../../shared/host-load";
 import { ODIN_HOME_DIR } from "../lib/app-environment";
+import { setUpHost } from "../lib/remote-host/aws-instances";
 import { hostPorts } from "../lib/remote-host/host-service";
 import {
 	attachScript,
@@ -29,6 +30,7 @@ import {
 	keyRefused,
 	openSsmStream,
 	pushOneTimeKey,
+	userMissing,
 } from "../lib/remote-host/ssm";
 
 /**
@@ -387,6 +389,40 @@ async function signInAgain(spec: RemoteSessionSpec): Promise<void> {
 
 /** Set once the host refused an Instance Connect key: this pane's logins write theirs over SSM. */
 let keyOverSsm = false;
+/** Set once this pane tried to create its missing Linux user: one try, not one per reconnect. */
+let userSetUpTried = false;
+
+/**
+ * Creates the session's Linux user on a host that lacks it (a host picked
+ * before its user was set up there), as root over SSM - the rights the
+ * pane's SSM key push already uses. Fails with what to do instead.
+ */
+async function setUpMissingUser(
+	spec: RemoteSessionSpec,
+	target: Parameters<typeof openSsmStream>[0],
+): Promise<void> {
+	const fix = `An administrator sets it up in Settings > Remote > Set up a user on this host, by the name ${spec.user}.`;
+	if (userSetUpTried)
+		throw new Error(
+			`${spec.instanceId} has no Linux user ${spec.user}. ${fix}`,
+		);
+	userSetUpTried = true;
+	say(
+		`${spec.instanceId} has no Linux user ${spec.user} - setting it up, this takes a few minutes...`,
+	);
+	await setUpHost(
+		{
+			profile: target.profile ?? undefined,
+			region: target.region ?? undefined,
+		},
+		spec.instanceId,
+		spec.user,
+	).catch((err: unknown) => {
+		throw new Error(
+			`${spec.instanceId} has no Linux user ${spec.user}, and setting it up failed (${err instanceof Error ? err.message : String(err)}). ${fix}`,
+		);
+	});
+}
 
 async function login(
 	spec: RemoteSessionSpec,
@@ -437,6 +473,11 @@ async function connectOnce(
 	return login(spec, target).catch(async (err: unknown) => {
 		if (keyRefused(err) && !keyOverSsm) {
 			keyOverSsm = true;
+			// Again in full: the SSM key push can find the user missing.
+			return connectOnce(spec, target);
+		}
+		if (userMissing(err)) {
+			await setUpMissingUser(spec, target);
 			return login(spec, target);
 		}
 		if (!ssoExpired(err)) throw err;
