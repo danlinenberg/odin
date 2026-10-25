@@ -1,4 +1,10 @@
+import { readFile } from "node:fs/promises";
 import {
+	slackDraftCalls,
+	transcriptOf,
+} from "main/lib/claude-sessions/claude-sessions";
+import {
+	learnFromDrafts,
 	readVoice,
 	setVoiceEnabled,
 	setVoiceNotes,
@@ -8,7 +14,7 @@ import {
 } from "main/lib/voice-profile";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
-import { slackMySentMessages } from "../slack";
+import { slackMySentAfter, slackMySentMessages } from "../slack";
 
 /** Settings > Sessions > Your voice: what Odin learned about how I write. */
 export const createVoiceRouter = () =>
@@ -36,4 +42,25 @@ export const createVoiceRouter = () =>
 		train: publicProcedure.mutation(() => {
 			void trainVoice(() => slackMySentMessages());
 		}),
+		/**
+		 * A session closed: learn from how I rewrote its Slack drafts before
+		 * sending them. Answers at once; does nothing while Your voice is off.
+		 */
+		learnFromSession: publicProcedure
+			.input(z.object({ sessionId: z.string() }))
+			.mutation(async ({ input }) => {
+				if (!(await readVoice()).enabled) return;
+				const file = await transcriptOf(input.sessionId);
+				if (!file) return;
+				const drafts = slackDraftCalls(
+					await readFile(file.path, "utf-8"),
+				).filter((draft) => Number.isFinite(draft.at) && draft.text);
+				if (drafts.length === 0) return;
+				void Promise.all(
+					drafts.map(async ({ channel, thread, at, text }) => ({
+						draft: text,
+						sent: await slackMySentAfter(channel, thread, at),
+					})),
+				).then((pairs) => learnFromDrafts(pairs));
+			}),
 	});

@@ -826,6 +826,67 @@ export async function slackMySentMessages(limit = 300): Promise<string[]> {
 }
 
 /**
+ * What I sent where a session left a draft: my messages in that channel (DM
+ * drafts name the person, so their DM counts) or thread, after `afterMs`,
+ * oldest first. Search, like slackMySentMessages: history is held to a call a
+ * minute. Empty when Slack won't say or I sent nothing.
+ */
+export async function slackMySentAfter(
+	channel: string,
+	thread: string | null,
+	afterMs: number,
+): Promise<string[]> {
+	const token = slackToken();
+	if (!token) return [];
+	type Match = {
+		ts?: string;
+		text?: string;
+		subtype?: string;
+		permalink?: string;
+		channel?: { id?: string; user?: string };
+	};
+	try {
+		const me = await getIdentity(token);
+		// `after:` is a whole day and exclusive: the day before covers the draft's.
+		const day = new Date(afterMs - 24 * 60 * 60 * 1000)
+			.toISOString()
+			.slice(0, 10);
+		const result = await slackApi<
+			SlackResponse & { messages?: { matches?: Match[] } }
+		>(
+			"search.messages",
+			{
+				query: `from:<@${me.userId}> after:${day}`,
+				sort: "timestamp",
+				sort_dir: "desc",
+				count: "100",
+			},
+			token,
+		);
+		const mine = (result.messages?.matches ?? []).filter(
+			(match) =>
+				!match.subtype &&
+				match.text &&
+				Number(match.ts) * 1000 > afterMs &&
+				(match.channel?.id === channel || match.channel?.user === channel) &&
+				(!thread ||
+					match.ts === thread ||
+					match.permalink?.includes(`thread_ts=${thread}`)),
+		);
+		const out: string[] = [];
+		for (const match of mine.reverse())
+			out.push(
+				(await resolveMentions(match.text ?? "", token))
+					.replace(/\s+/g, " ")
+					.trim(),
+			);
+		return out;
+	} catch {
+		return [];
+	}
+}
+
+/**
  * A file from a thread (a screenshot, a log), fetched with Odin's Slack token.
  * Only files.slack.com links: the token is never sent anywhere else. Null
  * when Slack refuses - a token from before `files:read` was asked for.
