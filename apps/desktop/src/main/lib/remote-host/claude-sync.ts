@@ -240,6 +240,9 @@ export async function syncClaudeSetup(
 		const tar = spawn(
 			"tar",
 			[
+				// What a symlink points at, not the link: a skill linked to a repo
+				// on this computer would land on the host pointing nowhere.
+				"-h",
 				"-czf",
 				"-",
 				"--exclude",
