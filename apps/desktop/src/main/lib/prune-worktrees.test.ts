@@ -94,8 +94,8 @@ test("a worktree outside .worktrees/ goes by its path, and a locked one stays", 
 });
 
 test("a pruned path's files go to a valid ref, one per path", () => {
-	const ref = prunedRef("/Users/me/.superset/worktrees/x");
-	expect(ref).toBe("refs/pruned/Users/me/_.superset/worktrees/x");
+	const ref = prunedRef("/Users/me/.odin/worktrees/x");
+	expect(ref).toBe("refs/pruned/Users/me/_.odin/worktrees/x");
 	expect(prunedRef("w")).toBe("refs/pruned/w");
 	expect(prunedRef("/Users/me/a-b/c")).not.toBe(prunedRef("/Users/me/a/b-c"));
 	const bash = execFileSync(
@@ -104,7 +104,7 @@ test("a pruned path's files go to a valid ref, one per path", () => {
 			"-c",
 			`eval "$(sed -n '/^pruned_ref()/,/^}/p' "$0")"; pruned_ref "$1"`,
 			SCRIPT,
-			"/Users/me/.superset/worktrees/x",
+			"/Users/me/.odin/worktrees/x",
 		],
 		{ encoding: "utf8" },
 	).trim();
