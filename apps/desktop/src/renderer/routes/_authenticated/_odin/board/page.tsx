@@ -134,7 +134,7 @@ import { openUrl, useInAppBrowser } from "renderer/stores/in-app-browser";
 import { nextSelection, visibleSelection } from "../all/selection";
 import { useSearchableItems } from "../all/use-all-items";
 import { paneWorksOn } from "../all/use-start-item";
-import { DropHint } from "../components/DropHint";
+import { DropHint, useDropTask } from "../components/DropHint";
 import { useSearchHotkey } from "../components/FeedChrome";
 import {
 	cardBody,
@@ -157,7 +157,11 @@ import {
 	WatchRowLine,
 } from "../components/ReplyWatch";
 import { TranscriptView } from "../components/TranscriptView";
-import { useBacklogReview, useReview } from "../hooks/useBacklogReview";
+import {
+	droppedByHand,
+	useBacklogReview,
+	useReview,
+} from "../hooks/useBacklogReview";
 import { CROW_TAG } from "../hooks/useCrow";
 import { endSession, useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
@@ -174,6 +178,7 @@ import {
 	actionItems,
 	ciRunning,
 	claimOpened,
+	droppedReason,
 	elapsedLabel,
 	jiraIssue,
 	lastMessageAt,
@@ -2677,6 +2682,9 @@ function shallowEqual<T extends object>(a: T, b: T): boolean {
  */
 const QUIET_POLL: ("data" | "error")[] = ["data", "error"];
 
+/** The "DROPPED:" replies already acted on, as `<sessionId>:<reply time>`. */
+const selfDroppedReplies = new Set<string>();
+
 function DevBoardPage() {
 	// The Auto-started pill wears whichever emoji you set to auto-start.
 	const launchEmoji = emojify(
@@ -3185,6 +3193,16 @@ function DevBoardPage() {
 			),
 		),
 	);
+	// Sessions whose newest reply opens "DROPPED: <why>" - see the effect by
+	// endCard, which drops their feed rows.
+	const selfDrops = mergeCandidates.flatMap(({ paneId, sessionId }, i) => {
+		const messages = mergeTranscripts[i]?.data?.messages;
+		const why = messages && droppedReason(messages);
+		return why
+			? [{ paneId, why, reply: `${sessionId}:${latestReply(messages)?.at}` }]
+			: [];
+	});
+	const selfDropKey = selfDrops.map((drop) => drop.reply).join(",");
 	const mergeStateQueries = electronTrpc.useQueries((t) =>
 		mergeCandidates.map(({ brief }, i) => {
 			const messages = mergeTranscripts[i]?.data?.messages ?? [];
@@ -4520,6 +4538,7 @@ function DevBoardPage() {
 		const other = duplicateOf.get(id);
 		return catchUpSuggestion({
 			sweptDrop: dropRowFor(swept, card.pane)?.evidence,
+			selfDropped: selfDrops.find((drop) => drop.paneId === id)?.why,
 			prMerged: reviewMergedPaneIds.has(id),
 			prsClosed: droppedPaneIds.has(id),
 			duplicateOf: other && cardTitle(other),
@@ -5687,7 +5706,24 @@ function DevBoardPage() {
 	// Every row, not just All's queue: a started Slack row has left the queue,
 	// and missing it here left it un-Done - back as new after a Slack reconnect.
 	const allTasks = useSearchableItems();
-	const { set: setRowDone } = useDone();
+	const { set: setRowDone, isDone } = useDone();
+	// A session that found its ask already settled says so on its reply's
+	// first line ("DROPPED: <why>"): its feed row is dropped with that line as
+	// the reason, as a Review sweep's DROP would be. Once per reply, so an Undo
+	// stays undone until the session says it again.
+	const dropTask = useDropTask();
+	// biome-ignore lint/correctness/useExhaustiveDependencies: selfDropKey stands for selfDrops
+	useEffect(() => {
+		for (const { paneId, why, reply } of selfDrops) {
+			if (selfDroppedReplies.has(reply)) continue;
+			const pane = panes[paneId];
+			const row = pane && allTasks.find((item) => paneWorksOn(pane, item));
+			// Its feed hasn't loaded yet: the next render tries again.
+			if (!row) continue;
+			selfDroppedReplies.add(reply);
+			if (!isDone(row)) void dropTask({ ...droppedByHand(row), evidence: why });
+		}
+	}, [selfDropKey, allTasks]);
 	const endCard = (card: BoardCard) => {
 		const sessionId =
 			card.pane.claudeSessionId ??

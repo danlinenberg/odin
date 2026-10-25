@@ -760,6 +760,18 @@ export function nothingLeft(messages: BriefMessage[]): boolean {
 	);
 }
 
+/**
+ * The session's newest reply opens with "DROPPED: <why>": it found the ask
+ * already settled - fixed and announced, or answered by someone else - and
+ * stopped there. The why, on its first line, or null.
+ */
+export function droppedReason(messages: BriefMessage[]): string | null {
+	const last = messages[messages.length - 1];
+	if (last?.role !== "assistant") return null;
+	const match = /^[\s*_#>]*DROPPED[*_]*\s*:[*_]*[ \t]*(.+)/.exec(last.text);
+	return match?.[1]?.replace(/[*_`]+/g, "").trim() || null;
+}
+
 // "Merge PR #12", "Review and merge #12", "Get repo#12 merged" - a merge is the
 // whole item.
 const MERGE_ITEM =

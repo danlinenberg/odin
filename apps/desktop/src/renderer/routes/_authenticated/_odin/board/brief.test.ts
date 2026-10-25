@@ -7,6 +7,7 @@ import {
 	ciRunning,
 	claimOpened,
 	credentialFacts,
+	droppedReason,
 	elapsedLabel,
 	emailLink,
 	jiraIssue,
@@ -1130,6 +1131,32 @@ describe("nothingLeft", () => {
 			false,
 		);
 		expect(nothingLeft([claude("Shipped.")])).toBe(false);
+	});
+});
+
+describe("droppedReason", () => {
+	it("reads the why off a reply that opens DROPPED", () => {
+		expect(
+			droppedReason([
+				claude(
+					"**DROPPED:** Ayelet already fixed and deployed this (#6909).\n\nACTION ITEMS: none",
+				),
+			]),
+		).toBe("Ayelet already fixed and deployed this (#6909).");
+		expect(droppedReason([claude("DROPPED: answered by Noa")])).toBe(
+			"answered by Noa",
+		);
+	});
+
+	it("is null unless the newest reply opens with it", () => {
+		expect(droppedReason([claude("Fixed it. DROPPED: nothing")])).toBeNull();
+		expect(droppedReason([claude("DROPPED:")])).toBeNull();
+		expect(
+			droppedReason([
+				claude("DROPPED: done elsewhere"),
+				{ role: "user", text: "no, do it", at: null },
+			]),
+		).toBeNull();
 	});
 });
 

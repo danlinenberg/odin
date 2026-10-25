@@ -51,6 +51,10 @@ export function buildThreadPrompt(
 		`- Read the ENTIRE thread ${readVia("Slack", slackUrl)}`,
 		"- Then every linked resource (tickets, docs, PRs, screenshots) - the same fallback reads any Slack, Jira, GitHub, Notion or ClickUp link, and the files it lists.",
 		`- Write your digest to ${briefPath} (this task's own brief file): context, who's asking, the exact request, constraints, acceptance criteria, and links. Create the ${BRIEF_DIR}/ dir if needed.`,
+		// Odin reads that first line (brief.ts droppedReason) and drops the row
+		// with it as the reason, so a settled thread costs no investigation,
+		// no draft and no click.
+		"- If the thread is already settled - someone else shipped the fix or gave the answer, and nothing in it still waits on me - stop there: no investigation, no PR, no draft. Make your reply's first line `DROPPED: <who settled it, and how>` and end with ACTION ITEMS: none. Odin drops the task with that line as the reason.",
 		"",
 		"PHASE 2 - EXECUTE:",
 		`- Work from ${briefPath} as your instructions.`,
