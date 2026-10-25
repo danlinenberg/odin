@@ -64,6 +64,19 @@ async function board(action: string, args: Record<string, string> = {}) {
 	return text;
 }
 
+/**
+ * A started task's paneId, which the phone opens. {} when the window answered
+ * in words: a launch that failed, or nothing found to start.
+ */
+function startedPane(text: string): { paneId?: string } {
+	try {
+		const { paneId } = JSON.parse(text) as { paneId?: unknown };
+		return typeof paneId === "string" ? { paneId } : {};
+	} catch {
+		return {};
+	}
+}
+
 /** The window's Done shelf; [] from a window that doesn't know the action. */
 async function doneShelf(): Promise<
 	{
@@ -652,13 +665,14 @@ export const phoneRouter = t.router({
 				})
 				.refine((input) => input.text.trim() || input.paths.length),
 		)
-		.mutation(({ input }) =>
-			board("add", {
+		.mutation(async ({ input }) => {
+			const text = await board("add", {
 				text: taskWithFiles(input.text, input.paths),
 				...(input.repo && { repo: input.repo }),
-				...(input.start && { start: "true" }),
-			}),
-		),
+				...(input.start && { start: "true", open: "true" }),
+			});
+			return input.start ? startedPane(text) : {};
+		}),
 
 	/** Odin's profiles, and the one it's in. */
 	profiles: t.procedure.query(() => ({
@@ -680,7 +694,9 @@ export const phoneRouter = t.router({
 
 	start: t.procedure
 		.input(z.object({ id: z.string().min(1) }))
-		.mutation(({ input }) => board("start", { ids: input.id })),
+		.mutation(async ({ input }) =>
+			startedPane(await board("start", { ids: input.id, open: "true" })),
+		),
 
 	done: t.procedure
 		.input(paneInput)

@@ -192,7 +192,7 @@ export function answer(
 		}
 		case "add":
 			console.log("  add", JSON.stringify(input));
-			return "ok";
+			return {};
 		case "reply":
 			messages[paneId] ??= [];
 			messages[paneId].push({
