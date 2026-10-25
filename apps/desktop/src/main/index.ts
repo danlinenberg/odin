@@ -91,9 +91,11 @@ app.setAboutPanelOptions({
 	version: __APP_VERSION__,
 });
 
-// Dev mode: register with execPath + app script so macOS launches Electron with our entry point
+// Dev mode: register with execPath + app script so macOS launches Electron with our entry point.
+// A dev run without a workspace has the installed app's bare `odin` scheme, and macOS ignores
+// execPath: it would hand `odin://` (OAuth callbacks included) to any stock Electron.app.
 if (process.defaultApp) {
-	if (process.argv.length >= 2) {
+	if (process.argv.length >= 2 && PROTOCOL_SCHEME !== "odin") {
 		app.setAsDefaultProtocolClient(PROTOCOL_SCHEME, process.execPath, [
 			path.resolve(process.argv[1]),
 		]);
