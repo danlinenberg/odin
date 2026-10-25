@@ -154,6 +154,7 @@ import {
 	WatchMark,
 	WatchPill,
 	WatchReply,
+	WatchRowLine,
 } from "../components/ReplyWatch";
 import { TranscriptView } from "../components/TranscriptView";
 import { useBacklogReview, useReview } from "../hooks/useBacklogReview";
@@ -2310,11 +2311,7 @@ const SwitchRow = memo(function SwitchRow({
 							/>
 						)}
 					</span>
-					{status && (
-						<span className="truncate text-[10.5px] font-normal text-faint-foreground">
-							{status}
-						</span>
-					)}
+					<WatchRowLine paneId={card.pane.id} status={status} />
 				</span>
 			)}
 		</div>
