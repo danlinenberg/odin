@@ -306,6 +306,24 @@ const unescapeXml = (text: string) =>
 		.replace(/&amp;/g, "&");
 
 /**
+ * The feed links each message as mail?account_id=...&message_id=...&view=conv,
+ * a form Gmail no longer opens: it loads an empty "Gmail" page and never shows
+ * the thread. This is the same message at the URL Gmail uses itself, in the
+ * feed's account rather than whichever one the browser has first.
+ */
+export function gmailThreadUrl(link: string): string {
+	try {
+		const url = new URL(link);
+		const account = url.searchParams.get("account_id");
+		const message = url.searchParams.get("message_id");
+		if (url.hostname !== "mail.google.com" || !account || !message) return link;
+		return `https://mail.google.com/mail/u/${account}/#all/${message}`;
+	} catch {
+		return link;
+	}
+}
+
+/**
  * Gmail's Atom feed → rows.
  */
 export function parseGmailAtom(xml: string): EmailRow[] {
@@ -320,7 +338,9 @@ export function parseGmailAtom(xml: string): EmailRow[] {
 			null;
 		return {
 			id: tag("id"),
-			url: unescapeXml(entry.match(/<link[^>]*href="([^"]*)"/)?.[1] ?? ""),
+			url: gmailThreadUrl(
+				unescapeXml(entry.match(/<link[^>]*href="([^"]*)"/)?.[1] ?? ""),
+			),
 			subject: tag("title") || "(no subject)",
 			snippet: tag("summary"),
 			from:
