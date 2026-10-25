@@ -82,6 +82,10 @@ export function RemoteHostSection() {
 	const use = electronTrpc.remoteHost.set.useMutation({
 		onSuccess: () => {
 			setChangingHost(false);
+			// A new host gets everything: every connector and the whole Claude
+			// setup, so its sessions work as they do here. Choose narrows it.
+			setConnectorList(CONNECTORS.map(([id]) => id));
+			syncSetup.mutate(SETUP_PARTS.map(([id]) => id));
 			return refresh();
 		},
 		onError,
@@ -385,6 +389,8 @@ export function RemoteHostSection() {
 
 	const error = instances.error;
 	const [advancedOpen, setAdvancedOpen] = useState(false);
+	// What the host gets: one line, its switches behind Choose.
+	const [choosing, setChoosing] = useState(false);
 	// Every Odin = host instance in the account and region, narrowed by the search.
 	const [search, setSearch] = useState("");
 	const needle = search.trim().toLowerCase();
@@ -400,13 +406,38 @@ export function RemoteHostSection() {
 			title="Remote host"
 			description="Run new sessions on an EC2 instance in your AWS account, so they keep going with this computer shut. Odin connects with your AWS sign-in over Systems Manager: no open port or SSH key."
 		>
+			{current?.host && !changingHost && (
+				<SettingRow
+					label={
+						<span className="flex items-center gap-2">
+							{current.host.name || current.host.instanceId}
+							<HostStatusPill />
+						</span>
+					}
+					description={
+						<span className="select-text cursor-text">
+							<span className="font-mono">{current.host.instanceId}</span>, you
+							are <span className="font-mono">{current.host.user}</span>, repos
+							in <span className="font-mono">{current.host.reposRoot}</span>
+						</span>
+					}
+				>
+					<Button
+						size="sm"
+						variant="outline"
+						onClick={() => setChangingHost(true)}
+					>
+						Change host
+					</Button>
+				</SettingRow>
+			)}
 			{current?.host && (
 				<SettingRow
-					label={`Sessions start on ${current.host.name || current.host.instanceId}`}
+					label="Run new sessions on the host"
 					htmlFor="remote-host-on"
 					description={
 						current.host.on
-							? `New sessions run on ${current.host.instanceId} as ${current.host.user}, in tmux, with repos cloned under ${current.host.reposRoot}.${current.host.adminUser ? "" : " Everyone on this instance shares that login: pick it again under Change host (Use) to get your own user."}`
+							? `On. Turn it off to start new sessions on this computer.${current.host.adminUser ? "" : " Everyone on this instance shares one login: pick it again under Change host (Use) to get your own user."}`
 							: "Off: new sessions start on this computer."
 					}
 				>
@@ -450,321 +481,121 @@ export function RemoteHostSection() {
 					}}
 				/>
 			)}
-			<SettingRow
-				label="Claude sign-in"
-				description={
-					signingIn
-						? "Approve Claude in the browser window that opened."
-						: current?.hasClaudeToken
-							? "Signed in with your Claude plan. The host gets its own sign-in, so it offers extra usage at a usage limit. Sign in again if a host session asks you to log in."
-							: "Turning the host on opens your browser once to approve Claude. The host then signs in to your Claude plan on its own."
-				}
-			>
-				{current?.hasClaudeToken && (
-					<Button
-						size="sm"
-						variant="outline"
-						disabled={signingIn}
-						onClick={() => renew.mutate()}
-					>
-						Sign in again
-					</Button>
-				)}
-			</SettingRow>
 			{current?.host && (
 				<SettingRow
-					label="API key at the plan limit"
-					htmlFor="remote-host-api-key"
+					label="What the host gets"
 					description={
-						current.apiKeyFallback
-							? `When a session there hits your plan's limit, it continues on ${current.customApiKeyEnd ? `your key ending ${current.customApiKeyEnd}` : "your ANTHROPIC_API_KEY"}, billed per token, until the limit resets.`
-							: "Off: a session there that hits your plan's limit waits for it to reset."
+						<span className="select-text cursor-text">
+							{hostGetsSummary(onHost, setupParts)} Never your Claude login or
+							history.
+						</span>
 					}
 				>
-					<Switch
-						id="remote-host-api-key"
-						checked={current.apiKeyFallback}
-						disabled={setApiKeyFallback.isPending}
-						onCheckedChange={(on) => setApiKeyFallback.mutate(on)}
-					/>
+					<Button
+						size="sm"
+						variant="ghost"
+						aria-expanded={choosing}
+						onClick={() => setChoosing((open) => !open)}
+					>
+						{choosing ? "Done" : "Choose"}
+					</Button>
 				</SettingRow>
 			)}
-			{current?.host && current.apiKeyFallback && (
-				<SettingRow
-					label="Custom API key (optional)"
-					htmlFor="remote-host-custom-key"
-					description={
-						current.customApiKeyEnd
-							? `Saved, ending ${current.customApiKeyEnd}. Kept encrypted on this computer and sent to the host with each session.`
-							: "Use this key instead of ANTHROPIC_API_KEY. Kept encrypted on this computer and sent to the host with each session."
-					}
-				>
-					<div className="flex items-center gap-2">
-						<Input
-							id="remote-host-custom-key"
-							type="password"
-							autoComplete="off"
-							className="w-56 font-mono text-xs"
-							placeholder={
-								current.customApiKeyEnd
-									? `...${current.customApiKeyEnd}`
-									: "sk-ant-..."
+			{current?.host && choosing && (
+				<>
+					<SettingRow
+						label="Connectors"
+						stacked
+						description={
+							<span className="select-text cursor-text">
+								Lets host sessions use them while this computer is off.
+								{setConnectors.isPending && (
+									<span className="mt-1 block">Saving on the host...</span>
+								)}
+								{setConnectors.error && (
+									<span className="mt-1 block text-destructive">
+										{setConnectors.error.message}
+									</span>
+								)}
+							</span>
+						}
+					>
+						<SwitchGrid
+							idPrefix="host-connector"
+							items={CONNECTORS}
+							isOn={(id) => onHost.has(id)}
+							onToggle={toggleConnector}
+							onToggleAll={(on) =>
+								setConnectorList(on ? CONNECTORS.map(([id]) => id) : [])
 							}
-							value={apiKeyDraft}
-							onChange={(event) => setApiKeyDraft(event.target.value)}
-							onKeyDown={(event) => {
-								if (event.key === "Enter" && apiKeyDraft.trim())
-									setCustomApiKey.mutate(apiKeyDraft);
-							}}
 						/>
-						<Button
-							size="sm"
-							variant="outline"
-							disabled={!apiKeyDraft.trim() || setCustomApiKey.isPending}
-							onClick={() => setCustomApiKey.mutate(apiKeyDraft)}
-						>
-							Save
-						</Button>
-						{current.customApiKeyEnd && (
+					</SettingRow>
+					<SettingRow
+						label="Claude setup"
+						stacked
+						description={
+							<span className="select-text cursor-text">
+								Copies ~/.claude to the host, never your login or history.
+								{!!current.host.claudeSetupDropped?.length && (
+									<details className="mt-1">
+										<summary className="cursor-pointer">
+											{current.host.claudeSetupDropped.length} hooks skipped
+										</summary>
+										<ul className="mt-1 space-y-0.5 font-mono text-xs">
+											{current.host.claudeSetupDropped.map((hook) => (
+												<li key={hook}>{hook}</li>
+											))}
+										</ul>
+									</details>
+								)}
+								{setupSync?.error && (
+									<span className="mt-1 block text-destructive">
+										{setupSync.error}
+									</span>
+								)}
+							</span>
+						}
+					>
+						<SwitchGrid
+							idPrefix="host-setup"
+							items={SETUP_PARTS}
+							isOn={(id) => setupParts.has(id)}
+							onToggle={toggleSetupPart}
+							onToggleAll={toggleAllSetupParts}
+						/>
+						<div className="mt-3 flex items-center justify-between gap-4">
+							<span className="text-xs text-muted-foreground">
+								{syncingSetup
+									? "Copying to the host..."
+									: current.host.claudeSetupSyncedAt
+										? `Last synced ${new Date(
+												current.host.claudeSetupSyncedAt,
+											).toLocaleString(undefined, {
+												dateStyle: "medium",
+												timeStyle: "short",
+											})}`
+										: "Not synced yet"}
+							</span>
 							<Button
 								size="sm"
-								variant="ghost"
-								disabled={setCustomApiKey.isPending}
-								onClick={() => setCustomApiKey.mutate("")}
+								variant="outline"
+								disabled={!setupParts.size || syncingSetup}
+								title="Copy them again, after you change them on this computer"
+								onClick={() =>
+									syncSetup.mutate(
+										SETUP_PARTS.map(([id]) => id).filter((id) =>
+											setupParts.has(id),
+										),
+									)
+								}
 							>
-								Remove
+								{syncingSetup ? "Syncing..." : "Sync again"}
 							</Button>
-						)}
-					</div>
-				</SettingRow>
+						</div>
+					</SettingRow>
+				</>
 			)}
-			{current?.host && githubAccounts.length > 0 && (
-				<SettingRow
-					label="GitHub accounts on the host"
-					stacked
-					description={
-						<span className="select-text cursor-text">
-							Sessions on the host use the account that owns the repo, else the
-							main one. Sign in on the host so pushes work with this computer
-							shut. Anyone with a shell on the instance can use these tokens:
-							keep personal accounts off a work host.
-						</span>
-					}
-				>
-					<div className="flex flex-col gap-2">
-						{githubAccounts.map((account) => (
-							<div
-								key={account.login}
-								className="flex flex-wrap items-center gap-3 text-sm"
-							>
-								<label
-									htmlFor={`host-github-${account.login}`}
-									className="flex items-center gap-2"
-								>
-									<Switch
-										id={`host-github-${account.login}`}
-										checked={account.onHost}
-										disabled={setGithubOnHost.isPending || !!hostSignIn}
-										onCheckedChange={(on) =>
-											toggleGithubAccount(account.login, on)
-										}
-									/>
-									{account.login}
-									{account.main && (
-										<span className="text-muted-foreground">(main)</span>
-									)}
-								</label>
-								{account.onHost && hostSignIn?.login === account.login ? (
-									<span className="select-text cursor-text text-muted-foreground">
-										Enter{" "}
-										<span className="font-mono text-foreground tracking-[.15em]">
-											{hostSignIn.userCode}
-										</span>{" "}
-										at {hostSignIn.verificationUri} (opened in your browser),
-										signed in as {account.login}.{" "}
-										<button
-											type="button"
-											className="underline-offset-2 hover:underline"
-											onClick={() => setHostSignIn(null)}
-										>
-											Cancel
-										</button>
-									</span>
-								) : account.onHost ? (
-									<>
-										<span className="text-muted-foreground">
-											{account.hostSignIn
-												? "Signed in on the host."
-												: "Uses this computer's token."}
-										</span>
-										<Button
-											size="sm"
-											variant="outline"
-											disabled={
-												!!hostSignIn ||
-												startHostSignIn.isPending ||
-												setGithubOnHost.isPending
-											}
-											onClick={() =>
-												startHostSignIn.mutate({ login: account.login })
-											}
-										>
-											{account.hostSignIn
-												? "Sign in again"
-												: "Sign in on the host"}
-										</Button>
-									</>
-								) : null}
-							</div>
-						))}
-					</div>
-				</SettingRow>
-			)}
-			{current?.host && (
-				<SettingRow
-					label="Set up a user on this host"
-					stacked
-					description={
-						<span className="select-text cursor-text">
-							Users have no root on the host: an administrator creates each
-							one's Linux user and Odin service, here, by the name their
-							Settings show. Needs an AWS administrator role. Yours is{" "}
-							<span className="font-mono">{current.hostUser}</span>.
-						</span>
-					}
-				>
-					<form
-						className="flex items-center gap-2"
-						onSubmit={(event) => {
-							event.preventDefault();
-							if (newUser.trim()) setUpUser.mutate(newUser.trim());
-						}}
-					>
-						<Input
-							value={newUser}
-							onChange={(event) => setNewUser(event.target.value)}
-							placeholder="odin-name"
-							className="h-8 w-48 font-mono text-sm"
-							aria-label="Linux user to set up"
-						/>
-						<Button
-							type="submit"
-							size="sm"
-							disabled={!newUser.trim() || setUpUser.isPending}
-						>
-							{setUpUser.isPending ? "Setting up..." : "Set up"}
-						</Button>
-					</form>
-				</SettingRow>
-			)}
-			{current?.host && (
-				<SettingRow
-					label="Connectors on the host"
-					stacked
-					description={
-						<span className="select-text cursor-text">
-							Lets host sessions use them while this computer is off.
-							{setConnectors.isPending && (
-								<span className="mt-1 block">Saving on the host...</span>
-							)}
-							{setConnectors.error && (
-								<span className="mt-1 block text-destructive">
-									{setConnectors.error.message}
-								</span>
-							)}
-						</span>
-					}
-				>
-					<SwitchGrid
-						idPrefix="host-connector"
-						items={CONNECTORS}
-						isOn={(id) => onHost.has(id)}
-						onToggle={toggleConnector}
-						onToggleAll={(on) =>
-							setConnectorList(on ? CONNECTORS.map(([id]) => id) : [])
-						}
-					/>
-				</SettingRow>
-			)}
-			{current?.host && (
-				<SettingRow
-					label="Claude setup on the host"
-					stacked
-					description={
-						<span className="select-text cursor-text">
-							Copies ~/.claude to the host, never your login or history.
-							{!!current.host.claudeSetupDropped?.length && (
-								<details className="mt-1">
-									<summary className="cursor-pointer">
-										{current.host.claudeSetupDropped.length} hooks skipped
-									</summary>
-									<ul className="mt-1 space-y-0.5 font-mono text-xs">
-										{current.host.claudeSetupDropped.map((hook) => (
-											<li key={hook}>{hook}</li>
-										))}
-									</ul>
-								</details>
-							)}
-							{setupSync?.error && (
-								<span className="mt-1 block text-destructive">
-									{setupSync.error}
-								</span>
-							)}
-						</span>
-					}
-				>
-					<SwitchGrid
-						idPrefix="host-setup"
-						items={SETUP_PARTS}
-						isOn={(id) => setupParts.has(id)}
-						onToggle={toggleSetupPart}
-						onToggleAll={toggleAllSetupParts}
-					/>
-					<div className="mt-3 flex items-center justify-between gap-4">
-						<span className="text-xs text-muted-foreground">
-							{syncingSetup
-								? "Copying to the host..."
-								: current.host.claudeSetupSyncedAt
-									? `Last synced ${new Date(
-											current.host.claudeSetupSyncedAt,
-										).toLocaleString(undefined, {
-											dateStyle: "medium",
-											timeStyle: "short",
-										})}`
-									: "Not synced yet"}
-						</span>
-						<Button
-							size="sm"
-							variant="outline"
-							disabled={!setupParts.size || syncingSetup}
-							title="Copy them again, after you change them on this computer"
-							onClick={() =>
-								syncSetup.mutate(
-									SETUP_PARTS.map(([id]) => id).filter((id) =>
-										setupParts.has(id),
-									),
-								)
-							}
-						>
-							{syncingSetup ? "Syncing..." : "Sync again"}
-						</Button>
-					</div>
-				</SettingRow>
-			)}
-			{current?.host && !changingHost ? (
-				<SettingRow
-					label="Host"
-					description={`${current.host.name || current.host.instanceId} (${current.host.instanceId}), as ${current.host.user}${current.host.profile ? `, AWS profile ${current.host.profile}` : ""}.`}
-				>
-					<Button
-						size="sm"
-						variant="outline"
-						onClick={() => setChangingHost(true)}
-					>
-						Change host
-					</Button>
-				</SettingRow>
-			) : (
+			{(!current?.host || changingHost) && (
 				<>
 					{error && (
 						<SettingRow
@@ -852,100 +683,366 @@ export function RemoteHostSection() {
 							</SettingRow>
 						);
 					})}
-					<Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
-						<CollapsibleTrigger asChild>
-							<button
-								type="button"
-								className="flex items-center gap-1.5 px-4 py-3 text-left text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+					{changingHost && (
+						<SettingRow
+							label="Keep this host"
+							description="Close the list without changing anything."
+						>
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={() => setChangingHost(false)}
 							>
-								<HiChevronDown
-									className={`size-3.5 transition-transform ${advancedOpen ? "" : "-rotate-90"}`}
-								/>
-								Advanced
-							</button>
-						</CollapsibleTrigger>
-						<CollapsibleContent className="divide-y divide-border border-t border-border">
-							<SettingRow
-								label="AWS profile"
-								description="From your AWS config. Leave on Default to use the default profile."
-							>
-								<Select
-									value={profile || "__default"}
-									onValueChange={(value) => {
-										const next = value === "__default" ? "" : value;
-										setProfile(next);
-										persist({ profile: next });
-									}}
-								>
-									<SelectTrigger className="w-64">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="__default">Default</SelectItem>
-										{profiles.map((name) => (
-											<SelectItem key={name} value={name}>
-												{name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</SettingRow>
-							<SettingRow label="Region" htmlFor="aws-region">
-								<Input
-									id="aws-region"
-									className="w-40"
-									value={region}
-									onChange={(event) => setRegion(event.target.value.trim())}
-									onBlur={() => persist({ region })}
-								/>
-							</SettingRow>
-							<SettingRow
-								label="Instance login"
-								htmlFor="aws-user"
-								description={`The instance's own login with sudo: ubuntu on Ubuntu, ec2-user on Amazon Linux. Odin uses it only to set up and to keep your tokens. Your sessions run as your own user, ${current?.hostUser ?? "odin-<you>"}, so others on the same instance never share your files, Claude sign-in or tokens.`}
-							>
-								<Input
-									id="aws-user"
-									className="w-40"
-									value={user}
-									onChange={(event) => setUser(event.target.value.trim())}
-								/>
-							</SettingRow>
-							<SettingRow
-								label="Host policy (optional)"
-								htmlFor="aws-host-policy"
-								description="An IAM policy Use puts on the host's role beside SSM's, when it gives the host SSM access: what a plugin on the host needs, such as reading your secrets with the instance role."
-							>
-								<Input
-									id="aws-host-policy"
-									className="w-80 font-mono text-xs"
-									placeholder="arn:aws:iam::123456789012:policy/odin-host"
-									value={hostPolicyArn}
-									onChange={(event) =>
-										setHostPolicyArn(event.target.value.trim())
-									}
-									onBlur={() => saveHostSetup("hostPolicyArn", hostPolicyArn)}
-								/>
-							</SettingRow>
-							<SettingRow
-								label="Packages (optional)"
-								htmlFor="aws-host-packages"
-								description="Installed on the host by Use, from its package manager, separated by spaces: the tools your plugins and skills run."
-							>
-								<Input
-									id="aws-host-packages"
-									className="w-80"
-									placeholder="awscli jq mysql-client"
-									value={hostPackages}
-									onChange={(event) => setHostPackages(event.target.value)}
-									onBlur={() => saveHostSetup("hostPackages", hostPackages)}
-								/>
-							</SettingRow>
-						</CollapsibleContent>
-					</Collapsible>
+								Cancel
+							</Button>
+						</SettingRow>
+					)}
 				</>
 			)}
+			<Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+				<CollapsibleTrigger asChild>
+					<button
+						type="button"
+						className="flex items-center gap-1.5 px-4 py-3 text-left text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+					>
+						<HiChevronDown
+							className={`size-3.5 transition-transform ${advancedOpen ? "" : "-rotate-90"}`}
+						/>
+						Advanced
+					</button>
+				</CollapsibleTrigger>
+				<CollapsibleContent className="divide-y divide-border border-t border-border">
+					<SettingRow
+						label="Claude on the host"
+						description={
+							signingIn
+								? "Approve Claude in the browser window that opened."
+								: current?.hasClaudeToken
+									? "Signed in with your Claude plan. The host gets its own sign-in, so it offers extra usage at a usage limit. Sign in again if a host session asks you to log in."
+									: "Turning the host on opens your browser once to approve Claude. The host then signs in to your Claude plan on its own."
+						}
+					>
+						{current?.hasClaudeToken && (
+							<Button
+								size="sm"
+								variant="outline"
+								disabled={signingIn}
+								onClick={() => renew.mutate()}
+							>
+								Sign in again
+							</Button>
+						)}
+					</SettingRow>
+					{current?.host && githubAccounts.length > 0 && (
+						<SettingRow
+							label="GitHub accounts on the host"
+							stacked
+							description={
+								<span className="select-text cursor-text">
+									Sessions on the host use the account that owns the repo, else
+									the main one. Sign in on the host so pushes work with this
+									computer shut. Anyone with a shell on the instance can use
+									these tokens: keep personal accounts off a work host.
+								</span>
+							}
+						>
+							<div className="flex flex-col gap-2">
+								{githubAccounts.map((account) => (
+									<div
+										key={account.login}
+										className="flex flex-wrap items-center gap-3 text-sm"
+									>
+										<label
+											htmlFor={`host-github-${account.login}`}
+											className="flex items-center gap-2"
+										>
+											<Switch
+												id={`host-github-${account.login}`}
+												checked={account.onHost}
+												disabled={setGithubOnHost.isPending || !!hostSignIn}
+												onCheckedChange={(on) =>
+													toggleGithubAccount(account.login, on)
+												}
+											/>
+											{account.login}
+											{account.main && (
+												<span className="text-muted-foreground">(main)</span>
+											)}
+										</label>
+										{account.onHost && hostSignIn?.login === account.login ? (
+											<span className="select-text cursor-text text-muted-foreground">
+												Enter{" "}
+												<span className="font-mono text-foreground tracking-[.15em]">
+													{hostSignIn.userCode}
+												</span>{" "}
+												at {hostSignIn.verificationUri} (opened in your
+												browser), signed in as {account.login}.{" "}
+												<button
+													type="button"
+													className="underline-offset-2 hover:underline"
+													onClick={() => setHostSignIn(null)}
+												>
+													Cancel
+												</button>
+											</span>
+										) : account.onHost ? (
+											<>
+												<span className="text-muted-foreground">
+													{account.hostSignIn
+														? "Signed in on the host."
+														: "Uses this computer's token."}
+												</span>
+												<Button
+													size="sm"
+													variant="outline"
+													disabled={
+														!!hostSignIn ||
+														startHostSignIn.isPending ||
+														setGithubOnHost.isPending
+													}
+													onClick={() =>
+														startHostSignIn.mutate({ login: account.login })
+													}
+												>
+													{account.hostSignIn
+														? "Sign in again"
+														: "Sign in on the host"}
+												</Button>
+											</>
+										) : null}
+									</div>
+								))}
+							</div>
+						</SettingRow>
+					)}
+					{current?.host && (
+						<SettingRow
+							label="API key at the plan limit"
+							htmlFor="remote-host-api-key"
+							description={
+								current.apiKeyFallback
+									? `When a session there hits your plan's limit, it continues on ${current.customApiKeyEnd ? `your key ending ${current.customApiKeyEnd}` : "your ANTHROPIC_API_KEY"}, billed per token, until the limit resets.`
+									: "Off: a session there that hits your plan's limit waits for it to reset."
+							}
+						>
+							<Switch
+								id="remote-host-api-key"
+								checked={current.apiKeyFallback}
+								disabled={setApiKeyFallback.isPending}
+								onCheckedChange={(on) => setApiKeyFallback.mutate(on)}
+							/>
+						</SettingRow>
+					)}
+					{current?.host && current.apiKeyFallback && (
+						<SettingRow
+							label="Custom API key (optional)"
+							htmlFor="remote-host-custom-key"
+							description={
+								current.customApiKeyEnd
+									? `Saved, ending ${current.customApiKeyEnd}. Kept encrypted on this computer and sent to the host with each session.`
+									: "Use this key instead of ANTHROPIC_API_KEY. Kept encrypted on this computer and sent to the host with each session."
+							}
+						>
+							<div className="flex items-center gap-2">
+								<Input
+									id="remote-host-custom-key"
+									type="password"
+									autoComplete="off"
+									className="w-56 font-mono text-xs"
+									placeholder={
+										current.customApiKeyEnd
+											? `...${current.customApiKeyEnd}`
+											: "sk-ant-..."
+									}
+									value={apiKeyDraft}
+									onChange={(event) => setApiKeyDraft(event.target.value)}
+									onKeyDown={(event) => {
+										if (event.key === "Enter" && apiKeyDraft.trim())
+											setCustomApiKey.mutate(apiKeyDraft);
+									}}
+								/>
+								<Button
+									size="sm"
+									variant="outline"
+									disabled={!apiKeyDraft.trim() || setCustomApiKey.isPending}
+									onClick={() => setCustomApiKey.mutate(apiKeyDraft)}
+								>
+									Save
+								</Button>
+								{current.customApiKeyEnd && (
+									<Button
+										size="sm"
+										variant="ghost"
+										disabled={setCustomApiKey.isPending}
+										onClick={() => setCustomApiKey.mutate("")}
+									>
+										Remove
+									</Button>
+								)}
+							</div>
+						</SettingRow>
+					)}
+					<SettingRow
+						label="AWS profile"
+						description="From your AWS config. Leave on Default to use the default profile."
+					>
+						<Select
+							value={profile || "__default"}
+							onValueChange={(value) => {
+								const next = value === "__default" ? "" : value;
+								setProfile(next);
+								persist({ profile: next });
+							}}
+						>
+							<SelectTrigger className="w-64">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="__default">Default</SelectItem>
+								{profiles.map((name) => (
+									<SelectItem key={name} value={name}>
+										{name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</SettingRow>
+					<SettingRow label="Region" htmlFor="aws-region">
+						<Input
+							id="aws-region"
+							className="w-40"
+							value={region}
+							onChange={(event) => setRegion(event.target.value.trim())}
+							onBlur={() => persist({ region })}
+						/>
+					</SettingRow>
+					<SettingRow
+						label="Instance login"
+						htmlFor="aws-user"
+						description={`The instance's own login with sudo: ubuntu on Ubuntu, ec2-user on Amazon Linux. Odin uses it only to set up and to keep your tokens. Your sessions run as your own user, ${current?.hostUser ?? "odin-<you>"}, so others on the same instance never share your files, Claude sign-in or tokens.`}
+					>
+						<Input
+							id="aws-user"
+							className="w-40"
+							value={user}
+							onChange={(event) => setUser(event.target.value.trim())}
+						/>
+					</SettingRow>
+					<SettingRow
+						label="Host policy (optional)"
+						htmlFor="aws-host-policy"
+						description="An IAM policy Use puts on the host's role beside SSM's, when it gives the host SSM access: what a plugin on the host needs, such as reading your secrets with the instance role."
+					>
+						<Input
+							id="aws-host-policy"
+							className="w-80 font-mono text-xs"
+							placeholder="arn:aws:iam::123456789012:policy/odin-host"
+							value={hostPolicyArn}
+							onChange={(event) => setHostPolicyArn(event.target.value.trim())}
+							onBlur={() => saveHostSetup("hostPolicyArn", hostPolicyArn)}
+						/>
+					</SettingRow>
+					<SettingRow
+						label="Packages (optional)"
+						htmlFor="aws-host-packages"
+						description="Installed on the host by Use, from its package manager, separated by spaces: the tools your plugins and skills run."
+					>
+						<Input
+							id="aws-host-packages"
+							className="w-80"
+							placeholder="awscli jq mysql-client"
+							value={hostPackages}
+							onChange={(event) => setHostPackages(event.target.value)}
+							onBlur={() => saveHostSetup("hostPackages", hostPackages)}
+						/>
+					</SettingRow>
+					{current?.host && (
+						<SettingRow
+							label="Set up someone else"
+							stacked
+							description={
+								<span className="select-text cursor-text">
+									Makes another person's Linux user and Odin service on this
+									host, by the name their Settings show. Yours is{" "}
+									<span className="font-mono">{current.hostUser}</span>.
+								</span>
+							}
+						>
+							<form
+								className="flex items-center gap-2"
+								onSubmit={(event) => {
+									event.preventDefault();
+									if (newUser.trim()) setUpUser.mutate(newUser.trim());
+								}}
+							>
+								<Input
+									value={newUser}
+									onChange={(event) => setNewUser(event.target.value)}
+									placeholder="odin-name"
+									className="h-8 w-48 font-mono text-sm"
+									aria-label="Linux user to set up"
+								/>
+								<Button
+									type="submit"
+									size="sm"
+									disabled={!newUser.trim() || setUpUser.isPending}
+								>
+									{setUpUser.isPending ? "Setting up..." : "Set up"}
+								</Button>
+							</form>
+						</SettingRow>
+					)}
+				</CollapsibleContent>
+			</Collapsible>
 		</SettingsSection>
+	);
+}
+
+/** "What the host gets" in one line: everything, or everything but what is off. */
+function hostGetsSummary(
+	connectors: Set<string>,
+	setup: Set<SetupPartId>,
+): string {
+	const off = [
+		...CONNECTORS.filter(([id]) => !connectors.has(id)),
+		...SETUP_PARTS.filter(([id]) => !setup.has(id)),
+	].map(([, label]) => label);
+	if (!off.length)
+		return "Everything: every connector and your whole Claude setup, so sessions there work as they do here.";
+	if (off.length === CONNECTORS.length + SETUP_PARTS.length)
+		return "Nothing: no connectors and none of your Claude setup.";
+	return `Everything but ${off.join(", ")}.`;
+}
+
+/** Beside the host's name: Ready, or how many steps the connection check found missing. */
+function HostStatusPill() {
+	const { data: result, isFetching } = electronTrpc.remoteHost.health.useQuery(
+		undefined,
+		HEALTH_QUERY,
+	);
+	if (!result)
+		return isFetching ? (
+			<span className="text-xs font-normal text-muted-foreground">
+				Checking...
+			</span>
+		) : null;
+	const missing = result.checks.filter(
+		(check) => check.state === "fail",
+	).length;
+	return (
+		<span
+			className={cn(
+				"inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium",
+				missing
+					? "bg-destructive/15 text-destructive"
+					: "bg-emerald-500/15 text-emerald-500",
+			)}
+		>
+			<span className="size-1.5 rounded-full bg-current" />
+			{missing
+				? `${missing} ${missing === 1 ? "step" : "steps"} missing`
+				: "Ready"}
+		</span>
 	);
 }
 
@@ -995,6 +1092,13 @@ function SwitchGrid<Id extends string>({
 	);
 }
 
+/** One health query for the check and the pill beside the host's name. */
+const HEALTH_QUERY = {
+	retry: false,
+	refetchOnWindowFocus: false,
+	staleTime: 5 * 60_000,
+} as const;
+
 const HEALTH_ICONS = {
 	ok: <HiCheckCircle className="size-4 shrink-0 text-emerald-500" />,
 	fail: <HiXCircle className="size-4 shrink-0 text-destructive" />,
@@ -1025,15 +1129,20 @@ function HostHealthRow({
 	fixing: HealthFix | null;
 	onFix: (fix: HealthFix) => void;
 }) {
-	const health = electronTrpc.remoteHost.health.useQuery(undefined, {
-		retry: false,
-		refetchOnWindowFocus: false,
-		staleTime: 5 * 60_000,
-	});
+	const health = electronTrpc.remoteHost.health.useQuery(
+		undefined,
+		HEALTH_QUERY,
+	);
+	// Only the steps that need something show; the rest are one click away.
+	const [showAll, setShowAll] = useState(false);
 	const checking = health.isFetching || !!fixing;
 	const result = health.data;
 	const missing =
 		result?.checks.filter((check) => check.state === "fail").length ?? 0;
+	const shown =
+		result?.checks.filter(
+			(check) => showAll || check.state === "fail" || check.state === "warn",
+		) ?? [];
 	const FIX_LABELS: Record<HealthFix, [string, string]> = {
 		claude: ["Sign in to Claude", "Approve in your browser..."],
 		aws: ["Sign in to AWS", "Approve in your browser..."],
@@ -1055,7 +1164,7 @@ function HostHealthRow({
 								? null
 								: result.healthy
 									? "New sessions can start on the host."
-									: `New sessions can't start on the host: ${missing} ${missing === 1 ? "step is" : "steps are"} missing.`}
+									: `New sessions can't start on the host until ${missing === 1 ? "this step is" : `these ${missing} steps are`} fixed.`}
 					{result && (
 						<span className="ml-1 text-muted-foreground">
 							Checked {new Date(result.at).toLocaleTimeString()}.
@@ -1065,9 +1174,9 @@ function HostHealthRow({
 			}
 		>
 			<div className="flex flex-col gap-2">
-				{result && (
+				{shown.length > 0 && (
 					<ul className="flex flex-col gap-1.5 text-sm">
-						{result.checks.map((check) => (
+						{shown.map((check) => (
 							<li key={check.id} className="flex items-start gap-2">
 								<span className="mt-0.5">{HEALTH_ICONS[check.state]}</span>
 								<span
@@ -1108,6 +1217,17 @@ function HostHealthRow({
 					>
 						{health.isFetching ? "Checking..." : "Check again"}
 					</Button>
+					{result && (
+						<Button
+							size="sm"
+							variant="ghost"
+							onClick={() => setShowAll((all) => !all)}
+						>
+							{showAll
+								? "Show only what needs a fix"
+								: `Show all ${result.checks.length} checks`}
+						</Button>
+					)}
 				</div>
 			</div>
 		</SettingRow>
