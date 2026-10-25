@@ -46,3 +46,19 @@ under Advanced, and select **Use** on it. The first setup takes a few minutes.
 - The profile or region under Advanced is not the instance's.
 - The instance has no `Odin = host` tag (the first command above adds it).
 - Your AWS sign-in has expired: `aws sso login --profile <profile>`.
+
+## Users without an administrator role
+
+A host can be shared with users whose AWS role may not run commands on it as
+root. Each one needs two things:
+
+- Their Linux user on the host. An administrator makes it once, in Settings >
+  Remote > Set up a user on this host, by the name that user's Settings show
+  after "Yours is" (`odin-` and their GitHub login).
+- These permissions on instances tagged `Odin = host`:
+  `ssm:StartSession` (the `AWS-StartSSHSession` document) and
+  `ec2-instance-connect:SendSSHPublicKey`. Limit the second one to `odin-*`
+  logins with the condition `StringLike: {"ec2:osuser": "odin-*"}`, so nobody
+  logs in as the instance's own admin user.
+
+Without the Linux user, the session stops and says which name to set up.
