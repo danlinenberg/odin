@@ -14,6 +14,7 @@ import {
 } from "@odin/ui/select";
 import { toast } from "@odin/ui/sonner";
 import { Switch } from "@odin/ui/switch";
+import { cn } from "@odin/ui/utils";
 import { useEffect, useRef, useState } from "react";
 import { HiChevronDown } from "react-icons/hi2";
 import { electronTrpc } from "renderer/lib/electron-trpc";
@@ -619,29 +620,15 @@ export function RemoteHostSection() {
 						</span>
 					}
 				>
-					<div className="flex flex-wrap items-center gap-4">
-						<AllSwitch
-							id="host-connector-all"
-							checked={CONNECTORS.every(([id]) => onHost.has(id))}
-							onCheckedChange={(on) =>
-								setConnectorList(on ? CONNECTORS.map(([id]) => id) : [])
-							}
-						/>
-						{CONNECTORS.map(([id, label]) => (
-							<label
-								key={id}
-								htmlFor={`host-connector-${id}`}
-								className="flex items-center gap-2 text-sm"
-							>
-								<Switch
-									id={`host-connector-${id}`}
-									checked={onHost.has(id)}
-									onCheckedChange={(on) => toggleConnector(id, on)}
-								/>
-								{label}
-							</label>
-						))}
-					</div>
+					<SwitchGrid
+						idPrefix="host-connector"
+						items={CONNECTORS}
+						isOn={(id) => onHost.has(id)}
+						onToggle={toggleConnector}
+						onToggleAll={(on) =>
+							setConnectorList(on ? CONNECTORS.map(([id]) => id) : [])
+						}
+					/>
 				</SettingRow>
 			)}
 			{current?.host && (
@@ -651,17 +638,6 @@ export function RemoteHostSection() {
 					description={
 						<span className="select-text cursor-text">
 							Copies ~/.claude to the host, never your login or history.
-							{syncingSetup && (
-								<span className="mt-1 block">Copying to the host...</span>
-							)}
-							{current.host.claudeSetupSyncedAt && (
-								<span className="mt-1 block">
-									Synced{" "}
-									{new Date(
-										current.host.claudeSetupSyncedAt,
-									).toLocaleDateString()}
-								</span>
-							)}
 							{!!current.host.claudeSetupDropped?.length && (
 								<details className="mt-1">
 									<summary className="cursor-pointer">
@@ -682,26 +658,26 @@ export function RemoteHostSection() {
 						</span>
 					}
 				>
-					<div className="flex flex-wrap items-center gap-4">
-						<AllSwitch
-							id="host-setup-all"
-							checked={SETUP_PARTS.every(([id]) => setupParts.has(id))}
-							onCheckedChange={toggleAllSetupParts}
-						/>
-						{SETUP_PARTS.map(([id, label]) => (
-							<label
-								key={id}
-								htmlFor={`host-setup-${id}`}
-								className="flex items-center gap-2 text-sm"
-							>
-								<Switch
-									id={`host-setup-${id}`}
-									checked={setupParts.has(id)}
-									onCheckedChange={(on) => toggleSetupPart(id, on)}
-								/>
-								{label}
-							</label>
-						))}
+					<SwitchGrid
+						idPrefix="host-setup"
+						items={SETUP_PARTS}
+						isOn={(id) => setupParts.has(id)}
+						onToggle={toggleSetupPart}
+						onToggleAll={toggleAllSetupParts}
+					/>
+					<div className="mt-3 flex items-center justify-between gap-4">
+						<span className="text-xs text-muted-foreground">
+							{syncingSetup
+								? "Copying to the host..."
+								: current.host.claudeSetupSyncedAt
+									? `Last synced ${new Date(
+											current.host.claudeSetupSyncedAt,
+										).toLocaleString(undefined, {
+											dateStyle: "medium",
+											timeStyle: "short",
+										})}`
+									: "Not synced yet"}
+						</span>
 						<Button
 							size="sm"
 							variant="outline"
@@ -918,23 +894,48 @@ export function RemoteHostSection() {
 	);
 }
 
-/** The first switch in a group: on when every switch in it is, and flips them all. */
-function AllSwitch({
-	id,
-	checked,
-	onCheckedChange,
+/**
+ * A group of switches as tiles, led by an All tile that is on when every
+ * switch is, and flips them all.
+ */
+function SwitchGrid<Id extends string>({
+	idPrefix,
+	items,
+	isOn,
+	onToggle,
+	onToggleAll,
 }: {
-	id: string;
-	checked: boolean;
-	onCheckedChange: (on: boolean) => void;
+	idPrefix: string;
+	items: readonly (readonly [Id, string])[];
+	isOn: (id: Id) => boolean;
+	onToggle: (id: Id, on: boolean) => void;
+	onToggleAll: (on: boolean) => void;
 }) {
+	const tile =
+		"flex cursor-pointer items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-accent/40";
 	return (
-		<label
-			htmlFor={id}
-			className="flex items-center gap-2 border-border border-r pr-4 font-medium text-sm"
-		>
-			<Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
-			All
-		</label>
+		<div className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2">
+			<label
+				htmlFor={`${idPrefix}-all`}
+				className={cn(tile, "bg-muted/40 font-medium")}
+			>
+				All
+				<Switch
+					id={`${idPrefix}-all`}
+					checked={items.every(([id]) => isOn(id))}
+					onCheckedChange={onToggleAll}
+				/>
+			</label>
+			{items.map(([id, label]) => (
+				<label key={id} htmlFor={`${idPrefix}-${id}`} className={tile}>
+					<span className="truncate">{label}</span>
+					<Switch
+						id={`${idPrefix}-${id}`}
+						checked={isOn(id)}
+						onCheckedChange={(on) => onToggle(id, on)}
+					/>
+				</label>
+			))}
+		</div>
 	);
 }
