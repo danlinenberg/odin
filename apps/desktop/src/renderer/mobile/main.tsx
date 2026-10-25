@@ -389,7 +389,11 @@ function Home() {
 	});
 	// A card's swipe actions; the board reads again once Odin did them.
 	const doneCard = phone.done.useMutation({
-		onSuccess: () => void board.refetch(),
+		onSuccess: () => {
+			void board.refetch();
+			// A search hit's Done: the hit shows it left the board.
+			void utils.search.invalidate();
+		},
 	});
 	const remindCard = phone.remind.useMutation({
 		onSuccess: () => void board.refetch(),
@@ -467,6 +471,10 @@ function Home() {
 					}
 					resuming={
 						resume.isPending ? (resume.variables?.sessionId ?? null) : null
+					}
+					onDone={(paneId) => doneCard.mutate({ paneId })}
+					finishing={
+						doneCard.isPending ? (doneCard.variables?.paneId ?? null) : null
 					}
 				/>
 			)}

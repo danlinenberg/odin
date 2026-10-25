@@ -344,6 +344,8 @@ export const phoneRouter = t.router({
 			prs: prs.map((pr) => ({
 				url: pr.url,
 				label: prLabel(pr, state(pr.url)?.title),
+				/** Its repo's name: a session's PRs can span repos, as the board groups them. */
+				repo: pr.repo.split("/").pop() ?? pr.repo,
 				status: state(pr.url),
 			})),
 			jira: issue && {

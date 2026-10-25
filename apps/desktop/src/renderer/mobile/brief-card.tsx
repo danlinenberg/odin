@@ -27,7 +27,8 @@ type PrStatus = {
 /** What phone.links answers: the brief's links, with their live state. */
 export type BriefLinks =
 	| {
-			prs: { url: string; label: string; status: PrStatus }[];
+			/** `repo` is missing from an older Odin on the Mac. */
+			prs: { url: string; label: string; repo?: string; status: PrStatus }[];
 			jira: { url: string; key: string; status: string | null } | null;
 			slack: string | null;
 			notion: { url: string; title: string | null } | null;
@@ -182,6 +183,11 @@ export function BriefCard({
 						)}
 						{links?.prs.map((pr) => (
 							<LinkRow key={pr.url} href={pr.url}>
+								{pr.repo && !pr.label.startsWith(pr.repo) && (
+									<span className="shrink-0 text-muted-foreground">
+										{pr.repo}
+									</span>
+								)}
 								<span className="min-w-0 truncate">{pr.label}</span>
 								<StateChip status={pr.status} />
 								<ChecksChip status={pr.status} />
