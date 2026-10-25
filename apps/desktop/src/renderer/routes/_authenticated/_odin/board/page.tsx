@@ -198,9 +198,9 @@ import {
 } from "./brief";
 import {
 	ChatView,
-	filedUnder,
 	hostDeps,
 	interruptClaude,
+	movedHere,
 	typeIntoClaude,
 } from "./ChatView";
 import {
@@ -4977,12 +4977,14 @@ function DevBoardPage() {
 				// host has, and exited 1 on every click. Put it back on the host.
 				// Not one moved here (Run here): its copy is filed under this
 				// card's folder, while its lines still name the host's paths -
-				// read as lost, every move resumed on the host again.
+				// read as lost, every move resumed on the host again. A mirror
+				// whose card reports the host folder it started in is filed
+				// there too, and is still the host's.
 				const here = sessionCwd(card.pane);
 				const host =
 					transcript.local === false &&
 					!card.pane.odinRemote &&
-					!(here && filedUnder(transcript.path, here, sessionId))
+					!(here && movedHere(transcript.path, here, transcript.cwd, sessionId))
 						? (await utils.client.remoteHost.get.query().catch(() => null))
 								?.host
 						: null;

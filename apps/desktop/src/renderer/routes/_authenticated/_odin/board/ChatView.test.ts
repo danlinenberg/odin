@@ -35,6 +35,7 @@ import {
 	leavePhase,
 	localCommand,
 	messageAttachments,
+	movedHere,
 	nextHostStep,
 	outputTokens,
 	segments,
@@ -1139,4 +1140,19 @@ test("filedUnder: a session moved here is filed under its folder here, a host mi
 	expect(filedUnder(moved, "/Users/dan/dev/odin", id)).toBe(true);
 	expect(filedUnder(mirror, "/Users/dan/dev/odin", id)).toBe(false);
 	expect(filedUnder(moved, "/Users/dan/dev/odin-2", id)).toBe(false);
+});
+
+test("movedHere: a host mirror under the card's own host folder stays the host's", () => {
+	const id = "c7b0bf62";
+	const moved = `/Users/dan/.claude/projects/-Users-dan-dev-odin/${id}.jsonl`;
+	const mirror = `/Users/dan/.claude/projects/-home-odin-repos/${id}.jsonl`;
+	expect(movedHere(moved, "/Users/dan/dev/odin", "/home/odin/repos", id)).toBe(
+		true,
+	);
+	expect(movedHere(mirror, "/home/odin/repos", "/home/odin/repos", id)).toBe(
+		false,
+	);
+	expect(movedHere(mirror, "/Users/dan/dev/odin", "/home/odin/repos", id)).toBe(
+		false,
+	);
 });
