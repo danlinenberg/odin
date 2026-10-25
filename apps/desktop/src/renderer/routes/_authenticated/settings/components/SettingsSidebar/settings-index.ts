@@ -165,6 +165,12 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "launch command alias binary claude code cli wrapper",
 	},
 	{
+		label: "Update plugins",
+		to: "/settings/advanced",
+		section: "Plugins",
+		keywords: "skills plugins marketplace update upgrade latest version sync",
+	},
+	{
 		label: "Default prompt",
 		to: "/settings/advanced",
 		section: "What they run",

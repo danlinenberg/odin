@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
+import { updatePlugins } from "main/lib/plugin-update";
 import { publicProcedure, router } from "..";
 
 /**
@@ -223,5 +224,7 @@ export const createSkillsRouter = () => {
 		list: publicProcedure.query((): AgentSkill[] =>
 			withBundledSkills(collectSkills()),
 		),
+		/** Settings > Advanced > Update plugins. */
+		updatePlugins: publicProcedure.mutation(() => updatePlugins()),
 	});
 };
