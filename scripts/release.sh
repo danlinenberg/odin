@@ -7,6 +7,7 @@
 #   scripts/release.sh --no-install  # publish it, stay on the build you have
 #   scripts/release.sh --private     # a draft only collaborators see: the DMG
 #                                    # lands in ~/Downloads to send by hand
+#   scripts/release.sh --private 1.1.0  # the same draft, as 1.1.0-pre.<run>
 #   scripts/release.sh --silent      # publish it without moving "latest":
 #                                    # no update banner, no brew upgrade - only
 #                                    # the people you send its link get it
@@ -81,7 +82,7 @@ watch_release() {
 
 if [[ "$PRIVATE" == 1 ]]; then
 	echo "==> building a private draft of main (about 10 minutes)"
-	gh workflow run Release --repo "$SLUG" -f private=true
+	gh workflow run Release --repo "$SLUG" -f private=true -f version="${1:-}"
 	watch_release
 	TAG=$(gh release list --repo "$SLUG" --limit 10 --json tagName,isDraft \
 		-q '[.[] | select(.isDraft)][0].tagName')
