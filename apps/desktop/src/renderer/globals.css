@@ -185,6 +185,9 @@
 }
 
 @theme inline {
+	--font-sans:
+		"Odin Hebrew", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+		"Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
 	--color-card: var(--card);
