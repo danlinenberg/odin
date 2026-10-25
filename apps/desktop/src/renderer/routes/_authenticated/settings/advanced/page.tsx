@@ -4,6 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { ClaudeCommandPicker } from "renderer/components/ClaudeCommandPicker";
 import { DEFAULT_SESSION_INSTRUCTIONS } from "renderer/hooks/useLaunchTaskSession";
+import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useClaudeCommand } from "renderer/stores/claude-command";
 import { useSessionInstructions } from "renderer/stores/session-instructions";
 import {
@@ -33,6 +34,12 @@ function AdvancedSettingsPage() {
 			>
 				<ClaudeCommandRow />
 				<SessionInstructionsRow />
+			</SettingsSection>
+			<SettingsSection
+				title="Plugins"
+				description="The Claude Code plugins your sessions load their skills from."
+			>
+				<UpdatePluginsRow />
 			</SettingsSection>
 		</SettingsPage>
 	);
@@ -127,6 +134,71 @@ function SessionInstructionsRow() {
 					<span className="text-xs text-muted-foreground">Edited</span>
 				)}
 			</div>
+		</SettingRow>
+	);
+}
+
+/**
+ * Pulls the newest version of every enabled plugin, so everyone on a team
+ * runs the same skills. Sessions already open keep the old version until
+ * they restart, as with Claude Code's own /plugin.
+ */
+function UpdatePluginsRow() {
+	const utils = electronTrpc.useUtils();
+	const update = electronTrpc.skills.updatePlugins.useMutation({
+		onSuccess: () => utils.skills.list.invalidate(),
+	});
+	const result = update.data;
+	const changed = result?.plugins.filter((plugin) => plugin.to !== plugin.from);
+	const failed = result?.plugins.filter((plugin) => plugin.error);
+	return (
+		<SettingRow
+			label="Update plugins"
+			description="Refresh every marketplace and move each enabled plugin to its newest version. New sessions use the new versions; open ones keep theirs until they restart."
+			stacked
+		>
+			<div className="flex items-center gap-2">
+				<Button
+					variant="outline"
+					size="sm"
+					className="h-8"
+					disabled={update.isPending}
+					onClick={() => update.mutate()}
+				>
+					{update.isPending ? "Updating..." : "Update plugins"}
+				</Button>
+				{result && changed && (
+					<span className="text-xs text-muted-foreground">
+						{changed.length
+							? `${changed.length} of ${result.plugins.length} updated`
+							: `All ${result.plugins.length} up to date`}
+					</span>
+				)}
+			</div>
+			{update.error && (
+				<p className="select-text cursor-text text-xs text-destructive">
+					{update.error.message}
+				</p>
+			)}
+			{result && (
+				<ul className="select-text cursor-text space-y-0.5 font-mono text-xs">
+					{result.marketplaceError && (
+						<li className="text-destructive">
+							Marketplaces not refreshed: {result.marketplaceError}
+						</li>
+					)}
+					{changed?.map((plugin) => (
+						<li key={plugin.id}>
+							{plugin.id} {plugin.from} -&gt; {plugin.to}
+						</li>
+					))}
+					{failed?.map((plugin) => (
+						<li key={plugin.id} className="text-destructive">
+							{plugin.id}: {plugin.error}
+						</li>
+					))}
+				</ul>
+			)}
 		</SettingRow>
 	);
 }
