@@ -4,7 +4,7 @@
 <h1 align="center">Odin</h1>
 
 <p align="center">
-  <b>Parallelize agents, like a god.</b>
+  <b>Make AI work for you. Not the other way around.</b>
   <br><sub><b>O</b>rchestrator for <b>D</b>elegating <b>I</b>nbound <b>N</b>oise</sub>
 </p>
 
