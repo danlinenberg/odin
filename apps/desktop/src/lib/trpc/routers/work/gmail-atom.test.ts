@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { parseGmailAtom } from "./index";
+import { gmailThreadUrl, parseGmailAtom } from "./index";
 
 const FEED = `<?xml version="1.0" encoding="UTF-8"?>
 <feed version="0.3" xmlns="http://purl.org/atom/ns#">
@@ -29,7 +29,7 @@ describe("parseGmailAtom", () => {
 		expect(parseGmailAtom(FEED)).toEqual([
 			{
 				id: "tag:gmail.google.com,2004:111",
-				url: "https://mail.google.com/mail?account_id=me@example.com&message_id=abc&view=conv&extsrc=atom",
+				url: "https://mail.google.com/mail/u/me@example.com/#all/abc",
 				subject: 'Q3 & Q4 "plan"',
 				snippet: "Can you look at this by Friday?",
 				from: "Ann Lee",
@@ -50,5 +50,14 @@ describe("parseGmailAtom", () => {
 
 	it("an empty inbox is no rows", () => {
 		expect(parseGmailAtom("<feed><fullcount>0</fullcount></feed>")).toEqual([]);
+	});
+});
+
+describe("gmailThreadUrl", () => {
+	it("leaves a link that is not the feed's as it is", () => {
+		expect(gmailThreadUrl("https://mail.google.com/x")).toBe(
+			"https://mail.google.com/x",
+		);
+		expect(gmailThreadUrl("")).toBe("");
 	});
 });
