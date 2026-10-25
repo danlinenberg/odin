@@ -3,10 +3,13 @@ import {
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuLabel,
+	ContextMenuSeparator,
 	ContextMenuTrigger,
 } from "@odin/ui/context-menu";
 import { toast } from "@odin/ui/sonner";
 import type { ReactNode } from "react";
+import { electronTrpcClient } from "renderer/lib/trpc-client";
+import { useDoneStore } from "renderer/stores/done";
 import type { AllItem } from "./all-items";
 import { type DropRule, ruleLabel, rulesFor, useDropRules } from "./drop-rules";
 
@@ -20,7 +23,30 @@ export function DropRuleMenu({
 	children: ReactNode;
 }) {
 	const choices = item ? rulesFor(item) : [];
-	if (choices.length === 0) return children;
+	if (!item || choices.length === 0) return children;
+	// Mail: the sender's address is junk from now on, and the junk filter
+	// takes the mail as an example for look-alikes from other senders.
+	const ignoreLikeThis = () => {
+		const sender = item.details.find(([label]) => label === "From")?.[1];
+		electronTrpcClient.work.ignoreEmail
+			.mutate({
+				from: item.person,
+				fromEmail: sender?.includes("@") ? sender : null,
+				subject: item.title,
+			})
+			.then(
+				() =>
+					toast.success("Ignoring mail like this", {
+						description: "Its sender is junk now, and similar mail with it",
+					}),
+				(error: Error) => toast.error(`Couldn't ignore it: ${error.message}`),
+			);
+		useDoneStore.getState().setDone(item.key, {
+			title: item.title,
+			source: item.source,
+			url: item.url,
+		});
+	};
 	const pick = (rule: DropRule) => {
 		const { add, remove } = useDropRules.getState();
 		add(rule);
@@ -33,8 +59,16 @@ export function DropRuleMenu({
 		<ContextMenu>
 			<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
 			<ContextMenuContent className="w-[320px]">
+				{item.source === "Email" && (
+					<>
+						<ContextMenuItem onSelect={ignoreLikeThis} className="text-[12px]">
+							Ignore mail like this
+						</ContextMenuItem>
+						<ContextMenuSeparator />
+					</>
+				)}
 				<ContextMenuLabel className="text-[11px] text-muted-foreground">
-					Drop {item?.source} tasks like this from now on
+					Drop {item.source} tasks like this from now on
 				</ContextMenuLabel>
 				{choices.map((rule) => (
 					<ContextMenuItem
