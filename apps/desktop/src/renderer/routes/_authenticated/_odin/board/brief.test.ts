@@ -13,10 +13,12 @@ import {
 	jiraKey,
 	lastMessageAt,
 	launchPullRequest,
+	launchSlackLink,
 	linkContext,
 	linkKind,
 	linkLabel,
 	linkRefs,
+	listedPullRequests,
 	mergeConflicts,
 	mergeReady,
 	mergeTargets,
@@ -339,6 +341,39 @@ describe("elapsedLabel", () => {
 
 	it("says nothing when there is no timestamp", () => {
 		expect(elapsedLabel(undefined, now)).toBeNull();
+	});
+});
+
+describe("launchSlackLink", () => {
+	it("is the Slack message a Slack row was launched on, and nothing for any other row", () => {
+		expect(
+			launchSlackLink(
+				"Task: https://acme.slack.com/archives/C0C92L9B5M2/p1792787014426779?thread_ts=1792766425.099829&cid=C0C92L9B5M2\n\nreview",
+			),
+		).toBe(
+			"https://acme.slack.com/archives/C0C92L9B5M2/p1792787014426779?thread_ts=1792766425.099829&cid=C0C92L9B5M2",
+		);
+		expect(launchSlackLink("https://github.com/acme/api/pull/12")).toBeNull();
+		expect(launchSlackLink(null)).toBeNull();
+	});
+});
+
+describe("listedPullRequests", () => {
+	it("is every PR a builder's In review post lists, once each", () => {
+		// As slackTextToPlain hands it over: "label (url)", CI links beside each PR.
+		const post = [
+			"*In review*",
+			"\u2022 utilities #485 (https://github.com/acme/utilities/pull/485) \u00b7 CI (https://github.com/acme/utilities/pull/485/checks)",
+			"\u2022 api #6956 (https://github.com/acme/api/pull/6956) \u00b7 CI (https://github.com/acme/api/pull/6956/checks)",
+		].join("\n");
+		expect([...listedPullRequests(post)].sort()).toEqual([
+			"https://github.com/acme/api/pull/6956",
+			"https://github.com/acme/utilities/pull/485",
+		]);
+	});
+
+	it("is empty with no message", () => {
+		expect(listedPullRequests(null).size).toBe(0);
 	});
 });
 
