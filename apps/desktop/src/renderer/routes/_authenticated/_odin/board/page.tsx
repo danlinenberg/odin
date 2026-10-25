@@ -5739,6 +5739,10 @@ function DevBoardPage() {
 		if (row) setRowDone(row, true);
 		endSession(card.pane.id);
 		if (!sessionId) return;
+		// How I rewrote its Slack drafts before sending them teaches Your voice.
+		void utils.client.voice.learnFromSession
+			.mutate({ sessionId })
+			.catch(() => {});
 		return pushUndo(async () => {
 			if (row) setRowDone(row, false);
 			const result = await launch({

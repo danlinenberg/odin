@@ -5,7 +5,9 @@ import { join } from "node:path";
 import {
 	addSamples,
 	addVoiceNote,
+	draftCorrections,
 	LEARN_EVERY,
+	learnFromDrafts,
 	learnPrompt,
 	myLines,
 	noteConversation,
@@ -161,5 +163,43 @@ describe("trainVoice", () => {
 		expect((await readVoice(path)).samples).toEqual([]);
 		await setVoiceNotes(["shorter", "", " shorter ", "no emoji"], path);
 		expect((await readVoice(path)).notes).toEqual(["shorter", "no emoji"]);
+	});
+});
+
+describe("learnFromDrafts", () => {
+	const fakeClaude = join(tmpdir(), `fake-claude-drafts-${process.pid}.sh`);
+	writeFileSync(
+		fakeClaude,
+		"#!/bin/sh\necho '- shorter, no greeting'\necho '- no sign-off'\n",
+		{ mode: 0o755 },
+	);
+	const pairs = [
+		{
+			draft: "Hi Nati! The deploy is fixed now. Let me know. Thanks, Dan",
+			sent: ["deploy fixed, check again"],
+		},
+		{ draft: "never sent this one", sent: [] },
+	];
+
+	test("how I rewrote a draft becomes corrections, what I sent a sample", async () => {
+		const path = join(mkdtempSync(join(tmpdir(), "voice-")), "voice.json");
+		await learnFromDrafts(pairs, { path, claudeBin: fakeClaude });
+		const store = await readVoice(path);
+		expect(store.notes).toEqual(["shorter, no greeting", "no sign-off"]);
+		expect(store.samples).toEqual(["deploy fixed, check again"]);
+	});
+
+	test("does nothing while Your voice is off", async () => {
+		const path = join(mkdtempSync(join(tmpdir(), "voice-")), "voice.json");
+		await setVoiceEnabled(false, path);
+		await learnFromDrafts(pairs, { path, claudeBin: fakeClaude });
+		const store = await readVoice(path);
+		expect(store.notes).toEqual([]);
+		expect(store.samples).toEqual([]);
+	});
+
+	test("NONE adds no correction", () => {
+		expect(draftCorrections("NONE")).toEqual([]);
+		expect(draftCorrections("- a\n- b\n- c\n- d")).toEqual(["a", "b", "c"]);
 	});
 });

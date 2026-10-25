@@ -22,6 +22,7 @@ import {
 	ruleFirings,
 	searchSessions,
 	sessionLoop,
+	slackDraftCalls,
 	slackDrafts,
 	spokenText,
 	summarizeTranscript,
@@ -1254,6 +1255,11 @@ test("slackDrafts: a thread draft keeps its thread, a DM draft its moment", () =
 	expect(slackDrafts(jsonl)).toEqual([
 		"C1:1792056367.166909",
 		"C2:1792411205.000000",
+	]);
+	expect(slackDraftCalls(jsonl).map((call) => call.text)).toEqual([
+		"a",
+		"b",
+		"c",
 	]);
 });
 

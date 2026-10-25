@@ -1029,7 +1029,24 @@ export function ranHere(cwd: string | null): boolean {
  * Those are the places you wait on an answer once you send the draft.
  */
 export function slackDrafts(jsonl: string): string[] {
-	const ids = new Set<string>();
+	return [
+		...new Set(
+			slackDraftCalls(jsonl).map(
+				({ channel, thread, at }) =>
+					`${channel}:${thread ?? (at / 1000).toFixed(6)}`,
+			),
+		),
+	];
+}
+
+/** Each Slack draft the session wrote: where, when (ms) and what it said. */
+export function slackDraftCalls(jsonl: string): {
+	channel: string;
+	thread: string | null;
+	at: number;
+	text: string;
+}[] {
+	const out: ReturnType<typeof slackDraftCalls> = [];
 	for (const line of jsonl.split("\n")) {
 		if (!line.includes("slack_send_message_draft")) continue;
 		let entry: {
@@ -1053,15 +1070,17 @@ export function slackDrafts(jsonl: string): string[] {
 			const channel = String(block.input?.channel_id ?? "");
 			const thread = String(block.input?.thread_ts ?? "");
 			const at = Date.parse(entry.timestamp ?? "");
-			const ts = /^\d+\.\d+$/.test(thread)
-				? thread
-				: Number.isFinite(at)
-					? (at / 1000).toFixed(6)
-					: "";
-			if (/^[A-Z0-9]+$/.test(channel) && ts) ids.add(`${channel}:${ts}`);
+			const inThread = /^\d+\.\d+$/.test(thread);
+			if (/^[A-Z0-9]+$/.test(channel) && (inThread || Number.isFinite(at)))
+				out.push({
+					channel,
+					thread: inThread ? thread : null,
+					at,
+					text: String(block.input?.message ?? ""),
+				});
 		}
 	}
-	return [...ids];
+	return out;
 }
 
 /** A question or plan Claude waits on: a menu only its terminal draws. */
