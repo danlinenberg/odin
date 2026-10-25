@@ -88,14 +88,14 @@ code {
 	text-decoration: none;
 	font-family: var(--display);
 	font-weight: 700;
-	font-size: 32px;
+	font-size: 40px;
 	letter-spacing: 0.06em;
 }
 
 .brand img {
-	width: 88px;
-	height: 88px;
-	border-radius: 20px;
+	width: 112px;
+	height: 112px;
+	border-radius: 26px;
 }
 
 .top nav {
@@ -214,29 +214,6 @@ h3 {
 	text-align: center;
 	gap: 24px;
 	padding-block: 72px 56px;
-}
-
-.pill {
-	display: inline-flex;
-	align-items: center;
-	gap: 8px;
-	padding: 5px 12px 5px 6px;
-	border: 1px solid var(--border);
-	border-radius: 999px;
-	background: var(--panel);
-	font-size: 13.5px;
-	color: var(--muted);
-	text-decoration: none;
-}
-
-.pill b {
-	font: 500 11px var(--mono);
-	text-transform: uppercase;
-	letter-spacing: 0.08em;
-	color: var(--primary);
-	background: color-mix(in oklab, var(--primary) 14%, transparent);
-	border-radius: 999px;
-	padding: 2px 8px;
 }
 
 .ctas {
@@ -673,12 +650,12 @@ footer a:hover {
 		display: none;
 	}
 	.brand {
-		font-size: 28px;
+		font-size: 32px;
 	}
 	.brand img {
-		width: 68px;
-		height: 68px;
-		border-radius: 16px;
+		width: 76px;
+		height: 76px;
+		border-radius: 18px;
 	}
 	.grid,
 	.grid.three,
