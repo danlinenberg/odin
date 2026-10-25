@@ -8,6 +8,7 @@ import {
 	rankRows,
 	rankSessions,
 	type SessionHit,
+	slackLinkUrls,
 	TRANSCRIPT_TIER,
 	TYPO_TIER,
 } from "./search-all";
@@ -41,6 +42,7 @@ const session = (
 	repo: null,
 	brief: null,
 	tags: [],
+	links: [],
 	...extra,
 });
 
@@ -230,4 +232,43 @@ test("the board's cards: every column, Odin-launched terminals in this profile",
 	expect(
 		boardSessions(panes, new Set(["t1"]), "work").map((hit) => hit.paneId),
 	).toEqual(["other"]);
+});
+
+test("a card is found by who posted the Slack thread you attached to it", () => {
+	const thread = "https://acme.slack.com/archives/C123/p1700000000000100";
+	const panes = {
+		task: pane("task", { odinTaskTitle: "Monthly B2B billing" }),
+	};
+	const mirror = {
+		titles: {},
+		contacts: {},
+		briefs: {},
+		links: { task: [{ url: thread, name: "billing ask" }] },
+	};
+	const previews = {
+		[thread]: { channel: "#finance", author: "Aya Shvartz", text: "Annual" },
+	};
+	const hits = boardSessions(
+		panes,
+		new Set(["t1"]),
+		"default",
+		mirror,
+		previews,
+	);
+	expect(hits[0]?.contact).toBe("Aya Shvartz");
+	expect(titles(rankSessions("aya", hits))).toEqual(["Monthly B2B billing"]);
+	expect(titles(rankSessions("billing ask", hits))).toEqual([
+		"Monthly B2B billing",
+	]);
+	expect(rankSessions("yoav", hits)).toEqual([]);
+});
+
+test("Slack links attached on any panel, once each", () => {
+	const thread = "https://acme.slack.com/archives/C123/p1700000000000100";
+	expect(
+		slackLinkUrls({
+			a: [thread, { url: "https://github.com/x/y/pull/1" }],
+			b: [{ url: thread, name: "again" }],
+		}),
+	).toEqual([thread]);
 });

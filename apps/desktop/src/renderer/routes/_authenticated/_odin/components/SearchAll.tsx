@@ -41,6 +41,7 @@ import {
 	rankSessions,
 	type SearchableRow,
 	type SessionHit,
+	slackLinkUrls,
 	TRANSCRIPT_TIER,
 } from "./search-all";
 
@@ -150,18 +151,43 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 	const contacts = usePaneMeta((s) => s.contactByPane);
 	const briefs = usePaneMeta((s) => s.briefByPane);
 	const sessionIdByPane = usePaneMeta((s) => s.sessionIdByPane);
+	const linksByPane = usePaneMeta((s) => s.linksByPane);
+	// Who posted each Slack link you attached, so a card is found by the person
+	// who asked. The panel already asked; main has these cached.
+	const slackUrls = useMemo(() => slackLinkUrls(linksByPane), [linksByPane]);
+	const { data: previews } = electronTrpc.slack.previews.useQuery(
+		{ urls: slackUrls },
+		{ enabled: slackUrls.length > 0, retry: false, staleTime: Infinity },
+	);
 	const viewedAt = useRecentlyViewed((s) => s.viewedAt);
 	const { activeId, isLoading } = useOdinProfile();
 	const sessions = useMemo(
 		() =>
 			isLoading
 				? []
-				: boardSessions(panes, new Set(tabs.map((tab) => tab.id)), activeId, {
-						titles,
-						contacts,
-						briefs,
-					}),
-		[panes, tabs, activeId, isLoading, titles, contacts, briefs],
+				: boardSessions(
+						panes,
+						new Set(tabs.map((tab) => tab.id)),
+						activeId,
+						{
+							titles,
+							contacts,
+							briefs,
+							links: linksByPane,
+						},
+						previews,
+					),
+		[
+			panes,
+			tabs,
+			activeId,
+			isLoading,
+			titles,
+			contacts,
+			briefs,
+			linksByPane,
+			previews,
+		],
 	);
 
 	// Session History's own query, input and all, so the two share a cache.

@@ -1,6 +1,7 @@
 import Fuse from "fuse.js";
 import { profileOf } from "shared/odin-profile";
 import type { Pane, PaneStatus } from "shared/tabs-types";
+import { type BriefLink, linkUrl } from "../hooks/usePaneMeta";
 import { repoLabel } from "../sessions/row-labels";
 
 /** A Dev Board session, as Search all lists it. */
@@ -13,6 +14,25 @@ export interface SessionHit {
 	/** The launch prompt and the card's tags - searched, not shown. */
 	brief: string | null;
 	tags: string[];
+	/** The links you attached on its panel, as words - searched, not shown. */
+	links: string[];
+}
+
+/** What Slack says about a link: where it was posted, by whom, its first line. */
+export interface LinkPreview {
+	channel: string | null;
+	author: string | null;
+	text: string;
+}
+
+const isSlackMessage = (url: string) => /\.slack\.com\/archives\//.test(url);
+
+/** The Slack messages among links attached on panels, once each. */
+export function slackLinkUrls(
+	linksByPane: Record<string, (BriefLink | string)[]>,
+): string[] {
+	const urls = Object.values(linksByPane).flat().map(linkUrl);
+	return [...new Set(urls.filter(isSlackMessage))];
 }
 
 /** Needs-you first, the board's own column order. */
@@ -38,7 +58,9 @@ export function boardSessions(
 		titles: Record<string, string>;
 		contacts: Record<string, string>;
 		briefs: Record<string, string>;
+		links?: Record<string, (BriefLink | string)[]>;
 	} = { titles: {}, contacts: {}, briefs: {} },
+	previews: Record<string, LinkPreview | null> = {},
 ): SessionHit[] {
 	return Object.values(panes)
 		.map((pane) => ({
@@ -53,15 +75,35 @@ export function boardSessions(
 				tabIds.has(pane.tabId) &&
 				profileOf(pane.odinProfile) === profileId,
 		)
-		.map(({ pane, title }) => ({
-			paneId: pane.id,
-			title: title ?? "",
-			status: pane.status ?? "idle",
-			contact: pane.odinContact ?? mirror.contacts[pane.id] ?? null,
-			repo: repoLabel(pane.cwd ?? pane.initialCwd),
-			brief: pane.odinBrief ?? mirror.briefs[pane.id] ?? null,
-			tags: pane.odinTags ?? [],
-		}))
+		.map(({ pane, title }) => {
+			const links = (mirror.links?.[pane.id] ?? []).map((link) =>
+				typeof link === "string" ? { url: link } : link,
+			);
+			const said = links.map((link) => previews[link.url]).filter(Boolean);
+			return {
+				paneId: pane.id,
+				title: title ?? "",
+				status: pane.status ?? "idle",
+				// A task you started yourself has no contact; the Slack thread you
+				// attached to it names who asked.
+				contact:
+					pane.odinContact ??
+					mirror.contacts[pane.id] ??
+					said.find((preview) => preview?.author)?.author ??
+					null,
+				repo: repoLabel(pane.cwd ?? pane.initialCwd),
+				brief: pane.odinBrief ?? mirror.briefs[pane.id] ?? null,
+				tags: pane.odinTags ?? [],
+				links: [
+					...links.flatMap((link) => [link.name, link.url]),
+					...said.flatMap((preview) => [
+						preview?.author,
+						preview?.channel,
+						preview?.text,
+					]),
+				].filter((word): word is string => !!word),
+			};
+		})
 		.sort(
 			(a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status),
 		);
@@ -195,7 +237,13 @@ export function rankSessions(
 	const seen = (hit: Ranked<SessionHit>) => viewedAt[hit.item.paneId] ?? 0;
 	return rankBy(query, sessions, (session) => [
 		session.title,
-		[session.contact, session.repo, session.brief, ...session.tags],
+		[
+			session.contact,
+			session.repo,
+			session.brief,
+			...session.tags,
+			...session.links,
+		],
 	]).sort((a, b) => a.tier - b.tier || seen(b) - seen(a));
 }
 
