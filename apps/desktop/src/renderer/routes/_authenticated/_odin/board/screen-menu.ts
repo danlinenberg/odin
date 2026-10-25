@@ -65,22 +65,39 @@ export function parseScreenMenu(screen: string): ScreenMenu | null {
 		!NUMBERED_RE.test(line) &&
 		indent(line) > indent(cursorLine);
 
+	// /mcp splits its list into groups: a blank line, then a header at the
+	// options' indent. A blank line joins two groups of two lines or more, so
+	// a one-line title above a menu stays the title.
+	const joinsGroups = (blank: number, step: 1 | -1) =>
+		!numbered &&
+		lines[blank]?.trim() === "" &&
+		isOption(lines[blank + step] ?? "") &&
+		isOption(lines[blank + 2 * step] ?? "");
+
 	let first = at;
 	while (first > 0) {
 		const above = lines[first - 1] ?? "";
 		if (isOption(above)) first--;
 		else if (isDetail(above) && isOption(lines[first - 2] ?? "")) first -= 2;
+		else if (joinsGroups(first - 1, -1)) first--;
 		else break;
 	}
 	let last = at;
 	while (last < lines.length - 1) {
 		const below = lines[last + 1] ?? "";
 		if (isOption(below) || isDetail(below)) last++;
+		else if (joinsGroups(last + 1, 1)) last++;
 		else break;
 	}
 	if (RULE_RE.test(lines[first - 1] ?? "")) return null;
 
-	const block = lines.slice(first, last + 1).filter(isOption);
+	const span = lines.slice(first, last + 1);
+	// Each group's first line is its header, which the cursor skips over.
+	const grouped = span.some((line) => line.trim() === "");
+	const block = span.filter(
+		(line, i) =>
+			isOption(line) && !(grouped && (i === 0 || span[i - 1]?.trim() === "")),
+	);
 	if (block.length < 2) return null;
 	const options = block.map((line) =>
 		numbered
