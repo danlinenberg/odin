@@ -5,6 +5,7 @@ import {
 	newReplies,
 	sessionThread,
 	startedWorking,
+	unreadPing,
 	useReplyWatch,
 	watchEvent,
 } from "./ReplyWatch";
@@ -247,4 +248,20 @@ test("dismissing a condition watch that has not fired leaves it watching", () =>
 	expect(s().watches[when]?.condition).toBe("the edit is done");
 	s().dismiss("no-such-key");
 	s().toggle([], "", "pane-n");
+});
+
+test("an unread ping says what fired, so a PR approval doesn't read as a reply", () => {
+	const watches = {
+		"slack:C1:1.2": { title: "t", paneId: "p", stamp: "1" },
+		"pr:https://github.com/o/r/pull/1": {
+			title: "t",
+			paneId: "p",
+			stamp: "approved",
+			reply: "Add profile details",
+		},
+		"slack:C2:3.4": { title: "u", paneId: "q", stamp: "2", reply: "hi" },
+	};
+	expect(unreadPing(watches, "p")).toBe("Approved: Add profile details");
+	expect(unreadPing(watches, "q")).toBe("New reply: hi");
+	expect(unreadPing(watches, "r")).toBeNull();
 });

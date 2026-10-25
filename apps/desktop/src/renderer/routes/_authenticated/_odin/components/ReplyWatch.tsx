@@ -443,6 +443,25 @@ function useUnanswered(paneId: string): boolean {
 	);
 }
 
+/**
+ * The session's unread ping as one line - "Approved: <PR title>", "New reply:
+ * <text>" - so a ping says what fired, not just that something did.
+ */
+export function useUnreadPing(paneId: string): string | null {
+	return useReplyWatch((s) => unreadPing(s.watches, paneId));
+}
+
+export function unreadPing(
+	watches: Record<string, Watch>,
+	paneId: string,
+): string | null {
+	const key = Object.keys(watches).find(
+		(k) => watches[k]?.paneId === paneId && watches[k]?.reply,
+	);
+	const watch = key ? watches[key] : undefined;
+	return key && watch ? `${watchEvent(key, watch)}: ${watch.reply}` : null;
+}
+
 const JIGGLE =
 	"origin-top motion-safe:animate-[bell-jiggle_1.4s_ease-in-out_infinite]";
 
@@ -452,18 +471,18 @@ const JIGGLE =
  */
 export function WatchMark({ paneId }: { paneId: string }) {
 	const watched = useWatched(paneId);
-	const unanswered = useUnanswered(paneId);
+	const ping = useUnreadPing(paneId);
 	if (!watched) return null;
 	return (
 		<LuBellRing
 			title={
-				unanswered
-					? "Someone replied - write in the session to stop the bell"
+				ping
+					? `${ping} - write in the session to stop the bell`
 					: "Pinging you - right-click to stop"
 			}
 			className={cn(
 				"mr-1 inline size-3.5 align-[-2px]",
-				unanswered ? cn("text-attention", JIGGLE) : "text-primary",
+				ping ? cn("text-attention", JIGGLE) : "text-primary",
 			)}
 		/>
 	);
@@ -474,24 +493,44 @@ export function WatchMark({ paneId }: { paneId: string }) {
  * Writing in the session clears it.
  */
 export function WatchReply({ paneId }: { paneId: string }) {
-	const key = useReplyWatch((s) =>
-		Object.keys(s.watches).find(
-			(k) => s.watches[k]?.paneId === paneId && s.watches[k]?.reply,
-		),
-	);
-	const reply = useReplyWatch((s) => (key ? s.watches[key]?.reply : undefined));
-	const event = useReplyWatch((s) =>
-		key ? watchEvent(key, s.watches[key]) : "",
-	);
-	if (!key || !reply) return null;
+	const ping = useUnreadPing(paneId);
+	if (!ping) return null;
 	return (
 		<div
-			title={reply}
+			title={ping}
 			className="mt-1 truncate text-[11.5px] font-medium text-attention"
 		>
 			<LuBellRing className="mr-1 inline size-3 align-[-2px]" aria-hidden />
-			{event}: {reply}
+			{ping}
 		</div>
+	);
+}
+
+/**
+ * A list row's second line: the unread ping while there is one, else the
+ * row's usual status. The row is too narrow for both, and the ping is news.
+ */
+export function WatchRowLine({
+	paneId,
+	status,
+}: {
+	paneId: string;
+	status?: string | null;
+}) {
+	const ping = useUnreadPing(paneId);
+	if (!ping && !status) return null;
+	return (
+		<span
+			title={ping ?? undefined}
+			className={cn(
+				"truncate text-[10.5px]",
+				ping
+					? "font-medium text-attention"
+					: "font-normal text-faint-foreground",
+			)}
+		>
+			{ping ?? status}
+		</span>
 	);
 }
 
