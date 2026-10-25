@@ -379,10 +379,13 @@ function taskName(card: BoardCard): string {
 /**
  * Which checkout this session runs in. `cwd` is only filled in once the pane's
  * terminal mounts (seeded there, then confirmed by OSC-7) - until someone opens
- * the session, the repo picked at launch lives only in `initialCwd`.
+ * the session, the repo picked at launch lives only in `initialCwd`. Mounting
+ * the terminal clears `initialCwd` and can leave `cwd` empty; `odinCwd`
+ * survives both, so a Resume doesn't fall back to the workspace folder, where
+ * `claude --resume` finds no conversation.
  */
 function sessionCwd(pane: Pane): string | undefined {
-	return pane.cwd ?? pane.initialCwd ?? undefined;
+	return pane.cwd ?? pane.initialCwd ?? pane.odinCwd ?? undefined;
 }
 
 /**
