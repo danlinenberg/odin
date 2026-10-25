@@ -189,6 +189,15 @@ export const keyRefused = (err: unknown) =>
 export const userMissing = (err: unknown) =>
 	/no such user|invalid user/i.test(String(err));
 
+/**
+ * AWS refused the call by IAM policy - a role that may not push a key to the
+ * host or run commands on it. Retrying cannot help; an administrator can.
+ */
+export const accessDenied = (err: unknown) =>
+	/AccessDenied|is not authorized to perform/i.test(
+		`${(err as { name?: string } | null)?.name ?? ""} ${String(err)}`,
+	);
+
 /** The key's line lasts this long: one handshake, with room for a slow SSM. */
 const KEY_LIFETIME_MS = 3 * 60_000;
 

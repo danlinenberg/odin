@@ -26,6 +26,7 @@ import {
 	stashScript,
 } from "../lib/remote-host/session";
 import {
+	accessDenied,
 	awsClientConfig,
 	keyRefused,
 	openSsmStream,
@@ -418,6 +419,7 @@ async function setUpMissingUser(
 		spec.instanceId,
 		spec.user,
 	).catch((err: unknown) => {
+		if (accessDenied(err)) throw new NoAccess(spec, err);
 		throw new Error(
 			`${spec.instanceId} has no Linux user ${spec.user}, and setting it up failed (${err instanceof Error ? err.message : String(err)}). ${fix}`,
 		);
@@ -466,11 +468,25 @@ async function login(
 	return client;
 }
 
+/**
+ * AWS refused this login by policy. The host most likely has no Linux user
+ * for it yet, and a role without root there can't create one: an
+ * administrator does, once. Retrying cannot help, so the pane stops.
+ */
+class NoAccess extends Error {
+	constructor(spec: RemoteSessionSpec, cause: unknown) {
+		super(
+			`your AWS role may not log in to ${spec.instanceId} as ${spec.user} (${cause instanceof Error ? cause.message : String(cause)}).\r\n  To fix it, an administrator opens Settings > Remote > Set up a user on this host and sets up ${spec.user}. Then start this session again.`,
+		);
+	}
+}
+
 async function connectOnce(
 	spec: RemoteSessionSpec,
 	target: Parameters<typeof openSsmStream>[0],
 ): Promise<Client> {
 	return login(spec, target).catch(async (err: unknown) => {
+		if (accessDenied(err)) throw new NoAccess(spec, err);
 		if (keyRefused(err) && !keyOverSsm) {
 			keyOverSsm = true;
 			// Again in full: the SSM key push can find the user missing.
@@ -629,6 +645,7 @@ async function main(): Promise<void> {
 			try {
 				return await connectOnce(spec, target);
 			} catch (err) {
+				if (err instanceof NoAccess) throw err;
 				const delay = wait / 2 + Math.random() * (wait / 2);
 				const offer =
 					tries >= 3 ? ` (press R to reboot ${spec.instanceId})` : "";
@@ -660,7 +677,9 @@ async function main(): Promise<void> {
 		}
 	};
 	say(`connecting to ${spec.instanceId}...`);
-	let client = await connectOnce(spec, target).catch(reconnect);
+	let client = await connectOnce(spec, target).catch((err: unknown) =>
+		err instanceof NoAccess ? Promise.reject(err) : reconnect(),
+	);
 	// Claude keeps working in tmux on the host while the connection is down;
 	// the reconnect's spec resumes it, prompt and all (reconnectSpec).
 	const again = reconnectSpec(spec, startedAt);

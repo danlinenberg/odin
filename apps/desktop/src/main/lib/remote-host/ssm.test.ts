@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { keyRefused, pluginArgs, pluginBuild, userMissing } from "./ssm";
+import {
+	accessDenied,
+	keyRefused,
+	pluginArgs,
+	pluginBuild,
+	userMissing,
+} from "./ssm";
 
 describe("ssm", () => {
 	test("a host that took none of the offered keys reads as a refused key", () => {
@@ -21,6 +27,24 @@ describe("ssm", () => {
 		).toBe(true);
 		expect(
 			userMissing(new Error("Timed out while waiting for handshake")),
+		).toBe(false);
+	});
+
+	test("a call IAM refuses reads as access denied", () => {
+		expect(
+			accessDenied(
+				new Error(
+					"User: arn:aws:sts::1:assumed-role/Dev/a@b.com is not authorized to perform: ssm:SendCommand on resource: arn:aws:ec2:us-east-1:1:instance/i-1 with an explicit deny in an identity-based policy",
+				),
+			),
+		).toBe(true);
+		expect(
+			accessDenied(
+				Object.assign(new Error("denied"), { name: "AccessDeniedException" }),
+			),
+		).toBe(true);
+		expect(
+			accessDenied(new Error("All configured authentication methods failed")),
 		).toBe(false);
 	});
 
