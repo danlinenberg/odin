@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import { LuLoaderCircle, LuRotateCcw, LuSearch, LuX } from "react-icons/lu";
+import type { IconType } from "react-icons";
+import {
+	LuCheck,
+	LuLoaderCircle,
+	LuRotateCcw,
+	LuSearch,
+	LuX,
+} from "react-icons/lu";
 import type { PaneStatus } from "shared/tabs-types";
 import { ago, Dot, STATUS } from "./cards";
 
@@ -95,19 +102,25 @@ export function SearchBox({
 
 /**
  * What the search found: one row per session, its best line under its title.
- * A session off the board (Done, or closed) has Resume, which puts it back.
+ * A session on the board has Done, which puts it away; one off the board
+ * (Done, or closed) has Resume, which puts it back.
  */
 export function SearchResults({
 	hits,
 	loading,
 	onResume,
 	resuming,
+	onDone,
+	finishing,
 }: {
 	hits: SearchHit[] | undefined;
 	loading: boolean;
 	onResume: (hit: SearchHit) => void;
 	/** The session a Resume is starting, if any. */
 	resuming: string | null;
+	onDone: (paneId: string) => void;
+	/** The session a Done is putting away, if any. */
+	finishing: string | null;
 }) {
 	if (loading && !hits?.length)
 		return (
@@ -162,25 +175,31 @@ export function SearchResults({
 				return (
 					<li key={hit.sessionId} className="border-b border-border">
 						{hit.paneId ? (
-							<a href={`#/s/${hit.paneId}`} className="block px-4 py-2.5">
-								{body}
-							</a>
+							<div className="flex items-center gap-3 pr-4">
+								<a
+									href={`#/s/${hit.paneId}`}
+									className="block min-w-0 flex-1 py-2.5 pl-4"
+								>
+									{body}
+								</a>
+								<HitButton
+									icon={LuCheck}
+									label="Done"
+									busy={finishing === hit.paneId}
+									disabled={finishing !== null}
+									onClick={() => hit.paneId && onDone(hit.paneId)}
+								/>
+							</div>
 						) : (
 							<div className="flex items-center gap-3 px-4 py-2.5">
 								<div className="min-w-0 flex-1 opacity-70">{body}</div>
-								<button
-									type="button"
+								<HitButton
+									icon={LuRotateCcw}
+									label="Resume"
+									busy={resuming === hit.sessionId}
 									disabled={resuming !== null}
 									onClick={() => onResume(hit)}
-									className="flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border px-3 text-[13px] font-medium text-primary disabled:opacity-50"
-								>
-									{resuming === hit.sessionId ? (
-										<LuLoaderCircle className="size-3.5 animate-spin" />
-									) : (
-										<LuRotateCcw className="size-3.5" />
-									)}
-									Resume
-								</button>
+								/>
 							</div>
 						)}
 					</li>
@@ -193,5 +212,36 @@ export function SearchResults({
 				</li>
 			)}
 		</ul>
+	);
+}
+
+/** A search hit's one action: Done on a board session, Resume off it. */
+function HitButton({
+	icon: Icon,
+	label,
+	busy,
+	disabled,
+	onClick,
+}: {
+	icon: IconType;
+	label: string;
+	busy: boolean;
+	disabled: boolean;
+	onClick: () => void;
+}) {
+	return (
+		<button
+			type="button"
+			disabled={disabled}
+			onClick={onClick}
+			className="flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border px-3 text-[13px] font-medium text-primary disabled:opacity-50"
+		>
+			{busy ? (
+				<LuLoaderCircle className="size-3.5 animate-spin" />
+			) : (
+				<Icon className="size-3.5" />
+			)}
+			{label}
+		</button>
 	);
 }

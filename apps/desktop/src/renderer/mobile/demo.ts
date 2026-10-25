@@ -154,11 +154,13 @@ export function answer(
 					{
 						url: "https://github.com/acme/api/pull/1120",
 						label: "#1120 HDR: test for the counter rollover",
+						repo: "api",
 						status: { state: "MERGED", passed: 4 },
 					},
 					{
 						url: "https://github.com/acme/api/pull/1127",
 						label: "#1127 HDR: sort brackets by capture time",
+						repo: "api",
 						status: {
 							state: "OPEN",
 							pending: ["test", "app"],
