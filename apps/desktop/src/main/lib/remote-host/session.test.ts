@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
 	existsSync,
 	mkdirSync,
@@ -31,6 +31,7 @@ import {
 	mainCheckoutOf,
 	PROMPT_TAKEN,
 	parseClaudeLogin,
+	RECORD_LIMIT_HIT,
 	type RemoteSessionSpec,
 	reconnectSpec,
 	redeemTicket,
@@ -780,4 +781,34 @@ test("a host's first Claude skips onboarding, folder trust and the bypass-permis
 		model: "opus",
 		skipDangerousModePermissionPrompt: true,
 	});
+});
+
+test("a Resume of a conversation stuck at the usage limit records the limit", () => {
+	const home = mkdtempSync(join(tmpdir(), "odin-limit-hit-"));
+	const dir = join(home, ".claude", "projects", "-repo");
+	mkdirSync(dir, { recursive: true });
+	const write = (last: object) =>
+		writeFileSync(
+			join(dir, "s1.jsonl"),
+			[{ type: "user", message: { content: "go" } }, last]
+				.map((entry) => JSON.stringify(entry))
+				.join("\n"),
+		);
+	const run = () =>
+		spawnSync("python3", ["-c", RECORD_LIMIT_HIT, "s1"], {
+			env: { HOME: home },
+		}).status;
+	write({ type: "assistant", message: { content: [{ text: "done" }] } });
+	expect(run()).toBe(1);
+	write({
+		type: "assistant",
+		isApiErrorMessage: true,
+		error: "rate_limit",
+		message: { content: [{ text: "You've hit your limit" }] },
+	});
+	expect(run()).toBe(0);
+	const until = JSON.parse(
+		readFileSync(join(home, ".claude", "plan-limit.json"), "utf8"),
+	).until;
+	expect(until).toBeGreaterThan(Date.now() / 1000 + 4 * 3600);
 });

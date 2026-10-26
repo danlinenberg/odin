@@ -286,6 +286,35 @@ if os.environ.get("ODIN_TURN") == "failed" and "limit" in raw.lower():
             subprocess.Popen(["sh", "-c", f"sleep 2; kill {pid}"], start_new_session=True)`;
 
 /**
+ * A Resume of a conversation (argv[1]) whose last reply is Claude's usage-limit
+ * error: the limit is recorded, five hours like TURN_END_HOOK, so the session
+ * starts on the API key. A session stuck at the limit's message may never
+ * have run the turn-end hook that records it.
+ */
+export const RECORD_LIMIT_HIT = `import glob, json, os, sys, time
+paths = glob.glob(os.path.expanduser(f"~/.claude/projects/*/{sys.argv[1]}.jsonl"))
+last = None
+for line in open(paths[0]) if paths else []:
+    try:
+        entry = json.loads(line)
+    except Exception:
+        continue
+    if entry.get("type") in ("user", "assistant") and not entry.get("isMeta"):
+        last = entry
+if not last or not last.get("isApiErrorMessage") or last.get("error") != "rate_limit":
+    sys.exit(1)
+state = os.path.expanduser("~/.claude/plan-limit.json")
+try:
+    until = float(json.load(open(state)).get("until", 0))
+except Exception:
+    until = 0
+if until > time.time():
+    sys.exit(0)
+with open(f"{state}.{os.getpid()}", "w") as f:
+    json.dump({"until": time.time() + 5 * 3600}, f)
+os.replace(f"{state}.{os.getpid()}", state)`;
+
+/**
  * Exits 0 when the conversation (argv[1]) stopped mid-turn: its last message
  * is a tool result, a prompt with no answer, or a reply cut off before its
  * end. A Resume with no prompt then says Continue, as a local one does for a
@@ -580,6 +609,9 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		`mkdir -p "$HOME/.odin" && printf %s ${sh(Buffer.from(TURN_END_HOOK).toString("base64"))} | base64 -d > "$HOME/.odin/turn-end.py.$$" && mv -f "$HOME/.odin/turn-end.py.$$" "$HOME/.odin/turn-end.py"`,
 		// Claude must not hold the lock, or no other session starts until it exits.
 		"exec 9>&-",
+		resumed
+			? `python3 -c ${sh(RECORD_LIMIT_HIT)} ${sh(resumed)} 2>/dev/null; true`
+			: "",
 		`if [ -n "$ODIN_FALLBACK_API_KEY" ] && python3 -c ${sh(USE_API_KEY_IF_LIMITED)}; then export ANTHROPIC_API_KEY="$ODIN_FALLBACK_API_KEY"; else unset ANTHROPIC_API_KEY; fi`,
 		// Kept unexported, for resuming on the key when the plan runs out mid-session.
 		'fallback="$ODIN_FALLBACK_API_KEY"',
