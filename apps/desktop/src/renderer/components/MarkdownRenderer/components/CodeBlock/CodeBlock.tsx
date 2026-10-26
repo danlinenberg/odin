@@ -121,7 +121,7 @@ function copyWithSlackTexty(
 
 /**
  * A quote in a reply is usually a draft to paste somewhere (Slack, email, a
- * PR): it gets the paste block's Copy button, and a Hebrew one reads
+ * PR): it gets the paste block's Copy and Tune voice, and a Hebrew one reads
  * right-to-left. Copies the quote's text as it shows.
  */
 export function QuoteBlock({ children }: { children?: ReactNode }) {
@@ -154,6 +154,7 @@ export function QuoteBlock({ children }: { children?: ReactNode }) {
 			<blockquote ref={ref} className="italic">
 				{children}
 			</blockquote>
+			<TuneVoice />
 			<CopyButton copied={isCopied} onClick={copy} className="end-0 top-0" />
 		</div>
 	);
