@@ -212,6 +212,7 @@ jobs:
         run: |
           bun run generate:icons
           bun run compile:app
+          bun run fetch:claude
           bun run copy:native-modules
           bun run validate:native-runtime
           bunx electron-builder --win --publish never
