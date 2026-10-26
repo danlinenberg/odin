@@ -3,6 +3,7 @@ import {
 	deliverOnHost,
 	type HostDeps,
 	type HostMessage,
+	promptLine,
 } from "./host-delivery";
 
 const RULE = "─".repeat(40);
@@ -18,6 +19,7 @@ function pane(
 	screens: [number, string][],
 	alive = () => true,
 	enters: number[] = [],
+	keys: (string | undefined)[] = [],
 ) {
 	const clock = { now: 0 };
 	const deps: HostDeps = {
@@ -28,8 +30,9 @@ function pane(
 			await Promise.resolve();
 		},
 		alive,
-		enter: async () => {
+		enter: async (text) => {
 			enters.push(clock.now);
+			keys.push(text);
 		},
 	};
 	return { clock, deps };
@@ -59,6 +62,34 @@ function message(
 }
 
 describe("deliverOnHost", () => {
+	test("a one-line reply to a stopped Claude goes in at its prompt, and is not typed again", async () => {
+		const enters: number[] = [];
+		const keys: (string | undefined)[] = [];
+		const { clock, deps } = pane(
+			[
+				[0, IDLE],
+				[8_000, CLAUDE],
+			],
+			() => true,
+			enters,
+			keys,
+		);
+		const log: string[] = [];
+		const { msg, typedAt } = message("A", log, clock, () => clock.now >= 9_000);
+		msg.line = "fix the build";
+		await deliverOnHost("p-idle-line", msg, deps);
+		expect(keys).toEqual(["fix the build"]);
+		expect(typedAt).toEqual([]);
+		expect(log).not.toContain("A lost");
+	});
+
+	test("promptLine takes one plain line only", () => {
+		expect(promptLine("  go on  ")).toBe("go on");
+		expect(promptLine("two\nlines")).toBeUndefined();
+		expect(promptLine("a\ttab")).toBeUndefined();
+		expect(promptLine("")).toBeUndefined();
+	});
+
 	test("a Claude stopped for being idle gets Enter, then the message once it is back", async () => {
 		const enters: number[] = [];
 		const { clock, deps } = pane(

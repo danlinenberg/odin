@@ -157,6 +157,23 @@ describe("summarizeTranscript", () => {
 		expect(summary.messages).toBe(2);
 	});
 
+	test("a session moved here from the host resumes in its first folder here", () => {
+		const at = (cwd: string) =>
+			user("go").replace(JSON.stringify(CWD), JSON.stringify(cwd));
+		const here = `${homedir()}/dev`;
+		expect(
+			summarizeTranscript(
+				[at("/home/ubuntu/repos"), at("/home/ubuntu/repos/app"), at(here)].join(
+					"\n",
+				),
+			).cwd,
+		).toBe(here);
+		// Only the host's folders: still the host's session.
+		expect(summarizeTranscript(at("/home/ubuntu/repos")).cwd).toBe(
+			"/home/ubuntu/repos",
+		);
+	});
+
 	test("drops the launcher's attachment list from the prompt", () => {
 		const summary = summarizeTranscript(
 			user(

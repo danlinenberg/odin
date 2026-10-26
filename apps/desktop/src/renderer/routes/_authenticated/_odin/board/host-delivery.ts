@@ -11,8 +11,8 @@ export type HostDeps = {
 	sleep: (ms: number) => Promise<void>;
 	/** The pane is still open. */
 	alive: () => boolean;
-	/** Presses Enter in the pane. */
-	enter: () => Promise<void>;
+	/** Types `text`, if any, then presses Enter in the pane. */
+	enter: (text?: string) => Promise<void>;
 };
 
 /** A message on its way into a remote session's Claude. */
@@ -25,7 +25,20 @@ export type HostMessage = {
 	waiting: (on: boolean) => void;
 	/** It never reached Claude: the bubble says Not delivered. */
 	lost: () => void;
+	/**
+	 * The message as plain keys for the stopped prompt's one-line read, when
+	 * it fits there. Claude then restarts with it, instead of restarting and
+	 * only then getting it typed. Set only where `arrived` reads the transcript.
+	 */
+	line?: string;
 };
+
+/** Text the stopped prompt's `read` takes as typed: one line, no tabs or escapes. */
+export function promptLine(text: string): string | undefined {
+	const line = text.trim();
+	// biome-ignore lint/suspicious/noControlCharactersInRegex: keys the shell would act on
+	return line && !/[\x00-\x1f\x7f]/.test(line) ? line : undefined;
+}
 
 /** Claude's own screen is up, after the last connect line. */
 export function hostReady(screen: string): boolean {
@@ -61,6 +74,8 @@ const WAKE_RETRY_MS = 15_000;
 const WAIT_MAX_MS = 30 * 60_000;
 /** Claude logs a message the moment it takes it, as a turn or queued. */
 const ARRIVE_MS = 10_000;
+/** A message Claude restarted with shows once its resume has read the conversation. */
+const WOKE_ARRIVE_MS = 60_000;
 /**
  * How long after a send a drop still counts against it: the helper notices a
  * dead connection after three missed 10s keepalives, then says so.
@@ -84,22 +99,45 @@ const read = (deps: HostDeps) => deps.readScreen().catch(() => "");
  * Claude stopped for being idle never comes back on its own: Enter resumes it,
  * and the message goes in once it is drawn, multi-line or not.
  */
-async function untilReady(deps: HostDeps): Promise<boolean> {
+async function untilReady(
+	deps: HostDeps,
+	line?: string,
+): Promise<false | "ready" | "sent"> {
+	let sent = false;
 	let woke = -WAKE_RETRY_MS;
 	let unsure = 0;
 	for (let waited = 0; waited < WAIT_MAX_MS; waited += POLL_MS) {
 		if (!deps.alive()) return false;
 		const screen = await read(deps);
-		if (hostReady(screen)) return true;
+		if (hostReady(screen)) return sent ? "sent" : "ready";
 		unsure = hostNotAway(screen) ? unsure + POLL_MS : 0;
-		if (unsure > UNSURE_MS) return true;
+		if (unsure > UNSURE_MS) return sent ? "sent" : "ready";
 		if (idleStopped(screen) && waited - woke >= WAKE_RETRY_MS) {
 			woke = waited;
-			await deps.enter().catch(() => undefined);
+			// The message itself, once: the prompt hands it to the restarted Claude.
+			const text = sent ? undefined : line;
+			await deps.enter(text).then(
+				() => {
+					if (text) sent = true;
+				},
+				() => undefined,
+			);
 		}
 		await deps.sleep(POLL_MS);
 	}
 	return false;
+}
+
+async function arrivedWithin(
+	message: HostMessage,
+	deps: HostDeps,
+	ms: number,
+): Promise<boolean> {
+	for (let waited = 0; waited < ms; waited += POLL_MS) {
+		if (message.arrived()) return true;
+		await deps.sleep(POLL_MS);
+	}
+	return message.arrived();
 }
 
 /** Each pane's deliveries, one after another: two replies typed at once interleave. */
@@ -124,7 +162,16 @@ async function typeWhenReady(
 ): Promise<Outcome> {
 	if (!hostReady(await read(deps))) {
 		message.waiting(true);
-		if (!(await untilReady(deps))) return "gone";
+		const ready = await untilReady(deps, again ? undefined : message.line);
+		if (!ready) return "gone";
+		// Claude restarted with it: typing it too would send it twice.
+		if (
+			ready === "sent" &&
+			(await arrivedWithin(message, deps, WOKE_ARRIVE_MS))
+		) {
+			message.waiting(false);
+			return "took";
+		}
 	}
 	// Claude may have taken the first one after all: its transcript was out
 	// of reach while the connection was down.
@@ -134,11 +181,7 @@ async function typeWhenReady(
 	message.waiting(false);
 	if (again && message.arrived()) return "took";
 	await message.type();
-	for (let waited = 0; waited < ARRIVE_MS; waited += POLL_MS) {
-		if (message.arrived()) return "took";
-		await deps.sleep(POLL_MS);
-	}
-	return message.arrived() ? "took" : "lost";
+	return (await arrivedWithin(message, deps, ARRIVE_MS)) ? "took" : "lost";
 }
 
 /**
