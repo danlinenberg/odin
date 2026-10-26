@@ -2,7 +2,7 @@ import { ShowCode } from "@odin/ui/ai-elements/show-code";
 import { Button } from "@odin/ui/button";
 import { mermaid } from "@streamdown/mermaid";
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTheme } from "renderer/stores";
 import { Streamdown } from "streamdown";
@@ -13,13 +13,19 @@ const mermaidPlugins = { mermaid };
 // (Slack, email, a PR), so it reads as wrapped prose, not numbered code.
 const PROSE_LANGUAGES = new Set(["text", "txt", "plaintext"]);
 
+/** Hebrew or Arabic letters: a right-to-left draft, which rarely ends its lines with a period. */
+const RTL_LETTERS = /[\u0590-\u05FF\u0600-\u06FF]/;
+
 export function looksLikeProse(code: string): boolean {
-	return code
-		.split("\n")
-		.some(
-			(line) =>
-				line.trim().split(/\s+/).length >= 12 && /[.?!]$/.test(line.trim()),
-		);
+	return (
+		RTL_LETTERS.test(code) ||
+		code
+			.split("\n")
+			.some(
+				(line) =>
+					line.trim().split(/\s+/).length >= 12 && /[.?!]$/.test(line.trim()),
+			)
+	);
 }
 
 type TextyOp = { insert: string; attributes?: Record<string, unknown> };
@@ -81,6 +87,71 @@ function copyWithSlackTexty(
 	}
 }
 
+/**
+ * A quote in a reply is usually a draft to paste somewhere (Slack, email, a
+ * PR): it gets the paste block's Copy button, and a Hebrew one reads
+ * right-to-left. Copies the quote's text as it shows.
+ */
+export function QuoteBlock({ children }: { children?: ReactNode }) {
+	const ref = useRef<HTMLQuoteElement>(null);
+	const [isCopied, setIsCopied] = useState(false);
+	// Read off the rendered text: dir="auto" skips the paragraphs inside,
+	// which carry their own dir, and would read the button's "Copy".
+	const [rtl, setRtl] = useState(false);
+	useEffect(() => {
+		setRtl(RTL_LETTERS.test(ref.current?.innerText.slice(0, 200) ?? ""));
+	});
+	const copy = async () => {
+		const text = ref.current?.innerText.trim() ?? "";
+		try {
+			if (!copyWithSlackTexty(text, undefined))
+				await navigator.clipboard.writeText(text);
+			setIsCopied(true);
+			setTimeout(() => setIsCopied(false), 2000);
+		} catch {
+			// clipboard unavailable
+		}
+	};
+	return (
+		// A Hebrew draft puts its bar on the right and Copy on the left.
+		<div
+			dir={rtl ? "rtl" : "ltr"}
+			className="relative my-4 border-s-4 border-muted-foreground/30 py-1 ps-4 pe-20"
+		>
+			<blockquote ref={ref} className="italic">
+				{children}
+			</blockquote>
+			<CopyButton copied={isCopied} onClick={copy} className="end-0 top-0" />
+		</div>
+	);
+}
+
+function CopyButton({
+	copied,
+	onClick,
+	className,
+}: {
+	copied: boolean;
+	onClick: () => void;
+	className: string;
+}) {
+	return (
+		<Button
+			className={`absolute h-7 gap-1.5 px-2 text-xs ${className}`}
+			onClick={onClick}
+			size="sm"
+			variant="ghost"
+		>
+			{copied ? (
+				<CheckIcon className="size-3.5" />
+			) : (
+				<CopyIcon className="size-3.5" />
+			)}
+			{copied ? "Copied" : "Copy"}
+		</Button>
+	);
+}
+
 function PasteBlock({ text }: { text: string }) {
 	const [isCopied, setIsCopied] = useState(false);
 	// Looked up on render, not on click: the copy has to run inside the click.
@@ -102,25 +173,13 @@ function PasteBlock({ text }: { text: string }) {
 		}
 	};
 	return (
-		<div className="group relative my-4 rounded-md border border-border border-l-2 border-l-primary/60 bg-muted/30 py-3 pl-4 pr-20">
-			<Button
-				className="absolute right-2 top-2 h-7 gap-1.5 px-2 text-xs"
-				onClick={copy}
-				size="sm"
-				variant="ghost"
-			>
-				{isCopied ? (
-					<CheckIcon className="size-3.5" />
-				) : (
-					<CopyIcon className="size-3.5" />
-				)}
-				{isCopied ? "Copied" : "Copy"}
-			</Button>
-			{/* A Hebrew draft reads right-to-left, like the reply around it. */}
-			<div
-				className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground"
-				dir="auto"
-			>
+		// A Hebrew draft reads right-to-left: dir="auto" reads the text, which
+		// comes before the button, so the bar and Copy flip sides with it.
+		<div
+			dir="auto"
+			className="group relative my-4 rounded-md border border-border border-s-2 border-s-primary/60 bg-muted/30 py-3 ps-4 pe-20"
+		>
+			<div className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-foreground">
 				{text.split(/<@([UW][A-Z0-9]+)>/).map((part, i) =>
 					i % 2 ? (
 						// A mention reads as the person it tags, like Slack shows it.
@@ -133,6 +192,7 @@ function PasteBlock({ text }: { text: string }) {
 					),
 				)}
 			</div>
+			<CopyButton copied={isCopied} onClick={copy} className="end-2 top-2" />
 		</div>
 	);
 }
