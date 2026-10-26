@@ -28,7 +28,11 @@ import {
 	type ElectronRouterOutputs,
 	electronTrpc,
 } from "renderer/lib/electron-trpc";
-import { hostPackagesProblem, hostPolicyArnProblem } from "shared/host-setup";
+import {
+	awsSignInNeeded,
+	hostPackagesProblem,
+	hostPolicyArnProblem,
+} from "shared/host-setup";
 import { SettingRow, SettingsSection } from "../../components/SettingsPage";
 
 const DEFAULT_REGION = "us-east-1";
@@ -135,7 +139,10 @@ export function RemoteHostSection() {
 	});
 	// The connection check's own fixes; each runs the check again when it lands.
 	const signInAws = electronTrpc.remoteHost.signInAws.useMutation({
-		onSuccess: () => utils.remoteHost.health.invalidate(),
+		onSuccess: () => {
+			utils.remoteHost.health.invalidate();
+			utils.remoteHost.awsInstances.invalidate();
+		},
 		onError,
 	});
 	const rebootHost = electronTrpc.remoteHost.rebootHost.useMutation({
@@ -596,13 +603,34 @@ export function RemoteHostSection() {
 			)}
 			{(!current?.host || changingHost) && (
 				<>
-					{error && (
+					{error && awsSignInNeeded(error.message) ? (
 						<SettingRow
-							label="AWS did not answer"
-							description={
-								<span className="select-text cursor-text">{error.message}</span>
-							}
-						/>
+							label="Sign in to AWS"
+							description={`Your AWS sign-in for the ${profile || "default"} profile is missing or has run out. Odin opens the approval page in your browser.`}
+						>
+							<Button
+								size="sm"
+								disabled={signInAws.isPending}
+								onClick={() =>
+									signInAws.mutate({ profile: profile || undefined })
+								}
+							>
+								{signInAws.isPending
+									? "Approve in your browser..."
+									: "Sign in to AWS"}
+							</Button>
+						</SettingRow>
+					) : (
+						error && (
+							<SettingRow
+								label="AWS did not answer"
+								description={
+									<span className="select-text cursor-text">
+										{error.message}
+									</span>
+								}
+							/>
+						)
 					)}
 					{instances.data && !error && shownInstances.length === 0 && (
 						<SettingRow
