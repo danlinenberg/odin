@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
 	currentHostBlocker,
 	currentLaunchBlocker,
-	macPaceBlocker,
 } from "renderer/hooks/useTaskQueue";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { usePaneMeta } from "renderer/routes/_authenticated/_odin/hooks/usePaneMeta";
@@ -511,13 +510,13 @@ export function useLaunchTaskSession() {
 				try {
 					queuedReason = remote
 						? await currentHostBlocker(utils.client)
-						: ((await currentLaunchBlocker(
+						: await currentLaunchBlocker(
 								utils.client,
 								checkout,
 								workConfig?.odinRepoPath,
 								// Its own card is already on the board.
 								created?.paneId,
-							)) ?? macPaceBlocker());
+							);
 				} catch {
 					queuedReason = null;
 				}

@@ -69,7 +69,6 @@ import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import {
 	currentHostBlocker,
 	currentLaunchBlocker,
-	macPaceBlocker,
 	moveQueuedToMac,
 	startQueuedPane,
 } from "renderer/hooks/useTaskQueue";
@@ -4804,14 +4803,12 @@ function DevBoardPage() {
 		if (pane.odinRemote)
 			return currentHostBlocker(utils.client, pane.odinRemote);
 		try {
-			return (
-				(await currentLaunchBlocker(
-					utils.client,
-					pane.odinCwd ??
-						claimedCheckout(undefined, cwd ?? "", workConfig?.odinRepoPath),
-					workConfig?.odinRepoPath,
-					pane.id,
-				)) ?? macPaceBlocker()
+			return await currentLaunchBlocker(
+				utils.client,
+				pane.odinCwd ??
+					claimedCheckout(undefined, cwd ?? "", workConfig?.odinRepoPath),
+				workConfig?.odinRepoPath,
+				pane.id,
 			);
 		} catch {
 			return null;

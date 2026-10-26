@@ -6,6 +6,11 @@ import { launchLimits, useLaunchLimits } from "renderer/stores/launch-limits";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
 import { claimedCheckout, launchBlocker } from "shared/launch-gate";
+import {
+	HEAVY_MEMORY_GB,
+	type LaunchLimits,
+	type MachineLoadInput,
+} from "shared/machine-load";
 
 /**
  * Tasks created while the gate was shut, oldest first.
@@ -64,26 +69,38 @@ export const QUEUE_POLL = {
  * tasks - would pass them all at once. Each start waits for the one before it
  * to show up.
  */
-const lastStart = { mac: 0, host: 0 };
+let lastHostStart = 0;
+let macStarts: number[] = [];
 
 /** The Mac's metrics poll: a start this recent isn't in the reading yet. */
 export const MAC_START_GAP_MS = 5_000;
 
 export function markStarted(where: "mac" | "host", at = Date.now()): void {
-	lastStart[where] = at;
+	if (where === "mac") macStarts.push(at);
+	else lastHostStart = at;
 }
 
 /** Whether a host reading taken at `at` was taken after the last host start. */
 export function hostReadSinceStart(at: number | null | undefined): boolean {
-	return (at ?? Number.POSITIVE_INFINITY) > lastStart.host;
+	return (at ?? Number.POSITIVE_INFINITY) > lastHostStart;
 }
 
 /**
- * Too soon after the last start on the Mac, or null - and then the start is
- * this caller's, so the next one waits for it.
+ * Null when this start can go now - and then it is counted, so the next one
+ * sees it. Each start the reading can't see yet is charged a heavy session's
+ * memory against what the Mac has free. Holding every start for the gap
+ * instead held the second of two clicks for 10s+ on a Mac with 20 GB free.
  */
-export function macPaceBlocker(now = Date.now()): string | null {
-	if (now - lastStart.mac < MAC_START_GAP_MS)
+export function macPaceBlocker(
+	snapshot: MachineLoadInput,
+	limits: LaunchLimits,
+	now = Date.now(),
+): string | null {
+	macStarts = macStarts.filter((at) => now - at < MAC_START_GAP_MS);
+	const freeGb = snapshot.host.availableMemory / 1024 ** 3;
+	const room =
+		freeGb - (macStarts.length + 1) * HEAVY_MEMORY_GB >= limits.minFreeMemoryGb;
+	if (macStarts.length > 0 && !room)
 		return "another session started a moment ago, so this one waits until this Mac's load shows it";
 	markStarted("mac", now);
 	return null;
@@ -124,14 +141,17 @@ export async function currentLaunchBlocker(
 		client.resourceMetrics.getSnapshot.query(),
 		client.terminal.listDaemonSessions.query(),
 	]);
-	return launchBlocker(
-		snapshot,
-		livePanes(useTabsStore.getState().panes, sessions).filter(
-			(pane) => pane.id !== except,
-		),
-		checkout,
-		odinRepoPath,
-		launchLimits(useLaunchLimits.getState()),
+	const limits = launchLimits(useLaunchLimits.getState());
+	return (
+		launchBlocker(
+			snapshot,
+			livePanes(useTabsStore.getState().panes, sessions).filter(
+				(pane) => pane.id !== except,
+			),
+			checkout,
+			odinRepoPath,
+			limits,
+		) ?? macPaceBlocker(snapshot, limits)
 	);
 }
 
@@ -467,7 +487,8 @@ export function useTaskQueue(): void {
 			refreshQueuedReasons(local, inLine(local, blockerFor(local[0]) ?? ""));
 			return;
 		}
-		if (macPaceBlocker()) return;
+		if (macPaceBlocker(metrics, launchLimits(useLaunchLimits.getState())))
+			return;
 		starting.current = true;
 		void startQueuedPane(utils.client, next)
 			.catch(() => {
