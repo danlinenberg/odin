@@ -156,6 +156,7 @@ import {
 	WatchPill,
 	WatchReply,
 	WatchRowLine,
+	WHEN,
 	watchingFor,
 } from "../components/ReplyWatch";
 import { TranscriptView } from "../components/TranscriptView";
@@ -6715,8 +6716,9 @@ function DevBoardPage() {
 							: undefined
 					}
 					onRemind={(day) => tagMenuCard && remindMe(tagMenuCard, day)}
-					watching={Object.values(watches).some(
-						(w) => w.paneId === tagMenu.paneId,
+					// Ping me's own watches: a "Ping me when..." isn't Ping me being on.
+					watching={Object.entries(watches).some(
+						([key, w]) => w.paneId === tagMenu.paneId && !key.startsWith(WHEN),
 					)}
 					watchWhat={[
 						...new Set(

@@ -46,8 +46,13 @@ const FIRED = "fired";
  */
 export const useReplyWatch = create<{
 	watches: Record<string, Watch>;
-	/** Watch all of `keys` for the session, or stop every watch it has. */
+	/**
+	 * Ping me on or off for the session: watch all of `keys`, or stop its
+	 * thread and PR watches. A "Ping me when..." is a separate ask and stays.
+	 */
 	toggle: (keys: string[], title: string, paneId: string) => void;
+	/** Stop every watch the session has, "Ping me when..." included. */
+	stop: (paneId: string) => void;
 	/** A watched session found more to watch - a draft it left since. */
 	add: (keys: string[], paneId: string) => void;
 	setStamps: (
@@ -70,7 +75,9 @@ export const useReplyWatch = create<{
 			toggle: (keys, title, paneId) =>
 				set((s) => {
 					const rest = Object.fromEntries(
-						Object.entries(s.watches).filter(([, w]) => w.paneId !== paneId),
+						Object.entries(s.watches).filter(
+							([key, w]) => w.paneId !== paneId || key.startsWith(WHEN),
+						),
 					);
 					const on = Object.keys(rest).length < Object.keys(s.watches).length;
 					return {
@@ -84,6 +91,12 @@ export const useReplyWatch = create<{
 								},
 					};
 				}),
+			stop: (paneId) =>
+				set((s) => ({
+					watches: Object.fromEntries(
+						Object.entries(s.watches).filter(([, w]) => w.paneId !== paneId),
+					),
+				})),
 			add: (keys, paneId) =>
 				set((s) => {
 					// Only a session you turned Ping me on for: a "Ping me when..."
@@ -588,13 +601,13 @@ export function WatchRowLine({
 export function WatchPill({ paneId }: { paneId: string }) {
 	const watched = useWatched(paneId);
 	const unanswered = useUnanswered(paneId);
-	const toggle = useReplyWatch((s) => s.toggle);
+	const stop = useReplyWatch((s) => s.stop);
 	if (!watched) return null;
 	return (
 		<button
 			type="button"
 			title="Odin pings you when someone else replies in this session's thread, its PR is approved, or what you asked it to watch for happens. Click to stop."
-			onClick={() => toggle([], "", paneId)}
+			onClick={() => stop(paneId)}
 			className={cn(
 				"flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
 				PILL.brand,
