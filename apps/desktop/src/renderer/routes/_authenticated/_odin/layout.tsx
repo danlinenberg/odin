@@ -817,6 +817,7 @@ function StatusPill({
 			t.remoteHost.launchGate({ host }, { refetchInterval: 15_000 }),
 		),
 	);
+	const minFreeDiskPercent = useLaunchLimits((s) => s.minFreeDiskPercent);
 	const items: StatusItem[] = [
 		usage?.fiveHour && usageStatus("5h", "5-hour window", usage.fiveHour),
 		usage?.week && usageStatus("week", "This week", usage.week),
@@ -835,10 +836,13 @@ function StatusPill({
 					bar: `${gate.reason} · launches there wait`,
 					detail: `${gate.reason} - new sessions there wait until that clears.`,
 				};
+			const diskLow =
+				gate?.diskFreePercent != null &&
+				gate.diskFreePercent < minFreeDiskPercent + 10;
 			return {
-				tone: "ok",
-				bar: "",
-				detail: `${host}: ${sessions} session(s).${gate?.freeGb != null ? ` It has ${gate.freeGb} GB free.` : " No memory reading yet."}`,
+				tone: diskLow ? "attention" : "ok",
+				bar: diskLow ? `${host} disk ${gate.diskFreePercent}%` : "",
+				detail: `${host}: ${sessions} session(s).${gate?.freeGb != null ? ` It has ${gate.freeGb} GB free.` : " No memory reading yet."}${gate?.diskFreePercent != null ? ` Disk ${gate.diskFreePercent}% free.` : ""}`,
 			};
 		}),
 	].filter((item): item is StatusItem => !!item);

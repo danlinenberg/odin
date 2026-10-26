@@ -606,6 +606,11 @@ export const createRemoteHostRouter = () =>
 					freeGb: reading
 						? Math.round(reading.memAvailableMb / 102.4) / 10
 						: null,
+					/** The host's free disk, 0-100, for the same pill. */
+					diskFreePercent:
+						reading?.diskFreePercent != null
+							? Math.floor(reading.diskFreePercent)
+							: null,
 					at: reading?.at ?? null,
 				};
 			}),

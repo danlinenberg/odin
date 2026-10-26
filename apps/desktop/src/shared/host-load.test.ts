@@ -47,3 +47,17 @@ test("parseHostLoad doesn't count the slice's file cache as used: the kernel dro
 	].join("\n");
 	expect(parseHostLoad(out)?.memAvailableMb).toBe(20818);
 });
+
+test("parseHostLoad reads the home volume's free disk, and does without it", () => {
+	const out = (disk: string) =>
+		[
+			"MemTotal:       32761904 kB",
+			"MemAvailable:    3250000 kB",
+			"9.21 7.80 6.02 12/845 99121",
+			`DiskFree: ${disk}`,
+			"8",
+		].join("\n");
+	expect(parseHostLoad(out("67.4"))?.diskFreePercent).toBe(67.4);
+	expect(parseHostLoad(out(""))).not.toHaveProperty("diskFreePercent");
+	expect(parseHostLoad(out(""))?.cores).toBe(8);
+});
