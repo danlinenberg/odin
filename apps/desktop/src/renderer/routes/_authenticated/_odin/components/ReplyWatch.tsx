@@ -238,7 +238,8 @@ export function conditionPrompt(condition: string): string {
 		`Ping me when: ${condition}`,
 		"Watch for this yourself, with your tools and skills. Check it now, then again at a sensible interval for what it is (a few minutes apart is usually right; /loop works), for up to 4 hours. Don't ask me anything while you watch.",
 		"When it happens, reply with this line on its own and stop: ODIN PING: HAPPENED - <one short line on what you saw>",
-		"If you hit the 4 hours, or can't check it at all, reply with this line on its own and stop: ODIN PING: GAVE UP - <why>",
+		"A tool or connector that fails, disconnects or needs re-auth is not a reason to stop: try another way to check it (another tool, skill or API), and keep retrying at your interval - connectors often come back.",
+		"Only when you hit the 4 hours, reply with this line on its own and stop: ODIN PING: GAVE UP - <why>",
 	].join("\n");
 }
 
