@@ -8,6 +8,7 @@ import {
 	unreadPing,
 	useReplyWatch,
 	watchEvent,
+	watchingFor,
 } from "./ReplyWatch";
 
 const reply = (stamp: string, byMe = false) => ({
@@ -154,6 +155,10 @@ test("a condition is not met by the prompt, an old line or a promise", () => {
 	expect(prompt).toContain("the deploy is done");
 	expect(prompt).toContain("ODIN PING: HAPPENED");
 	expect(prompt).toContain("needs re-auth is not a reason to stop");
+	expect(prompt).not.toContain("GAVE UP");
+	expect(prompt).toContain(
+		"If the conversation is compacted, the watch goes on",
+	);
 	expect(
 		conditionOutcome(
 			[
@@ -274,4 +279,17 @@ test("an unread ping says what fired, so a PR approval doesn't read as a reply",
 	expect(unreadPing(watches, "p")).toBe("Approved: Add profile details");
 	expect(unreadPing(watches, "q")).toBe("New reply: hi");
 	expect(unreadPing(watches, "r")).toBeNull();
+});
+
+test("a session watching for a condition is left uncompacted until it fires", () => {
+	const s = () => useReplyWatch.getState();
+	s().watchFor("the edit is done", "Edit", "pane-c");
+	const key =
+		Object.keys(s().watches).find((k) => s().watches[k]?.paneId === "pane-c") ??
+		"";
+	expect(watchingFor(s().watches, "pane-c")).toBe(true);
+	expect(watchingFor(s().watches, "pane-other")).toBe(false);
+	s().fire(key, "Happened");
+	expect(watchingFor(s().watches, "pane-c")).toBe(false);
+	s().toggle([], "", "pane-c");
 });
