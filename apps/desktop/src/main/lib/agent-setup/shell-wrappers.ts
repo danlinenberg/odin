@@ -82,7 +82,10 @@ function writeFileIfChanged(
 
 /**
  * Build shell function wrappers for managed binaries (claude, codex, etc.)
- * that prefer BIN_DIR executables over system-installed ones.
+ * that prefer BIN_DIR executables over system-installed ones. Your own alias
+ * for one (`alias claude=claude-auto`) still runs: the function replaces it,
+ * so it would otherwise start the plain binary. An alias back to the same
+ * name (`claude --flag`) takes the wrapper, as it would loop.
  */
 function buildManagedCommandPrelude(shellName: string, binDir: string): string {
 	if (shellName === "fish") {
@@ -101,18 +104,25 @@ end`,
 		).join("\n");
 	}
 
-	return ODIN_MANAGED_BINARIES.map(
-		(name: OdinManagedBinary) =>
-			`unalias ${name} 2>/dev/null || true
+	return ODIN_MANAGED_BINARIES.map((name: OdinManagedBinary) => {
+		const alias = `_odin_alias_${name.replace(/\W/g, "_")}`;
+		// `alias x` prints x='...' (zsh) or alias x='...' (bash): a quoted word.
+		return `${alias}=
+_odin_alias=$(alias ${name} 2>/dev/null) && eval "${alias}=\${_odin_alias#*${name}=}"
+unalias ${name} 2>/dev/null || true
 ${name}() {
+  case "\${${alias}%% *}" in
+    ""|${name}) ;;
+    *) export ODIN_AGENT_ID=${name}; eval "$${alias} \\"\\$@\\""; return ;;
+  esac
   _odin_wrapper=${quoteShellLiteral(`${binDir}/${name}`)}
   if [ -x "$_odin_wrapper" ] && [ ! -d "$_odin_wrapper" ]; then
     "$_odin_wrapper" "$@"
   else
     command ${name} "$@"
   fi
-}`,
-	).join("\n");
+}`;
+	}).join("\n");
 }
 
 /** Build a shell snippet that idempotently prepends BIN_DIR to PATH. */
