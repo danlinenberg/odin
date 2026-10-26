@@ -167,6 +167,72 @@ export function commandLabel(note: string): string {
 	return (plain.split(/(?<=[.!?])\s/)[0] ?? plain).replace(/[.:]+$/, "").trim();
 }
 
+const shortPath = (path: string) =>
+	path.replace(/\/+$/, "").split("/").at(-1) || path;
+
+/** "16 folders" or the one name: what a command's arguments are, short. */
+const things = (args: string[], noun: string) =>
+	args.length === 1 ? shortPath(args[0]) : `${args.length} ${noun}`;
+
+/**
+ * What a command does, read from the command itself: a Run button's label
+ * when Claude wrote no line above its block. Knows the common programs and
+ * falls back to "Run <program> <subcommand>", so a label is never the bare
+ * command.
+ */
+export function describeCommand(command: string): string {
+	// The step that does the work: not a `cd` before it, nor a filter after.
+	const step =
+		command
+			.split(/&&|\|\||;|\n/)
+			.map((part) => part.trim())
+			.find((part) => part && !/^cd(\s|$)/.test(part)) ?? command;
+	const words = (step.split("|")[0] ?? step)
+		.trim()
+		.split(/\s+/)
+		.filter((word) => !/^\w+=/.test(word) && word !== "sudo");
+	const program = shortPath(words[0] ?? "");
+	const args = words.slice(1).filter((word) => !word.startsWith("-"));
+	const flags = words.slice(1).filter((word) => word.startsWith("-"));
+	switch (program) {
+		case "rm":
+			return `Delete ${things(args, flags.some((f) => /r/i.test(f)) ? "files or folders" : "files")}`;
+		case "du":
+			return `Show the disk size of ${args.length ? things(args, "folders") : "this folder"}`;
+		case "df":
+			return "Show the free space left on the disk";
+		case "ls":
+			return `List ${args.length ? things(args, "folders") : "the files here"}`;
+		case "cat":
+		case "less":
+		case "head":
+		case "tail":
+			return `Show ${things(args, "files")}`;
+		case "mv":
+			return `Move ${things(args.slice(0, -1), "files")} to ${shortPath(args.at(-1) ?? "")}`;
+		case "cp":
+			return `Copy ${things(args.slice(0, -1), "files")} to ${shortPath(args.at(-1) ?? "")}`;
+		case "mkdir":
+			return `Make the folder ${things(args, "folders")}`;
+		case "open":
+			return `Open ${args[0] ?? "it"}`;
+		case "kill":
+		case "pkill":
+		case "killall":
+			return `Stop the process ${args.join(" ")}`;
+		case "curl": {
+			const url = args.find((arg) => /^['"]?https?:/.test(arg));
+			const host = url?.replace(/^['"]?https?:\/\/([^/'"]+).*$/, "$1");
+			return host ? `Call ${host}` : "Make a web request";
+		}
+	}
+	// git push, gh pr merge, aws sso login: the subcommands name the work.
+	const sub = args
+		.slice(0, program === "aws" || program === "gh" ? 2 : 1)
+		.filter((arg) => /^[a-z][\w-]*$/.test(arg));
+	return ["Run", program, ...sub].join(" ");
+}
+
 /**
  * The `!` commands you can run from the phone: those of Claude's latest reply
  * that has any. The phone shows their Run buttons and the Mac runs only these.
