@@ -19,6 +19,13 @@ KEYCHAIN="$HOME/Library/Keychains/$KEYCHAIN_NAME"
 # nothing. It exists so signing needs no prompt and no login-keychain password.
 KEYCHAIN_PASSWORD="odin-signing"
 
+# A release signed with the Apple Developer ID (CSC_LINK, see release.yml)
+# needs no self-signed cert: electron-builder imports that one itself.
+if [[ -n "${CSC_LINK:-}" ]]; then
+	echo "CSC_LINK is set - signing with the Developer ID, not $IDENTITY"
+	exit 0
+fi
+
 # Keychains re-lock on every logout/reboot, and a locked one makes codesign pop
 # a "wants to use the odin-signing keychain" password dialog mid-build. The
 # password is public (above), so unlock before the early exit too.

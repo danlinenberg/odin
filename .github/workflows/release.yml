@@ -99,13 +99,35 @@ jobs:
       # electron.vite.config.ts bakes these into the bundle as *_BAKED. Without
       # them a fresh install (brew, DMG) has no OAuth apps and every
       # Connections row says "This build has no <name> app".
-      # ODIN_SIGNING_P12 is the one signing cert every release uses. macOS keys
-      # privacy grants to it, so a fresh cert per release re-prompts every user
-      # for Desktop/Documents access after each update. Fail rather than mint one.
+      # With the Apple secrets set, the release is signed with Odin's Developer
+      # ID and notarized, so a downloaded DMG opens without the quarantine
+      # dialog. ODIN_APPLE_CERT_P12 is the base64 "Developer ID Application"
+      # p12 and ODIN_APPLE_API_KEY_P8 the App Store Connect API key's .p8 text.
+      # Without them it falls back to ODIN_SIGNING_P12, the one self-signed cert
+      # every release used before. macOS keys privacy grants to the signing
+      # cert, so a fresh cert per release re-prompts every user for
+      # Desktop/Documents access after each update. Fail rather than mint one.
       - run: |
-          : "${ODIN_SIGNING_P12:?ODIN_SIGNING_P12 secret is missing}"
+          set -euo pipefail
+          if [[ -n "$CSC_LINK" ]]; then
+            : "${CSC_KEY_PASSWORD:?ODIN_APPLE_CERT_PASSWORD secret is missing}"
+            : "${APPLE_API_KEY_P8:?ODIN_APPLE_API_KEY_P8 secret is missing}"
+            : "${APPLE_API_KEY_ID:?ODIN_APPLE_API_KEY_ID secret is missing}"
+            : "${APPLE_API_ISSUER:?ODIN_APPLE_API_ISSUER secret is missing}"
+            export APPLE_API_KEY="$RUNNER_TEMP/AuthKey.p8"
+            printf '%s\n' "$APPLE_API_KEY_P8" > "$APPLE_API_KEY"
+            echo "NOTARIZED=1" >> "$GITHUB_ENV"
+          else
+            unset CSC_LINK CSC_KEY_PASSWORD
+            : "${ODIN_SIGNING_P12:?ODIN_SIGNING_P12 secret is missing}"
+          fi
           bun run build
         env:
+          CSC_LINK: ${{ secrets.ODIN_APPLE_CERT_P12 }}
+          CSC_KEY_PASSWORD: ${{ secrets.ODIN_APPLE_CERT_PASSWORD }}
+          APPLE_API_KEY_P8: ${{ secrets.ODIN_APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.ODIN_APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.ODIN_APPLE_API_ISSUER }}
           ODIN_SIGNING_P12: ${{ secrets.ODIN_SIGNING_P12 }}
           ODIN_SLACK_CLIENT_ID: ${{ secrets.ODIN_SLACK_CLIENT_ID }}
           ODIN_SLACK_CLIENT_SECRET: ${{ secrets.ODIN_SLACK_CLIENT_SECRET }}
@@ -117,6 +139,16 @@ jobs:
           ODIN_JIRA_CLIENT_ID: ${{ secrets.ODIN_JIRA_CLIENT_ID }}
           ODIN_JIRA_CLIENT_SECRET: ${{ secrets.ODIN_JIRA_CLIENT_SECRET }}
           ODIN_JIRA_REDIRECT_URL: ${{ secrets.ODIN_JIRA_REDIRECT_URL }}
+
+      # Gatekeeper's own verdict on the bundle a download gets, with the
+      # notarization ticket stapled - before anything is published.
+      - name: Check notarization
+        if: env.NOTARIZED == '1'
+        run: |
+          set -euo pipefail
+          app=$(ls -d apps/desktop/release/mac-arm64/*.app)
+          xcrun stapler validate "$app"
+          spctl --assess --type execute --verbose=2 "$app"
 
       - name: Publish
         env:

@@ -45,6 +45,11 @@ if (process.platform === "darwin" && existsSync(signingKeychain)) {
 	} catch {}
 }
 
+// A release signed with Odin's Apple Developer ID: CSC_LINK holds its p12, and
+// electron-builder imports it and picks the "Developer ID Application" identity
+// on its own. Without it, every build uses the self-signed cert below.
+const developerId = Boolean(process.env.CSC_LINK);
+
 const config: Configuration = {
 	// The in-app browser's cookie store, encrypted with the OS keychain like
 	// Chrome's - plain text on disk otherwise, readable by anything running as
@@ -254,14 +259,17 @@ const config: Configuration = {
 		target: [{ target: "default", arch: ["arm64"] }],
 		hardenedRuntime: true,
 		gatekeeperAssess: false,
-		// Signed with the stable self-signed cert from
+		// Releases: the Developer ID, notarized, so a downloaded DMG opens with no
+		// quarantine dialog. Notarizing reads APPLE_API_KEY, APPLE_API_KEY_ID and
+		// APPLE_API_ISSUER (see release.yml) - and only warns when they are
+		// missing, so release.yml checks them itself.
+		// Everything else: the stable self-signed cert from
 		// scripts/create-signing-identity.sh. Ad-hoc signing gave every build a
 		// new signature, and macOS keys privacy grants to the signature - so every
-		// rebuild wiped the permissions and re-prompted. Notarization needs a real
-		// Developer ID, which this fork doesn't have and doesn't need: locally
-		// built apps aren't quarantined, so Gatekeeper never inspects them.
-		identity: "Odin Local Signing",
-		notarize: false,
+		// rebuild wiped the permissions and re-prompted. Locally built apps aren't
+		// quarantined, so Gatekeeper never inspects them.
+		...(developerId ? {} : { identity: "Odin Local Signing" }),
+		notarize: developerId,
 		entitlements: join(pkg.resources, "build/entitlements.mac.plist"),
 		entitlementsInherit: join(
 			pkg.resources,
