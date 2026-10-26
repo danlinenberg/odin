@@ -20,10 +20,12 @@ const runFiles = (id: string, dir: string) => {
 };
 
 /**
- * `command`, its output also kept in a file. In a subshell of its own, so an
- * `exit` in it still leaves its code. The exit file appears only once tee
- * has written all of it - a Ctrl+C that took the command down with its
- * code still writes one, as 130.
+ * `command`, its output also kept in a file. In a terminal it runs under
+ * `script`, so it still has one: a login that prompts (gh, aws) won't when
+ * its output is a pipe. Without one, tee. In a subshell of its own, so an
+ * `exit` in it still leaves its code. The exit file appears only once all
+ * output is written - a Ctrl+C that took the command down with its code
+ * still writes one, as 130.
  */
 export function wrapLocalRun(
 	command: string,
@@ -31,7 +33,13 @@ export function wrapLocalRun(
 	dir = tmpdir(),
 ): string {
 	const { out, code, exit } = runFiles(id, dir);
-	return `{ (\n${command}\n); printf %s $? > ${sh(code)}; } 2>&1 | tee ${sh(out)}\nmv -f ${sh(code)} ${sh(exit)} 2>/dev/null || printf 130 > ${sh(exit)}`;
+	const inner = `(\n${command}\n); printf %s $? > ${sh(code)}`;
+	return [
+		"if [ -t 0 ] && [ -t 1 ]; then",
+		`if [ "$(uname)" = Darwin ]; then script -q ${sh(out)} "\${SHELL:-/bin/sh}" -c ${sh(inner)}; else script -qec ${sh(inner)} ${sh(out)}; fi`,
+		`else { ${inner}; } 2>&1 | tee ${sh(out)}; fi`,
+		`mv -f ${sh(code)} ${sh(exit)} 2>/dev/null || printf 130 > ${sh(exit)}`,
+	].join("\n");
 }
 
 /** A new run of `command`: its id, and the command the Shell runs. */
@@ -41,12 +49,14 @@ export function startLocalRun(command: string, dir = tmpdir()) {
 }
 
 /**
- * What a terminal shows: colors gone, and of a line redrawn with `\r` (a
+ * What a terminal shows: colors and `script`'s frame gone, and of a line redrawn with `\r` (a
  * progress bar) only what it ended as. The end of it when it's long.
  */
 export function cleanOutput(raw: string, max = LOCAL_OUTPUT_MAX): string {
 	const text = stripAnsi(raw)
 		.split("\n")
+		// util-linux `script` frames the file with these.
+		.filter((line) => !/^Script (started|done) on /.test(line))
 		.map((line) => line.replace(/\r+$/, "").split("\r").at(-1) ?? "")
 		.join("\n")
 		.trim();
