@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
+import type { Pane } from "shared/tabs-types";
 import type { AllItem } from "../all/all-items";
-import { duplicateOf, type LedgerRow } from "./duplicates";
+import { duplicateOf, type LedgerRow, liveRows } from "./duplicates";
 
 function item(
 	source: AllItem["source"],
@@ -75,5 +76,37 @@ describe("duplicateOf", () => {
 		).toBeNull();
 		const hebrew = item("Slack", "C1:4", "אפשר לבדוק את זה בבקשה היום?");
 		expect(duplicateOf(hebrew, [{ ...slackPing, title: "שלום" }])).toBeNull();
+	});
+
+	it("matches a Sentry DM to the channel alert a live session is on", () => {
+		// The same issue, alerted in a channel and DMed a minute later: the
+		// titles differ, only the issue id in the link is shared.
+		const channel = {
+			type: "terminal",
+			id: "p1",
+			name: "Claude",
+			odinSource: "reactions",
+			odinPageId: "C03RZFXG2FQ:1793012184.474519",
+			odinTaskTitle: "Fix should_display_on_shop crash in sell_profile",
+			odinBrief:
+				"AttributeError (https://imagenai.sentry.io/issues/7812764568/?referrer=slack&environment=prod)",
+		} as Pane;
+		const dm = item(
+			"Slack",
+			"D099FEA5JKZ:1793012236.845379",
+			"[web-server] AttributeError: 'NoneType' object has no attribute",
+			{
+				body: "Alert triggered\nAttributeError (https://imagenai.sentry.io/issues/7812764568/?referrer=issue_alert-slack)",
+			},
+		);
+		const [live] = liveRows([channel], 1);
+		expect(duplicateOf(dm, [live])).toBe(live);
+		// Another Sentry issue is not the same ask.
+		const other = item("Slack", "D1:2", "KeyError somewhere else entirely", {
+			body: "https://imagenai.sentry.io/issues/7812764999/",
+		});
+		expect(duplicateOf(other, [live])).toBeNull();
+		// A finished session no longer counts.
+		expect(liveRows([{ ...channel, completed: true }], 1)).toEqual([]);
 	});
 });

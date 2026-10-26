@@ -22,6 +22,7 @@ import {
 	toggleNightPick,
 	useNextInLinePrompt,
 } from "renderer/stores/next-in-line-prompt";
+import { useTabsStore } from "renderer/stores/tabs/store";
 import { create } from "zustand";
 import type { AllItem } from "../all/all-items";
 import { allItems } from "../all/all-items";
@@ -41,7 +42,7 @@ import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
 import type { SweptRow } from "../review/verdicts";
-import { duplicateOf, type LedgerRow } from "./duplicates";
+import { duplicateOf, type LedgerRow, liveRows } from "./duplicates";
 import { useNightAgentIntro } from "./NightAgentIntro";
 
 /**
@@ -272,7 +273,12 @@ export function useNextInLineQueue(showHidden = false) {
 	);
 	// The same ask arriving through a second feed. It stays in the column,
 	// marked, for you to start or tick off - the Night Agent won't.
-	const duplicateFor = (item: AllItem) => duplicateOf(item, ledger ?? []);
+	const panes = useTabsStore((s) => s.panes);
+	const known = useMemo(
+		() => [...liveRows(Object.values(panes), Date.now()), ...(ledger ?? [])],
+		[panes, ledger],
+	);
+	const duplicateFor = (item: AllItem) => duplicateOf(item, known);
 	// Rows your instructions say not to show, per the model. They count as
 	// hidden and come back, dimmed, under the same "show hidden" as yours.
 	const aiHidden = new Set(applied ? ranking?.hidden : []);

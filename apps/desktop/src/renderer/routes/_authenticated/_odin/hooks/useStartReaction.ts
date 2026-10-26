@@ -3,6 +3,8 @@ import type { ReactionRow } from "lib/trpc/routers/slack";
 import { useEffect, useRef } from "react";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useTabsStore } from "renderer/stores/tabs/store";
+import { sentryRefs } from "shared/sentry-refs";
 import { askSessionContext } from "../components/SessionContextDialog";
 import { buildThreadPrompt } from "../thread-prompt";
 import { useOdinFeeds } from "./useOdinFeeds";
@@ -84,9 +86,32 @@ export function useSlackAutoLaunch(): void {
 				// Older main process (pre-restart) doesn't send the flag at all.
 				if (!row.autoLaunch || tried.current.has(row.id)) continue;
 				tried.current.add(row.id);
+				const twin = sessionOnSameIssue(row.text);
+				if (twin) {
+					toast.info(
+						`Not started from Slack: "${twin}" is on the same Sentry issue`,
+					);
+					continue;
+				}
 				if (await start(row, true))
 					toast.success(`Started from Slack: ${row.title}`);
 			}
 		})();
 	}, [rows]);
+}
+
+/**
+ * The live session already on a Sentry issue this message links to. Sentry
+ * posts an alert to a channel and DMs it too, so reacting to both would start
+ * two agents on one error.
+ */
+function sessionOnSameIssue(text: string): string | null {
+	const issues = new Set(sentryRefs(text));
+	if (!issues.size) return null;
+	const pane = Object.values(useTabsStore.getState().panes).find(
+		(p) =>
+			!p.completed &&
+			sentryRefs(p.odinTaskTitle, p.odinBrief).some((ref) => issues.has(ref)),
+	);
+	return pane ? (pane.odinTaskTitle ?? pane.name) : null;
 }
