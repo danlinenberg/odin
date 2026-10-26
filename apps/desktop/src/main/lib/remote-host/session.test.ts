@@ -34,6 +34,7 @@ import {
 	redeemTicket,
 	repoNameOf,
 	runScript,
+	SKIP_FIRST_RUN,
 	secretsFile,
 	sh,
 	tmuxSession,
@@ -689,4 +690,25 @@ test("a path in parentheses ends before the closing one", () => {
 		(path) => path === "/Users/d/a b.png",
 	);
 	expect(prompt).toBe("the icon (/home/ubuntu/.odin/files/0-a-b.png) is new");
+});
+
+test("a host's first Claude skips onboarding, folder trust and the bypass-permissions warning", () => {
+	const home = mkdtempSync(`${tmpdir()}/odin-first-run-`);
+	mkdirSync(`${home}/.claude`);
+	writeFileSync(`${home}/.claude/settings.json`, '{"model": "opus"}');
+	execFileSync("python3", ["-c", SKIP_FIRST_RUN, "/home/u/repos/api"], {
+		env: { HOME: home, PATH: "/usr/bin:/bin:/opt/homebrew/bin" },
+	});
+	const config = JSON.parse(readFileSync(`${home}/.claude.json`, "utf8"));
+	expect(config.hasCompletedOnboarding).toBe(true);
+	expect(config.projects["/home/u/repos/api"].hasTrustDialogAccepted).toBe(
+		true,
+	);
+	const settings = JSON.parse(
+		readFileSync(`${home}/.claude/settings.json`, "utf8"),
+	);
+	expect(settings).toEqual({
+		model: "opus",
+		skipDangerousModePermissionPrompt: true,
+	});
 });
