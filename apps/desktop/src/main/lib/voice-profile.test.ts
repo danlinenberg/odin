@@ -16,6 +16,7 @@ import {
 	setVoiceNotes,
 	trainingState,
 	trainVoice,
+	voiceStats,
 	voiceText,
 } from "./voice-profile";
 
@@ -56,25 +57,49 @@ describe("addSamples", () => {
 		expect(once.unlearned).toBe(1);
 		expect(addSamples(once, ["a long enough line"])).toBe(once);
 	});
+
+	test("the same message with and without its place counts once", () => {
+		const once = addSamples(empty, ["[dm] a long enough line"]);
+		expect(addSamples(once, ["a long enough line"])).toBe(once);
+	});
+});
+
+describe("voiceStats", () => {
+	test("counts length, capitals, periods, Hebrew and emoji from my messages", () => {
+		const stats = voiceStats([
+			"[dm] Ok will check it today",
+			"[#devops] can you give me access?",
+			"אגיע לזה היום :slightly_smiling_face:",
+			"Merged it.",
+		]);
+		expect(stats).toContain("From my last 4 messages:");
+		expect(stats).toContain("25% have Hebrew");
+		expect(stats).toContain("67% start with a capital, 33% end with a period");
+		expect(stats).toContain("25% ask a question");
+		expect(stats).toContain(
+			"Emoji in 25% of messages, mostly :slightly_smiling_face:",
+		);
+		expect(voiceStats([])).toBe("");
+	});
 });
 
 describe("learnPrompt and voiceText", () => {
-	test("the prompt carries the last guide, corrections and new samples", () => {
+	test("the prompt carries the numbers, corrections, last guide and my newest messages", () => {
+		const samples = Array.from(
+			{ length: 300 },
+			(_, i) => `message number ${i} here`,
+		);
 		const prompt = learnPrompt({
 			...empty,
 			guide: "Short and lowercase.",
 			notes: ["no emoji"],
-			samples: ["old one here", "new one here"],
-			unlearned: 1,
+			samples,
 		});
 		expect(prompt).toContain("Short and lowercase.");
 		expect(prompt).toContain("- no emoji");
-		expect(prompt.indexOf("old one here")).toBeLessThan(
-			prompt.indexOf("Messages I wrote since"),
-		);
-		expect(prompt.indexOf("new one here")).toBeGreaterThan(
-			prompt.indexOf("Messages I wrote since"),
-		);
+		expect(prompt).toContain("From my last 250 messages:");
+		expect(prompt).toContain("- message number 299 here");
+		expect(prompt).not.toContain("- message number 49 here");
 	});
 
 	test("corrections lead the guide; nothing known prints nothing", () => {
@@ -83,6 +108,9 @@ describe("learnPrompt and voiceText", () => {
 		expect(voiceText({ ...empty, guide: "G", notes: ["shorter"] })).toBe(
 			"Corrections I made - always follow these:\n- shorter\n\nG",
 		);
+		expect(
+			voiceText({ ...empty, guide: "G", samples: ["a message of mine"] }),
+		).toContain("G\n\nFrom my last 1 messages:");
 	});
 });
 

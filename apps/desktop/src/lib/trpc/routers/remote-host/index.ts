@@ -88,6 +88,7 @@ import {
 } from "main/lib/remote-host/ssh";
 import { awsClientConfig } from "main/lib/remote-host/ssm";
 import { resolveElectronBinary } from "main/lib/terminal-host/electron-binary";
+import { readVoice, voiceText } from "main/lib/voice-profile";
 import {
 	hostNameProblem,
 	hostPackagesProblem,
@@ -189,6 +190,7 @@ async function buildSessionSpec(
 						repoName,
 						pane: rest.pane,
 						known: repoName ? [] : await knownRepos(),
+						voiceGuide: voiceText(await readVoice()),
 					}),
 		files: existsSync(getNotifyScriptPath())
 			? [...files, { local: getNotifyScriptPath(), remote: HOST_NOTIFY_HOOK }]

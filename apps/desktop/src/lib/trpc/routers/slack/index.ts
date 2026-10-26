@@ -788,7 +788,21 @@ export async function slackMySentMessages(limit = 300): Promise<string[]> {
 	const token = slackToken();
 	if (!token) throw new Error("Connect Slack in Settings > Connections first.");
 	const me = await getIdentity(token);
-	type Match = { text?: string; subtype?: string };
+	type Match = {
+		text?: string;
+		subtype?: string;
+		permalink?: string;
+		channel?: { name?: string; is_im?: boolean; is_mpim?: boolean };
+	};
+	// Where it went shapes how I write it: voice-profile reads the tag.
+	const placeOf = (match: Match) => {
+		const where = match.channel?.is_im
+			? "dm"
+			: match.channel?.is_mpim
+				? "group dm"
+				: `#${match.channel?.name ?? "channel"}`;
+		return `[${where}${match.permalink?.includes("thread_ts=") ? " thread" : ""}] `;
+	};
 	const out: string[] = [];
 	for (let page = 1; out.length < limit && page <= 5; page++) {
 		let result: SlackResponse & {
@@ -816,9 +830,10 @@ export async function slackMySentMessages(limit = 300): Promise<string[]> {
 		for (const match of result.messages?.matches ?? [])
 			if (match.text && !match.subtype)
 				out.push(
-					(await resolveMentions(match.text, token))
-						.replace(/\s+/g, " ")
-						.trim(),
+					placeOf(match) +
+						(await resolveMentions(match.text, token))
+							.replace(/\s+/g, " ")
+							.trim(),
 				);
 		if (page >= (result.messages?.paging?.pages ?? 1)) break;
 	}
