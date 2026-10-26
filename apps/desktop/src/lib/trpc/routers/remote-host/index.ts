@@ -261,6 +261,40 @@ const CONNECTOR_OF: Record<string, HostConnector> = {
 	jira: "jira",
 };
 
+const launchInput = z.object({
+	repoPath: z.string().nullable(),
+	source: z.string().nullable(),
+});
+
+/** Where a new session runs (see launchTarget), and why not the host. */
+async function launchPlace(
+	input: z.infer<typeof launchInput>,
+): Promise<{ host: string | null; why: string | null }> {
+	const config = readOdinConfig();
+	const host = config.remoteHost;
+	if (!host?.on) return { host: null, why: null };
+	const name = host.name || host.instanceId;
+	const needs = input.source ? CONNECTOR_OF[input.source] : undefined;
+	if (needs && !host.connectors?.includes(needs))
+		return {
+			host: null,
+			why: `the ${needs} connector isn't on ${name} (Settings > Remote > Connectors on the host)`,
+		};
+	// A repo owned by a GitHub account kept off the host stays here.
+	if (input.repoPath) {
+		const origin =
+			(await originOf(input.repoPath)) ??
+			(await originOf(mainCheckoutOf(input.repoPath)));
+		const owner = githubOwner(origin ?? "");
+		if (repoStaysLocal(config, owner))
+			return {
+				host: null,
+				why: `its repo belongs to ${owner}, a GitHub account kept off ${name} (Settings > Remote > GitHub accounts on the host)`,
+			};
+	}
+	return { host: name, why: null };
+}
+
 const awsTarget = z.object({
 	profile: z.string().optional(),
 	region: z.string().optional(),
@@ -902,27 +936,17 @@ export const createRemoteHostRouter = () =>
 		 * would fail there, so it stays here.
 		 */
 		launchTarget: publicProcedure
-			.input(
-				z.object({
-					repoPath: z.string().nullable(),
-					source: z.string().nullable(),
-				}),
-			)
-			.query(async ({ input }) => {
-				const config = readOdinConfig();
-				const host = config.remoteHost;
-				if (!host?.on) return null;
-				const needs = input.source ? CONNECTOR_OF[input.source] : undefined;
-				if (needs && !host.connectors?.includes(needs)) return null;
-				// A repo owned by a GitHub account kept off the host stays here.
-				if (input.repoPath) {
-					const origin =
-						(await originOf(input.repoPath)) ??
-						(await originOf(mainCheckoutOf(input.repoPath)));
-					if (repoStaysLocal(config, githubOwner(origin ?? ""))) return null;
-				}
-				return host.name || host.instanceId;
-			}),
+			.input(launchInput)
+			.query(async ({ input }) => (await launchPlace(input)).host),
+
+		/**
+		 * launchTarget, plus why a session stays on this computer while the
+		 * host switch is on - the launch says so instead of quietly running
+		 * here. `why` is null when it goes to the host or the switch is off.
+		 */
+		launchPlace: publicProcedure
+			.input(launchInput)
+			.query(({ input }) => launchPlace(input)),
 
 		/**
 		 * A message to a session on the host: the laptop files it names or
