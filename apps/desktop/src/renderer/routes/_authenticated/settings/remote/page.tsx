@@ -31,7 +31,7 @@ function RemoteSettingsPage() {
 	return (
 		<SettingsPage
 			title="Remote"
-			description="Your sessions when you're not at this Mac: run them on a host that stays up, see the board from your iPhone, follow them in the Claude app."
+			description="Your sessions when you're not at this computer: run them on a host that stays up, see the board from your iPhone, follow them in the Claude app."
 		>
 			<RemoteHostSection />
 			<PhoneSection />

@@ -100,7 +100,7 @@ Four columns: **Working** (blue), **Needs you** (amber), **Final Review** (green
 - **Done** ends the session: stops the process, removes the card and marks its feed row done. Its Undo resumes the same conversation.
 - **Idle close**: a session idle longer than 3 hours (Settings → Sessions, "Close idle sessions after", 0 = never) is closed; Resume reopens it. Never closed: remote sessions (they hold nothing on this computer), working, queued, looping, waiting on CI, or a busy shell. Idle time counts from the later of the last status and the last Resume. Store: idleClose.
 - **Idle compact**: a session whose card moves into Idle - parked there by drag or "Move to Idle", or put under "Waiting on others" by Ping me - gets /compact typed into it right away (Settings → Sessions, "Compact conversations moved to Idle", off by default), so its next reply starts from the summary while Claude's cache is still warm. Once per turn; never a looping or queued session, and one whose drawer is open waits until the drawer closes. Done and Needs you cards, and a session already in Idle when Odin starts, are left alone. The card shows Compacting in Working and comes back where it was. Store: idleCompact.
-- Queued cards show "⏳ <reason>" and **Start now**, which ignores the gate. A card waiting on the remote host has no Start now: its **Start on this Mac** button (also under the wait in the drawer) starts it on this computer instead. Cards further back read "#N in line, after "X"". The queue starts the longest-waiting launch that can go. A Resume that opens at an idle prompt is never held.
+- Queued cards show "⏳ <reason>" and **Start now**, which ignores the gate. A card waiting on the remote host has no Start now: its **Start on this computer** button (also under the wait in the drawer) starts it on this computer instead. Cards further back read "#N in line, after "X"". The queue starts the longest-waiting launch that can go. A Resume that opens at an idle prompt is never held.
 
 ## Sessions view and the session drawer
 - The icon pair in the board header switches Board view and Sessions view (hotkey O). Sessions view opens the first session in flight, Needs you first; off when nothing is in flight. Its side list sorts by Needs you first / Last update / Waiting longest / Name, has Group, folds Idle away. ⌘⌥↑ / ⌘⌥↓ walk it.
@@ -138,7 +138,7 @@ One list across every source in bands: **Now** (due, or asked in the last 4 hour
 The sidebar shows: Connections, Sessions, Remote, Storage, Backlog & Night Agent, Notifications, Appearance, Keyboard, Advanced - one topic each, with what's on it written under its name. The search box above the list finds any setting by its label, its section or what it does, and scrolls to it. Store settingsScreen holds which one is open.
 
 ## Connections (Settings → Connections)
-"The accounts Odin reads your work from." Sign-ins stay on this Mac. Each row has Connect, Reconnect and Disconnect; disconnecting takes that source's items out of every tab. Slack, Jira and Notion first ask for a Client ID and Secret when no OAuth app is set up; Calendar offers that under "Sign in with Google instead". Huginn reaches every connected service's full API with action=service.
+"The accounts Odin reads your work from." Sign-ins stay on this computer. Each row has Connect, Reconnect and Disconnect; disconnecting takes that source's items out of every tab. Slack, Jira and Notion first ask for a Client ID and Secret when no OAuth app is set up; Calendar offers that under "Sign in with Google instead". Huginn reaches every connected service's full API with action=service.
 - **Profiles**: each profile has its own accounts, board sessions, Slack queue and tasks; only the active one shows anywhere. Rename in place, Switch to, or add one. A deleted profile can be restored for 30 days, then it is gone.
 - **Claude**: "The account your sessions run on", for the whole Mac. Sign in / Reconnect opens the browser; paste the code if claude.ai shows one.
 - **Slack** (read-only): the Slack feed. Set the Queue emoji (default eyes) and the Queue and start emoji (default robot_face).
@@ -150,7 +150,7 @@ The sidebar shows: Connections, Sessions, Remote, Storage, Backlog & Night Agent
 - **Calendar**: Sign in with Google (read-only, the primary calendar). Outlook and iCloud connect by their secret iCal address instead ("Outlook or iCloud? Paste a secret iCal address"). A build with no Google app shows the iCal form first.
 
 ## Sessions settings (Settings → Sessions)
-A session's life on this Mac, top to bottom. Besides the launch gate limits ("When they start", below):
+A session's life on this computer, top to bottom. Besides the launch gate limits ("When they start", below):
 - **Where they start → Default folder**: where a session starts when no repo is picked. Unset: the folder your repos live in.
 - **Where they start → Full Disk Access**: without it, macOS asks each time a session reads Music, Photos, Desktop or Documents.
 - **On the board → Rename sessions automatically** (default on): renames each card once, after what it turned out to be about. Names you set are kept.
@@ -164,7 +164,7 @@ What a session runs, rarely changed:
 - **Default prompt**: added to the end of every task prompt (how to work, the Shell, ACTION ITEMS), with Reset to default. The board reads ACTION ITEMS from each reply. Store: sessionInstructions.
 
 ## Remote (Settings → Remote)
-Your sessions when you're not at this Mac.
+Your sessions when you're not at this computer.
 - **Remote host**: run new sessions on an EC2 instance of yours over AWS Systems Manager, so they keep going with the Mac shut. Pick the AWS profile, region and instance (Set up installs Claude, gh, tmux and git there; Use picks it), then the switch "Sessions start on <host>". Claude sign-in (the host gets its own), "API key at the plan limit" (ANTHROPIC_API_KEY, or a custom key saved under it), "Connectors on the host" (Slack, Notion, Jira, GitHub, ClickUp tokens kept on the host; Gmail never goes) and "Claude setup on the host" (copies parts of ~/.claude there; Sync again after you change them). Both switch groups start with All, which flips every switch in the group.
 - **Remote host → GitHub accounts on the host**: one switch per connected GitHub account - whether its token goes to the host with a session (and as the GitHub connector there). A session gets the account that owns its repo when that one may go, else the main one. A task on a repo owned by an account kept off the host starts on this computer. Default: the main connection only.
 - **Phone → Phone access**: the Odin iPhone app shows the board and answers sessions, on this Wi-Fi or through a relay, end to end encrypted. With it on, a QR code pairs a phone (once, for 10 minutes); paired phones are listed with Remove and Unpair all.
@@ -185,7 +185,7 @@ Theme: pick one, or follow the system with a Light theme and a Dark theme; custo
 Search and re-record any shortcut; a key already in use offers Reassign; Reset all. From any app → "Double-tap to show or hide Odin": Record, then tap a modifier twice.
 
 ## Top bar and updates
-The top bar has one status pill for Claude usage (5-hour and week), this Mac (sessions, memory, CPU, free disk) and each remote host (sessions, memory, free disk). It shows only what is yellow or red, worst first, and a green dot when all is fine; hover lists everything. Click it when the disk is full to delete unused worktrees. Odin checks for a release every hour; a violet strip says "Odin X is available". Update and restart downloads it, quits and swaps in the new app; open terminal sessions survive the restart. Later hides it until the next check. Nothing installs on its own.
+The top bar has one status pill for Claude usage (5-hour and week), this computer (sessions, memory, CPU, free disk) and each remote host (sessions, memory, free disk). It shows only what is yellow or red, worst first, and a green dot when all is fine; hover lists everything. Click it when the disk is full to delete unused worktrees. Odin checks for a release every hour; a violet strip says "Odin X is available". Update and restart downloads it, quits and swaps in the new app; open terminal sessions survive the restart. Later hides it until the next check. Nothing installs on its own.
 
 ## Huginn (the raven)
 The raven button at the bottom of the rail, or ⌘⇧I. Until first opened it has a pulsing violet ring. The panel shows sample asks and a "Got a job for me?" box (images can be pasted); earlier chats can be resumed (a click) or deleted (the ✕ on hover), and New chat starts a fresh one. He runs on Opus with your Claude command, unless the model picker at the top right of his panel (Fable / Opus / Sonnet / Haiku) says otherwise - kept for later chats, and an open chat continues on the new model with its history (store: claudeCommand, key crowModel). Without Claude's task list or auto-memory, so a task goes to Odin's backlog and "always do X" becomes a rule. The conversation persists until ✓ Done. A turn silent too long counts as stuck and the next message resumes it in a fresh process. He is never a board card and takes no launch slot. A dot on the button means an answer, question or failure waits; it pulses while he works; his banner opens his panel.
@@ -215,7 +215,7 @@ Huginn can line up backlog tasks to run one after another: each starts when the 
 
 ## Launch gate and Queued (Settings → Sessions → When they start)
 A started session waits in Idle under "Queued", with a reason, until all limits allow it. Nothing is refused - the card exists from the start. Changes apply within 5 seconds.
-- **Hold new sessions when this Mac is** over a CPU load (default 70%).
+- **Hold new sessions when this computer is** over a CPU load (default 70%).
 - **Hold new sessions when free memory is under** (default 2 GB).
 - **Hold new sessions when free disk is under** (default 10 GB). Each session takes a worktree of about 3 GB. 0 means no limit.
 - **Hold new sessions when this many are working** (default 5). Sessions waiting on you don't count. 0 means no limit.

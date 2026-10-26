@@ -166,11 +166,11 @@ export function machineLoad(
 	const memoryGb = gb(snapshot.totalMemory);
 
 	const reason = cpuBusy
-		? `this Mac is at ${hostCpuPercent}% CPU`
+		? `this computer is at ${hostCpuPercent}% CPU`
 		: memoryBusy
-			? `this Mac has only ${availableMemoryGb} GB free`
+			? `this computer has only ${availableMemoryGb} GB free`
 			: diskBusy
-				? `this Mac has only ${diskFreeGb} GB of disk free`
+				? `this computer has only ${diskFreeGb} GB of disk free`
 				: null;
 
 	return {

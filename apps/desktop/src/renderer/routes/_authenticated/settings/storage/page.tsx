@@ -121,7 +121,7 @@ function StorageSettingsPage() {
 	return (
 		<SettingsPage
 			title="Storage"
-			description="What Odin keeps on this Mac: a worktree per session, about 3 GB each, and a daily copy of its own data in iCloud Drive."
+			description="What Odin keeps on this computer: a worktree per session, about 3 GB each, and a daily copy of its own data in iCloud Drive."
 			action={
 				<Button
 					size="sm"
@@ -162,7 +162,7 @@ function StorageSettingsPage() {
 					</p>
 				) : !worktrees?.length ? (
 					<p className="px-4 py-3.5 text-sm text-muted-foreground">
-						No session worktrees on this Mac.
+						No session worktrees on this computer.
 					</p>
 				) : (
 					<>

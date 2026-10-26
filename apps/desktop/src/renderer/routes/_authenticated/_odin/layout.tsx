@@ -192,8 +192,8 @@ function loadStatus(
 ): StatusItem {
 	const detail = `${
 		load.busy
-			? `${load.reason} - new sessions wait until that clears. ${load.agentCount} session(s) using ${load.agentMemoryGb} GB; this Mac is ${load.cpuPercent}% busy with ${load.availableMemoryGb} GB free.`
-			: `This Mac: ${load.agentCount} session(s) using ${load.agentMemoryGb} GB of memory, ${load.availableMemoryGb} GB free. Agents are on ${load.agentCpuPercent}% of the CPU · this Mac is ${load.cpuPercent}% busy.`
+			? `${load.reason} - new sessions wait until that clears. ${load.agentCount} session(s) using ${load.agentMemoryGb} GB; this computer is ${load.cpuPercent}% busy with ${load.availableMemoryGb} GB free.`
+			: `This computer: ${load.agentCount} session(s) using ${load.agentMemoryGb} GB of memory, ${load.availableMemoryGb} GB free. Agents are on ${load.agentCpuPercent}% of the CPU · this computer is ${load.cpuPercent}% busy.`
 	}${
 		load.diskFreeGb !== null
 			? ` Disk ${load.diskFreeGb} GB free; new sessions wait below ${limits.minFreeDiskGb} GB (Settings → Sessions).`

@@ -55,7 +55,7 @@ function SessionsSettingsPage() {
 				<LaunchLimitRow
 					id="launch-limit-host"
 					field="hostCpuPercent"
-					label="Hold new sessions when this Mac is"
+					label="Hold new sessions when this computer is"
 					description="Total CPU load - Odin's sessions, builds, Docker, anything. Lower it if the Mac feels slow before sessions start queueing."
 					min={1}
 					max={100}

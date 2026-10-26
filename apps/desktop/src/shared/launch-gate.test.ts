@@ -34,7 +34,7 @@ describe("launchBlocker", () => {
 
 	it("holds a launch when the Mac is flat out", () => {
 		expect(launchBlocker(snapshot(95), [], "/tmp/repo", ODIN)).toBe(
-			"this Mac is at 95% CPU",
+			"this computer is at 95% CPU",
 		);
 	});
 

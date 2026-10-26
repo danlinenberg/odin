@@ -127,7 +127,7 @@ function ConnectionsSettings() {
 	return (
 		<SettingsPage
 			title="Connections"
-			description="The accounts Odin reads your work from. You sign in to each one; the credentials stay on this Mac and never leave it."
+			description="The accounts Odin reads your work from. You sign in to each one; the credentials stay on this computer and never leave it."
 		>
 			<SettingsSection
 				title="Profiles"

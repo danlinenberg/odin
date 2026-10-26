@@ -536,7 +536,7 @@ function StartingView({
 						BUTTON.secondary,
 					)}
 				>
-					Start on this Mac instead
+					Start on this computer instead
 				</button>
 			)}
 		</div>
@@ -2612,14 +2612,14 @@ const BoardCardTile = memo(
 									⏳ {card.pane.odinQueued.reason}
 								</span>
 								{/* The host's gate is never overruled - too many sessions there
-								    take every one down - but a new task can go to this Mac. */}
+								    take every one down - but a new task can go to this computer. */}
 								{(!card.pane.odinQueued.remote ||
 									card.pane.odinQueued.remote.prompt) && (
 									<button
 										type="button"
 										title={
 											card.pane.odinQueued.remote
-												? "Start this session on this Mac instead of the remote host"
+												? "Start this session on this computer instead of the remote host"
 												: "Start this session now, gate or no gate"
 										}
 										onClick={(event) => {
@@ -2632,7 +2632,7 @@ const BoardCardTile = memo(
 										)}
 									>
 										{card.pane.odinQueued.remote
-											? "Start on this Mac"
+											? "Start on this computer"
 											: "Start now"}
 									</button>
 								)}

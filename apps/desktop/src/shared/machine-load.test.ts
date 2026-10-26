@@ -59,7 +59,7 @@ describe("machineLoad", () => {
 		// 72% busy used to launch (the gate sat at 85) into a Mac that was
 		// already stuttering; half busy is still fine.
 		expect(machineLoad(snapshot({ hostCpu: 72, agents: 13 })).reason).toBe(
-			"this Mac is at 72% CPU",
+			"this computer is at 72% CPU",
 		);
 		expect(
 			machineLoad(snapshot({ hostCpu: 54, totalCpu: 270, agents: 13 })).busy,
@@ -74,7 +74,7 @@ describe("machineLoad", () => {
 			maxWorkingAgents: 0,
 		};
 		expect(machineLoad(snapshot({ hostCpu: 54 }), limits).reason).toBe(
-			"this Mac is at 54% CPU",
+			"this computer is at 54% CPU",
 		);
 		expect(machineLoad(snapshot({ hostCpu: 35 }), limits).busy).toBe(false);
 	});
@@ -82,7 +82,7 @@ describe("machineLoad", () => {
 	it("holds a launch when the Mac is out of memory, whatever the CPU says", () => {
 		const load = machineLoad(snapshot({ hostCpu: 20, available: 1.4 * GB }));
 		expect(load.busy).toBe(true);
-		expect(load.reason).toBe("this Mac has only 1.4 GB free");
+		expect(load.reason).toBe("this computer has only 1.4 GB free");
 		expect(
 			machineLoad(snapshot({ hostCpu: 20, available: 1.4 * GB }), {
 				hostCpuPercent: 70,
@@ -96,7 +96,7 @@ describe("machineLoad", () => {
 	it("holds a launch when the disk is nearly full, unless the limit is 0", () => {
 		const load = machineLoad(snapshot({ disk: 3.75 }));
 		expect(load.diskFreeGb).toBe(3.7);
-		expect(load.reason).toBe("this Mac has only 3.7 GB of disk free");
+		expect(load.reason).toBe("this computer has only 3.7 GB of disk free");
 		expect(machineLoad(snapshot({ disk: 42.9 })).diskFreeGb).toBe(42);
 		// 25 GB is under 5% of a 500 GB disk, and still plenty for a session.
 		expect(machineLoad(snapshot({ disk: 24.7 })).busy).toBe(false);
@@ -131,7 +131,7 @@ describe("machineLoad", () => {
 			snapshot({ hostCpu: 98, totalCpu: 60, agents: 3 }),
 		);
 		expect(load.busy).toBe(true);
-		expect(load.reason).toBe("this Mac is at 98% CPU");
+		expect(load.reason).toBe("this computer is at 98% CPU");
 		expect(load.agentCpuPercent).toBe(6);
 	});
 

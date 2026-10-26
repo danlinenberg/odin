@@ -101,7 +101,7 @@ export function macPaceBlocker(
 	const room =
 		freeGb - (macStarts.length + 1) * HEAVY_MEMORY_GB >= limits.minFreeMemoryGb;
 	if (macStarts.length > 0 && !room)
-		return "another session started a moment ago, so this one waits until this Mac's load shows it";
+		return "another session started a moment ago, so this one waits until this computer's load shows it";
 	markStarted("mac", now);
 	return null;
 }
