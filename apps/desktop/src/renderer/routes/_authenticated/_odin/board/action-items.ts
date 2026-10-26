@@ -162,7 +162,9 @@ export function bangCommandNotes(text: string): Record<string, string> {
 export function commandLabel(note: string): string {
 	const plain = note
 		.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-		.replace(/[*_`]/g, "")
+		.replace(/[*`]/g, "")
+		// Emphasis underscores only: node_modules keeps its own.
+		.replace(/(?<!\w)_+|_+(?!\w)/g, "")
 		.trim();
 	return (plain.split(/(?<=[.!?])\s/)[0] ?? plain).replace(/[.:]+$/, "").trim();
 }
