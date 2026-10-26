@@ -434,7 +434,7 @@ export function useCrow() {
 			);
 		if (!onDisk) {
 			useCrowChats.getState().drop(chat.sessionId);
-			toast.error("That chat is no longer on this Mac");
+			toast.error("That chat is no longer on this computer");
 			return false;
 		}
 		const open = crowPane(useTabsStore.getState().panes);

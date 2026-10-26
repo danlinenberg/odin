@@ -263,7 +263,18 @@ function Stat({
 const FIELD =
 	"h-7 rounded-md border border-transparent px-1 text-lg font-semibold tabular-nums text-foreground transition-colors hover:border-border hover:bg-background/60 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
-/** One end of the window, on the same 24-hour clock the runner keeps. */
+/**
+ * A time box shows the system clock: "11:00 PM" on a 12-hour one (Windows in
+ * the US) needs more room than "23:00", which 4.5rem cut to "11:00 P".
+ */
+const TIME_WIDTH = /h1[12]/.test(
+	new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions()
+		.hourCycle ?? "",
+)
+	? "w-[6.5rem]"
+	: "w-[4.5rem]";
+
+/** One end of the window, saved on the same 24-hour clock the runner keeps. */
 function TimeField({
 	label,
 	value,
@@ -284,7 +295,8 @@ function TimeField({
 			onChange={(e) => e.target.value && onChange(e.target.value)}
 			className={cn(
 				FIELD,
-				"w-[4.5rem] [&::-webkit-calendar-picker-indicator]:hidden",
+				TIME_WIDTH,
+				"[&::-webkit-calendar-picker-indicator]:hidden",
 			)}
 		/>
 	);

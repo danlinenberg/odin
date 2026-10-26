@@ -185,7 +185,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "instructions system prompt action items task end",
 	},
 	{
-		label: "Hold new sessions when this Mac is",
+		label: "Hold new sessions when this computer is",
 		to: "/settings/sessions",
 		section: "When they start",
 		keywords: "cpu load busy launch limit queue",
