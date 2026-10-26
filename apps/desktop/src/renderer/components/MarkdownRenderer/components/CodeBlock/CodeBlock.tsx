@@ -1,7 +1,7 @@
 import { ShowCode } from "@odin/ui/ai-elements/show-code";
 import { Button } from "@odin/ui/button";
 import { mermaid } from "@streamdown/mermaid";
-import { CheckIcon, CopyIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, SparklesIcon } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTheme } from "renderer/stores";
@@ -169,6 +169,63 @@ function CopyButton({
 	);
 }
 
+/**
+ * "Tune voice" under a draft: one line on how it should sound, kept as a
+ * correction in Your voice so every later draft follows it.
+ */
+function TuneVoice() {
+	const [open, setOpen] = useState(false);
+	const [note, setNote] = useState("");
+	const addNote = electronTrpc.voice.addNote.useMutation({
+		onSuccess: () => {
+			setNote("");
+			setOpen(false);
+		},
+	});
+	if (!open)
+		return (
+			<button
+				type="button"
+				onClick={() => {
+					addNote.reset();
+					setOpen(true);
+				}}
+				className="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+			>
+				<SparklesIcon className="size-3" />
+				{addNote.isSuccess ? "Saved to Your voice" : "Tune voice"}
+			</button>
+		);
+	return (
+		<form
+			className="mt-2 flex items-center gap-2"
+			onSubmit={(event) => {
+				event.preventDefault();
+				if (note.trim()) addNote.mutate({ note });
+			}}
+		>
+			<input
+				// biome-ignore lint/a11y/noAutofocus: opened by a click on Tune voice
+				autoFocus
+				dir="auto"
+				value={note}
+				onChange={(event) => setNote(event.target.value)}
+				onKeyDown={(event) => event.key === "Escape" && setOpen(false)}
+				placeholder="How should drafts sound? e.g. never link a PR unless they approve it"
+				className="h-7 min-w-0 flex-1 rounded border border-border bg-background px-2 text-xs"
+			/>
+			<Button
+				type="submit"
+				size="sm"
+				className="h-7 px-2 text-xs"
+				disabled={!note.trim() || addNote.isPending}
+			>
+				Save
+			</Button>
+		</form>
+	);
+}
+
 function PasteBlock({ text }: { text: string }) {
 	const [isCopied, setIsCopied] = useState(false);
 	// Looked up on render, not on click: the copy has to run inside the click.
@@ -210,6 +267,7 @@ function PasteBlock({ text }: { text: string }) {
 					),
 				)}
 			</div>
+			<TuneVoice />
 			<CopyButton copied={isCopied} onClick={copy} className="end-2 top-2" />
 		</div>
 	);

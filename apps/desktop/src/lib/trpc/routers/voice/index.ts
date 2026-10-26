@@ -4,6 +4,7 @@ import {
 	transcriptOf,
 } from "main/lib/claude-sessions/claude-sessions";
 import {
+	addVoiceNote,
 	learnFromDrafts,
 	readVoice,
 	setVoiceEnabled,
@@ -38,6 +39,10 @@ export const createVoiceRouter = () =>
 		setNotes: publicProcedure
 			.input(z.object({ notes: z.array(z.string()) }))
 			.mutation(({ input }) => setVoiceNotes(input.notes)),
+		/** One correction from a draft in chat ("shorter", "no PR links"). */
+		addNote: publicProcedure
+			.input(z.object({ note: z.string() }))
+			.mutation(({ input }) => addVoiceNote(input.note)),
 		/** Starts training and answers at once; `get` says when it's done. */
 		train: publicProcedure.mutation(() => {
 			void trainVoice(() => slackMySentMessages());
