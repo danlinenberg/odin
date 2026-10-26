@@ -162,14 +162,21 @@ export function remoteControlName(name: string): string {
 	return `[Odin] ${name.replace(/\s+/g, " ").trim()}`.trim().slice(0, 80);
 }
 
+/** Written by claude-auto's hook while the plan's usage limit is in effect. */
+const PLAN_LIMIT_FILE = "~/.claude/plan-limit.json";
+
 /**
  * Remote Control needs your claude.ai login. A `claude setup-token` token or an
  * API key in the environment (often exported from ~/.zshenv) wins over it, and
  * then Claude starts as "Claude API" with Remote Control silently off. Drop
- * both for this one session's shell.
+ * both for this one session's shell - except the key while the plan is out
+ * (claude-auto's PLAN_LIMIT_FILE), so claude-auto can move the session onto
+ * it: the plan can't run it anyway. No quotes, as it goes inside a wrapper's.
  */
 export function remoteControlEnv(on: boolean): string {
-	return on ? "unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY && " : "";
+	return on
+		? `unset CLAUDE_CODE_OAUTH_TOKEN; [ -f ${PLAN_LIMIT_FILE} ] || unset ANTHROPIC_API_KEY; `
+		: "";
 }
 
 /**
