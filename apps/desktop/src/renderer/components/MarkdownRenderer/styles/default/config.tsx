@@ -1,5 +1,5 @@
 import { cn } from "@odin/ui/utils";
-import { CodeBlock, SafeImage } from "../../components";
+import { CodeBlock, QuoteBlock, SafeImage } from "../../components";
 import type { MarkdownStyleConfig } from "../types";
 import "./default.css";
 
@@ -29,11 +29,9 @@ export const defaultConfig: MarkdownStyleConfig = {
 				{children}
 			</td>
 		),
-		blockquote: ({ children }) => (
-			<blockquote className="border-l-4 border-muted-foreground/30 pl-4 italic my-4">
-				{children}
-			</blockquote>
-		),
+		blockquote: ({ children }) => <QuoteBlock>{children}</QuoteBlock>,
+		// A Hebrew paragraph or item reads right-to-left; English stays as it is.
+		p: ({ children }) => <p dir="auto">{children}</p>,
 		a: ({ href, children }) => (
 			<a
 				href={href}
@@ -49,7 +47,10 @@ export const defaultConfig: MarkdownStyleConfig = {
 		li: ({ children, className }) => {
 			const isTaskItem = className?.includes("task-list-item");
 			return (
-				<li className={cn(isTaskItem && "list-none flex items-start gap-2")}>
+				<li
+					dir="auto"
+					className={cn(isTaskItem && "list-none flex items-start gap-2")}
+				>
 					{children}
 				</li>
 			);

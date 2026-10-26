@@ -9,6 +9,10 @@ test("a drafted message is prose, commands and trees are not", () => {
 	).toBe(true);
 	expect(looksLikeProse("bun run compile:app\ngit status")).toBe(false);
 	expect(looksLikeProse("src/\n  index.ts\n  lib/")).toBe(false);
+	// Hebrew drafts rarely end a line with a period.
+	expect(
+		looksLikeProse("לגבי האיטיות - נראה לי שהבעיה בhost\n1. תפתחי Settings"),
+	).toBe(true);
 });
 
 test("a Slack mention copies as a real mention, markup as formatting", () => {
