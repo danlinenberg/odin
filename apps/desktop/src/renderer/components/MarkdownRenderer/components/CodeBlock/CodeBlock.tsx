@@ -154,7 +154,7 @@ export function QuoteBlock({ children }: { children?: ReactNode }) {
 			<blockquote ref={ref} className="italic">
 				{children}
 			</blockquote>
-			<TuneVoice />
+			<TuneVoice draft={() => ref.current?.innerText.trim() ?? ""} />
 			<CopyButton copied={isCopied} onClick={copy} className="end-0 top-0" />
 		</div>
 	);
@@ -188,30 +188,90 @@ function CopyButton({
 
 /**
  * "Tune voice" under a draft: one line on how it should sound, kept as a
- * correction in Your voice so every later draft follows it.
+ * correction in Your voice so every later draft follows it. "Rewrite it" takes
+ * what I would have written instead, and Your voice learns from the difference.
+ * `draft` reads the draft's text when the rewrite opens.
  */
-function TuneVoice() {
-	const [open, setOpen] = useState(false);
+function TuneVoice({ draft }: { draft: () => string }) {
+	const [mode, setMode] = useState<"closed" | "rule" | "rewrite">("closed");
 	const [note, setNote] = useState("");
+	const [rewrite, setRewrite] = useState("");
+	const [saved, setSaved] = useState<string | null>(null);
+	const close = (message: string | null) => {
+		setNote("");
+		setRewrite("");
+		setMode("closed");
+		setSaved(message);
+	};
 	const addNote = electronTrpc.voice.addNote.useMutation({
-		onSuccess: () => {
-			setNote("");
-			setOpen(false);
-		},
+		onSuccess: () => close("Saved to Your voice"),
 	});
-	if (!open)
+	const learn = electronTrpc.voice.learnFromRewrite.useMutation({
+		onSuccess: (learning) =>
+			close(
+				learning
+					? "Learning from your version"
+					: "Turn on Your voice in Settings to learn from it",
+			),
+	});
+	const openRewrite = () => {
+		setRewrite(draft());
+		setMode("rewrite");
+	};
+	const linkClass = "text-xs text-muted-foreground hover:text-foreground";
+	if (mode === "closed")
 		return (
 			<button
 				type="button"
 				onClick={() => {
-					addNote.reset();
-					setOpen(true);
+					setSaved(null);
+					setMode("rule");
 				}}
-				className="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+				className={`mt-2 flex items-center gap-1 ${linkClass}`}
 			>
 				<SparklesIcon className="size-3" />
-				{addNote.isSuccess ? "Saved to Your voice" : "Tune voice"}
+				{saved ?? "Tune voice"}
 			</button>
+		);
+	if (mode === "rewrite")
+		return (
+			<form
+				className="mt-2 flex flex-col gap-2"
+				onSubmit={(event) => {
+					event.preventDefault();
+					if (rewrite.trim())
+						learn.mutate({ draft: draft(), rewrite: rewrite.trim() });
+				}}
+			>
+				<textarea
+					// biome-ignore lint/a11y/noAutofocus: opened by a click on Rewrite it
+					autoFocus
+					dir="auto"
+					rows={Math.min(12, Math.max(3, rewrite.split("\n").length + 1))}
+					value={rewrite}
+					onChange={(event) => setRewrite(event.target.value)}
+					onKeyDown={(event) => event.key === "Escape" && close(null)}
+					placeholder="What you would have written instead"
+					className="min-w-0 resize-y rounded border border-border bg-background px-2 py-1 font-sans text-xs not-italic"
+				/>
+				<div className="flex items-center gap-3">
+					<Button
+						type="submit"
+						size="sm"
+						className="h-7 px-2 text-xs"
+						disabled={!rewrite.trim() || learn.isPending}
+					>
+						Save
+					</Button>
+					<button
+						type="button"
+						onClick={() => setMode("rule")}
+						className={linkClass}
+					>
+						Write a rule instead
+					</button>
+				</div>
+			</form>
 		);
 	return (
 		<form
@@ -227,7 +287,7 @@ function TuneVoice() {
 				dir="auto"
 				value={note}
 				onChange={(event) => setNote(event.target.value)}
-				onKeyDown={(event) => event.key === "Escape" && setOpen(false)}
+				onKeyDown={(event) => event.key === "Escape" && close(null)}
 				placeholder="How should drafts sound? e.g. never link a PR unless they approve it"
 				className="h-7 min-w-0 flex-1 rounded border border-border bg-background px-2 text-xs"
 			/>
@@ -239,6 +299,9 @@ function TuneVoice() {
 			>
 				Save
 			</Button>
+			<button type="button" onClick={openRewrite} className={linkClass}>
+				Rewrite it
+			</button>
 		</form>
 	);
 }
@@ -284,7 +347,7 @@ function PasteBlock({ text }: { text: string }) {
 					),
 				)}
 			</div>
-			<TuneVoice />
+			<TuneVoice draft={() => text} />
 			<CopyButton copied={isCopied} onClick={copy} className="end-2 top-2" />
 		</div>
 	);

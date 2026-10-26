@@ -43,6 +43,20 @@ export const createVoiceRouter = () =>
 		addNote: publicProcedure
 			.input(z.object({ note: z.string() }))
 			.mutation(({ input }) => addVoiceNote(input.note)),
+		/**
+		 * "Rewrite it" under a draft: what I would have written instead. Learned
+		 * like a draft I rewrote before sending. Answers at once; false while
+		 * Your voice is off, so nothing is learned.
+		 */
+		learnFromRewrite: publicProcedure
+			.input(z.object({ draft: z.string(), rewrite: z.string() }))
+			.mutation(async ({ input }) => {
+				if (!(await readVoice()).enabled) return false;
+				void learnFromDrafts([
+					{ draft: input.draft, sent: [input.rewrite.trim()] },
+				]);
+				return true;
+			}),
 		/** Starts training and answers at once; `get` says when it's done. */
 		train: publicProcedure.mutation(() => {
 			void trainVoice(() => slackMySentMessages());
