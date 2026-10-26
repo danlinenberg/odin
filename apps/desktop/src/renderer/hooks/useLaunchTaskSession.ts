@@ -744,6 +744,7 @@ export function useLaunchTaskSession() {
 										command,
 										reason: queuedReason,
 										...(remoteLaunch ? { remote: remoteLaunch } : {}),
+										...(onHost === false ? { here: true as const } : {}),
 									},
 								}
 							: {}),

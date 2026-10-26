@@ -22,3 +22,20 @@ function readClaudeSettings(): string {
 		return "";
 	}
 }
+
+/**
+ * Until when this computer's plan is out, epoch seconds, from claude-auto's
+ * ~/.claude/plan-limit.json; 0 when it isn't. The host's sessions run on the
+ * same plan, so a limit hit here holds there too.
+ */
+export function planLimitedUntil(
+	read: () => string = () =>
+		readFileSync(join(homedir(), ".claude", "plan-limit.json"), "utf8"),
+): number {
+	try {
+		const until = Number(JSON.parse(read()).until);
+		return Number.isFinite(until) ? until : 0;
+	} catch {
+		return 0;
+	}
+}

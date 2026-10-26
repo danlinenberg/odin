@@ -6,7 +6,10 @@ import { promisify } from "node:util";
 import { app, powerMonitor, safeStorage, shell } from "electron";
 import { getNotifyScriptPath } from "main/lib/agent-setup/notify-hook";
 import { githubOwner, onGithubTokensChanged } from "main/lib/github-token";
-import { apiKeyFallbackOn } from "main/lib/remote-host/api-key-fallback";
+import {
+	apiKeyFallbackOn,
+	planLimitedUntil,
+} from "main/lib/remote-host/api-key-fallback";
 import {
 	bringUpHost,
 	hostUp,
@@ -217,6 +220,7 @@ async function sessionSecrets(): Promise<string> {
 			? (customApiKey() ??
 				(await getProcessEnvWithShellEnv()).ANTHROPIC_API_KEY)
 			: undefined,
+		ODIN_PLAN_LIMITED_UNTIL: String(planLimitedUntil()),
 	});
 }
 

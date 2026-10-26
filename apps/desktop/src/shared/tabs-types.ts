@@ -238,6 +238,8 @@ export interface Pane {
 			claudeArgs: string;
 			prompt: string | null;
 		};
+		/** You picked This computer: the queue never moves it to the host. */
+		here?: true;
 	};
 	/**
 	 * Odin fork: the pane holding this session's shell - a plain terminal in the
