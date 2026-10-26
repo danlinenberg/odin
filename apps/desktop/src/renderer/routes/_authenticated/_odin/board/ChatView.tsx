@@ -83,6 +83,7 @@ import {
 	bangCommandNotes,
 	bangCommands,
 	commandLabel,
+	describeCommand,
 	isAnswerItem,
 	isApprovalItem,
 	isDoneItem,
@@ -2352,10 +2353,11 @@ function RunCommand({
 }) {
 	const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
 	const note = useContext(CommandNotes)[command];
-	// What it does on the button; the command itself on hover.
-	const label = note ? commandLabel(note) : "";
 	const local = localCommand(command);
 	const shown = local ?? command;
+	// What it does on the button, in Claude's words or read from the
+	// command; the command itself on hover.
+	const label = note ? commandLabel(note) : describeCommand(shown);
 	return (
 		<Tooltip delayDuration={300}>
 			<TooltipTrigger asChild>
@@ -2385,29 +2387,16 @@ function RunCommand({
 					)}
 				>
 					<LuSquareTerminal className="size-3.5 shrink-0" />
-					{label ? (
-						<span className="truncate">
-							{local
-								? state === "sent"
-									? "Started on my computer:"
-									: "Run on my computer:"
-								: state === "sent"
-									? "Sent:"
-									: "Run:"}{" "}
-							{label}
-						</span>
-					) : (
-						<span className="truncate font-mono">
-							{local
-								? state === "sent"
-									? "Started on my computer:"
-									: "Run on my computer:"
-								: state === "sent"
-									? "Sent !"
-									: "Run !"}{" "}
-							{shown.split("\n")[0]}
-						</span>
-					)}
+					<span className="truncate">
+						{local
+							? state === "sent"
+								? "Started on my computer:"
+								: "Run on my computer:"
+							: state === "sent"
+								? "Sent:"
+								: "Run:"}{" "}
+						{label}
+					</span>
 				</button>
 			</TooltipTrigger>
 			<TooltipContent

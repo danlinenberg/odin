@@ -4,6 +4,7 @@ import { type BriefUrgency, freshTldr, latestReply } from "shared/latest-reply";
 import {
 	bangCommandNotes,
 	bangCommands,
+	describeCommand,
 	localCommand,
 	splitActionItems,
 } from "../routes/_authenticated/_odin/board/action-items";
@@ -197,11 +198,9 @@ function RunCard({
 				const status = state[command];
 				return (
 					<div key={command} className="flex flex-col gap-1">
-						{notes[command] && (
-							<div className="text-[13px] text-muted-foreground">
-								{notes[command]}
-							</div>
-						)}
+						<div className="text-[13px] text-muted-foreground">
+							{notes[command] ?? describeCommand(local ?? command)}
+						</div>
 						<code className="select-text break-all rounded-md bg-secondary px-2 py-1 font-mono text-[12px]">
 							{local ?? command}
 						</code>

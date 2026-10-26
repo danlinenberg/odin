@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+	describeCommand,
 	localRunMessage,
 	noActionItems,
 	runnableCommands,
@@ -42,5 +43,29 @@ test("a !local run goes back to Claude fenced past its own backticks", () => {
 	);
 	expect(localRunMessage("true", { exitCode: 0, output: "" })).toContain(
 		"(no output)",
+	);
+});
+
+test("a command with no note above it still says what it does", () => {
+	expect(
+		describeCommand(
+			"cd ~/dev && rm -rf imagen/editing-service/venv imagen/bifrost/src-tauri/target",
+		),
+	).toBe("Delete 2 files or folders");
+	expect(describeCommand("rm -rf ~/dev/imagen/old/venv")).toBe("Delete venv");
+	expect(describeCommand("df -h /System/Volumes/Data | tail -1")).toBe(
+		"Show the free space left on the disk",
+	);
+	expect(
+		describeCommand("cd ~/dev && du -shc a b c 2>/dev/null | tail -1"),
+	).toBe("Show the disk size of 4 folders");
+	expect(describeCommand("aws sso login --profile dev")).toBe(
+		"Run aws sso login",
+	);
+	expect(describeCommand("curl -s https://api.example.com/v1/x")).toBe(
+		"Call api.example.com",
+	);
+	expect(describeCommand("AWS_PROFILE=dev ./scripts/deploy.sh prod")).toBe(
+		"Run deploy.sh prod",
 	);
 });
