@@ -1,3 +1,4 @@
+import { toast } from "@odin/ui/sonner";
 import { useState } from "react";
 import {
 	currentHostBlocker,
@@ -347,9 +348,18 @@ export function useLaunchTaskSession() {
 		// part, so a launch that fails after that has something to take down.
 		let created: { tabId: string; paneId: string } | null = null;
 		try {
+			// Where it runs, and a toast when the host switch is on but this one
+			// stays here - otherwise it looks like the switch did nothing.
 			const launchTarget = () =>
-				utils.client.remoteHost?.launchTarget
+				utils.client.remoteHost?.launchPlace
 					.query({ repoPath: repoPath ?? null, source: source ?? null })
+					.then(({ host, why }) => {
+						if (why && !planOnly)
+							toast.info(`"${title}" runs on this computer`, {
+								description: `Not on the remote host: ${why}.`,
+							});
+						return host;
+					})
 					.catch(() => null);
 			// Everything the card needs, asked at once: one after another, these
 			// round trips to a busy main process held the card back for seconds.
