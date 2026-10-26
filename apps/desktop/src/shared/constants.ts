@@ -100,6 +100,15 @@ export const SAVE_DOC_PROMPT =
  */
 export const VOICE_RULE = `When you write a message I will send as myself - a Slack reply or draft, a Jira or GitHub comment, an email - write it in my voice: first read how I write with \`curl -sf http://127.0.0.1:$ODIN_PORT/voice\` and follow it over your own style and over the Simplified Technical English rule, which is for your replies to me, not for my messages (if it prints nothing, keep the message short and plain). When I correct how a draft sounds (its tone, length, wording habits - not its facts), record the correction as one general line: \`curl -sf http://127.0.0.1:$ODIN_PORT/voice --data-urlencode "note=<the correction>"\`.`;
 
+/**
+ * The voice rule with the guide itself inside, so a session drafts in my voice
+ * without a step it could skip. Empty guide: the rule that fetches it.
+ */
+export const voiceRuleWith = (guide: string) =>
+	guide.trim()
+		? `When you write a message I will send as myself - a Slack reply or draft, a Jira or GitHub comment, an email - write it in my voice, below. Follow it over your own style and over the Simplified Technical English rule, which is for your replies to me, not for my messages. Before you show me a draft, check it against the guide line by line - length, opening, punctuation, language, the model tells to avoid - and fix what does not match. When I correct how a draft sounds (its tone, length, wording habits - not its facts), record the correction as one general line: \`curl -sf http://127.0.0.1:$ODIN_PORT/voice --data-urlencode "note=<the correction>"\`.\n\nHow I write:\n${guide.trim()}`
+		: VOICE_RULE;
+
 /** How every Claude session in Odin writes its replies - delivered with SHELL_RULE at SessionStart. */
 export const STE_RULE =
 	"Write your replies in ASD-STE100 Simplified Technical English: short sentences (procedural steps 20 words or fewer, descriptive text 25 or fewer), active voice, one instruction per sentence, the imperative for instructions, simple common words with one meaning each, and no idioms or phrasal verbs. Code, commands, file paths, identifiers and quoted text stay exactly as they are.";

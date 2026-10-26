@@ -1,4 +1,4 @@
-import { VOICE_RULE } from "../../../shared/constants";
+import { voiceRuleWith } from "../../../shared/constants";
 import { tmuxSession } from "../../../shared/remote-reconnect";
 import { HOST_PORT_SH } from "./host-service";
 
@@ -691,6 +691,8 @@ export function hostNote(spec: {
 	pane: string;
 	/** Clone URLs of the repos Odin knows, for a task with no repo. */
 	known?: string[];
+	/** How I write (voice-profile voiceText), so host drafts sound like me without a fetch. */
+	voiceGuide?: string;
 }): string {
 	const repos = `${hostHome(spec.user)}/repos`;
 	return [
@@ -712,7 +714,7 @@ export function hostNote(spec: {
 		// The laptop delivers this with a SessionStart hook ($ODIN_HOME_DIR/hooks/shell-rule.sh)
 		// that the host never has, so a host session would draft in its own voice and keep
 		// corrections out of Settings.
-		VOICE_RULE,
+		voiceRuleWith(spec.voiceGuide ?? ""),
 	].join("\n");
 }
 

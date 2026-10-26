@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { SHELL_RULE, STE_RULE, VOICE_RULE } from "shared/constants";
+import { SHELL_RULE, STE_RULE, voiceRuleWith } from "shared/constants";
 import { env } from "shared/env.shared";
 import { HOOKS_DIR } from "./paths";
 
@@ -18,15 +18,19 @@ const SUBAGENT_CAP_SCRIPT_MARKER = "# Odin subagent cap hook v1";
 const DEFAULT_SUBAGENT_CAP = 4;
 
 export const SHELL_RULE_SCRIPT_NAME = "shell-rule.sh";
-const SHELL_RULE_SCRIPT_MARKER = "# Odin shell rule hook v3";
+const SHELL_RULE_SCRIPT_MARKER = "# Odin shell rule hook v4";
+
+/** A session's SessionStart context: the Shell and STE rules, and my voice guide when Odin has one. */
+export const sessionStartOutput = (voiceGuide: string) => ({
+	hookSpecificOutput: {
+		hookEventName: "SessionStart",
+		additionalContext: `${SHELL_RULE}\n\n${STE_RULE}\n\n${voiceRuleWith(voiceGuide)}`,
+	},
+});
 
 export function getShellRuleScriptContent(): string {
-	const output = JSON.stringify({
-		hookSpecificOutput: {
-			hookEventName: "SessionStart",
-			additionalContext: `${SHELL_RULE}\n\n${STE_RULE}\n\n${VOICE_RULE}`,
-		},
-	});
+	// Odin down or too old to answer: the rules without the guide inside.
+	const output = JSON.stringify(sessionStartOutput(""));
 	return fs
 		.readFileSync(
 			path.join(__dirname, "templates", "shell-rule.template.sh"),

@@ -11,6 +11,7 @@ import type {
 	OdinActionRequest,
 	RunInShellRequest,
 } from "shared/notification-types";
+import { sessionStartOutput } from "../agent-setup/notify-hook";
 import { callProcedure, clip, listProcedures } from "../odin-api";
 import { callService, fetchFile, readLink } from "../read-link";
 import { recordHostLoad } from "../remote-host/host-load";
@@ -310,6 +311,18 @@ app.get("/voice", async (req, res) => {
 	const { readVoice, voiceText } = await import("../voice-profile");
 	const text = voiceText(await readVoice());
 	res.type("text/plain").send(text ? `${text}\n` : "");
+});
+
+/**
+ * What the SessionStart hook (agent-setup/templates/shell-rule.template.sh)
+ * hands a new session: the rules, with my voice guide written in.
+ */
+app.get("/session-start", async (req, res) => {
+	if (req.headers.origin) {
+		return res.status(403).send("Not from a browser.\n");
+	}
+	const { readVoice, voiceText } = await import("../voice-profile");
+	res.json(sessionStartOutput(voiceText(await readVoice())));
 });
 
 app.post(

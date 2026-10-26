@@ -3,7 +3,11 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { SHELL_RULE, STE_RULE, VOICE_RULE } from "shared/constants";
-import { getShellRuleScriptContent, NOTIFY_SCRIPT_MARKER } from "./notify-hook";
+import {
+	getShellRuleScriptContent,
+	NOTIFY_SCRIPT_MARKER,
+	sessionStartOutput,
+} from "./notify-hook";
 
 const notifyHookTemplatePath = path.join(
 	import.meta.dir,
@@ -444,6 +448,13 @@ describe("shell rule SessionStart hook", () => {
 				additionalContext: `${SHELL_RULE}\n\n${STE_RULE}\n\n${VOICE_RULE}`,
 			},
 		});
+	});
+
+	it("writes my voice guide into the rule when Odin has one", () => {
+		const context = sessionStartOutput("Short, no sign-off.").hookSpecificOutput
+			.additionalContext;
+		expect(context).toContain("How I write:\nShort, no sign-off.");
+		expect(context).not.toContain(VOICE_RULE);
 	});
 
 	it("says nothing outside Odin, where there's no Shell to run in", () => {
