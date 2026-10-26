@@ -941,6 +941,27 @@ export async function transcriptOf(
 	}
 }
 
+type ParsedTranscript = Awaited<ReturnType<typeof readTranscript>>;
+
+/**
+ * The last parse of each transcript, kept while its file's size and mtime
+ * stay the same. The board polls every session's transcript once a minute,
+ * and one parse of a 10MB file blocks the main process for 60-160ms: a
+ * parked session's file never changes, so its poll is now a stat. Bounded,
+ * least recently read dropped first.
+ */
+const parsedTranscripts = new Map<
+	string,
+	{
+		size: number;
+		mtimeMs: number;
+		result: ParsedTranscript;
+		/** Where its last turn ran, so `local` is checked again on every hit. */
+		lastRan: string | null;
+	}
+>();
+const PARSED_TRANSCRIPTS_MAX = 64;
+
 export async function readTranscript({
 	project,
 	sessionId,
@@ -985,9 +1006,22 @@ export async function readTranscript({
 	const dir = project ?? (await projectOf(sessionId, root));
 	if (!dir) throw new Error("No transcript on this machine for that session");
 	const file = join(root, dir, `${sessionId}.jsonl`);
+	const { size, mtimeMs } = await stat(file);
+	const key = `${file}\0${withImages}`;
+	const hit = parsedTranscripts.get(key);
+	if (hit && hit.size === size && hit.mtimeMs === mtimeMs) {
+		// Re-insert so the map's order stays least-recently-used first.
+		parsedTranscripts.delete(key);
+		parsedTranscripts.set(key, hit);
+		return {
+			...hit.result,
+			local: ranHere(hit.result.cwd) || ranHere(hit.lastRan),
+		};
+	}
 	const jsonl = await readFile(file, "utf-8");
 	const { cwd, aiTitle, prompt } = summarizeTranscript(jsonl);
-	return {
+	const lastRan = lastCwd(jsonl);
+	const result = {
 		/**
 		 * The file itself. Usually <cwd's slug>/<id>.jsonl, but a remote
 		 * session's copy sits under the host's paths, so the chat view reads
@@ -1003,7 +1037,7 @@ export async function readTranscript({
 		// Claude picked up the host's copy without anything it had done here
 		// since. The start still counts, so a session that ended in a folder
 		// since deleted (a temp dir) isn't read as the host's.
-		local: ranHere(cwd) || ranHere(lastCwd(jsonl)),
+		local: ranHere(cwd) || ranHere(lastRan),
 		title: aiTitle,
 		prompt,
 		loop: activeLoop(jsonl),
@@ -1012,6 +1046,17 @@ export async function readTranscript({
 		credential: transcriptCredential(jsonl),
 		slackDrafts: slackDrafts(jsonl),
 	};
+	parsedTranscripts.set(key, {
+		size,
+		mtimeMs,
+		result,
+		lastRan,
+	});
+	if (parsedTranscripts.size > PARSED_TRANSCRIPTS_MAX) {
+		const oldest = parsedTranscripts.keys().next().value;
+		if (oldest !== undefined) parsedTranscripts.delete(oldest);
+	}
+	return result;
 }
 
 /**

@@ -1061,6 +1061,32 @@ describe("readTranscript's local", () => {
 	});
 });
 
+describe("readTranscript's cache", () => {
+	const row = (text: string) =>
+		JSON.stringify({
+			type: "user",
+			cwd: `${homedir()}/dev/app`,
+			timestamp: "2026-10-26T09:00:00.000Z",
+			message: { role: "user", content: text },
+		});
+	const id = "eeee1111-2222-3333-4444-555566667777";
+
+	test("an unchanged file answers from the last parse; a grown one is read again", async () => {
+		const root = mkdtempSync(join(tmpdir(), "claude-cache-"));
+		mkdirSync(join(root, "-Users-dan-dev-app"));
+		const file = join(root, "-Users-dan-dev-app", `${id}.jsonl`);
+		writeFileSync(file, `${row("Task: first")}\n`);
+		const first = await readTranscript({ sessionId: id, root });
+		const again = await readTranscript({ sessionId: id, root });
+		expect(again.messages).toBe(first.messages);
+
+		writeFileSync(file, `${row("Task: first")}\n${row("and a second ask")}\n`);
+		const grown = await readTranscript({ sessionId: id, root });
+		expect(grown.messages).not.toBe(first.messages);
+		expect(grown.messages.map((m) => m.text)).toContain("and a second ask");
+	});
+});
+
 describe("activeLoop", () => {
 	const call = (name: string, input: object, at = "2026-09-23T10:00:00.000Z") =>
 		JSON.stringify({
