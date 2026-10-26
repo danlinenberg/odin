@@ -47,11 +47,40 @@ describe("livePanes", () => {
 });
 
 describe("start pacing", () => {
-	test("a burst on the Mac starts one, then waits for it to show up", () => {
+	const freeGb = (gb: number): MachineLoadInput => ({
+		host: {
+			cpuCoreCount: 12,
+			cpuUsagePercent: 10,
+			memoryUsagePercent: 50,
+			totalMemory: 64 * 1024 ** 3,
+			availableMemory: gb * 1024 ** 3,
+		},
+		totalCpu: 0,
+		totalMemory: 0,
+		workspaces: [],
+	});
+	const limits = DEFAULT_LAUNCH_LIMITS;
+
+	test("a tight Mac starts one, then waits for it to show up", () => {
 		const t = 1_000_000;
-		expect(macPaceBlocker(t)).toBeNull();
-		expect(macPaceBlocker(t + 300)).not.toBeNull();
-		expect(macPaceBlocker(t + MAC_START_GAP_MS)).toBeNull();
+		expect(macPaceBlocker(freeGb(5), limits, t)).toBeNull();
+		expect(macPaceBlocker(freeGb(5), limits, t + 300)).not.toBeNull();
+		expect(macPaceBlocker(freeGb(5), limits, t + MAC_START_GAP_MS)).toBeNull();
+	});
+
+	test("a roomy Mac starts back-to-back clicks at once, up to its free memory", () => {
+		const t = 2_000_000;
+		// 2 GB floor, 2 GB a session: 9 GB free fits three unseen starts.
+		expect(macPaceBlocker(freeGb(9), limits, t)).toBeNull();
+		expect(macPaceBlocker(freeGb(9), limits, t + 100)).toBeNull();
+		expect(macPaceBlocker(freeGb(9), limits, t + 200)).toBeNull();
+		expect(macPaceBlocker(freeGb(9), limits, t + 300)).not.toBeNull();
+	});
+
+	test("an unmeasured reading paces as before", () => {
+		const t = 3_000_000;
+		expect(macPaceBlocker(freeGb(0), limits, t)).toBeNull();
+		expect(macPaceBlocker(freeGb(0), limits, t + 300)).not.toBeNull();
 	});
 
 	test("a host start waits for a reading taken after the last one", () => {
