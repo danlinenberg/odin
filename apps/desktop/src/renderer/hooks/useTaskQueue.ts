@@ -436,7 +436,9 @@ export function useTaskQueue(): void {
 		const hostBound = queue.filter(
 			(pane) =>
 				pane.odinRemote ||
-				(remoteHost?.host?.on && !stayHere.current.has(pane.id)),
+				(remoteHost?.host?.on &&
+					!pane.odinQueued?.here &&
+					!stayHere.current.has(pane.id)),
 		);
 		// One already moved to the host starts first.
 		const toHost = hostBound.find((pane) => pane.odinRemote) ?? hostBound[0];

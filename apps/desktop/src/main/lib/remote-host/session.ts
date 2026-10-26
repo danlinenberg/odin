@@ -359,13 +359,25 @@ for line in open(paths[0]) if paths else []:
         sys.exit(0)
 sys.exit(1)`;
 
-/** On the API key while the plan is limited, with the key pre-approved. */
-const USE_API_KEY_IF_LIMITED = `import json, os, sys, time
+/**
+ * On the API key while the plan is limited, with the key pre-approved. A
+ * limit the laptop recorded (ODIN_PLAN_LIMITED_UNTIL) is kept here too, so the
+ * host starts on the key as claude-auto does there, instead of failing its
+ * first turn on the plan to find out.
+ */
+export const USE_API_KEY_IF_LIMITED = `import json, os, sys, time
+state = os.path.expanduser("~/.claude/plan-limit.json")
 try:
-    limited = json.load(open(os.path.expanduser("~/.claude/plan-limit.json"))).get("until", 0) > time.time()
+    until = float(json.load(open(state)).get("until", 0))
 except Exception:
-    limited = False
-if not limited:
+    until = 0
+laptop = float(os.environ.get("ODIN_PLAN_LIMITED_UNTIL") or 0)
+if laptop > max(until, time.time()):
+    until = laptop
+    with open(f"{state}.{os.getpid()}", "w") as f:
+        json.dump({"until": until}, f)
+    os.replace(f"{state}.{os.getpid()}", state)
+if until <= time.time():
     sys.exit(1)
 p = os.path.expanduser("~/.claude.json")
 try:
@@ -571,7 +583,7 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		`if [ -n "$ODIN_FALLBACK_API_KEY" ] && python3 -c ${sh(USE_API_KEY_IF_LIMITED)}; then export ANTHROPIC_API_KEY="$ODIN_FALLBACK_API_KEY"; else unset ANTHROPIC_API_KEY; fi`,
 		// Kept unexported, for resuming on the key when the plan runs out mid-session.
 		'fallback="$ODIN_FALLBACK_API_KEY"',
-		"unset ODIN_FALLBACK_API_KEY",
+		"unset ODIN_FALLBACK_API_KEY ODIN_PLAN_LIMITED_UNTIL",
 		'export ODIN_RUN_PID=$$; [ -n "$fallback" ] && export ODIN_HAS_FALLBACK_KEY=1',
 		`rm -f ${idleMarker(spec.pane)}`,
 		'[ -n "$TMUX_PANE" ] && command -v pgrep >/dev/null && ' +
