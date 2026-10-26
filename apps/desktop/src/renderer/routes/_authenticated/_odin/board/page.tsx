@@ -203,6 +203,7 @@ import {
 } from "./brief";
 import {
 	ChatView,
+	filedUnder,
 	hostDeps,
 	interruptClaude,
 	movedHere,
@@ -4968,7 +4969,7 @@ function DevBoardPage() {
 		// workspace checkout is the last resort - `claude --resume` only finds a
 		// conversation from the directory it ran in, so resuming from the
 		// daemon's default cwd fails exactly like resuming a missing id.
-		const cwd = sessionCwd(card.pane) ?? card.repoPath;
+		let cwd = sessionCwd(card.pane) ?? card.repoPath;
 		// Resume THIS conversation, not "whatever ran last here" (what --continue
 		// does - wrong as soon as two sessions share a workspace). Session id
 		// comes from launch (--session-id); for older sessions, look it up in
@@ -5020,6 +5021,27 @@ function DevBoardPage() {
 						...card.pane,
 						odinRemote: host.name || host.instanceId,
 					};
+					useTabsStore.setState((state) => ({
+						panes: {
+							...state.panes,
+							[card.pane.id]: { ...state.panes[card.pane.id], ...pane },
+						},
+					}));
+					card = { ...card, pane };
+				}
+				// A session moved here (Run here) whose card still names the host
+				// folder it started in: `claude --resume` there finds no folder on
+				// this computer and exits 1. Resume where its copy is filed.
+				if (
+					!host &&
+					!card.pane.odinRemote &&
+					transcript.local &&
+					transcript.cwd &&
+					!filedUnder(transcript.path, cwd, sessionId) &&
+					filedUnder(transcript.path, transcript.cwd, sessionId)
+				) {
+					cwd = transcript.cwd;
+					const pane = { ...card.pane, cwd, odinCwd: cwd };
 					useTabsStore.setState((state) => ({
 						panes: {
 							...state.panes,

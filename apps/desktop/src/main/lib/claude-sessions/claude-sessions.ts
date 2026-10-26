@@ -275,6 +275,8 @@ function digestTranscript(jsonl: string): TranscriptDigest {
 	let prompt: string | null = null;
 	let fromOdin = false;
 	let cwd: string | null = null;
+	let cwdHere = false;
+	const seen = new Set<string>();
 	const turns: TranscriptDigest["turns"] = [];
 
 	for (const line of jsonl.split("\n")) {
@@ -294,7 +296,18 @@ function digestTranscript(jsonl: string): TranscriptDigest {
 		}
 		if (entry.type !== "user" && entry.type !== "assistant") continue;
 		if (entry.isSidechain) continue; // subagent turn, not the conversation
-		if (!cwd && typeof entry.cwd === "string") cwd = entry.cwd;
+		// Where it started - or, for a session moved here from the remote host
+		// (Run here), the first folder on this computer: its copy is filed
+		// under that folder, and its opening rows still name the host's. Resume
+		// ran `claude --resume` in the host's folder here and exited 1.
+		if (typeof entry.cwd === "string" && !cwdHere && !seen.has(entry.cwd)) {
+			seen.add(entry.cwd);
+			const here = ranHere(entry.cwd);
+			if (!cwd || here) {
+				cwd = entry.cwd;
+				cwdHere = here;
+			}
+		}
 		const role = entry.type as "user" | "assistant";
 		const message = entry.message as { content?: unknown } | undefined;
 		const text = messageText(message?.content).trim();

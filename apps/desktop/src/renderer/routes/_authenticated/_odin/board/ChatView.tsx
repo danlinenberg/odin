@@ -107,6 +107,7 @@ import {
 	deliverOnHost,
 	type HostDeps,
 	type HostMessage,
+	promptLine,
 } from "./host-delivery";
 import { launchRequest } from "./launch-request";
 import {
@@ -3259,6 +3260,7 @@ export function ChatView({
 					paneId,
 					{
 						...handle,
+						line: promptLine(text),
 						type: () => typeIntoClaude(write.mutateAsync, paneId, text),
 					},
 					hostDeps(paneId),
@@ -3971,9 +3973,9 @@ export function hostDeps(paneId: string): HostDeps {
 				.then((result) => result.text ?? ""),
 		sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 		alive: () => !!useTabsStore.getState().panes[paneId],
-		enter: () =>
+		enter: (text) =>
 			electronTrpcClient.terminal.write
-				.mutate({ paneId, data: "\r" })
+				.mutate({ paneId, data: `${text ?? ""}\r` })
 				.then(() => undefined),
 	};
 }
