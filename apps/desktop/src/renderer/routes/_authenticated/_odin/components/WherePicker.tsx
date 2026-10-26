@@ -1,9 +1,11 @@
+import { useEffect } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 
 /**
- * This computer or the remote host, for one session. `value` stays undefined
- * until you pick, so the launch keeps Settings' rule (host switch, connectors).
- * Nothing shows while no remote host is set up. `className` restyles the
+ * This computer or the remote host, for one session. What it shows is what
+ * the launch gets: untouched, it reports the host switch as the pick, so the
+ * session runs where the menu said, not where the repo or connector rules
+ * would send it. Nothing shows while no remote host is set up. `className` restyles the
  * menu to match the row it sits in; the default is the New Session dialog's.
  */
 export function WherePicker({
@@ -17,12 +19,16 @@ export function WherePicker({
 }) {
 	const { data } = electronTrpc.remoteHost.get.useQuery();
 	const host = data?.host;
+	const shown = (value ?? host?.on) === true;
+	useEffect(() => {
+		if (host && value === undefined) onChange(shown);
+	}, [host, value, shown, onChange]);
 	if (!host) return null;
 	return (
 		<select
 			aria-label="Where the session runs"
 			title="Where the session runs - this computer or the remote host"
-			value={(value ?? host.on) ? "host" : "local"}
+			value={shown ? "host" : "local"}
 			onChange={(event) => onChange(event.target.value === "host")}
 			className={className}
 		>
