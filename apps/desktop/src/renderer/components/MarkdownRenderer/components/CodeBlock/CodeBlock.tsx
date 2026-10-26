@@ -69,6 +69,22 @@ export function toSlackTexty(
 	return JSON.stringify({ ops });
 }
 
+/** The right-to-left mark: invisible, it makes a line read right-to-left. */
+const RLM = "\u200F";
+
+/**
+ * Each line with Hebrew or Arabic in it starts with RLM, so Slack lays it out
+ * right-to-left: "1." and a closing "?" land on the right side, not the left.
+ */
+export function markRtlLines(text: string): string {
+	return text
+		.split("\n")
+		.map((line) =>
+			RTL_LETTERS.test(line) && !line.startsWith(RLM) ? RLM + line : line,
+		)
+		.join("\n");
+}
+
 /** A copy event can carry custom types that another Chromium app (Slack) reads. */
 function copyWithSlackTexty(
 	text: string,
@@ -104,8 +120,9 @@ export function QuoteBlock({ children }: { children?: ReactNode }) {
 	const copy = async () => {
 		const text = ref.current?.innerText.trim() ?? "";
 		try {
-			if (!copyWithSlackTexty(text, undefined))
-				await navigator.clipboard.writeText(text);
+			const marked = markRtlLines(text);
+			if (!copyWithSlackTexty(marked, undefined))
+				await navigator.clipboard.writeText(marked);
 			setIsCopied(true);
 			setTimeout(() => setIsCopied(false), 2000);
 		} catch {
@@ -164,8 +181,9 @@ function PasteBlock({ text }: { text: string }) {
 	);
 	const copy = async () => {
 		try {
-			if (!copyWithSlackTexty(text, names))
-				await navigator.clipboard.writeText(text);
+			const marked = markRtlLines(text);
+			if (!copyWithSlackTexty(marked, names))
+				await navigator.clipboard.writeText(marked);
 			setIsCopied(true);
 			setTimeout(() => setIsCopied(false), 2000);
 		} catch {

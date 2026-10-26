@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { looksLikeProse, toSlackTexty } from "./CodeBlock";
+import { looksLikeProse, markRtlLines, toSlackTexty } from "./CodeBlock";
 
 test("a drafted message is prose, commands and trees are not", () => {
 	expect(
@@ -46,4 +46,11 @@ test("a known name labels the mention", () => {
 	).ops;
 	expect(mention.insert).toBe("@Ayelet Holtzman Ravid");
 	expect(mention.attributes.slackmention.id).toBe("U0C62025C31");
+});
+
+test("a copied Hebrew line starts with a right-to-left mark, English lines don't", () => {
+	expect(markRtlLines("שלום\n1. תפתחי Settings\nPlease review")).toBe(
+		"\u200Fשלום\n\u200F1. תפתחי Settings\nPlease review",
+	);
+	expect(markRtlLines("\u200Fשלום")).toBe("\u200Fשלום");
 });
