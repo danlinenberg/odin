@@ -381,8 +381,9 @@ export const createTerminalRouter = () => {
 				z.object({ cwd: z.string().min(1), marker: z.string().optional() }),
 			)
 			.query(async ({ input }) => {
-				const { readdirSync, statSync, readFileSync, existsSync } =
-					await import("node:fs");
+				// Async reads: this can read 40 whole transcripts, MBs each, and
+				// sync calls froze every other electronTrpc call meanwhile.
+				const { readdir, stat, readFile } = await import("node:fs/promises");
 				const { join } = await import("node:path");
 				const { homedir } = await import("node:os");
 				// Claude slugifies the cwd: every "/" and "." becomes "-".
@@ -392,21 +393,31 @@ export const createTerminalRouter = () => {
 					"projects",
 					input.cwd.replace(/[/.]/g, "-"),
 				);
-				if (!existsSync(dir)) return { sessionId: null };
+				const names = await readdir(dir).catch(() => null);
+				if (!names) return { sessionId: null };
 				const idOf = (file: string) => file.replace(/\.jsonl$/, "");
-				const files = readdirSync(dir)
-					.filter((file) => file.endsWith(".jsonl"))
-					.map((file) => {
-						const path = join(dir, file);
-						return { file, path, mtime: statSync(path).mtimeMs };
-					})
+				const files = (
+					await Promise.all(
+						names
+							.filter((file) => file.endsWith(".jsonl"))
+							.map(async (file) => {
+								const path = join(dir, file);
+								const mtime = await stat(path).then(
+									(s) => s.mtimeMs,
+									() => null,
+								);
+								return mtime === null ? [] : [{ file, path, mtime }];
+							}),
+					)
+				)
+					.flat()
 					.sort((a, b) => b.mtime - a.mtime);
 				if (files.length === 0) return { sessionId: null };
 				if (input.marker) {
 					for (const candidate of files.slice(0, 40)) {
 						try {
 							if (
-								readFileSync(candidate.path, "utf-8").includes(input.marker)
+								(await readFile(candidate.path, "utf-8")).includes(input.marker)
 							) {
 								return { sessionId: idOf(candidate.file) };
 							}
