@@ -957,6 +957,12 @@ describe("an earlier reply's commands in the action items card", () => {
 		// A reply with commands of its own keeps to them.
 		expect(earlierCommandsText(items, "a")).toBeUndefined();
 		expect(earlierCommandsText([text("b", later)], "b")).toBeUndefined();
+		// An item that does not point back gets no borrowed commands.
+		const unrelated =
+			"Done.\n\nACTION ITEMS\n1. Close the stuck card on the board.";
+		expect(
+			earlierCommandsText([...items, text("c", unrelated)], "c"),
+		).toBeUndefined();
 	});
 
 	test("each goes under the item that asks for it, and never to the card's foot", () => {

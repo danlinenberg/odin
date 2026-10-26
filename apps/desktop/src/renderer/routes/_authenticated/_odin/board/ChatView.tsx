@@ -1837,6 +1837,8 @@ export function lastActionsId(items: Item[]): string | undefined {
 	)?.id;
 }
 
+const POINTS_BACK = /\b(earlier|above|previous|before)\b/i;
+
 /**
  * The text of the latest reply before `id` that hands you `!` commands, when
  * `id`'s own has none: an item that says "run the checks from my earlier
@@ -1849,6 +1851,10 @@ export function earlierCommandsText(
 	const at = items.findIndex((item) => item.id === id);
 	const own = items[at];
 	if (at < 0 || own?.kind !== "text" || bangCommands(own.text).length)
+		return undefined;
+	// Only an item that points back ("the checks from my earlier message",
+	// "the commands above") borrows them; any other reply gets no Run button.
+	if (!actionItemList(own.text).some((item) => POINTS_BACK.test(item)))
 		return undefined;
 	const earlier = items
 		.slice(0, at)
