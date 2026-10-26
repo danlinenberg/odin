@@ -187,6 +187,34 @@ describe("mentions", () => {
 	});
 });
 
+describe("messageBody", () => {
+	test("keeps a Sentry alert's issue link from its blocks", () => {
+		const blocks = [
+			{
+				type: "section",
+				text: {
+					type: "mrkdwn",
+					text: ":red_circle: <https://imagenai.sentry.io/issues/7812764568/?referrer=slack&amp;environment=prod|*AttributeError*>",
+				},
+			},
+		];
+		expect(
+			messageBody({
+				text: "[web-server] AttributeError: 'NoneType' object has no attribute",
+				blocks,
+			}),
+		).toBe(
+			"[web-server] AttributeError: 'NoneType' object has no attribute\nhttps://imagenai.sentry.io/issues/7812764568",
+		);
+		// Already in the text: not repeated. No Sentry link: unchanged.
+		const linked = "see https://imagenai.sentry.io/issues/7812764568";
+		expect(messageBody({ text: linked, blocks })).toBe(linked);
+		expect(messageBody({ text: "hi", blocks: [{ type: "divider" }] })).toBe(
+			"hi",
+		);
+	});
+});
+
 describe("onlyImage", () => {
 	test("a message with no text but a screenshot is that screenshot", () => {
 		const url = "https://files.slack.com/files-pri/T1-F1/image.png";

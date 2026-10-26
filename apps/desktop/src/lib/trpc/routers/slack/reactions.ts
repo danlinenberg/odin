@@ -35,6 +35,7 @@ export interface SlackReactionsListItem {
 		text?: string;
 		attachments?: SlackAttachment[];
 		files?: SlackFile[];
+		blocks?: unknown[];
 		ts?: string;
 		thread_ts?: string;
 		permalink?: string;
@@ -60,6 +61,25 @@ export interface SlackFile {
  * only a screenshot falls back to the image's link, one per line.
  */
 export function messageBody(message: {
+	text?: string;
+	attachments?: SlackAttachment[];
+	files?: SlackFile[];
+	blocks?: unknown[];
+}): string {
+	const body = readableBody(message);
+	// Sentry's `text` is a fallback ("[web-server] AttributeError: ...") with
+	// no link: the issue link lives only in its blocks. Keep it, so the same
+	// alert posted to a channel and DMed can be told apart from a new one.
+	const links = [
+		...new Set(JSON.stringify(message.blocks ?? []).match(SENTRY_LINK)),
+	].filter((link) => !body.includes(link));
+	return links.length ? [body, ...links].join("\n") : body;
+}
+
+const SENTRY_LINK =
+	/https:\/\/[^\s"|>\\]*sentry\.io\/(?:organizations\/[^/\s"]+\/)?issues\/\d+/g;
+
+function readableBody(message: {
 	text?: string;
 	attachments?: SlackAttachment[];
 	files?: SlackFile[];
