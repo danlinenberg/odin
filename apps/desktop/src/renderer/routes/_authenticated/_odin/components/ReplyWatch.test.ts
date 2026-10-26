@@ -3,6 +3,8 @@ import {
 	conditionOutcome,
 	conditionPrompt,
 	newReplies,
+	restartedWatches,
+	resumeWatchPrompt,
 	sessionThread,
 	startedWorking,
 	unreadPing,
@@ -292,4 +294,35 @@ test("a session watching for a condition is left uncompacted until it fires", ()
 	s().fire(key, "Happened");
 	expect(watchingFor(s().watches, "pane-c")).toBe(false);
 	s().toggle([], "", "pane-c");
+});
+
+test("a watch is handed back only to a Claude that left and came back", () => {
+	const watches = {
+		"when:p1:1": {
+			title: "t",
+			paneId: "p1",
+			condition: "the deploy is done",
+			since: 1,
+		},
+		"when:p2:1": {
+			title: "t",
+			paneId: "p2",
+			condition: "CI passes",
+			since: 1,
+			stamp: "fired",
+		},
+		"slack:C1:1.1": { title: "t", paneId: "p1" },
+	};
+	const back = new Set(["p1", "p2"]);
+	// The first look: a Claude already running kept its checks.
+	expect(restartedWatches(watches, null, back)).toEqual([]);
+	// Still running (an idle stretch): nothing to re-arm.
+	expect(restartedWatches(watches, back, back)).toEqual([]);
+	// Gone and back: the pending watch only, not the fired one or a thread.
+	expect(restartedWatches(watches, new Set(), back)).toEqual([
+		{ paneId: "p1", condition: "the deploy is done" },
+	]);
+	const prompt = resumeWatchPrompt("the deploy is done");
+	expect(prompt).toContain("This session restarted");
+	expect(prompt).toContain(conditionPrompt("the deploy is done"));
 });

@@ -254,6 +254,41 @@ export function conditionPrompt(condition: string): string {
 	].join("\n");
 }
 
+/**
+ * What Odin types into a watching session whose Claude restarted. The checks
+ * Claude scheduled (CronCreate, /loop) lived in the old process, so nothing
+ * checks any more until it schedules them again.
+ */
+export function resumeWatchPrompt(condition: string): string {
+	return [
+		"This session restarted, and the checks you scheduled for the watch below stopped with it. Check it now, then schedule your checks again. If one is still scheduled, don't add a second.",
+		conditionPrompt(condition),
+	].join("\n");
+}
+
+/**
+ * The "Ping me when..." watches to re-arm: their session's Claude was gone
+ * and is back (resumed, relaunched, respawned). `before` is null until the
+ * first look - a Claude already running then kept its checks.
+ */
+export function restartedWatches(
+	watches: Record<string, Watch>,
+	before: ReadonlySet<string> | null,
+	now: ReadonlySet<string>,
+): { paneId: string; condition: string }[] {
+	if (!before) return [];
+	return Object.entries(watches).flatMap(([key, w]) =>
+		key.startsWith(WHEN) &&
+		w.stamp !== FIRED &&
+		w.condition &&
+		w.paneId &&
+		now.has(w.paneId) &&
+		!before.has(w.paneId)
+			? [{ paneId: w.paneId, condition: w.condition }]
+			: [],
+	);
+}
+
 const PING_LINE =
 	/^[\s>*_`]*ODIN PING:\s*(HAPPENED|GAVE UP)\b[\s*_`]*-?\s*(.*)$/gim;
 
