@@ -193,7 +193,7 @@ test("Ping me when... keeps the session's other watches and fires once", () => {
 	s().seen("pane-w");
 	expect(s().watches[key ?? ""]).toBeUndefined();
 	expect(s().watches["jira:W-1"]?.paneId).toBe("pane-w");
-	s().toggle([], "", "pane-w");
+	s().stop("pane-w");
 });
 
 test("a condition Claude gave up on says so", () => {
@@ -204,7 +204,7 @@ test("a condition Claude gave up on says so", () => {
 	);
 	s().fire(key ?? "", "Gave up");
 	expect(watchEvent(key ?? "", s().watches[key ?? ""])).toBe("Gave up");
-	s().toggle([], "", "pane-g");
+	s().stop("pane-g");
 });
 
 test("a PR approved before its first check pings once, then not again", () => {
@@ -218,7 +218,7 @@ test("a PR approved before its first check pings once, then not again", () => {
 	expect(newReplies(useReplyWatch.getState().watches, activity)).toEqual([pr]);
 	useReplyWatch.getState().setStamps({ [pr]: "approved" });
 	expect(newReplies(useReplyWatch.getState().watches, activity)).toEqual([]);
-	toggle([], "", "pane-12");
+	useReplyWatch.getState().stop("pane-12");
 });
 
 test("a Ping me when... watch doesn't pull in the session's PRs or thread", () => {
@@ -227,7 +227,25 @@ test("a Ping me when... watch doesn't pull in the session's PRs or thread", () =
 	s().add(["pr:https://github.com/o/r/pull/7", "slack:CR:3.3"], "pane-c");
 	expect(s().watches["pr:https://github.com/o/r/pull/7"]).toBeUndefined();
 	expect(s().watches["slack:CR:3.3"]).toBeUndefined();
-	s().toggle([], "", "pane-c");
+	s().stop("pane-c");
+});
+
+test("Ping me on or off leaves a Ping me when... watch running", () => {
+	const s = () => useReplyWatch.getState();
+	s().watchFor("Avigail responds", "Review", "pane-k");
+	const when =
+		Object.keys(s().watches).find((k) => k.startsWith("when:")) ?? "";
+	// On: the thread joins; the condition stays.
+	s().toggle(["slack:CK:4.4"], "Review", "pane-k");
+	expect(s().watches["slack:CK:4.4"]?.paneId).toBe("pane-k");
+	expect(s().watches[when]?.condition).toBe("Avigail responds");
+	// Off: only the thread goes.
+	s().toggle([], "", "pane-k");
+	expect(s().watches["slack:CK:4.4"]).toBeUndefined();
+	expect(s().watches[when]?.condition).toBe("Avigail responds");
+	// The pill's Stop ends both.
+	s().stop("pane-k");
+	expect(s().watches[when]).toBeUndefined();
 });
 
 test("the ✕ on one ping dismisses only that ping", () => {
@@ -250,7 +268,7 @@ test("the ✕ on one ping dismisses only that ping", () => {
 	s().dismiss(when);
 	expect(s().watches[when]).toBeUndefined();
 	expect(s().watches["slack:CD:2.2"]?.reply).toBe("Any news?");
-	s().toggle([], "", "pane-d");
+	s().stop("pane-d");
 });
 
 test("dismissing a condition watch that has not fired leaves it watching", () => {
@@ -262,7 +280,7 @@ test("dismissing a condition watch that has not fired leaves it watching", () =>
 	s().dismiss(when);
 	expect(s().watches[when]?.condition).toBe("the edit is done");
 	s().dismiss("no-such-key");
-	s().toggle([], "", "pane-n");
+	s().stop("pane-n");
 });
 
 test("an unread ping says what fired, so a PR approval doesn't read as a reply", () => {
@@ -291,5 +309,5 @@ test("a session watching for a condition is left uncompacted until it fires", ()
 	expect(watchingFor(s().watches, "pane-other")).toBe(false);
 	s().fire(key, "Happened");
 	expect(watchingFor(s().watches, "pane-c")).toBe(false);
-	s().toggle([], "", "pane-c");
+	s().stop("pane-c");
 });
