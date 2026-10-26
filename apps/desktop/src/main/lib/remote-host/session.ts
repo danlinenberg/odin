@@ -124,20 +124,31 @@ export const stashScript =
 	'umask 077; d=$(mktemp -d -p /dev/shm odin.XXXXXX) && cat > "$d/env" && echo "$d"';
 
 /**
- * A host's first Claude stops at the theme picker and then the folder-trust
- * question, with nobody watching. Mark both answered in ~/.claude.json, for
- * the folder the session starts in (argv[1]).
+ * A host's first Claude stops at the theme picker, the folder-trust question
+ * and the one-time "Bypass Permissions mode" warning (sessions run with
+ * --dangerously-skip-permissions), with nobody watching: the chat view only
+ * says Working. Mark them answered - the first two in ~/.claude.json, for
+ * the folder the session starts in (argv[1]), the warning in
+ * ~/.claude/settings.json, as Odin does on this computer.
  */
-const SKIP_FIRST_RUN = `import json, os, sys
+export const SKIP_FIRST_RUN = `import json, os, sys
+def load(p):
+    try:
+        return json.load(open(p))
+    except Exception:
+        return {}
 p = os.path.expanduser("~/.claude.json")
-try:
-    c = json.load(open(p))
-except Exception:
-    c = {}
+c = load(p)
 c.setdefault("hasCompletedOnboarding", True)
 c.setdefault("theme", "dark")
 c.setdefault("projects", {}).setdefault(sys.argv[1], {})["hasTrustDialogAccepted"] = True
-json.dump(c, open(p, "w"), indent=2)`;
+json.dump(c, open(p, "w"), indent=2)
+p = os.path.expanduser("~/.claude/settings.json")
+s = load(p)
+if s.get("skipDangerousModePermissionPrompt") is not True:
+    s["skipDangerousModePermissionPrompt"] = True
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    json.dump(s, open(p, "w"), indent=2)`;
 
 /**
  * The GitHub CLI, so the agent can open PRs from the host. Downloaded into
