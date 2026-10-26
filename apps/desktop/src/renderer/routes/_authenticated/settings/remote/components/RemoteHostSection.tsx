@@ -23,6 +23,7 @@ import {
 	HiMinusCircle,
 	HiXCircle,
 } from "react-icons/hi2";
+import { LuLoaderCircle } from "react-icons/lu";
 import {
 	type ElectronRouterOutputs,
 	electronTrpc,
@@ -984,7 +985,8 @@ function HostStatusPill() {
 	);
 	if (!result)
 		return isFetching ? (
-			<span className="text-xs font-normal text-muted-foreground">
+			<span className="inline-flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
+				<LuLoaderCircle className="size-3 animate-spin" />
 				Checking...
 			</span>
 		) : null;
@@ -1177,6 +1179,9 @@ function HostHealthRow({
 						disabled={checking}
 						onClick={() => void health.refetch()}
 					>
+						{health.isFetching && (
+							<LuLoaderCircle className="size-4 animate-spin" />
+						)}
 						{health.isFetching ? "Checking..." : "Check again"}
 					</Button>
 					{result && (
