@@ -57,7 +57,7 @@ test("parseHostLoad reads the home volume's free disk, and does without it", () 
 			`DiskFree: ${disk}`,
 			"8",
 		].join("\n");
-	expect(parseHostLoad(out("67.4"))?.diskFreePercent).toBe(67.4);
-	expect(parseHostLoad(out(""))).not.toHaveProperty("diskFreePercent");
+	expect(parseHostLoad(out("67.4"))?.diskFreeGb).toBe(67.4);
+	expect(parseHostLoad(out(""))).not.toHaveProperty("diskFreeGb");
 	expect(parseHostLoad(out(""))?.cores).toBe(8);
 });

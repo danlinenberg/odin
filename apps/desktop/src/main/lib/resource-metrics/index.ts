@@ -64,8 +64,8 @@ interface HostMetrics {
 	 * system+user, i.e. 100 minus idle.
 	 */
 	cpuUsagePercent: number;
-	/** Free space on the home volume, 0-100. Unset when statfs fails. */
-	diskFreePercent?: number;
+	/** Free space on the home volume, in bytes. Unset when statfs fails. */
+	diskFreeBytes?: number;
 }
 
 export interface ResourceMetricsSnapshot {
@@ -98,10 +98,10 @@ function normalizeFiniteNumber(value: unknown): number {
 	return Math.max(0, value);
 }
 
-function readDiskFreePercent(): number | undefined {
+function readDiskFreeBytes(): number | undefined {
 	try {
-		const { bavail, blocks } = statfsSync(os.homedir());
-		return blocks > 0 ? (bavail / blocks) * 100 : undefined;
+		const { bavail, bsize } = statfsSync(os.homedir());
+		return bavail * bsize;
 	} catch {
 		return undefined;
 	}
@@ -130,7 +130,7 @@ function createHostMetrics(availableMemory?: number): HostMetrics {
 		cpuCoreCount,
 		loadAverage1m,
 		cpuUsagePercent,
-		diskFreePercent: readDiskFreePercent(),
+		diskFreeBytes: readDiskFreeBytes(),
 	};
 }
 

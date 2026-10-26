@@ -200,7 +200,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		label: "Hold new sessions when free disk is under",
 		to: "/settings/sessions",
 		section: "When they start",
-		keywords: "disk space full free percent launch limit queue",
+		keywords: "disk space full free gb launch limit queue",
 	},
 	{
 		label: "Hold new sessions when this many are working",

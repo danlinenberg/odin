@@ -195,8 +195,8 @@ function loadStatus(
 			? `${load.reason} - new sessions wait until that clears. ${load.agentCount} session(s) using ${load.agentMemoryGb} GB; this Mac is ${load.cpuPercent}% busy with ${load.availableMemoryGb} GB free.`
 			: `This Mac: ${load.agentCount} session(s) using ${load.agentMemoryGb} GB of memory, ${load.availableMemoryGb} GB free. Agents are on ${load.agentCpuPercent}% of the CPU · this Mac is ${load.cpuPercent}% busy.`
 	}${
-		load.diskFreePercent !== null
-			? ` Disk ${load.diskFreePercent}% free; new sessions wait below ${limits.minFreeDiskPercent}% (Settings → Sessions).`
+		load.diskFreeGb !== null
+			? ` Disk ${load.diskFreeGb} GB free; new sessions wait below ${limits.minFreeDiskGb} GB (Settings → Sessions).`
 			: ""
 	}`;
 	if (freeing) return { tone: "attention", bar: "Freeing disk…", detail };
@@ -206,9 +206,9 @@ function loadStatus(
 		load.cpuPercent >= limits.hostCpuPercent - 15 && `CPU ${load.cpuPercent}%`,
 		load.availableMemoryGb < limits.minFreeMemoryGb + 1 &&
 			`${load.availableMemoryGb} GB free`,
-		load.diskFreePercent !== null &&
-			load.diskFreePercent < limits.minFreeDiskPercent + 10 &&
-			`disk ${load.diskFreePercent}%`,
+		load.diskFreeGb !== null &&
+			load.diskFreeGb < limits.minFreeDiskGb + 20 &&
+			`disk ${load.diskFreeGb} GB`,
 	].filter(Boolean);
 	return tight.length > 0
 		? { tone: "attention", bar: tight.join(" · "), detail }
@@ -355,12 +355,12 @@ function OdinShell() {
 	);
 	const hostCpuPercent = useLaunchLimits((s) => s.hostCpuPercent);
 	const minFreeMemoryGb = useLaunchLimits((s) => s.minFreeMemoryGb);
-	const minFreeDiskPercent = useLaunchLimits((s) => s.minFreeDiskPercent);
+	const minFreeDiskGb = useLaunchLimits((s) => s.minFreeDiskGb);
 	const maxWorkingAgents = useLaunchLimits((s) => s.maxWorkingAgents);
 	const limits = {
 		hostCpuPercent,
 		minFreeMemoryGb,
-		minFreeDiskPercent,
+		minFreeDiskGb,
 		maxWorkingAgents,
 	};
 	const load = metrics ? machineLoad(metrics, limits) : null;
@@ -379,8 +379,7 @@ function OdinShell() {
 			counts.set(host, (counts.get(host) ?? 0) + 1);
 		return [...counts];
 	}, [remoteHostLines]);
-	const diskFull =
-		load?.diskFreePercent != null && load.diskFreePercent < minFreeDiskPercent;
+	const diskFull = load?.diskFreeGb != null && load.diskFreeGb < minFreeDiskGb;
 	// The disk pill offers what the 10-minute pruner would delete anyway (the
 	// "safe" rows in Settings → Storage), so a full disk is one click from free.
 	const trpcUtils = electronTrpc.useUtils();
@@ -817,7 +816,7 @@ function StatusPill({
 			t.remoteHost.launchGate({ host }, { refetchInterval: 15_000 }),
 		),
 	);
-	const minFreeDiskPercent = useLaunchLimits((s) => s.minFreeDiskPercent);
+	const minFreeDiskGb = useLaunchLimits((s) => s.minFreeDiskGb);
 	const items: StatusItem[] = [
 		usage?.fiveHour && usageStatus("5h", "5-hour window", usage.fiveHour),
 		usage?.week && usageStatus("week", "This week", usage.week),
@@ -837,12 +836,11 @@ function StatusPill({
 					detail: `${gate.reason} - new sessions there wait until that clears.`,
 				};
 			const diskLow =
-				gate?.diskFreePercent != null &&
-				gate.diskFreePercent < minFreeDiskPercent + 10;
+				gate?.diskFreeGb != null && gate.diskFreeGb < minFreeDiskGb + 20;
 			return {
 				tone: diskLow ? "attention" : "ok",
-				bar: diskLow ? `${host} disk ${gate.diskFreePercent}%` : "",
-				detail: `${host}: ${sessions} session(s).${gate?.freeGb != null ? ` It has ${gate.freeGb} GB free.` : " No memory reading yet."}${gate?.diskFreePercent != null ? ` Disk ${gate.diskFreePercent}% free.` : ""}`,
+				bar: diskLow ? `${host} disk ${gate.diskFreeGb} GB` : "",
+				detail: `${host}: ${sessions} session(s).${gate?.freeGb != null ? ` It has ${gate.freeGb} GB free.` : " No memory reading yet."}${gate?.diskFreeGb != null ? ` Disk ${gate.diskFreeGb} GB free.` : ""}`,
 			};
 		}),
 	].filter((item): item is StatusItem => !!item);

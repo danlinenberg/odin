@@ -4,8 +4,8 @@ export interface HostLoad {
 	memTotalMb: number;
 	load1: number;
 	cores: number;
-	/** Free space on the home volume, 0-100. Unset from a helper that predates it. */
-	diskFreePercent?: number;
+	/** Free space on the home volume, in GB. Unset when df fails. */
+	diskFreeGb?: number;
 }
 
 export interface HostLoadReading extends HostLoad {
@@ -21,10 +21,10 @@ export interface HostLoadReading extends HostLoad {
  * The slice's current figure counts its file cache too, which the kernel
  * drops before it gets near the cap; UserSliceCache is that part (file pages
  * less shared memory, which can't be dropped). DiskFree is the home volume's
- * free share, which runs out first as worktrees pile up.
+ * free GB, which runs out first as worktrees pile up.
  */
 export const HOST_LOAD_COMMAND =
-	'cat /proc/meminfo /proc/loadavg; echo UserSliceCurrent: $(cat /sys/fs/cgroup/user.slice/memory.current 2>/dev/null); echo UserSliceMax: $(cat /sys/fs/cgroup/user.slice/memory.max 2>/dev/null); echo UserSliceCache: $(awk \'$1=="file"{f=$2} $1=="shmem"{s=$2} END{if(f!="")print f-s}\' /sys/fs/cgroup/user.slice/memory.stat 2>/dev/null); echo DiskFree: $(df -Pk ~ 2>/dev/null | awk \'NR==2 && $2>0{printf "%.1f", $4*100/$2}\'); nproc';
+	'cat /proc/meminfo /proc/loadavg; echo UserSliceCurrent: $(cat /sys/fs/cgroup/user.slice/memory.current 2>/dev/null); echo UserSliceMax: $(cat /sys/fs/cgroup/user.slice/memory.max 2>/dev/null); echo UserSliceCache: $(awk \'$1=="file"{f=$2} $1=="shmem"{s=$2} END{if(f!="")print f-s}\' /sys/fs/cgroup/user.slice/memory.stat 2>/dev/null); echo DiskFree: $(df -Pk ~ 2>/dev/null | awk \'NR==2{printf "%.1f", $4/1048576}\'); nproc';
 
 /** The numbers in `HOST_LOAD_COMMAND`'s output, or null when any is missing. */
 export function parseHostLoad(text: string): HostLoad | null {
@@ -51,10 +51,8 @@ export function parseHostLoad(text: string): HostLoad | null {
 	};
 	if (!Object.values(load).every(Number.isFinite) || load.memTotalMb <= 0)
 		return null;
-	const diskFreePercent = Number(
-		text.match(/^DiskFree: (\d+(?:\.\d+)?)$/m)?.[1],
-	);
-	return Number.isFinite(diskFreePercent) ? { ...load, diskFreePercent } : load;
+	const diskFreeGb = Number(text.match(/^DiskFree: (\d+(?:\.\d+)?)$/m)?.[1]);
+	return Number.isFinite(diskFreeGb) ? { ...load, diskFreeGb } : load;
 }
 
 /** Free memory below which a host's sessions stall: typing and output stop. */

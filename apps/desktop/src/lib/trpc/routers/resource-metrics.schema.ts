@@ -42,7 +42,7 @@ const hostMetricsSchema = zod.object({
 	/** Whole machine, 0-100. Zero on a snapshot collected before this existed. */
 	cpuUsagePercent: nonNegativeFiniteNumberSchema.default(0),
 	/** Free space on the home volume, 0-100. Unset when it couldn't be read. */
-	diskFreePercent: nonNegativeFiniteNumberSchema.optional(),
+	diskFreeBytes: nonNegativeFiniteNumberSchema.optional(),
 });
 
 export const resourceMetricsSnapshotSchema = zod.object({

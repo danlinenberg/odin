@@ -18,7 +18,22 @@ export const useLaunchLimits = create<LaunchLimitsState>()(
 		}),
 		// A saved choice wins over the default, so only new installs start with
 		// one-session-per-repo off.
-		{ name: "odin-launch-limits" },
+		{
+			name: "odin-launch-limits",
+			version: 1,
+			// v0 held disk as a percent; a saved 0 (no limit) stays 0, anything
+			// else takes the GB default.
+			migrate: (state) => {
+				const { minFreeDiskPercent, ...rest } = state as LaunchLimits & {
+					minFreeDiskPercent?: number;
+				};
+				return {
+					...rest,
+					minFreeDiskGb:
+						minFreeDiskPercent === 0 ? 0 : DEFAULT_LAUNCH_LIMITS.minFreeDiskGb,
+				} as LaunchLimitsState;
+			},
+		},
 	),
 );
 
@@ -27,7 +42,7 @@ export function launchLimits(state: LaunchLimits): LaunchLimits {
 	return {
 		hostCpuPercent: state.hostCpuPercent,
 		minFreeMemoryGb: state.minFreeMemoryGb,
-		minFreeDiskPercent: state.minFreeDiskPercent,
+		minFreeDiskGb: state.minFreeDiskGb,
 		maxWorkingAgents: state.maxWorkingAgents,
 		oneSessionPerCheckout: state.oneSessionPerCheckout,
 	};
