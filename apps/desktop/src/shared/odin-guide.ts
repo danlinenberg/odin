@@ -153,7 +153,6 @@ The sidebar shows: Connections, Sessions, Remote, Storage, Backlog & Night Agent
 A session's life on this Mac, top to bottom. Besides the launch gate limits ("When they start", below):
 - **Where they start → Default folder**: where a session starts when no repo is picked. Unset: the folder your repos live in.
 - **Where they start → Full Disk Access**: without it, macOS asks each time a session reads Music, Photos, Desktop or Documents.
-- **Your voice**: on by default. Every session starts with the guide Odin learns from your Slack messages written into its instructions, so drafts you send as yourself sound like you. Odin retrains on its own - daily from your sent messages, after every 15 new ones it sees, and from how you rewrote a session's drafts before sending - using counted numbers (length, capitals, periods, Hebrew, emoji) and where each message went. A switch turns it off; Train now retrains at once; the guide is shown, and Corrections (one per line) always win over it.
 - **On the board → Rename sessions automatically** (default on): renames each card once, after what it turned out to be about. Names you set are kept.
 - **On the board → Compact conversations moved to Idle** (default off): /compact the moment a card is parked in Idle or waits there on others, while Claude's cache of it is still warm.
 - **On the board → Read replies aloud** (default off): once a turn is over, Odin says the reply out loud in the open chat view - its TL;DR when the brief has one, else the reply itself. **Speech speed** sets how fast (0.5x to 2x). The speaker button under the latest reply reads it, or stops it, any time.
@@ -210,6 +209,9 @@ Three tabs: Schedules, Rules, Reminders.
 
 ## One by one
 Huginn can line up backlog tasks to run one after another: each starts when the last stops working. Odin drives the line. Store: oneByOne (ids left; set ids to [] to stop).
+
+## Personalization settings (Settings → Personalization)
+- **Your voice**: on by default. Every session starts with the guide Odin learns from your Slack messages written into its instructions, so drafts you send as yourself sound like you. Odin retrains on its own - daily from your sent messages, after every 15 new ones it sees, and from how you rewrote a session's drafts before sending - using counted numbers (length, capitals, periods, Hebrew, emoji) and where each message went. A switch turns it off; Train now retrains at once; the guide is shown, and Corrections (one per line) always win over it.
 
 ## Launch gate and Queued (Settings → Sessions → When they start)
 A started session waits in Idle under "Queued", with a reason, until all limits allow it. Nothing is refused - the card exists from the start. Changes apply within 5 seconds.
