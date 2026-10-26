@@ -5,6 +5,7 @@ import {
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
+	realpathSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
@@ -492,7 +493,8 @@ test("a Resume files a conversation sent from this computer where Claude starts,
 			.split("\n")
 			.find((l) => l.includes(sentConversation("abc"))) ?? "false";
 	expect(runScript(spec, "/d")).not.toContain(sentConversation("abc"));
-	const home = mkdtempSync(join(tmpdir(), "odin-sent-"));
+	// Real path: bash's $PWD has no symlinks (macOS /tmp is /private/tmp).
+	const home = realpathSync(mkdtempSync(join(tmpdir(), "odin-sent-")));
 	const start = join(home, "repos", "x");
 	mkdirSync(join(home, ".odin"), { recursive: true });
 	mkdirSync(start, { recursive: true });
