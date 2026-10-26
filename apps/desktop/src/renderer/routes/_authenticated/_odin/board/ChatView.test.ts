@@ -1190,3 +1190,22 @@ test("an earlier command no item asks for again is left out, not put at the foot
 		earlierCommandHomes(earlier, [], ["Send the message from my last reply."]),
 	).toEqual([-2, -2]);
 });
+
+test("commands go under the item that runs them, not one that shares loose words", () => {
+	const items = [
+		"Run the three commands above to free about 11 GB (you only)",
+		"Free about 17 GB more [photos | Claude app data | Ubuntu VM | Library caches] (you only)",
+	];
+	for (const command of [
+		"cd ~/dev && du -shc imagen/app-design-prototype/node_modules 2>/dev/null | tail -1",
+		"cd ~/dev && rm -rf imagen/app-design-prototype/node_modules",
+		"df -h /System/Volumes/Data | tail -1",
+	])
+		expect(commandItem(command, items)).toBe(0);
+});
+
+test("a Run label keeps the underscores inside a word", () => {
+	expect(
+		commandLabel("Delete the old venv, node_modules and _build_ folders:"),
+	).toBe("Delete the old venv, node_modules and build folders");
+});

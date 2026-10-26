@@ -2247,8 +2247,12 @@ function commandScore(command: string, item: string): number {
 	const quoted = [...item.matchAll(/`([^`\n]+)`/g)].filter(([, code]) =>
 		command.includes((code ?? "").trim()),
 	);
-	const score = shared.size + acronyms.size + 2 * quoted.length;
 	const runs = /^(optional:\s*)?(run|execute|install)\b/i.test(item.trim());
+	// Loose shared words count only for an item that tells you to run
+	// something: "Free about 17 GB more [Claude app data]" shared "app" and
+	// "data" with a delete under `/System/Volumes/Data` and took the buttons
+	// from "Run the three commands above".
+	const score = (runs ? shared.size : 0) + acronyms.size + 2 * quoted.length;
 	return score > 0 && runs ? score + 1 : score;
 }
 
