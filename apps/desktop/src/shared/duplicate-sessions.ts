@@ -1,3 +1,4 @@
+import { sentryRefs } from "./sentry-refs";
 import type { Pane } from "./tabs-types";
 
 /** Ticket keys - BUGT-4008, CRR-870 - the same ask reaching you twice. */
@@ -22,9 +23,8 @@ function titleWords(title: string): Set<string> {
 }
 
 function tickets(pane: Pane): Set<string> {
-	return new Set(
-		`${pane.odinTaskTitle ?? ""} ${pane.odinBrief ?? ""}`.match(TICKET) ?? [],
-	);
+	const text = `${pane.odinTaskTitle ?? ""} ${pane.odinBrief ?? ""}`;
+	return new Set([...(text.match(TICKET) ?? []), ...sentryRefs(text)]);
 }
 
 function sharesAny<T>(a: Set<T>, b: Set<T>, atLeast = 1): boolean {
@@ -39,8 +39,8 @@ function sharesAny<T>(a: Set<T>, b: Set<T>, atLeast = 1): boolean {
  * The launch guard only stops a second session on the SAME feed row. The same
  * ask arriving twice - a DM and a channel post, a Jira ticket and the Slack
  * thread about it - is two rows, and the overnight runner starts both. What
- * gives it away: the same Slack/Notion item, the same ticket key, or the same
- * person asking with two title words in common.
+ * gives it away: the same Slack/Notion item, the same ticket key or Sentry
+ * issue, or the same person asking with two title words in common.
  */
 export function duplicateSessions(panes: Pane[]): Map<string, string> {
 	const found = new Map<string, string>();

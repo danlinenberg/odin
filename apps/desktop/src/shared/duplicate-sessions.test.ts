@@ -68,3 +68,26 @@ it("pairs the same ask arriving twice, and nothing else", () => {
 		again: "first",
 	});
 });
+
+it("pairs two sessions on one Sentry issue", () => {
+	const found = duplicateSessions([
+		pane({
+			id: "channel",
+			odinTaskTitle: "Fix sell_profile crash",
+			odinBrief:
+				"AttributeError (https://imagenai.sentry.io/issues/7812764568/?referrer=slack)",
+		}),
+		pane({
+			id: "dm",
+			odinTaskTitle: "[web-server] AttributeError on update_successful",
+			odinBrief:
+				"AttributeError (https://imagenai.sentry.io/issues/7812764568/?referrer=issue_alert-slack)",
+		}),
+		pane({
+			id: "other",
+			odinTaskTitle: "Another error",
+			odinBrief: "https://imagenai.sentry.io/issues/1234/",
+		}),
+	]);
+	expect(Object.fromEntries(found)).toEqual({ channel: "dm", dm: "channel" });
+});
