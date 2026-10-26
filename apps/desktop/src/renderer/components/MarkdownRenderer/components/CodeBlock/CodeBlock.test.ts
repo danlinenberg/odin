@@ -9,6 +9,23 @@ test("a drafted message is prose, commands and trees are not", () => {
 	).toBe(true);
 	expect(looksLikeProse("bun run compile:app\ngit status")).toBe(false);
 	expect(looksLikeProse("src/\n  index.ts\n  lib/")).toBe(false);
+	// A draft whose lines skip the final period is still a draft.
+	expect(
+		looksLikeProse(
+			"Hey, went over the Studio Usage tab - 3 things look off:\n\n2. Culling line dropping 149 → 40 users - the culling projects part of the query filters `software_version = '27.0.1'`. Week of Oct 18 that's 70 of 1,313 culling projects for flag users, the rest are on newer 27.x",
+		),
+	).toBe(true);
+	expect(
+		looksLikeProse(
+			"curl -sf http://127.0.0.1:$ODIN_PORT/odin --data-urlencode action=worktree --data-urlencode repo=/Users/dan/dev/private/odin --data-urlencode name=fix -o out.json -w %{http_code}",
+		),
+	).toBe(false);
+	// A long English comment doesn't make code a draft.
+	expect(
+		looksLikeProse(
+			"key = os.environ['KEY']\n# Handle a key that may be stored on a single line in the secrets manager format\nif not key:\n    raise ValueError(key)",
+		),
+	).toBe(false);
 	// Hebrew drafts rarely end a line with a period.
 	expect(
 		looksLikeProse("לגבי האיטיות - נראה לי שהבעיה בhost\n1. תפתחי Settings"),
