@@ -158,14 +158,7 @@ async function claudeLogin(): Promise<{ ok: boolean; error?: string }> {
 	login?.kill();
 	const env = await getProcessEnvWithShellPath();
 	const bin = findClaude(env.PATH ?? "");
-	if (!bin)
-		return {
-			ok: false,
-			error:
-				process.platform === "win32"
-					? "Claude Code was not found. Install it in PowerShell: irm https://claude.ai/install.ps1 | iex"
-					: "Claude Code was not found.",
-		};
+	if (!bin) return { ok: false, error: "Claude Code was not found." };
 	let child: ChildProcess;
 	try {
 		child = spawn(bin, ["auth", "login", "--claudeai"], {

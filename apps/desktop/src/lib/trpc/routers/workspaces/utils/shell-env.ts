@@ -237,7 +237,8 @@ export async function getProcessEnvWithShellPath(
 			"Path" in baseEnv ||
 			"Path" in shellEnvResult
 		) {
-			env.Path = shellPath;
+			// Windows reads Path and PATH as one: both carry Odin's own Claude.
+			env.Path = env.PATH;
 		}
 	}
 
