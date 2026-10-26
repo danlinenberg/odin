@@ -17,6 +17,7 @@ import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import { assertWorkspaceUsable } from "../workspaces/utils/usability";
 import { awsSsoLogin } from "./aws-sso";
+import { readLocalRun, startLocalRun } from "./local-run";
 import { resolveTerminalThemeType } from "./theme-type";
 import { getWorkspaceTerminalContext, resolveCwd } from "./utils";
 
@@ -339,6 +340,16 @@ export const createTerminalRouter = () => {
 			.query(async ({ input }) => ({
 				text: await terminal.readScreen(input),
 			})),
+
+		// Odin fork: a `!local` command for the session's Shell that keeps its
+		// output, and that output once it ends, for the board to hand Claude.
+		startLocalRun: publicProcedure
+			.input(z.object({ command: z.string().min(1) }))
+			.mutation(({ input }) => startLocalRun(input.command)),
+
+		localRunResult: publicProcedure
+			.input(z.object({ id: z.string().uuid() }))
+			.query(({ input }) => readLocalRun(input.id)),
 
 		listDaemonSessions: publicProcedure.query(async () => {
 			const { sessions } = await terminal.management.listSessions();

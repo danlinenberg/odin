@@ -91,6 +91,7 @@ import {
 	itemOptions,
 	itemReply,
 	localCommand,
+	localRunMessage,
 	noActionItems,
 	splitActionItems,
 } from "./action-items";
@@ -2427,7 +2428,7 @@ function RunCommand({
 				)}
 				<p className="mt-1.5 opacity-70">
 					{local
-						? "Runs in this session's Shell on this computer, where you can watch and stop it. Its output doesn't go back to Claude."
+						? "Runs in this session's Shell on this computer, where you can watch and stop it. When it ends, its output goes back to Claude."
 						: state === "sent"
 							? "Sent to this session; its output went back to Claude."
 							: "Runs in this session; its output goes back to Claude."}
@@ -2925,6 +2926,7 @@ export function ChatView({
 	working = false,
 	onShowTerminal,
 	onShellStarted,
+	onShellDone,
 	onStop,
 	onResumeWith,
 	onSend,
@@ -2947,6 +2949,8 @@ export function ChatView({
 	 * drawer shows it, so its output - and a prompt it waits on - are in view.
 	 */
 	onShellStarted?: (name: string) => void;
+	/** A `!local` run it started ended and its output went to Claude. */
+	onShellDone?: () => void;
 	/** Interrupt the turn - the drawer's Interrupt, so the card leaves Working too. */
 	onStop?: () => void;
 	/** Ended session: resume it with this as the opening message. */
@@ -3240,6 +3244,8 @@ export function ChatView({
 	workingRef.current = working;
 	const onSentRef = useRef(onSent);
 	onSentRef.current = onSent;
+	const onShellDoneRef = useRef(onShellDone);
+	onShellDoneRef.current = onShellDone;
 	// Stable, so the memoized rows don't all re-render on every poll.
 	// A ref, so a fresh arrow from the drawer doesn't re-render every message.
 	const onResumeRef = useRef(onResumeWith);
@@ -3285,20 +3291,37 @@ export function ChatView({
 		},
 		[paneId, write.mutateAsync],
 	);
+	const mountedRef = useRef(true);
+	useEffect(
+		() => () => {
+			mountedRef.current = false;
+		},
+		[],
+	);
 	// A `!local` block runs on this computer, in the session's Shell, which then
-	// shows; the rest go to Claude. A run with no session to run in says so,
-	// rather than the button claiming it started.
+	// shows; the rest go to Claude. Once it ends its output goes to Claude, and
+	// the drawer goes back to the chat if it still shows this session. A run
+	// with no session to run in says so, rather than the button claiming it
+	// started.
 	const runCommand = useCallback(
 		async (command: string) => {
 			const local = localCommand(command);
 			if (!local) return runInClaude(command);
-			if (!(await runInSessionShell(paneId, workspaceId, local, "local")))
+			const run = await electronTrpcClient.terminal.startLocalRun.mutate({
+				command: local,
+			});
+			if (!(await runInSessionShell(paneId, workspaceId, run.command, "local")))
 				throw new Error(
 					"Odin couldn't find this session to run the command in. Open its Shell and run it there.",
 				);
 			onShellStarted?.("local");
+			void localRunEnd(run.id).then((result) => {
+				if (!result) return;
+				sendToClaude(localRunMessage(local, result));
+				if (mountedRef.current) onShellDoneRef.current?.();
+			});
 		},
-		[paneId, workspaceId, runInClaude, onShellStarted],
+		[paneId, workspaceId, runInClaude, onShellStarted, sendToClaude],
 	);
 	const doItem = useCallback(
 		(item: string, number: number, approve: boolean, answer?: string) => {
@@ -3933,6 +3956,20 @@ export function ChatView({
 			)}
 		</div>
 	);
+}
+
+/** Checks for a `!local` run's end every 2s, for up to 2h. Null if it never ends. */
+async function localRunEnd(
+	id: string,
+): Promise<{ exitCode: number; output: string } | null> {
+	for (let waited = 0; waited < 2 * 60 * 60_000; waited += 2_000) {
+		await new Promise((resolve) => setTimeout(resolve, 2_000));
+		const result = await electronTrpcClient.terminal.localRunResult
+			.query({ id })
+			.catch(() => null);
+		if (result) return result;
+	}
+	return null;
 }
 
 /**
