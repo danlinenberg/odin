@@ -3,7 +3,14 @@ import { existsSync, statSync } from "node:fs";
 import { homedir, userInfo } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { app, powerMonitor, safeStorage, shell } from "electron";
+import {
+	app,
+	BrowserWindow,
+	Notification,
+	powerMonitor,
+	safeStorage,
+	shell,
+} from "electron";
 import { getNotifyScriptPath } from "main/lib/agent-setup/notify-hook";
 import { githubOwner, onGithubTokensChanged } from "main/lib/github-token";
 import {
@@ -95,6 +102,7 @@ import { awsClientConfig } from "main/lib/remote-host/ssm";
 import { resolveElectronBinary } from "main/lib/terminal-host/electron-binary";
 import { readVoice, voiceText } from "main/lib/voice-profile";
 import {
+	awsSignInNeeded,
 	hostNameProblem,
 	hostPackagesProblem,
 	hostPolicyArnProblem,
@@ -151,6 +159,9 @@ async function withAwsSignIn<T>(host: RemoteHost, call: () => Promise<T>) {
 		return call();
 	}
 }
+
+/** The Night Agent's last alert, closed when the next one replaces it. */
+let nightNotification: Notification | null = null;
 
 type RemoteHost = NonNullable<ReturnType<typeof readOdinConfig>["remoteHost"]>;
 
@@ -1182,10 +1193,49 @@ export const createRemoteHostRouter = () =>
 				);
 				return { sent: tasks.length };
 			}),
-		/** What the host's runner started tonight, for the board to adopt. */
+		/**
+		 * What the host's runner started tonight, for the board to adopt; which
+		 * night its plan is for; the windows that opened there with no plan.
+		 */
 		nightStarted: publicProcedure.query(async () => {
 			const host = readOdinConfig().remoteHost;
-			if (!host?.on) return [];
+			if (!host?.on) return { started: [], planFrom: null, missed: [] };
 			return readNightStarted(host);
 		}),
+		/**
+		 * The window opens soon and the host still has no plan for it: a
+		 * notification with the error. When an AWS sign-in fixes it, clicking it
+		 * starts that sign-in; otherwise it brings Odin forward.
+		 */
+		nightAlert: publicProcedure
+			.input(z.object({ error: z.string(), opensAt: z.number() }))
+			.mutation(({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host || !Notification.isSupported()) return { shown: false };
+				const aws = awsSignInNeeded(input.error);
+				const opens = new Date(input.opensAt * 1000).toLocaleTimeString([], {
+					hour: "2-digit",
+					minute: "2-digit",
+				});
+				const notification = new Notification({
+					title: `Night Agent: ${host.name || host.instanceId} has no plan for tonight`,
+					body: `The window opens at ${opens}. ${aws ? "Click to sign in to AWS - Odin sends the plan once you approve." : "Odin keeps retrying."} ${input.error}`.slice(
+						0,
+						240,
+					),
+				});
+				notification.on("click", () => {
+					if (aws) {
+						void awsSsoLogin(host.profile ?? null).done.catch(() => {});
+						return;
+					}
+					const window = BrowserWindow.getAllWindows()[0];
+					window?.show();
+					window?.focus();
+				});
+				nightNotification?.close();
+				nightNotification = notification;
+				notification.show();
+				return { shown: true };
+			}),
 	});

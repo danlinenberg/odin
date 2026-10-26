@@ -35,6 +35,12 @@ export interface NightPlan {
 	tasks: NightTask[];
 }
 
+/** A window that opened on the host with no plan for it, epoch seconds. */
+export interface NightMissed {
+	night: number;
+	at: number;
+}
+
 export interface NightStarted {
 	key: string;
 	title: string;
@@ -46,6 +52,8 @@ export const NIGHT_RUNNER_PY = `import json, os, shutil, subprocess, tempfile, t
 
 HOME = os.path.expanduser("~/.odin/night")
 PLAN, STATE = HOME + "/plan.json", HOME + "/state.json"
+MISSED = HOME + "/missed.json"
+DAY = 86400
 # The share of its memory this host must have free before one more session
 # starts here: the same share the laptop waits for before a launch to it.
 MIN_FREE_SHARE = ${MIN_HOST_FREE_MEMORY_SHARE}
@@ -99,10 +107,39 @@ def alive(session):
     return subprocess.run(["tmux", "has-session", "-t", session_name(session)], capture_output=True).returncode == 0
 
 
+def missed_night(plan, now):
+    """The start of the window open now when the plan is for an earlier night, or None.
+
+    The window repeats daily, so last night's plan says when tonight's opens."""
+    days = int((now - plan["from"]) // DAY)
+    if days < 1:
+        return None
+    start = plan["from"] + days * DAY
+    return start if now < plan["to"] + days * DAY else None
+
+
+def note_missed(plan, now):
+    """Records a window that opened with no plan for it, once, so the laptop can say why nothing ran."""
+    night = missed_night(plan, now)
+    if night is None:
+        return
+    missed = load(MISSED, [])
+    if any(m.get("night") == night for m in missed):
+        return
+    print("the window opened with no plan for tonight: the last plan is for an earlier night")
+    missed = (missed + [{"night": night, "at": now}])[-14:]
+    with open(MISSED + ".new", "w") as f:
+        json.dump(missed, f)
+    os.replace(MISSED + ".new", MISSED)
+
+
 def main():
     plan = load(PLAN, None)
     now = time.time()
-    if not plan or not plan["from"] <= now < plan["to"]:
+    if not plan:
+        return
+    if not plan["from"] <= now < plan["to"]:
+        note_missed(plan, now)
         return
     state = load(STATE, {})
     if state.get("plan") != plan["id"] and state.get("night") != plan["from"]:
@@ -234,19 +271,50 @@ export async function pushNightPlan(
 	}
 }
 
-/** What the host's runner started for the current plan, oldest first. */
-export async function readNightStarted(
-	host: HostLogin,
-): Promise<NightStarted[]> {
+/**
+ * What the host's runner started for the current plan, oldest first; which
+ * night its plan is for; and the windows that opened there with no plan.
+ */
+export async function readNightStarted(host: HostLogin): Promise<{
+	started: NightStarted[];
+	planFrom: number | null;
+	missed: NightMissed[];
+}> {
 	const client = await connectHost(host);
 	try {
-		const raw = await runOnHost(
-			client,
-			"cat ~/.odin/night/state.json 2>/dev/null || echo '{}'",
-		);
-		const state = JSON.parse(raw || "{}") as { started?: NightStarted[] };
-		return state.started ?? [];
+		const raw = await runOnHost(client, `python3 -c ${sh(READ_NIGHT_PY)}`);
+		return parseNightRead(raw);
 	} finally {
 		client.end();
 	}
+}
+
+/** Prints the runner's state, its plan's night and its missed windows as one JSON line. */
+export const READ_NIGHT_PY = `import json, os
+home = os.path.expanduser("~/.odin/night")
+def load(name, default):
+    try:
+        with open(home + "/" + name) as f:
+            return json.load(f)
+    except Exception:
+        return default
+plan = load("plan.json", None)
+print(json.dumps({"started": load("state.json", {}).get("started", []), "planFrom": plan.get("from") if isinstance(plan, dict) else None, "missed": load("missed.json", [])}))
+`;
+
+export function parseNightRead(raw: string): {
+	started: NightStarted[];
+	planFrom: number | null;
+	missed: NightMissed[];
+} {
+	const read = JSON.parse(raw || "{}") as {
+		started?: NightStarted[];
+		planFrom?: number | null;
+		missed?: NightMissed[];
+	};
+	return {
+		started: read.started ?? [],
+		planFrom: read.planFrom ?? null,
+		missed: read.missed ?? [],
+	};
 }
