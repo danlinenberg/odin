@@ -439,6 +439,8 @@ export const createRemoteHostRouter = () =>
 				updateOdinConfig({ awsInstances: input });
 			}),
 		awsProfiles: publicProcedure.query(() => listAwsProfiles()),
+		/** Until when claude-auto keeps this computer on the API key, epoch seconds; 0 when it doesn't. */
+		planLimitedUntil: publicProcedure.query(() => planLimitedUntil()),
 		/** The host's AWS profile is signed in, so a pane blocked on the sign-in can go on. */
 		awsSignedIn: publicProcedure.query(async () => {
 			const host = readOdinConfig().remoteHost;
