@@ -3394,6 +3394,26 @@ function DevBoardPage() {
 		}
 		return byPane;
 	}, [watchKey]);
+	// A question or plan on screen, per pane, from the transcripts above - as
+	// "<paneId>:<0|1>" so the cards only regroup when one actually changes.
+	const promptingKey = mergeCandidates
+		.flatMap(({ paneId }, i) => {
+			const data = mergeTranscripts[i]?.data;
+			return data ? [`${paneId}:${data.openPrompt ? 1 : 0}`] : [];
+		})
+		.join(",");
+	const promptingByPane = useMemo(
+		() =>
+			new Map(
+				promptingKey
+					? promptingKey.split(",").map((entry) => {
+							const [paneId = "", open] = entry.split(":");
+							return [paneId, open === "1"] as const;
+						})
+					: [],
+			),
+		[promptingKey],
+	);
 	const withMergeReady = useCallback(
 		(column: PaneStatus, paneId: string): PaneStatus =>
 			(column === "permission" || column === "review") &&
@@ -4234,6 +4254,7 @@ function DevBoardPage() {
 					),
 					status,
 					watchByPane.get(pane.id) ?? "none",
+					promptingByPane.get(pane.id),
 				);
 				for (const tag of boardTags(pane.odinTags, customTags))
 					tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
@@ -4301,6 +4322,7 @@ function DevBoardPage() {
 		loopingPaneIds,
 		withMergeReady,
 		watchByPane,
+		promptingByPane,
 		daemonSessions,
 		boardFilter,
 		viewedAt,

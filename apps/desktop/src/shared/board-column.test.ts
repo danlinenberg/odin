@@ -96,6 +96,18 @@ describe("withWaiting", () => {
 		expect(withWaiting("permission", "failed", "waiting")).toBe("permission");
 	});
 
+	it("lets a reply with open action items wait - no question or plan on screen", () => {
+		expect(withWaiting("permission", "permission", "waiting", false)).toBe(
+			"idle",
+		);
+		expect(withWaiting("permission", "permission", "waiting", true)).toBe(
+			"permission",
+		);
+		expect(withWaiting("permission", "permission", "replied", false)).toBe(
+			"permission",
+		);
+	});
+
 	it("leaves working cards and unpinged ones alone", () => {
 		expect(withWaiting("working", "working", "waiting")).toBe("working");
 		expect(withWaiting("review", "review", "none")).toBe("review");
