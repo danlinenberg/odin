@@ -215,6 +215,15 @@ test("a PR approved before its first check pings once, then not again", () => {
 	toggle([], "", "pane-12");
 });
 
+test("a Ping me when... watch doesn't pull in the session's PRs or thread", () => {
+	const s = () => useReplyWatch.getState();
+	s().watchFor("Avigail responds", "Review", "pane-c");
+	s().add(["pr:https://github.com/o/r/pull/7", "slack:CR:3.3"], "pane-c");
+	expect(s().watches["pr:https://github.com/o/r/pull/7"]).toBeUndefined();
+	expect(s().watches["slack:CR:3.3"]).toBeUndefined();
+	s().toggle([], "", "pane-c");
+});
+
 test("the ✕ on one ping dismisses only that ping", () => {
 	const s = () => useReplyWatch.getState();
 	s().toggle(["jira:D-1", "slack:CD:2.2"], "Deploy", "pane-d");

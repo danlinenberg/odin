@@ -86,9 +86,11 @@ export const useReplyWatch = create<{
 				}),
 			add: (keys, paneId) =>
 				set((s) => {
-					const title = Object.values(s.watches).find(
-						(w) => w.paneId === paneId,
-					)?.title;
+					// Only a session you turned Ping me on for: a "Ping me when..."
+					// watch asks for that one thing, not its PRs' approvals or replies.
+					const title = Object.entries(s.watches).find(
+						([key, w]) => w.paneId === paneId && !key.startsWith(WHEN),
+					)?.[1].title;
 					const fresh = keys.filter((k) => !s.watches[k]);
 					if (title === undefined || !fresh.length) return s;
 					return {
