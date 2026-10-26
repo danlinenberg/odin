@@ -8,13 +8,15 @@ import {
 	LuPlug,
 	LuSlidersHorizontal,
 	LuSquareTerminal,
+	LuUserPen,
 } from "react-icons/lu";
 
 /**
  * Odin's settings screens, each with the things on it spelled out underneath,
  * so you can tell where a setting lives without opening every screen. One
  * topic per screen: who you are (Connections), a session's life here
- * (Sessions), away from here (Remote), the disk (Storage), and so on. The
+ * (Sessions), how you sound (Personalization), away from here (Remote), the
+ * disk (Storage), and so on. The
  * inherited workspace sections keep their routes but have no entry here.
  */
 export const SCREENS = [
@@ -27,8 +29,14 @@ export const SCREENS = [
 	{
 		to: "/settings/sessions",
 		label: "Sessions",
-		hint: "Default folder, limits, your voice, idle close",
+		hint: "Default folder, limits, idle close",
 		icon: LuSquareTerminal,
+	},
+	{
+		to: "/settings/personalization",
+		label: "Personalization",
+		hint: "Your voice in Slack, Jira and GitHub drafts",
+		icon: LuUserPen,
 	},
 	{
 		to: "/settings/remote",
@@ -208,14 +216,14 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 	},
 	{
 		label: "Write drafts in my voice",
-		to: "/settings/sessions",
+		to: "/settings/personalization",
 		section: "Your voice",
 		keywords:
 			"voice tone style draft slack reply jira comment train learn writing corrections",
 	},
 	{
 		label: "Train now",
-		to: "/settings/sessions",
+		to: "/settings/personalization",
 		section: "Your voice",
 		keywords: "voice train learn style guide slack messages",
 	},

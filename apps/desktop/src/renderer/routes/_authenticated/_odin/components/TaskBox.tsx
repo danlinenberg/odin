@@ -253,8 +253,22 @@ export function TaskBox({
 	// you may have typed more by the time it lands - append to what's there then.
 	const latest = useRef(value);
 	latest.current = value;
+	// Screenshots still being saved, shown at once from their bytes. Saving a
+	// big one (read, sent to the main process, written) takes a visible while.
+	const [pending, setPending] = useState<{ file: File; url: string }[]>([]);
+	// Send pressed while one was saving: it goes once the paths are in.
+	const submitWhenSaved = useRef(false);
+	useEffect(() => {
+		if (pending.length > 0 || !submitWhenSaved.current) return;
+		submitWhenSaved.current = false;
+		onSubmit();
+	}, [pending.length, onSubmit]);
+	const submit = () => {
+		if (pending.length > 0) submitWhenSaved.current = true;
+		else onSubmit();
+	};
 	const [focused, setFocused] = useState(false);
-	const folded = !!compact && !focused && !value.trim();
+	const folded = !!compact && !focused && !value.trim() && pending.length === 0;
 	// Typing "/" at the head of the title opens the skill menu, like the
 	// session composer's. Opened by an edit, not by the text: an edit box that
 	// already reads "/gdpr" mustn't open on a menu.
@@ -314,7 +328,7 @@ export function TaskBox({
 	const keys = (event: React.KeyboardEvent) => {
 		if (isHotkey("SUBMIT", event.nativeEvent)) {
 			event.preventDefault();
-			onSubmit();
+			submit();
 		}
 		if (event.key === "Escape") onCancel?.();
 	};
@@ -322,12 +336,26 @@ export function TaskBox({
 		const files = [...list].filter(isAttachable);
 		if (files.length === 0) return;
 		event.preventDefault();
+		// A file from Finder already has a path; only a pasted one waits.
+		const saving = files
+			.filter((file) => !window.webUtils.getPathForFile(file))
+			.map((file) => ({ file, url: URL.createObjectURL(file) }));
+		setPending((list) => [...list, ...saving]);
+		const done = () => {
+			setPending((list) => list.filter((item) => !saving.includes(item)));
+			for (const { url } of saving) URL.revokeObjectURL(url);
+		};
 		attachmentPaths(files)
 			.then((added) => {
 				const current = splitAttachments(latest.current);
 				onChange(joinAttachments(current.text, [...current.paths, ...added]));
+				done();
 			})
-			.catch(() => toast.error("Couldn't attach that file"));
+			.catch(() => {
+				submitWhenSaved.current = false;
+				done();
+				toast.error("Couldn't attach that file");
+			});
 	};
 
 	return (
@@ -388,7 +416,7 @@ export function TaskBox({
 					onPick={pickSkill}
 				/>
 			)}
-			{paths.length > 0 && (
+			{(paths.length > 0 || pending.length > 0) && (
 				<div className="flex flex-wrap gap-1.5">
 					{paths.map((path) => (
 						<AttachmentChip
@@ -403,6 +431,17 @@ export function TaskBox({
 								)
 							}
 						/>
+					))}
+					{pending.map(({ file, url }) => (
+						<span
+							key={url}
+							title={`Saving ${file.name || "pasted image"}`}
+							className="h-14 w-14 shrink-0 overflow-hidden rounded-[6px] border border-border bg-card opacity-60"
+						>
+							{file.type.startsWith("image/") && (
+								<img src={url} alt="" className="size-full object-cover" />
+							)}
+						</span>
 					))}
 				</div>
 			)}
@@ -479,8 +518,8 @@ export function TaskBox({
 					{submitLabel && (
 						<button
 							type="button"
-							disabled={!title.trim()}
-							onClick={onSubmit}
+							disabled={!title.trim() && pending.length === 0}
+							onClick={submit}
 							className={cn(ROW_PRIMARY_BUTTON, "ml-auto")}
 						>
 							{submitLabel}
