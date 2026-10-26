@@ -5,9 +5,17 @@ import {
 	useNextInLinePrompt,
 } from "renderer/stores/next-in-line-prompt";
 import { useTabsStore } from "renderer/stores/tabs/store";
+import { awsSignInNeeded } from "shared/host-setup";
 import type { AllItem } from "../all/all-items";
 import type { StartResult } from "../all/use-start-item";
 import { useNextInLineQueue } from "../board/NextInLine";
+import {
+	missedLine,
+	missedLogged,
+	retryDelayMs,
+	type SendFailure,
+	shouldAlert,
+} from "./night-send";
 
 const TICK_MS = 60_000;
 /** Ticks this far apart mean the runner wasn't running in between. */
@@ -96,8 +104,16 @@ export function useNightAgentRunner() {
 	// of the queue can't start it again every minute.
 	const tried = useRef(new Set<string>());
 	const night = useRef<NightRanking | null>(null);
-	// The last plan sent to the remote host, and when.
-	const sent = useRef<{ signature: string; at: number } | null>(null);
+	// The last plan sent to the remote host, when, and the night it is for.
+	const sent = useRef<{ signature: string; at: number; night: number } | null>(
+		null,
+	);
+	// The send failing now, retried with backoff until it goes through.
+	const failure = useRef<SendFailure | null>(null);
+	// The night the host's plan is for, as it last said; null: none, or not read yet.
+	const hostPlanFrom = useRef<number | null>(null);
+	// The night (window start, ms) already alerted about a missing plan.
+	const alerted = useRef<number | null>(null);
 
 	useEffect(() => {
 		let running = false;
@@ -191,8 +207,20 @@ export function useNightAgentRunner() {
 		const runOnHost = async (name: string, now: Date, span: string) => {
 			const { offHours, logNight } = useNextInLinePrompt.getState();
 			if (ticks++ % ADOPT_EVERY_TICKS === 0) {
-				const started =
+				const { started, planFrom, missed } =
 					await electronTrpcClient.remoteHost.nightStarted.query();
+				hostPlanFrom.current = planFrom;
+				// Windows that opened there with no plan, while this computer was away.
+				const span = `${offHours.start}-${offHours.end}`;
+				for (const miss of missed) {
+					const night = miss.night * 1000;
+					if (missedLogged(useNextInLinePrompt.getState().nightLog, night))
+						continue;
+					logNight(missedLine(span, name, failure.current?.error ?? null), {
+						night,
+						at: new Date(miss.at * 1000).toISOString(),
+					});
+				}
 				const panes = Object.values(useTabsStore.getState().panes);
 				for (const run of started) {
 					if (panes.some((pane) => pane.claudeSessionId === run.sessionId))
@@ -267,12 +295,13 @@ export function useNightAgentRunner() {
 				cap: offHours.maxSessions,
 				tasks,
 			});
-			if (sent.current?.signature !== signature)
+			if (sent.current?.signature !== signature || failure.current)
 				logNight(
-					`Sent ${name} tonight's plan: ${tasks.length} tasks in order, at most ${offHours.maxSessions}, ${span}. It runs there with this computer closed.`,
+					`Sent ${name} tonight's plan: ${tasks.length} tasks in order, at most ${offHours.maxSessions}, ${span}. It runs there with this computer closed.${failure.current ? ` It went through after ${failure.current.attempts} failed ${failure.current.attempts === 1 ? "try" : "tries"}.` : ""}`,
 					{ night: forNight },
 				);
-			sent.current = { signature, at: Date.now() };
+			sent.current = { signature, at: Date.now(), night: window.from };
+			hostPlanFrom.current = window.from;
 		};
 
 		const tick = async () => {
@@ -320,19 +349,76 @@ export function useNightAgentRunner() {
 			if (host?.on) {
 				keepAwake(false);
 				if (running) return;
-				running = true;
-				try {
-					await runOnHost(host.name || host.instanceId, now, span);
-				} catch (error) {
-					logNight(
-						`Tonight's plan for ${host.name || host.instanceId} failed: ${error instanceof Error ? error.message : String(error)}`,
-						{
-							night: nightWindow(now, offHours.start, offHours.end).from * 1000,
-						},
-					);
-				} finally {
-					running = false;
+				const name = host.name || host.instanceId;
+				const window = nightWindow(now, offHours.start, offHours.end);
+				const forNight = window.from * 1000;
+				// An AWS sign-in made since the last failure (the alert's click,
+				// Settings, a session) is worth a try right away.
+				const failed = failure.current;
+				if (
+					failed &&
+					Date.now() < failed.nextAt &&
+					awsSignInNeeded(failed.error) &&
+					(await electronTrpcClient.remoteHost.awsSignedIn
+						.query()
+						.catch(() => false))
+				)
+					failed.nextAt = 0;
+				if (!failure.current || Date.now() >= failure.current.nextAt) {
+					running = true;
+					try {
+						await runOnHost(name, now, span);
+						failure.current = null;
+					} catch (error) {
+						const message =
+							error instanceof Error ? error.message : String(error);
+						const attempts = (failure.current?.attempts ?? 0) + 1;
+						// A new error gets a line; the same one again only retries.
+						if (failure.current?.error !== message)
+							logNight(
+								`Tonight's plan for ${name} failed: ${message} Odin retries it, a minute later and then less often, at most every 15 minutes.`,
+								{ night: forNight },
+							);
+						failure.current = {
+							error: message,
+							attempts,
+							nextAt: Date.now() + retryDelayMs(attempts),
+						};
+					} finally {
+						running = false;
+					}
 				}
+				const hasPlan =
+					sent.current?.night === window.from ||
+					hostPlanFrom.current === window.from;
+				const failing = failure.current;
+				if (
+					failing &&
+					shouldAlert({
+						now: now.getTime(),
+						windowFrom: forNight,
+						hasPlan,
+						alertedFor: alerted.current,
+					})
+				) {
+					alerted.current = forNight;
+					logNight(
+						`The ${span} window opens soon and ${name} has no plan for it: notified you. ${failing.error}`,
+						{ night: forNight },
+					);
+					void electronTrpcClient.remoteHost.nightAlert
+						.mutate({ error: failing.error, opensAt: window.from })
+						.catch(() => {});
+				}
+				if (
+					inWindow &&
+					failing &&
+					!hasPlan &&
+					!missedLogged(useNextInLinePrompt.getState().nightLog, forNight)
+				)
+					logNight(missedLine(span, name, failing.error), {
+						night: forNight,
+					});
 				return;
 			}
 			// Power only: on battery it starts nothing and lets the computer sleep.
