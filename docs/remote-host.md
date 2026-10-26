@@ -57,4 +57,4 @@ Anyone whose AWS role has these on instances tagged `Odin = host`:
 
 With them, Use and the first session set up that user's own Linux user on the
 host. Nobody else has to do anything. A role without them gets a session that
-stops and says which user an administrator sets up in Settings > Remote.
+stops and says to ask an administrator for them.

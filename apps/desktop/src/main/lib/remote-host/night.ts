@@ -210,7 +210,7 @@ export async function pushNightPlan(
 				).finally(() => admin.end());
 			} catch (error) {
 				throw new Error(
-					`The night runner isn't installed on the host for ${host.user}, and installing it is an administrator's work: one with an AWS administrator role opens Settings > Remote > Set up a user on this host. (${error instanceof Error ? error.message : String(error)})`,
+					`The night runner isn't installed on the host for ${host.user}, and installing it needs ssm:SendCommand on the host. Your AWS role needs the permissions in docs/remote-host.md (Who can use a host); ask an administrator to add them. (${error instanceof Error ? error.message : String(error)})`,
 				);
 			}
 		}
