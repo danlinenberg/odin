@@ -1716,6 +1716,7 @@ function TagMenu({
 	onDocs,
 	onRestart,
 	onRunHere,
+	onRunOnHost,
 	onRemind,
 	watching,
 	watchWhat,
@@ -1746,6 +1747,8 @@ function TagMenu({
 	onRestart?: () => void;
 	/** A remote session, moved to this computer. */
 	onRunHere?: () => void;
+	/** A session on this computer, moved to the remote host; unset with no host. */
+	onRunOnHost?: () => void;
 	onRemind: (day: string) => void;
 	/** Whether the session's thread or PR pings you; unset when it has neither. */
 	watching?: boolean;
@@ -1893,6 +1896,20 @@ function TagMenu({
 				>
 					<LuLaptop className="size-3" aria-hidden />
 					Run on this computer
+				</button>
+			)}
+			{onRunOnHost && (
+				<button
+					type="button"
+					title="Push this session's branch and continue the conversation on the remote host"
+					onClick={() => {
+						onRunOnHost();
+						onClose();
+					}}
+					className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+				>
+					<BsCloud className="size-3" aria-hidden />
+					Run on remote host
 				</button>
 			)}
 			<div className="mb-1.5 border-b border-border pb-1.5">
@@ -2707,6 +2724,7 @@ function DevBoardPage() {
 	const { launch, isLaunching } = useLaunchTaskSession();
 	const utils = electronTrpc.useUtils();
 	const { data: workConfig } = electronTrpc.work.getConfig.useQuery();
+	const { data: hostConfig } = electronTrpc.remoteHost.get.useQuery();
 	// An <a> would navigate the app window; the ticket opens in a browser.
 	const contactByPane = usePaneMeta((s) => s.contactByPane);
 	const titleByPane = usePaneMeta((s) => s.titleByPane);
@@ -5378,6 +5396,46 @@ function DevBoardPage() {
 		}
 	};
 
+	/**
+	 * A session on this computer, moved to the remote host: its branch goes
+	 * to origin, and the conversation resumes there, told where its work is.
+	 * The pane's connect sends the conversation, which the host lacks.
+	 */
+	const runOnHost = async (card: BoardCard) => {
+		const host = hostConfig?.host;
+		const sessionId =
+			card.pane.claudeSessionId ??
+			usePaneMeta.getState().sessionIdByPane[card.pane.id];
+		const cwd = sessionCwd(card.pane) ?? card.repoPath;
+		if (!host || !sessionId || !cwd) {
+			toast.error("This session has no conversation to move.");
+			return;
+		}
+		const name = host.name || host.instanceId;
+		const loading = toast.loading(`Moving the session to ${name}...`);
+		try {
+			if (
+				(await utils.client.remoteHost.hostUp
+					.query({ host: name })
+					.catch(() => null)) === false
+			)
+				throw new Error(`${name} is not available`);
+			const { note } = await utils.client.remoteHost.sendToHost.mutate({
+				sessionId,
+				cwd,
+			});
+			const pane = { ...card.pane, odinRemote: name };
+			useTabsStore.setState((state) => ({
+				panes: { ...state.panes, [card.pane.id]: pane },
+			}));
+			toast.dismiss(loading);
+			await resumeCard({ ...card, pane }, false, note, true);
+		} catch (error) {
+			toast.dismiss(loading);
+			toast.error(error instanceof Error ? error.message : String(error));
+		}
+	};
+
 	const resumeCardRef = useRef(resumeCard);
 	resumeCardRef.current = resumeCard;
 	const agentPaneIdsRef = useRef(agentPaneIds);
@@ -6542,6 +6600,15 @@ function DevBoardPage() {
 					onRunHere={
 						tagMenuCard?.pane.odinRemote && !tagMenuCard.pane.odinQueued
 							? () => void runHere(tagMenuCard)
+							: undefined
+					}
+					onRunOnHost={
+						hostConfig?.host &&
+						tagMenuCard &&
+						!tagMenuCard.pane.odinRemote &&
+						!tagMenuCard.pane.odinQueued &&
+						claudeSessionIdOf(tagMenuCard)
+							? () => void runOnHost(tagMenuCard)
 							: undefined
 					}
 					onRemind={(day) => tagMenuCard && remindMe(tagMenuCard, day)}

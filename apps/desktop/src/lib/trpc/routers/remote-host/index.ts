@@ -70,6 +70,7 @@ import {
 	readNightStarted,
 	SECRETS_DIR_PLACEHOLDER,
 } from "main/lib/remote-host/night";
+import { pushWork, sentNote } from "main/lib/remote-host/send-to-host";
 import {
 	type ClaudeLogin,
 	HOST_NOTIFY_HOOK,
@@ -852,6 +853,39 @@ export const createRemoteHostRouter = () =>
 			}),
 		/** A fresh token from `claude setup-token`, replacing the saved one. */
 		renewClaudeToken: publicProcedure.mutation(() => ensureClaudeToken(true)),
+
+		/**
+		 * A session on this computer, moved to the host: its branch goes to
+		 * origin (pushWork) and `note` is what the Claude resumed there is
+		 * told first - that it moved, where its work is, and the host note a
+		 * new host session starts with. The pane's Resume on the host sends
+		 * the conversation over.
+		 */
+		sendToHost: publicProcedure
+			.input(z.object({ sessionId: z.string().min(1), cwd: z.string() }))
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host) throw new Error("No remote host is set up.");
+				const work = existsSync(input.cwd)
+					? await pushWork(input.cwd)
+					: { branch: null, committed: false, left: false };
+				const origin =
+					(await originOf(input.cwd)) ??
+					(await originOf(mainCheckoutOf(input.cwd)));
+				const repoName = origin ? repoNameOf(origin) : null;
+				return {
+					note:
+						sentNote(work, input.cwd) +
+						hostNote({
+							user: host.user,
+							name: host.name || host.instanceId,
+							repoName,
+							pane: input.sessionId,
+							known: repoName ? [] : await knownRepos(),
+							voiceGuide: voiceText(await readVoice()),
+						}),
+				};
+			}),
 
 		/**
 		 * A remote session, moved to this computer with its code: the host
