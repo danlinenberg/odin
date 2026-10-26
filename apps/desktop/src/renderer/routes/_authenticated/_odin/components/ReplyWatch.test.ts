@@ -153,6 +153,7 @@ test("a condition is not met by the prompt, an old line or a promise", () => {
 	const prompt = conditionPrompt("the deploy is done");
 	expect(prompt).toContain("the deploy is done");
 	expect(prompt).toContain("ODIN PING: HAPPENED");
+	expect(prompt).toContain("needs re-auth is not a reason to stop");
 	expect(
 		conditionOutcome(
 			[
