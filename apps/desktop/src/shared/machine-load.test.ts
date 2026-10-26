@@ -34,7 +34,7 @@ function snapshot({
 			memoryUsagePercent: memory,
 			totalMemory: hostMemory,
 			availableMemory: available,
-			diskFreePercent: disk,
+			diskFreeBytes: disk === undefined ? undefined : disk * GB,
 		},
 		totalCpu,
 		totalMemory,
@@ -70,7 +70,7 @@ describe("machineLoad", () => {
 		const limits = {
 			hostCpuPercent: 40,
 			minFreeMemoryGb: 2,
-			minFreeDiskPercent: 5,
+			minFreeDiskGb: 10,
 			maxWorkingAgents: 0,
 		};
 		expect(machineLoad(snapshot({ hostCpu: 54 }), limits).reason).toBe(
@@ -87,24 +87,25 @@ describe("machineLoad", () => {
 			machineLoad(snapshot({ hostCpu: 20, available: 1.4 * GB }), {
 				hostCpuPercent: 70,
 				minFreeMemoryGb: 1,
-				minFreeDiskPercent: 5,
+				minFreeDiskGb: 10,
 				maxWorkingAgents: 0,
 			}).busy,
 		).toBe(false);
 	});
 
 	it("holds a launch when the disk is nearly full, unless the limit is 0", () => {
-		const load = machineLoad(snapshot({ disk: 3.7 }));
-		expect(load.diskFreePercent).toBe(3.7);
-		expect(load.reason).toBe("this Mac's disk is 3.7% free");
-		expect(machineLoad(snapshot({ disk: 42.9 })).diskFreePercent).toBe(42);
-		expect(machineLoad(snapshot({ disk: 30 })).busy).toBe(false);
-		expect(machineLoad(snapshot({})).diskFreePercent).toBeNull();
+		const load = machineLoad(snapshot({ disk: 3.75 }));
+		expect(load.diskFreeGb).toBe(3.7);
+		expect(load.reason).toBe("this Mac has only 3.7 GB of disk free");
+		expect(machineLoad(snapshot({ disk: 42.9 })).diskFreeGb).toBe(42);
+		// 25 GB is under 5% of a 500 GB disk, and still plenty for a session.
+		expect(machineLoad(snapshot({ disk: 24.7 })).busy).toBe(false);
+		expect(machineLoad(snapshot({})).diskFreeGb).toBeNull();
 		expect(
 			machineLoad(snapshot({ disk: 3 }), {
 				hostCpuPercent: 70,
 				minFreeMemoryGb: 2,
-				minFreeDiskPercent: 0,
+				minFreeDiskGb: 0,
 				maxWorkingAgents: 0,
 			}).busy,
 		).toBe(false);

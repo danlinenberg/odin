@@ -217,11 +217,11 @@ Huginn can line up backlog tasks to run one after another: each starts when the 
 A started session waits in Idle under "Queued", with a reason, until all limits allow it. Nothing is refused - the card exists from the start. Changes apply within 5 seconds.
 - **Hold new sessions when this Mac is** over a CPU load (default 70%).
 - **Hold new sessions when free memory is under** (default 2 GB).
-- **Hold new sessions when free disk is under** (default 5%). Each session takes a worktree of about 3 GB. 0 means no limit.
+- **Hold new sessions when free disk is under** (default 10 GB). Each session takes a worktree of about 3 GB. 0 means no limit.
 - **Hold new sessions when this many are working** (default 5). Sessions waiting on you don't count. 0 means no limit.
 - **One session per repo at a time** (default off): on, a session in a repo another one is working in waits until that one stops. Off lets them run side by side, each in its own worktree.
 - Huginn takes no slot and holds no checkout.
-- Store: launchLimits (hostCpuPercent, minFreeMemoryGb, minFreeDiskPercent, maxWorkingAgents, oneSessionPerCheckout; fn setLimits).
+- Store: launchLimits (hostCpuPercent, minFreeMemoryGb, minFreeDiskGb, maxWorkingAgents, oneSessionPerCheckout; fn setLimits).
 
 ## Insights (screen: Insights)
 What you got done and what it cost, week by week. Plain counts from session transcripts, no AI call. Panels: What you did, Shipped per week, Time with agents (your time vs agent time), Where the hours went (by repo, a repo can be hidden), Where work comes from (source), Who asks, Whose work you ran, Your queue, Improvements. Move between weeks with Previous week / Next week.

@@ -74,13 +74,13 @@ function SessionsSettingsPage() {
 				/>
 				<LaunchLimitRow
 					id="launch-limit-disk"
-					field="minFreeDiskPercent"
+					field="minFreeDiskGb"
 					label="Hold new sessions when free disk is under"
 					description="Free space on the home disk, shown in the top bar. Each session takes a ~3 GB worktree, and a full disk also starves memory. 0 means no limit."
 					min={0}
-					max={50}
+					max={500}
 					step={1}
-					unit="% free"
+					unit="GB free"
 				/>
 				<LaunchLimitRow
 					id="launch-limit-agents"
