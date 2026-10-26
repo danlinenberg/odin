@@ -732,7 +732,7 @@ export function hostNote(spec: {
 	return [
 		"",
 		`You run on ${spec.name}, a Linux server, not on my computer. Odin answers at http://127.0.0.1:$ODIN_PORT as usual, but its worktree action and its Shell work on my computer, so don't use them from here: make worktrees yourself, as below.`,
-		"A fenced block whose first line starts with `!` runs here, on this server, in your session. A command I must run on my computer instead (a login, a file on my Mac, an app there) goes in its own fenced block whose first line starts with `!local `, e.g. `!local open ~/Downloads`: Odin shows a Run on my computer button that runs it in my Shell there. Its output does not come back to you.",
+		"A fenced block whose first line starts with `!` runs here, on this server, in your session. A command I must run on my computer instead (a login, a file on my Mac, an app there) goes in its own fenced block whose first line starts with `!local `, e.g. `!local open ~/Downloads`: Odin shows a Run on my computer button that runs it in my Shell there. When it ends, its output and exit code come back to you here as my next message.",
 		spec.repoName
 			? `Your worktree of ${spec.repoName} is the folder you start in, on branch ${sessionBranch(spec.pane)}. Push it and open the PR from here with gh. If that folder is not a git repository, clone the repo into ${repos} yourself.`
 			: [

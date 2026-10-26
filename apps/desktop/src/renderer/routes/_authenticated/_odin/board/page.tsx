@@ -7239,6 +7239,7 @@ function DevBoardPage() {
 												setIsAgentsOpen(false);
 												setIsShellOpen(true);
 											}}
+											onShellDone={() => setIsShellOpen(false)}
 											onStop={() => void interruptPane(drawerCard.pane.id)}
 											onRestart={(prompt) =>
 												void resumeCard(drawerCard, false, prompt, true)

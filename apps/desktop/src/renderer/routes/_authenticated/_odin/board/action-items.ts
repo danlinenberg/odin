@@ -122,6 +122,23 @@ export function localCommand(command: string): string | null {
 }
 
 /**
+ * What goes back to Claude once a `!local` command ran on this computer: the
+ * command, its output and its exit code, fenced past any backticks inside.
+ */
+export function localRunMessage(
+	command: string,
+	result: { exitCode: number; output: string },
+): string {
+	const body = `$ ${command}\n${result.output || "(no output)"}`;
+	const longest = Math.max(
+		0,
+		...[...body.matchAll(/`+/g)].map((match) => match[0].length),
+	);
+	const fence = "`".repeat(Math.max(3, longest + 1));
+	return `I ran this on my computer (exit code ${result.exitCode}):\n\n${fence}\n${body}\n${fence}`;
+}
+
+/**
  * What each `! command` does, in Claude's words: the line it wrote right above
  * the block ("A read-only preview:"). A block straight after another block has none.
  */

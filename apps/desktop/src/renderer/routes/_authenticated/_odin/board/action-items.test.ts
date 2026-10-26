@@ -1,5 +1,9 @@
 import { expect, test } from "bun:test";
-import { noActionItems, runnableCommands } from "./action-items";
+import {
+	localRunMessage,
+	noActionItems,
+	runnableCommands,
+} from "./action-items";
 
 const reply = (text: string) => ({ role: "assistant", text });
 const block = (command: string) => `\`\`\`\n! ${command}\n\`\`\``;
@@ -25,4 +29,18 @@ test("noActionItems: only a block that says none", () => {
 	expect(noActionItems("1. None right now")).toBe(true);
 	expect(noActionItems("1. Merge PR #12")).toBe(false);
 	expect(noActionItems("Nonetheless:\n1. Merge PR #12")).toBe(false);
+});
+
+test("a !local run goes back to Claude fenced past its own backticks", () => {
+	expect(localRunMessage("ls", { exitCode: 0, output: "a\nb" })).toBe(
+		"I ran this on my computer (exit code 0):\n\n```\n$ ls\na\nb\n```",
+	);
+	expect(
+		localRunMessage("cat x.md", { exitCode: 1, output: "```js\n```" }),
+	).toBe(
+		"I ran this on my computer (exit code 1):\n\n````\n$ cat x.md\n```js\n```\n````",
+	);
+	expect(localRunMessage("true", { exitCode: 0, output: "" })).toContain(
+		"(no output)",
+	);
 });
