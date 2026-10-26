@@ -3298,13 +3298,6 @@ export function ChatView({
 		},
 		[paneId, write.mutateAsync],
 	);
-	const mountedRef = useRef(true);
-	useEffect(
-		() => () => {
-			mountedRef.current = false;
-		},
-		[],
-	);
 	// A `!local` block runs on this computer, in the session's Shell, which then
 	// shows; the rest go to Claude. Once it ends its output goes to Claude, and
 	// the drawer goes back to the chat if it still shows this session. A run
@@ -3325,7 +3318,9 @@ export function ChatView({
 			void localRunEnd(run.id).then((result) => {
 				if (!result) return;
 				sendToClaude(localRunMessage(local, result));
-				if (mountedRef.current) onShellDoneRef.current?.();
+				// The Shell replaced this view while the run went on, so it is
+				// usually unmounted by now; the drawer decides whether to go back.
+				onShellDoneRef.current?.();
 			});
 		},
 		[paneId, workspaceId, runInClaude, onShellStarted, sendToClaude],

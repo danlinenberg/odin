@@ -2838,6 +2838,13 @@ function DevBoardPage() {
 	const [isAgentsOpen, setIsAgentsOpen] = useState(false);
 	/** Which of the session's Shells the drawer shows: a name, or null for the main one. */
 	const [shellName, setShellName] = useState<string | null>(null);
+	// What the drawer shows now, for a `!local` run that ends after its ChatView
+	// unmounted (the Shell takes the chat's place while it runs).
+	const drawerShownRef = useRef({ paneId: "", shell: null as string | null });
+	drawerShownRef.current = {
+		paneId: drawerCard?.pane.id ?? "",
+		shell: isShellOpen ? shellName : null,
+	};
 	const chatView = useSessionView((s) => s.chat);
 	const setChatView = useSessionView((s) => s.setChat);
 	// The chat can't answer a TUI menu; this pane's drawer shows the terminal
@@ -7351,7 +7358,16 @@ function DevBoardPage() {
 												setIsAgentsOpen(false);
 												setIsShellOpen(true);
 											}}
-											onShellDone={() => setIsShellOpen(false)}
+											onShellDone={() => {
+												// Back to the chat only if the drawer still shows this
+												// session's local-run Shell, not one you moved to.
+												const shown = drawerShownRef.current;
+												if (
+													shown.paneId === drawerCard.pane.id &&
+													shown.shell === "local"
+												)
+													setIsShellOpen(false);
+											}}
 											onStop={() => void interruptPane(drawerCard.pane.id)}
 											onRestart={(prompt) =>
 												void resumeCard(drawerCard, false, prompt, true)
