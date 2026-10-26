@@ -222,6 +222,7 @@ import { onIdleArrival, restoreAfterCompact } from "./idle-compact";
 import { menuTop } from "./menu-fit";
 import { BOARD_COLUMN_MIN_W, NextInLine, TonightCount } from "./NextInLine";
 import { NightAgentLive } from "./NightAgentLive";
+import { PLAN_LIMIT_OPENING, planLimitResumeKey } from "./plan-limit-resume";
 import { HoverBrief, MyTodos, SessionBrief } from "./SessionBrief";
 import {
 	PREFIX as REMIND_PREFIX,
@@ -5594,6 +5595,66 @@ function DevBoardPage() {
 		startingPaneIds,
 		autoResumeTick,
 	]);
+
+	// A session here whose turn failed on the plan's usage or spend limit goes
+	// on by itself on the API key, as one on the remote host does: claude-auto
+	// keeps the key on after its hook sees the limit, and the restart below
+	// runs Odin's Claude command again, which then picks the key.
+	const planLimitResumedRef = useRef(new Set<string>());
+	const planLimitCheckingRef = useRef(new Set<string>());
+	useEffect(() => {
+		const failed = [...cardsByStatus.values()]
+			.flat()
+			.filter(
+				(c) =>
+					c.pane.status === "failed" &&
+					!c.pane.odinRemote &&
+					!c.pane.odinQueued &&
+					agentPaneIds.has(c.pane.id) &&
+					!planLimitCheckingRef.current.has(c.pane.id),
+			);
+		for (const card of failed) {
+			const sessionId =
+				card.pane.claudeSessionId ??
+				usePaneMeta.getState().sessionIdByPane[card.pane.id];
+			if (!sessionId) continue;
+			planLimitCheckingRef.current.add(card.pane.id);
+			void (async () => {
+				try {
+					// claude-auto's hook and Odin's run side by side on the same
+					// StopFailure: give it a moment to write the limit.
+					await new Promise((done) => setTimeout(done, 3000));
+					const [until, transcript] = await Promise.all([
+						electronTrpcClient.remoteHost.planLimitedUntil.query(),
+						electronTrpcClient.terminal.readClaudeTranscript.query({
+							sessionId,
+						}),
+					]);
+					const key = planLimitResumeKey(
+						card.pane.id,
+						transcript.messages.at(-1),
+						until,
+						Date.now() / 1000,
+					);
+					if (
+						!key ||
+						planLimitResumedRef.current.has(key) ||
+						useTabsStore.getState().panes[card.pane.id]?.status !== "failed"
+					)
+						return;
+					planLimitResumedRef.current.add(key);
+					toast.info("Plan limit hit - continuing on your API key", {
+						description: taskName(card),
+					});
+					await resumeCardRef.current(card, true, PLAN_LIMIT_OPENING, true);
+				} catch {
+					// No transcript yet, or the app is shutting down: leave it.
+				} finally {
+					planLimitCheckingRef.current.delete(card.pane.id);
+				}
+			})();
+		}
+	}, [cardsByStatus, agentPaneIds]);
 
 	const { add: addTask } = useMyTasks();
 	const handleNewSession = async (
