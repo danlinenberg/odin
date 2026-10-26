@@ -39,9 +39,29 @@ cask at `Casks/odin.rb` is `version :latest` and downloads
 `releases/latest/download/Odin-arm64.dmg`, which is why the asset name never
 changes and why `brew upgrade` needs `--greedy`.
 
-Builds are signed ad-hoc, not with an Apple Developer ID, so every install needs
+## Signing
+
+With these secrets in the `release` environment, the release is signed with
+Odin's Apple Developer ID and notarized, so a downloaded DMG opens like any
+other Mac app - no quarantine dialog, no `xattr`:
+
+| Secret | What it holds |
+|---|---|
+| `ODIN_APPLE_CERT_P12` | `base64 -i cert.p12` of the "Developer ID Application" certificate with its private key |
+| `ODIN_APPLE_CERT_PASSWORD` | the password that p12 was exported with |
+| `ODIN_APPLE_API_KEY_P8` | the text of an App Store Connect API key's `AuthKey_<id>.p8` (role: Developer) |
+| `ODIN_APPLE_API_KEY_ID` | that key's ID |
+| `ODIN_APPLE_API_ISSUER` | the Issuer ID shown above the keys list |
+
+The workflow checks the stapled ticket and asks Gatekeeper (`spctl`) before it
+publishes anything. The first Developer ID release is a new signature, so macOS
+asks each user once more for the folder and automation permissions.
+
+Without `ODIN_APPLE_CERT_P12` it falls back to the self-signed
+`ODIN_SIGNING_P12`, and every install then needs
 `xattr -dr com.apple.quarantine /Applications/Odin.app` - `release.sh` does it,
-and the README tells everyone else to.
+and the README tells everyone else to. Local builds always use the self-signed
+cert from `scripts/create-signing-identity.sh`.
 
 ## Known gaps
 
