@@ -489,6 +489,22 @@ const idlePrompt = (pane: string) =>
 const idleWatcher = (pane: string) =>
 	`( while sleep 300; do kill -0 $$ 2>/dev/null || exit; a=$(tmux display -p -t "$TMUX_PANE" '#{window_activity}' 2>/dev/null) || continue; [ $(( $(date +%s) - a )) -ge ${IDLE_STOP_SECONDS} ] || continue; c=$(pgrep -P $$ -x claude) || continue; pgrep -P $c >/dev/null && continue; touch ${idleMarker(pane)} && kill -TERM $c; done ) >/dev/null 2>&1 &`;
 
+/** Where the pane puts this computer's copy of a conversation the host user lacks. */
+export const sentConversation = (sessionId: string) =>
+	`.odin/resume-${sessionId}.jsonl`;
+
+/**
+ * Files the conversation the pane sent (sentConversation) under the folder
+ * Claude starts in, unless this user already has it. A session that ran as
+ * another Linux user on the host (before each Odin user got their own) has
+ * its conversation in that user's home: Resume got "No conversation found".
+ */
+function placeConversation(sessionId: string): string {
+	const sent = `"$HOME"/${sh(sentConversation(sessionId))}`;
+	const id = sh(`${sessionId}.jsonl`);
+	return `if [ -f ${sent} ]; then ls "$HOME"/.claude/projects/*/${id} >/dev/null 2>&1 || { d="$HOME/.claude/projects/$(printf %s "$PWD" | sed 's/[^A-Za-z0-9]/-/g')"; mkdir -p "$d" && mv -f ${sent} "$d"/${id}; }; rm -f ${sent}; fi`;
+}
+
 /** What runs inside tmux: tokens in, file gone, repo ready, Claude on. */
 export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 	const root = homePath(spec.reposRoot);
@@ -544,6 +560,7 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		resumed
 			? `d=$(python3 -c ${sh(CONVERSATION_DIR)} ${sh(resumed)} 2>/dev/null) && [ -d "$d" ] && cd "$d"; true`
 			: "",
+		resumed ? placeConversation(resumed) : "",
 		`python3 -c ${sh(SKIP_FIRST_RUN)} "$PWD" 2>/dev/null || true`,
 		'export PATH="$HOME/.local/bin:$PATH"',
 		CLAUDE_LOGIN_SCRIPT,

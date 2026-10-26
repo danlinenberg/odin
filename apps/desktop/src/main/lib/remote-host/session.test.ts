@@ -37,6 +37,7 @@ import {
 	runScript,
 	SKIP_FIRST_RUN,
 	secretsFile,
+	sentConversation,
 	sh,
 	tmuxSession,
 } from "./session";
@@ -480,6 +481,42 @@ test("a Resume starts Claude in the folder its conversation is filed under", () 
 			}).trim();
 		expect(dir("abc")).toBe("/home/ubuntu/repos");
 		expect(() => dir("missing")).toThrow();
+	} finally {
+		rmSync(home, { recursive: true, force: true });
+	}
+});
+
+test("a Resume files a conversation sent from this computer where Claude starts, unless the host user has it", () => {
+	const line =
+		runScript({ ...spec, claudeArgs: "--resume abc" }, "/d")
+			.split("\n")
+			.find((l) => l.includes(sentConversation("abc"))) ?? "false";
+	expect(runScript(spec, "/d")).not.toContain(sentConversation("abc"));
+	const home = mkdtempSync(join(tmpdir(), "odin-sent-"));
+	const start = join(home, "repos", "x");
+	mkdirSync(join(home, ".odin"), { recursive: true });
+	mkdirSync(start, { recursive: true });
+	const run = () =>
+		execFileSync("bash", ["-c", line], {
+			cwd: start,
+			env: { HOME: home, PATH: process.env.PATH },
+		});
+	const filed = join(
+		home,
+		".claude/projects",
+		start.replace(/[^A-Za-z0-9]/g, "-"),
+		"abc.jsonl",
+	);
+	try {
+		writeFileSync(join(home, sentConversation("abc")), "sent\n");
+		run();
+		expect(readFileSync(filed, "utf8")).toBe("sent\n");
+		expect(existsSync(join(home, sentConversation("abc")))).toBe(false);
+		// The host user's own copy stays; the sent one goes.
+		writeFileSync(join(home, sentConversation("abc")), "older\n");
+		run();
+		expect(readFileSync(filed, "utf8")).toBe("sent\n");
+		expect(existsSync(join(home, sentConversation("abc")))).toBe(false);
 	} finally {
 		rmSync(home, { recursive: true, force: true });
 	}

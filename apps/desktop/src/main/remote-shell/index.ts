@@ -7,7 +7,7 @@
  */
 
 import { readFileSync } from "node:fs";
-import { appendFile, mkdir, stat, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readdir, stat, writeFile } from "node:fs/promises";
 import { connect } from "node:net";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -22,6 +22,7 @@ import {
 	type RemoteFile,
 	type RemoteSessionSpec,
 	reconnectSpec,
+	sentConversation,
 	sh,
 	stashScript,
 } from "../lib/remote-host/session";
@@ -112,6 +113,45 @@ async function upload(sftp: SFTPWrapper, files: RemoteFile[]): Promise<void> {
 				resolve();
 			}),
 		);
+}
+
+/** The newest copy here of a conversation, or null. */
+async function localConversation(sessionId: string): Promise<string | null> {
+	const root = join(homedir(), ".claude", "projects");
+	let newest: { path: string; mtimeMs: number } | null = null;
+	for (const project of await readdir(root).catch(() => [])) {
+		const path = join(root, project, `${sessionId}.jsonl`);
+		const mtimeMs = await stat(path).then(
+			(st) => st.mtimeMs,
+			() => -1,
+		);
+		if (mtimeMs >= 0 && (!newest || mtimeMs > newest.mtimeMs))
+			newest = { path, mtimeMs };
+	}
+	return newest?.path ?? null;
+}
+
+/**
+ * A resumed conversation the host user doesn't have (it ran there as another
+ * Linux user, or on another host) goes over from its copy here; the run
+ * script files it where Claude starts (placeConversation).
+ */
+async function sendConversation(
+	client: Client,
+	sftp: SFTPWrapper,
+	spec: RemoteSessionSpec,
+): Promise<void> {
+	const sessionId = spec.claudeArgs.match(/--resume (\S+)/)?.[1];
+	if (!sessionId) return;
+	const there = await exec(
+		client,
+		`ls "$HOME"/.claude/projects/*/${sh(`${sessionId}.jsonl`)} 2>/dev/null | head -1; true`,
+		"",
+	).catch(() => "unknown");
+	if (there) return;
+	const local = await localConversation(sessionId);
+	if (local)
+		await upload(sftp, [{ local, remote: sentConversation(sessionId) }]);
 }
 
 /**
@@ -546,6 +586,7 @@ async function attach(
 		client.end();
 		throw err;
 	});
+	await sendConversation(client, sftp, spec);
 	// Once: a try that ended before this point has them still to send.
 	if (!filesSent && spec.files?.length) {
 		await upload(sftp, spec.files);
