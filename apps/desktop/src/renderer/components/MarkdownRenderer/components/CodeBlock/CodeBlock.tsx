@@ -250,11 +250,7 @@ function TuneVoice({ draft }: { draft: () => string }) {
 					rows={Math.min(12, Math.max(3, rewrite.split("\n").length + 1))}
 					value={rewrite}
 					onChange={(event) => setRewrite(event.target.value)}
-					onKeyDown={(event) => {
-						if (event.key === "Escape") close(null);
-						if (event.key === "Enter" && (event.metaKey || event.ctrlKey))
-							event.currentTarget.form?.requestSubmit();
-					}}
+					onKeyDown={(event) => event.key === "Escape" && close(null)}
 					placeholder="What you would have written instead"
 					className="min-w-0 resize-y rounded border border-border bg-background px-2 py-1 font-sans text-xs not-italic"
 				/>
