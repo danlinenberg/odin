@@ -141,6 +141,15 @@ export function bangCommandNotes(text: string): Record<string, string> {
 	return notes;
 }
 
+/** A command's note as a button label: its first sentence, as plain text. */
+export function commandLabel(note: string): string {
+	const plain = note
+		.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+		.replace(/[*_`]/g, "")
+		.trim();
+	return (plain.split(/(?<=[.!?])\s/)[0] ?? plain).replace(/[.:]+$/, "").trim();
+}
+
 /**
  * The `!` commands you can run from the phone: those of Claude's latest reply
  * that has any. The phone shows their Run buttons and the Mac runs only these.
