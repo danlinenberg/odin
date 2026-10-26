@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+	awsSignInNeeded,
 	hostPackagesProblem,
 	hostPolicyArnProblem,
 	packageNames,
@@ -69,4 +70,14 @@ describe("host-setup", () => {
 			"Not a package name: jq;. Letters, digits and . + - _ only, separated by spaces.",
 		);
 	});
+});
+
+test("awsSignInNeeded spots the SSO errors a new sign-in fixes", () => {
+	expect(
+		awsSignInNeeded(
+			"The SSO session associated with this profile is invalid. To refresh this SSO session run aws sso login with the corresponding profile.",
+		),
+	).toBe(true);
+	expect(awsSignInNeeded(new Error("ExpiredToken: token expired"))).toBe(true);
+	expect(awsSignInNeeded("AccessDenied: not authorized")).toBe(false);
 });

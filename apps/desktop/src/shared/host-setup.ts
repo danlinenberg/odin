@@ -50,3 +50,9 @@ export function hostNameProblem(text: string): string | null {
 	if (/\p{Cc}/u.test(name)) return "A host name has no control characters.";
 	return null;
 }
+
+/** An AWS error that a new SSO sign-in fixes: no token yet, or one that ran out. */
+export const awsSignInNeeded = (err: unknown): boolean =>
+	/SSO session|token (has expired|is expired)|ExpiredToken|could not load credentials/i.test(
+		String(err),
+	);

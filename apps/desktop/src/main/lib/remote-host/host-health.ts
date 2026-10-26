@@ -1,4 +1,5 @@
 import { SSMClient } from "@aws-sdk/client-ssm";
+import { awsSignInNeeded } from "shared/host-setup";
 import type { Client } from "ssh2";
 import { SSM_UNSEEN, ssmPing } from "./aws-instances";
 import { HOST_SERVICE_PY } from "./host-service";
@@ -82,10 +83,6 @@ export function parseHealthOutput(output: string): Map<string, string> {
 
 const ADMIN_FIX =
 	"Set it up - your AWS role needs to allow ssm:SendCommand on the host, so ask an administrator if it doesn't.";
-const expired = (err: unknown) =>
-	/SSO session|token (has expired|is expired)|ExpiredToken|could not load credentials/i.test(
-		String(err),
-	);
 const firstLine = (err: unknown) =>
 	(err instanceof Error ? err.message : String(err))
 		.split("\n")[0]
@@ -173,7 +170,7 @@ export async function checkHostHealth(
 				`${host.instanceId} has no Linux user ${host.user}, so Odin can't log in as you. ${ADMIN_FIX}`,
 				"setup",
 			);
-		} else if (expired(err)) {
+		} else if (awsSignInNeeded(err)) {
 			set(
 				"aws",
 				"fail",
