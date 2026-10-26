@@ -16,15 +16,31 @@ const PROSE_LANGUAGES = new Set(["text", "txt", "plaintext"]);
 /** Hebrew or Arabic letters: a right-to-left draft, which rarely ends its lines with a period. */
 const RTL_LETTERS = /[\u0590-\u05FF\u0600-\u06FF]/;
 
-export function looksLikeProse(code: string): boolean {
+/** A word of a sentence: letters or a number, maybe with trailing punctuation. */
+const PLAIN_WORD = /^[("'`]?[\p{L}\d][\p{L}\d'’.,:;%)?!"`-]*$/u;
+
+/** A code comment, or a line that ends like code: a long English one is still code. */
+const CODE_LINE = /^\s*(?:#|\/\/|--|\/\*|\*)|[{};]\s*$/;
+
+/**
+ * A long line that ends a sentence, or one that is mostly plain words: drafts
+ * often skip the final period, while a command's flags, paths and `=` aren't words.
+ */
+function isSentence(line: string, codeAround: boolean): boolean {
+	const words = line.trim().split(/\s+/);
+	if (words.length < 12) return false;
+	if (/[.?!]$/.test(line.trim())) return true;
 	return (
-		RTL_LETTERS.test(code) ||
-		code
-			.split("\n")
-			.some(
-				(line) =>
-					line.trim().split(/\s+/).length >= 12 && /[.?!]$/.test(line.trim()),
-			)
+		!codeAround &&
+		words.filter((word) => PLAIN_WORD.test(word)).length / words.length >= 0.8
+	);
+}
+
+export function looksLikeProse(code: string): boolean {
+	const lines = code.split("\n");
+	const codeAround = lines.some((line) => CODE_LINE.test(line));
+	return (
+		RTL_LETTERS.test(code) || lines.some((line) => isSentence(line, codeAround))
 	);
 }
 
