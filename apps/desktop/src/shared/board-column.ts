@@ -58,8 +58,8 @@ export function boardColumn(
  * A session you asked Odin to ping you about ("Ping me" on its Slack thread,
  * Jira ticket or PR) is waiting on someone else, not on you: while nothing new
  * came in, its Needs you or Done card waits in Idle. A reply or an approval
- * brings it back to Needs you. A prompt on screen or a failure still needs you,
- * whatever you are waiting for.
+ * brings it back to Needs you. A question or plan on screen, or a failure,
+ * still needs you, whatever you are waiting for. Open action items do not.
  *
  * `watch`: "none" = not pinging; "waiting" = pinging, nothing new;
  * "replied" = a reply or approval you haven't opened yet.
@@ -68,10 +68,17 @@ export function withWaiting(
 	column: PaneStatus,
 	status: PaneStatus,
 	watch: "none" | "waiting" | "replied",
+	/**
+	 * A question or plan is on screen (`openPrompt`); undefined = not read yet.
+	 * False means a `permission` status only says the reply has open action
+	 * items - and you said you're waiting on someone else, so it waits too.
+	 */
+	prompting?: boolean,
 ): PaneStatus {
 	if (watch === "none" || (column !== "permission" && column !== "review"))
 		return column;
 	if (watch === "replied") return "permission";
-	if (status === "permission" || status === "failed") return column;
+	if (status === "failed") return column;
+	if (status === "permission" && prompting !== false) return column;
 	return "idle";
 }

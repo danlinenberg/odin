@@ -1012,6 +1012,11 @@ export async function readTranscript({
 	credential: SessionCredential | null;
 	/** Where the session left Slack drafts - see `slackDrafts`. */
 	slackDrafts: string[];
+	/**
+	 * A question or plan is on screen, unanswered - see `pendingPrompt`. The
+	 * Stop hook reports open action items as a prompt too; this tells them apart.
+	 */
+	openPrompt: boolean;
 }> {
 	if (!isSafeSegment(sessionId) || (project && !isSafeSegment(project))) {
 		throw new Error("Invalid transcript reference");
@@ -1058,6 +1063,7 @@ export async function readTranscript({
 		usage: transcriptUsage(jsonl),
 		credential: transcriptCredential(jsonl),
 		slackDrafts: slackDrafts(jsonl),
+		openPrompt: pendingPrompt(jsonl) !== null,
 	};
 	parsedTranscripts.set(key, {
 		size,
