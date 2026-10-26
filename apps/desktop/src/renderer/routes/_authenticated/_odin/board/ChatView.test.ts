@@ -39,6 +39,7 @@ import {
 	messageAttachments,
 	movedHere,
 	nextHostStep,
+	opensTerminalScreen,
 	outputTokens,
 	segments,
 	shownTldr,
@@ -1208,4 +1209,16 @@ test("a Run label keeps the underscores inside a word", () => {
 	expect(
 		commandLabel("Delete the old venv, node_modules and _build_ folders:"),
 	).toBe("Delete the old venv, node_modules and build folders");
+});
+
+describe("opensTerminalScreen - commands finished in Claude's terminal", () => {
+	test("a bare /login or picker command opens a terminal screen", () => {
+		expect(opensTerminalScreen("/login")).toBe(true);
+		expect(opensTerminalScreen(" /model ")).toBe(true);
+	});
+
+	test("a command with arguments, or a message, writes to the transcript", () => {
+		expect(opensTerminalScreen("/model opus")).toBe(false);
+		expect(opensTerminalScreen("please /login")).toBe(false);
+	});
 });

@@ -507,6 +507,17 @@ const pendingSetters = new Map<string, Dispatch<SetStateAction<Sent[]>>>();
 const waitingIds = new Set<number>();
 
 /**
+ * A bare command that opens a screen in Claude's terminal (a sign-in, a
+ * picker): it writes nothing to the transcript until you finish it there, so
+ * no echo is coming and a bubble waiting on one would read "Not delivered".
+ */
+export function opensTerminalScreen(text: string): boolean {
+	return /^\/(login|logout|config|model|mcp|permissions|agents|hooks|plugin|resume)\s*$/.test(
+		text.trim(),
+	);
+}
+
+/**
  * Claude took something since the send: a user row that wasn't there, or the
  * message waiting in its queue. Any new row counts - Claude rewrites some
  * messages (a slash command echoes as its name), so the text can't decide.
@@ -3176,6 +3187,10 @@ export function ChatView({
 		// A /btw never reaches the transcript - its answer card shows it instead,
 		// and a bubble waiting on an echo would read "Not delivered".
 		if (/^\/btw\s/.test(text)) return NO_HANDLE;
+		if (opensTerminalScreen(text)) {
+			toast.info(`${text.trim()} opens in Claude's terminal - finish it there`);
+			return NO_HANDLE;
+		}
 		const seen = new Set(
 			itemsRef.current.flatMap((item) =>
 				item.kind === "user" ? [item.id] : [],
