@@ -313,6 +313,40 @@ echo wrapper
 		expect(output).toBe("wrapper");
 	});
 
+	it("runs your alias for a managed command, as claude=claude-auto", () => {
+		createZshWrapper(TEST_PATHS);
+		createBashWrapper(TEST_PATHS);
+		const homeDir = path.join(TEST_ROOT, "alias-home");
+		mkdirSync(homeDir, { recursive: true });
+		writeFileSync(
+			path.join(TEST_BIN_DIR, "claude"),
+			"#!/usr/bin/env bash\necho wrapper\n",
+		);
+		chmodSync(path.join(TEST_BIN_DIR, "claude"), 0o755);
+		const run = (shell: string, rc: string, aliasLine: string) => {
+			writeFileSync(path.join(homeDir, rc), `${aliasLine}\n`);
+			return execFileSync(
+				shell,
+				getCommandShellArgs(`/bin/${shell}`, "claude 'a b' c", TEST_PATHS),
+				{
+					encoding: "utf-8",
+					env: {
+						PATH: "/usr/bin:/bin",
+						HOME: homeDir,
+						ODIN_ORIG_ZDOTDIR: homeDir,
+					},
+				},
+			).trim();
+		};
+		expect(run("zsh", ".zshrc", "alias claude='echo auto'")).toBe("auto a b c");
+		expect(run("bash", ".bashrc", "alias claude='echo auto'")).toBe(
+			"auto a b c",
+		);
+		// An alias back to itself would loop: the wrapper runs.
+		expect(run("zsh", ".zshrc", "alias claude='claude --x'")).toBe("wrapper");
+		expect(run("zsh", ".zshrc", "")).toBe("wrapper");
+	});
+
 	it("falls back to system binaries for managed commands when wrappers are missing", () => {
 		const integrationRoot = path.join(TEST_ROOT, "managed-command-fallback");
 		const homeDir = path.join(integrationRoot, "home");
