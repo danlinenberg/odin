@@ -132,16 +132,12 @@ libraries. Answers to App Store Connect's questions, as best understood:
 | Does it implement standard encryption algorithms instead of, or in addition to, Apple's? | Yes: standard, published algorithms, no proprietary ones |
 | Is it available only in the US and Canada? | No, unless Dan restricts the territories |
 
-`apps/mobile/ios/App/App/Info.plist` already declares it, so an upload does
-not ask each time:
-
-```xml
-<key>ITSAppUsesNonExemptEncryption</key>
-<true/>
-```
-
-App Store Connect may then ask for documentation, or accept a statement
-that the app is mass-market software using standard cryptography.
+`Info.plist` does not declare `ITSAppUsesNonExemptEncryption`. With the key
+set to true, App Store Connect refuses the upload unless `Info.plist` also
+carries an `ITSEncryptionExportComplianceCode` from approved export compliance
+documentation. Without the key, the upload goes through and App Store Connect
+asks the questions above on the build page. Add the key and the code once the
+documentation is approved, so later uploads stop asking.
 
 **Needs Dan's decision or a check (not settled here):**
 
@@ -195,8 +191,9 @@ and phone, filled in App Store Connect.
 - `App/PrivacyInfo.xcprivacy`: no tracking, no data collected, no
   required-reason APIs in the app's own code. Capacitor's frameworks carry
   their own manifests.
-- `Info.plist`: `ITSAppUsesNonExemptEncryption` true, and a usage text for
-  the camera, microphone, speech recognition and local network.
+- `Info.plist`: a usage text for the camera, microphone, speech recognition
+  and local network. No `ITSAppUsesNonExemptEncryption` (see Export
+  compliance).
 - The icon is 1024 x 1024 with no transparency, as the App Store requires.
 - A Release archive builds and contains all of the above.
 
