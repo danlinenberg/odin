@@ -5099,6 +5099,23 @@ function DevBoardPage() {
 				}
 			}
 		}
+		// Its host is gone (terminated, stopped, replaced) or out of reach: the
+		// session can't come back there, so it moves here and resumes. AWS not
+		// answering at all (an expired sign-in) is not a no - that tries the host.
+		if (
+			card.pane.odinRemote &&
+			sessionId &&
+			(await utils.client.remoteHost.hostUp
+				.query({ host: card.pane.odinRemote })
+				.catch(() => null)) === false
+		) {
+			setResumingPaneIds((ids) => ids.filter((id) => id !== card.pane.id));
+			toast.info(
+				`${card.pane.odinRemote} is not available, so this session moves to this computer`,
+			);
+			await runHere(card, prompt);
+			return;
+		}
 		// The respawn puts Claude back in this PTY - don't make the next scan
 		// (up to 10s away, twice over) re-prove it before the card stops
 		// offering Resume.
@@ -5289,7 +5306,7 @@ function DevBoardPage() {
 	 * copied from the host, its tmux session there ends, and it resumes told
 	 * where it is now. The way out for a session stuck on the host.
 	 */
-	const runHere = async (card: BoardCard) => {
+	const runHere = async (card: BoardCard, prompt?: string) => {
 		const sessionId =
 			card.pane.claudeSessionId ??
 			usePaneMeta.getState().sessionIdByPane[card.pane.id];
@@ -5325,7 +5342,12 @@ function DevBoardPage() {
 				toast.warning(
 					"The host did not answer, so the conversation moved without its code. The session may still run on the host.",
 				);
-			await resumeCard({ ...card, pane }, false, note, true);
+			await resumeCard(
+				{ ...card, pane },
+				false,
+				prompt ? `${note}\n\n${prompt}` : note,
+				true,
+			);
 			if (!offline)
 				toast.success("Moved to this computer", { description: cwd });
 		} catch (error) {

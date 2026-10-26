@@ -290,6 +290,25 @@ export async function rebootInstance(
 	);
 }
 
+/**
+ * Whether the instance can take a session now: it exists, is running, and
+ * SSM sees it. False is a firm no - terminated, deleted, stopped, or out of
+ * SSM's reach. A failed AWS call (an expired sign-in, no network) throws:
+ * no answer is not a no.
+ */
+export async function hostUp(target: AwsTarget, id: string): Promise<boolean> {
+	const config = awsClientConfig(target);
+	const described = await new EC2Client(config)
+		.send(new DescribeInstancesCommand({ InstanceIds: [id] }))
+		.catch((err: { name?: string }) => {
+			if (err?.name?.startsWith("InvalidInstanceID")) return null;
+			throw err;
+		});
+	const state = described?.Reservations?.[0]?.Instances?.[0]?.State?.Name;
+	if (state !== "running") return false;
+	return (await ssmPing(new SSMClient(config), [id])).get(id) === "Online";
+}
+
 const delay = (ms: number) =>
 	new Promise<void>((resolve) => setTimeout(resolve, ms));
 
