@@ -44,14 +44,14 @@ test("remoteControlFlag: always named [Odin] <task>", () => {
 test("remoteControlEnv", () => {
 	expect(remoteControlEnv(false)).toBe("");
 	expect(remoteControlEnv(true)).toBe(
-		"unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY && ",
+		"unset CLAUDE_CODE_OAUTH_TOKEN; [ -f ~/.claude/plan-limit.json ] || unset ANTHROPIC_API_KEY; ",
 	);
 });
 
 test("claudeLaunch: a resume gets Remote Control like a new session", () => {
 	useClaudeCommand.setState({ commands: [], model: "", remoteControl: "all" });
 	expect(claudeLaunch("Fix it", "--resume abc")).toBe(
-		"unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY && claude --dangerously-skip-permissions --remote-control '[Odin] Fix it' --resume abc",
+		"unset CLAUDE_CODE_OAUTH_TOKEN; [ -f ~/.claude/plan-limit.json ] || unset ANTHROPIC_API_KEY; claude --dangerously-skip-permissions --remote-control '[Odin] Fix it' --resume abc",
 	);
 	useClaudeCommand.setState({ remoteControl: "off" });
 	expect(claudeLaunch("Fix it", "--resume abc")).toBe(
@@ -67,7 +67,7 @@ test("remoteControlOn: selected sessions only", () => {
 	expect(remoteControlOn("p2")).toBe(false);
 	expect(remoteControlOn()).toBe(false);
 	expect(claudeLaunch("Fix it", "--resume abc", "p2")).toBe(
-		"unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY && claude --dangerously-skip-permissions --resume abc",
+		"unset CLAUDE_CODE_OAUTH_TOKEN; [ -f ~/.claude/plan-limit.json ] || unset ANTHROPIC_API_KEY; claude --dangerously-skip-permissions --resume abc",
 	);
 	useClaudeCommand.getState().toggleRemotePane("p1");
 	expect(remoteControlOn("p1")).toBe(false);
@@ -106,7 +106,7 @@ test("claudeLaunch: a shell wrapper hands the flags through to claude", () => {
 	// the token right back.
 	useClaudeCommand.setState({ remoteControl: "all" });
 	expect(claudeLaunch("Fix it", "--resume abc")).toBe(
-		`zsh -ic 'unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY && claude "$@"' zsh --dangerously-skip-permissions --remote-control '[Odin] Fix it' --resume abc`,
+		`zsh -ic 'unset CLAUDE_CODE_OAUTH_TOKEN; [ -f ~/.claude/plan-limit.json ] || unset ANTHROPIC_API_KEY; claude "$@"' zsh --dangerously-skip-permissions --remote-control '[Odin] Fix it' --resume abc`,
 	);
 	// Double quotes: the outer shell reads them, so "$@" is escaped through.
 	useClaudeCommand.setState({
@@ -170,5 +170,32 @@ test.skipIf(!Bun.which("bash"))(
 		expect(await Bun.file(argv).text()).toBe(
 			`--dangerously-skip-permissions\n--session-id\nabc\n${text}\n`,
 		);
+	},
+);
+
+test.skipIf(!Bun.which("bash"))(
+	"remoteControlEnv: the key stays while claude-auto's plan limit is on",
+	async () => {
+		const home = `${Bun.env.TMPDIR ?? "/tmp"}/odin-rc-${crypto.randomUUID()}`;
+		const keyAfter = () =>
+			Bun.spawnSync(
+				[
+					"bash",
+					"-c",
+					`${remoteControlEnv(true)}echo "$CLAUDE_CODE_OAUTH_TOKEN|$ANTHROPIC_API_KEY"`,
+				],
+				{
+					env: {
+						HOME: home,
+						ANTHROPIC_API_KEY: "k",
+						CLAUDE_CODE_OAUTH_TOKEN: "t",
+					},
+				},
+			)
+				.stdout.toString()
+				.trim();
+		expect(keyAfter()).toBe("|");
+		await Bun.write(`${home}/.claude/plan-limit.json`, '{"until": 1}');
+		expect(keyAfter()).toBe("|k");
 	},
 );
