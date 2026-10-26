@@ -643,13 +643,14 @@ function NewTask({ onClose }: { onClose: () => void }) {
 				<span className="font-semibold">New task</span>
 				<span className="w-12" />
 			</div>
-			<textarea
-				// biome-ignore lint/a11y/noAutofocus: the sheet exists to type into
+			{/* Grows with the text, not with the screen: a box that fills the
+			    screen jumps smaller when the keyboard opens and the view shrinks. */}
+			<GrowingTextarea
 				autoFocus
 				value={text}
 				onChange={(event) => setText(event.target.value)}
 				placeholder="What should Odin do? First line is the title."
-				className="min-h-40 flex-1 resize-none rounded-[10px] border border-input bg-secondary p-3 text-base outline-none"
+				className="min-h-40 resize-none rounded-[10px] border border-input bg-secondary p-3 text-base outline-none"
 			/>
 			<SpeechStatus speech={speech} />
 			<UploadChips uploads={uploads} />
