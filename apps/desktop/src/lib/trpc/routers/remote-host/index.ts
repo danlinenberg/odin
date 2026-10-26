@@ -9,6 +9,7 @@ import { githubOwner, onGithubTokensChanged } from "main/lib/github-token";
 import { apiKeyFallbackOn } from "main/lib/remote-host/api-key-fallback";
 import {
 	bringUpHost,
+	hostUp,
 	launchHost,
 	listAwsProfiles,
 	listInstances,
@@ -1009,6 +1010,29 @@ export const createRemoteHostRouter = () =>
 					console.warn("[remote-host] tmux sessions:", error);
 					return null;
 				}
+			}),
+
+		/**
+		 * Whether a session's host can take it back: Odin still knows it by
+		 * that name, and its instance runs with SSM in reach. False sends a
+		 * Resume to this computer instead. Null when AWS didn't answer.
+		 */
+		hostUp: publicProcedure
+			.input(z.object({ host: z.string().min(1) }))
+			.query(async ({ input }) => {
+				const host = hostNamed(input.host);
+				if (!host || (host.name || host.instanceId) !== input.host)
+					return false;
+				return hostUp(
+					{
+						profile: host.profile ?? undefined,
+						region: host.region ?? undefined,
+					},
+					host.instanceId,
+				).catch((error) => {
+					console.warn("[remote-host] host up:", error);
+					return null;
+				});
 			}),
 
 		/**

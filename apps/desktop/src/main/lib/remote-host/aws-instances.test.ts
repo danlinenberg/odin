@@ -54,6 +54,7 @@ mock.module("@aws-sdk/client-ssm", () => ({
 const {
 	bringUpHost,
 	giveSsmAccess,
+	hostUp,
 	instanceFilters,
 	launchHost,
 	listInstances,
@@ -782,5 +783,57 @@ describe("aws-instances", () => {
 			"DescribeInstancesCommand",
 			"DescribeInstancesCommand",
 		]);
+	});
+});
+
+describe("hostUp", () => {
+	beforeEach(() => {
+		sent.length = 0;
+		answer = () => undefined;
+	});
+	const ping = (status: string) => ({
+		InstanceInformationList: [{ InstanceId: "i-1", PingStatus: status }],
+	});
+
+	test("a running instance SSM sees is up", async () => {
+		const states = describes(["running"]);
+		answer = (name) =>
+			name === "DescribeInstancesCommand"
+				? states()
+				: name === "DescribeInstanceInformationCommand"
+					? ping("Online")
+					: undefined;
+		expect(await hostUp({}, "i-1")).toBe(true);
+	});
+
+	test("a terminated, stopped or SSM-lost instance is not", async () => {
+		for (const [state, status] of [
+			["terminated", "Online"],
+			["stopped", "Online"],
+			["running", "ConnectionLost"],
+		]) {
+			const states = describes([state]);
+			answer = (name) =>
+				name === "DescribeInstancesCommand"
+					? states()
+					: name === "DescribeInstanceInformationCommand"
+						? ping(status)
+						: undefined;
+			expect(await hostUp({}, "i-1")).toBe(false);
+		}
+	});
+
+	test("an instance AWS no longer has is not; AWS not answering throws", async () => {
+		const fail = (errName: string) => () => {
+			throw Object.assign(new Error(errName), { name: errName });
+		};
+		answer = (name) =>
+			name === "DescribeInstancesCommand"
+				? fail("InvalidInstanceID.NotFound")()
+				: undefined;
+		expect(await hostUp({}, "i-gone")).toBe(false);
+		answer = (name) =>
+			name === "DescribeInstancesCommand" ? fail("ExpiredToken")() : undefined;
+		await expect(hostUp({}, "i-1")).rejects.toThrow("ExpiredToken");
 	});
 });
