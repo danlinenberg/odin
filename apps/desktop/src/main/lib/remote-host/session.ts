@@ -311,6 +311,24 @@ text = content if isinstance(content, str) else " ".join(str(b.get("text", "")) 
 sys.exit(1 if "[Request interrupted" in text else 0)`;
 
 /**
+ * Prints the folder the conversation (argv[1]) started in: Claude files it
+ * there, and `claude --resume` finds it only from that folder. A session that
+ * started in ~/repos and then made its own worktree resumed in the worktree
+ * and got "No conversation found with session ID".
+ */
+export const CONVERSATION_DIR = `import glob, json, os, sys
+for path in glob.glob(os.path.expanduser(f"~/.claude/projects/*/{sys.argv[1]}.jsonl"))[:1]:
+    for line in open(path):
+        try:
+            cwd = json.loads(line).get("cwd")
+        except Exception:
+            continue
+        if isinstance(cwd, str):
+            print(cwd)
+            sys.exit(0)
+sys.exit(1)`;
+
+/**
  * Exits 0 when the conversation (argv[1]) took the prompt (argv[2], base64)
  * since argv[3] (ms): as a turn of its own, or queued for after the one
  * running. A reconnect's attach asks before it puts the prompt in again. A
@@ -521,6 +539,9 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 			? `[ -d ${worktree} ] || git -C ${repo} worktree add -q -b ${sh(sessionBranch(spec.pane))} ${worktree} origin/HEAD 2>/dev/null || git -C ${repo} worktree add -q -b ${sh(sessionBranch(spec.pane))} ${worktree} 2>/dev/null || git -C ${repo} worktree add -q ${worktree} ${sh(sessionBranch(spec.pane))} 2>/dev/null || true`
 			: "",
 		spec.repoName ? `cd ${worktree} 2>/dev/null || cd ${repo}` : `cd ${repo}`,
+		resumed
+			? `d=$(python3 -c ${sh(CONVERSATION_DIR)} ${sh(resumed)} 2>/dev/null) && [ -d "$d" ] && cd "$d"; true`
+			: "",
 		`python3 -c ${sh(SKIP_FIRST_RUN)} "$PWD" 2>/dev/null || true`,
 		'export PATH="$HOME/.local/bin:$PATH"',
 		CLAUDE_LOGIN_SCRIPT,

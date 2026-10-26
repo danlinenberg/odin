@@ -14,6 +14,7 @@ import { VOICE_RULE } from "../../../shared/constants";
 import {
 	attachScript,
 	CLAUDE_LOGIN_SCRIPT,
+	CONVERSATION_DIR,
 	CUT_OFF_TURN,
 	GH_WRAPPER,
 	GIT_CREDENTIAL_HELPER,
@@ -453,6 +454,35 @@ test("a session resumed after Done gets its worktree back on its own branch", ()
 	expect(bash(worktree, "git branch --show-current").trim()).toBe(
 		"odin/abcdef12",
 	);
+});
+
+test("a Resume starts Claude in the folder its conversation is filed under", () => {
+	const run = runScript({ ...spec, claudeArgs: "--resume abc" }, "/d");
+	const line = `d=$(python3 -c ${sh(CONVERSATION_DIR)} 'abc' 2>/dev/null) && [ -d "$d" ] && cd "$d"; true`;
+	expect(run.indexOf(line)).toBeGreaterThan(
+		run.indexOf("cd \"$HOME\"/'repos'/'odin'/.worktrees"),
+	);
+	expect(run.indexOf(line)).toBeLessThan(run.indexOf("claude --settings"));
+	expect(runScript(spec, "/d")).not.toContain(sh(CONVERSATION_DIR));
+	const home = mkdtempSync(join(tmpdir(), "odin-dir-"));
+	try {
+		mkdirSync(join(home, ".claude/projects/-home-ubuntu-repos"), {
+			recursive: true,
+		});
+		writeFileSync(
+			join(home, ".claude/projects/-home-ubuntu-repos/abc.jsonl"),
+			`${JSON.stringify({ type: "mode" })}\nnot json\n${JSON.stringify({ cwd: "/home/ubuntu/repos" })}\n${JSON.stringify({ cwd: "/home/ubuntu/repos/x/.worktrees/y" })}\n`,
+		);
+		const dir = (id: string) =>
+			execFileSync("python3", ["-c", CONVERSATION_DIR, id], {
+				env: { HOME: home, PATH: process.env.PATH },
+				encoding: "utf8",
+			}).trim();
+		expect(dir("abc")).toBe("/home/ubuntu/repos");
+		expect(() => dir("missing")).toThrow();
+	} finally {
+		rmSync(home, { recursive: true, force: true });
+	}
 });
 
 test("a clone URL names its repo", () => {
