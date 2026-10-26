@@ -107,10 +107,8 @@ export function RemoteHostSection() {
 		onError,
 	});
 	const [apiKeyDraft, setApiKeyDraft] = useState("");
-	const [newUser, setNewUser] = useState("");
 	const setUpUser = electronTrpc.remoteHost.setUpUser.useMutation({
 		onSuccess: ({ user }) => {
-			setNewUser("");
 			toast.success(`${user} is set up on the host.`);
 			void utils.remoteHost.health.invalidate();
 		},
@@ -956,42 +954,6 @@ export function RemoteHostSection() {
 							onBlur={() => saveHostSetup("hostPackages", hostPackages)}
 						/>
 					</SettingRow>
-					{current?.host && (
-						<SettingRow
-							label="Set up someone else"
-							stacked
-							description={
-								<span className="select-text cursor-text">
-									Makes another person's Linux user and Odin service on this
-									host, by the name their Settings show. Yours is{" "}
-									<span className="font-mono">{current.hostUser}</span>.
-								</span>
-							}
-						>
-							<form
-								className="flex items-center gap-2"
-								onSubmit={(event) => {
-									event.preventDefault();
-									if (newUser.trim()) setUpUser.mutate(newUser.trim());
-								}}
-							>
-								<Input
-									value={newUser}
-									onChange={(event) => setNewUser(event.target.value)}
-									placeholder="odin-name"
-									className="h-8 w-48 font-mono text-sm"
-									aria-label="Linux user to set up"
-								/>
-								<Button
-									type="submit"
-									size="sm"
-									disabled={!newUser.trim() || setUpUser.isPending}
-								>
-									{setUpUser.isPending ? "Setting up..." : "Set up"}
-								</Button>
-							</form>
-						</SettingRow>
-					)}
 				</CollapsibleContent>
 			</Collapsible>
 		</SettingsSection>

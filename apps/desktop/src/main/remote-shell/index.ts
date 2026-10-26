@@ -402,7 +402,7 @@ async function setUpMissingUser(
 	spec: RemoteSessionSpec,
 	target: Parameters<typeof openSsmStream>[0],
 ): Promise<void> {
-	const fix = `An administrator sets it up in Settings > Remote > Set up a user on this host, by the name ${spec.user}.`;
+	const fix = `Your AWS role needs the permissions in docs/remote-host.md (Who can use a host); ask an administrator to add them.`;
 	if (userSetUpTried)
 		throw new Error(
 			`${spec.instanceId} has no Linux user ${spec.user}. ${fix}`,
@@ -469,14 +469,13 @@ async function login(
 }
 
 /**
- * AWS refused this login by policy. The host most likely has no Linux user
- * for it yet, and a role without root there can't create one: an
- * administrator does, once. Retrying cannot help, so the pane stops.
+ * AWS refused this login by policy: the role lacks what a host needs
+ * (docs/remote-host.md). Retrying cannot help, so the pane stops.
  */
 class NoAccess extends Error {
 	constructor(spec: RemoteSessionSpec, cause: unknown) {
 		super(
-			`your AWS role may not log in to ${spec.instanceId} as ${spec.user} (${cause instanceof Error ? cause.message : String(cause)}).\r\n  To fix it, an administrator opens Settings > Remote > Set up a user on this host and sets up ${spec.user}. Then start this session again.`,
+			`your AWS role may not log in to ${spec.instanceId} as ${spec.user} (${cause instanceof Error ? cause.message : String(cause)}).\r\n  Your AWS role needs the permissions in docs/remote-host.md (Who can use a host); ask an administrator to add them. Then start this session again.`,
 		);
 	}
 }

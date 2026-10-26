@@ -188,7 +188,7 @@ async function ensureHostService(
 }
 
 const adminHint = (host: HostLogin) =>
-	`Setting up or updating Odin's service on the host is an administrator's work: one with an AWS administrator role opens Settings > Remote > Set up a user on this host, for ${host.user}.`;
+	`Setting up or updating Odin's service on the host for ${host.user} needs ssm:SendCommand on it. Set it up from Settings > Remote > Connection check. Your AWS role needs the permissions in docs/remote-host.md (Who can use a host); ask an administrator to add them.`;
 
 /**
  * Sends the host user's tokens: the connectors' and GitHub's for sessions.

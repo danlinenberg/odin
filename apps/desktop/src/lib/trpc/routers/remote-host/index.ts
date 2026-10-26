@@ -503,10 +503,9 @@ export const createRemoteHostRouter = () =>
 		/** The host under way - New host or Use - and its step; null when none. */
 		awsHostStep: publicProcedure.query(() => hostStep),
 		/**
-		 * An administrator sets a host user up on the current host: their
-		 * Linux user, their service and their tools (setUpScript, as root over
-		 * SSM). Everyone else's Odin has no root on the host, so a new user
-		 * asks one with an AWS administrator role to run this for their name.
+		 * Sets this user up on the current host: their Linux user, their
+		 * service and their tools (setUpScript, as root over SSM) - the
+		 * connection check's Set up. Needs ssm:SendCommand on the host.
 		 */
 		setUpUser: publicProcedure
 			.input(
@@ -530,7 +529,7 @@ export const createRemoteHostRouter = () =>
 						error instanceof Error ? error.message : String(error);
 					throw new Error(
 						/AccessDenied|not authorized/i.test(message)
-							? "Setting up a user on the host needs an AWS administrator role."
+							? "Your AWS role needs the permissions in docs/remote-host.md (Who can use a host); ask an administrator to add them."
 							: message,
 					);
 				});
