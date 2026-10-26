@@ -154,6 +154,7 @@ import {
 	WatchPill,
 	WatchReply,
 	WatchRowLine,
+	watchingFor,
 } from "../components/ReplyWatch";
 import { TranscriptView } from "../components/TranscriptView";
 import {
@@ -4378,7 +4379,9 @@ function DevBoardPage() {
 					enabled: compactOnIdle,
 					isAgent: agentPaneIds.has(paneId),
 					alive: alivePaneIds.has(paneId),
-					looping: loopingPaneIds.has(paneId),
+					// A "Ping me when..." watch wakes itself up too, and a summary
+					// can drop what it watches for.
+					looping: loopingPaneIds.has(paneId) || watchingFor(watches, paneId),
 					open: paneId === drawerPaneId,
 				});
 				if (arrival === "hold") continue;
@@ -4400,6 +4403,7 @@ function DevBoardPage() {
 		agentPaneIds,
 		alivePaneIds,
 		loopingPaneIds,
+		watches,
 	]);
 	// The drawer's session list: what's in flight. Idle is out - those are put
 	// down, not in progress. Starred first, then the picked sort; a turn ending

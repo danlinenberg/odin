@@ -228,6 +228,17 @@ export function watchEvent(key: string, watch?: Watch): string {
 	return key.startsWith("pr:") ? "Approved" : "New reply";
 }
 
+/** Whether the session's Claude is still watching for a "Ping me when...". */
+export function watchingFor(
+	watches: Record<string, Watch>,
+	paneId: string,
+): boolean {
+	return Object.entries(watches).some(
+		([key, w]) =>
+			key.startsWith(WHEN) && w.paneId === paneId && w.stamp !== FIRED,
+	);
+}
+
 /**
  * What Odin types into the session for "Ping me when...". Claude checks the
  * condition with its own tools and skills - Odin has no connector for a
@@ -239,6 +250,7 @@ export function conditionPrompt(condition: string): string {
 		"Watch for this yourself, with your tools and skills. Check it now, then again at a sensible interval for what it is (a few minutes apart is usually right; /loop works), and keep watching until it happens - however long that takes. Don't ask me anything while you watch, and never give up on it.",
 		"When it happens, reply with this line on its own and stop: ODIN PING: HAPPENED - <one short line on what you saw>",
 		"A tool or connector that fails, disconnects or needs re-auth is not a reason to stop: try another way to check it (another tool, skill or API), and keep retrying at your interval - connectors often come back.",
+		"If the conversation is compacted, the watch goes on: keep this whole instruction, word for word, in the summary, and carry on checking after it.",
 	].join("\n");
 }
 
