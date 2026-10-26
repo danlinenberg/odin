@@ -471,7 +471,7 @@ test("a Resume starts Claude in the folder its conversation is filed under", () 
 		});
 		writeFileSync(
 			join(home, ".claude/projects/-home-ubuntu-repos/abc.jsonl"),
-			`${JSON.stringify({ type: "mode" })}\nnot json\n${JSON.stringify({ cwd: "/home/ubuntu/repos" })}\n${JSON.stringify({ cwd: "/home/ubuntu/repos/x/.worktrees/y" })}\n`,
+			`${JSON.stringify({ type: "mode" })}\nnot json\n${JSON.stringify({ cwd: "/Users/me/x" })}\n${JSON.stringify({ cwd: "/home/ubuntu/repos" })}\n${JSON.stringify({ cwd: "/home/ubuntu/repos/x/.worktrees/y" })}\n`,
 		);
 		const dir = (id: string) =>
 			execFileSync("python3", ["-c", CONVERSATION_DIR, id], {

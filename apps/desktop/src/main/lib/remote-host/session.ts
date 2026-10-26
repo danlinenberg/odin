@@ -311,19 +311,21 @@ text = content if isinstance(content, str) else " ".join(str(b.get("text", "")) 
 sys.exit(1 if "[Request interrupted" in text else 0)`;
 
 /**
- * Prints the folder the conversation (argv[1]) started in: Claude files it
- * there, and `claude --resume` finds it only from that folder. A session that
- * started in ~/repos and then made its own worktree resumed in the worktree
- * and got "No conversation found with session ID".
+ * Prints the folder the conversation (argv[1]) is filed under: the one of its
+ * cwds whose name Claude gave its projects folder. `claude --resume` finds it
+ * only from there. A session that started in ~/repos and then made its own
+ * worktree resumed in the worktree and got "No conversation found with
+ * session ID".
  */
-export const CONVERSATION_DIR = `import glob, json, os, sys
+export const CONVERSATION_DIR = `import glob, json, os, re, sys
 for path in glob.glob(os.path.expanduser(f"~/.claude/projects/*/{sys.argv[1]}.jsonl"))[:1]:
+    filed = os.path.basename(os.path.dirname(path))
     for line in open(path):
         try:
             cwd = json.loads(line).get("cwd")
         except Exception:
             continue
-        if isinstance(cwd, str):
+        if isinstance(cwd, str) and re.sub(r"[^A-Za-z0-9]", "-", cwd) == filed:
             print(cwd)
             sys.exit(0)
 sys.exit(1)`;
