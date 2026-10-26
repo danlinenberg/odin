@@ -236,10 +236,9 @@ export function watchEvent(key: string, watch?: Watch): string {
 export function conditionPrompt(condition: string): string {
 	return [
 		`Ping me when: ${condition}`,
-		"Watch for this yourself, with your tools and skills. Check it now, then again at a sensible interval for what it is (a few minutes apart is usually right; /loop works), for up to 4 hours. Don't ask me anything while you watch.",
+		"Watch for this yourself, with your tools and skills. Check it now, then again at a sensible interval for what it is (a few minutes apart is usually right; /loop works), and keep watching until it happens - however long that takes. Don't ask me anything while you watch, and never give up on it.",
 		"When it happens, reply with this line on its own and stop: ODIN PING: HAPPENED - <one short line on what you saw>",
 		"A tool or connector that fails, disconnects or needs re-auth is not a reason to stop: try another way to check it (another tool, skill or API), and keep retrying at your interval - connectors often come back.",
-		"Only when you hit the 4 hours, reply with this line on its own and stop: ODIN PING: GAVE UP - <why>",
 	].join("\n");
 }
 

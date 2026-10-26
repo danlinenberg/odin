@@ -1981,7 +1981,7 @@ function TagMenu({
 								className="w-full resize-none rounded-[5px] border border-input bg-card px-1.5 py-1 text-[12px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
 							/>
 							<span className="text-[10.5px] leading-snug text-muted-foreground">
-								The agent checks it with its own tools, up to 4 hours.
+								The agent checks it with its own tools until it happens.
 							</span>
 							<button
 								type="submit"
