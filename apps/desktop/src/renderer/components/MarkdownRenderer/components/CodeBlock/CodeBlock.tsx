@@ -1,5 +1,6 @@
 import { ShowCode } from "@odin/ui/ai-elements/show-code";
 import { Button } from "@odin/ui/button";
+import { toast } from "@odin/ui/sonner";
 import { mermaid } from "@streamdown/mermaid";
 import { CheckIcon, CopyIcon, SparklesIcon } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -203,8 +204,14 @@ function TuneVoice({ draft }: { draft: () => string }) {
 		setMode("closed");
 		setSaved(message);
 	};
+	// A failed save keeps the form open with what was typed.
+	const saveFailed = (error: { message: string }) =>
+		toast.error("Could not save to Your voice", {
+			description: error.message,
+		});
 	const addNote = electronTrpc.voice.addNote.useMutation({
 		onSuccess: () => close("Saved to Your voice"),
+		onError: saveFailed,
 	});
 	const learn = electronTrpc.voice.learnFromRewrite.useMutation({
 		onSuccess: (learning) =>
@@ -213,6 +220,7 @@ function TuneVoice({ draft }: { draft: () => string }) {
 					? "Learning from your version"
 					: "Turn on Your voice in Settings to learn from it",
 			),
+		onError: saveFailed,
 	});
 	const openRewrite = () => {
 		setRewrite(draft());
