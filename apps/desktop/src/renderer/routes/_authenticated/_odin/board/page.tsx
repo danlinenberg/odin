@@ -148,6 +148,8 @@ import { BUTTON, PILL } from "../components/pill";
 import { DueChip, OverdueMark, useReminders } from "../components/Reminders";
 import {
 	conditionPrompt,
+	restartedWatches,
+	resumeWatchPrompt,
 	sessionThread,
 	useReplyWatch,
 	WatchMark,
@@ -5789,6 +5791,42 @@ function DevBoardPage() {
 
 	const terminalWrite = electronTrpc.terminal.write.useMutation();
 	const terminalKill = electronTrpc.terminal.kill.useMutation();
+	// "Ping me when...": the checks Claude scheduled die with its process. When
+	// a watching session's Claude comes back (Resume, a relaunch in its shell),
+	// hand it the watch again once its prompt is up. Idle time changes nothing
+	// here - only Claude leaving the pane and returning does.
+	const agentsSeenRef = useRef<ReadonlySet<string> | null>(null);
+	useEffect(() => {
+		if (!daemonSessions) return;
+		const before = agentsSeenRef.current;
+		agentsSeenRef.current = agentPaneIds;
+		const restarted = restartedWatches(
+			useReplyWatch.getState().watches,
+			before,
+			agentPaneIds,
+		);
+		for (const { paneId, condition } of restarted)
+			void (async () => {
+				for (let waited = 0; waited < 120_000; waited += 2_000) {
+					await new Promise((resolve) => setTimeout(resolve, 2_000));
+					const screen =
+						visibleScreen(paneId) ||
+						((await electronTrpcClient.terminal.readScreen
+							.query({ paneId })
+							.then((result) => result.text)
+							.catch(() => null)) ??
+							"");
+					const status = odinScreenStatus(screen);
+					if (status !== "review" && status !== "working") continue;
+					await typeIntoClaude(
+						(input) => electronTrpcClient.terminal.write.mutate(input),
+						paneId,
+						resumeWatchPrompt(condition),
+					);
+					return;
+				}
+			})();
+	}, [agentPaneIds, daemonSessions]);
 	/**
 	 * Park a card by dragging it to Idle. Idle is the only drop target: the other
 	 * columns describe what the agent is actually doing, and dragging a card
