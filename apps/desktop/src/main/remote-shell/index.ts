@@ -270,7 +270,7 @@ const ssoExpired = (err: unknown) =>
 
 const bold = (text: string) => `\x1b[1m${text}\x1b[0m`;
 
-/** `aws sso login` through Odin, which signs in once for every pane waiting on it. */
+/** AWS SSO sign-in through Odin, which signs in once for every pane waiting on it. */
 async function ssoLogin(profile: string | null | undefined): Promise<void> {
 	const res = await fetch(
 		`http://127.0.0.1:${odinPort()}/remote-host/sso-login?profile=${encodeURIComponent(profile ?? "")}`,

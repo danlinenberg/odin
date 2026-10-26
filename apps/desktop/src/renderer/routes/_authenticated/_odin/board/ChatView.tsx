@@ -2516,7 +2516,7 @@ export function autoSsoLogin(
 }
 
 /**
- * Runs `aws sso login` for the user, then tells Claude to try again. A fresh
+ * Signs the user in to AWS SSO, then tells Claude to try again. A fresh
  * error starts it on its own; the button stays for a retry or an old error.
  */
 function AwsSsoLogin({
@@ -2527,9 +2527,8 @@ function AwsSsoLogin({
 	onSend: (text: string) => void;
 }) {
 	const login = electronTrpc.terminal.awsSsoLogin.useMutation({
-		onSuccess: () =>
-			onSend("I signed in to AWS again (aws sso login). Retry what failed."),
-		onError: (error) => toast.error(`aws sso login failed: ${error.message}`),
+		onSuccess: () => onSend("I signed in to AWS again. Retry what failed."),
+		onError: (error) => toast.error(`AWS sign-in failed: ${error.message}`),
 	});
 	const { mutate } = login;
 	useEffect(() => {
@@ -2542,7 +2541,7 @@ function AwsSsoLogin({
 			type="button"
 			disabled={login.isPending || login.isSuccess}
 			onClick={() => login.mutate()}
-			title="Run aws sso login - approve it in the browser tab that opens - then Claude retries"
+			title="Sign in to AWS - approve it in the browser tab that opens - then Claude retries"
 			className={cn(ACTION_BUTTON, "mt-2")}
 		>
 			{login.isSuccess
