@@ -250,6 +250,7 @@ export function conditionPrompt(condition: string): string {
 		"Watch for this yourself, with your tools and skills. Check it now, then again at a sensible interval for what it is (a few minutes apart is usually right; /loop works), and keep watching until it happens - however long that takes. Don't ask me anything while you watch, and never give up on it.",
 		"When it happens, reply with this line on its own and stop: ODIN PING: HAPPENED - <one short line on what you saw>",
 		"A tool or connector that fails, disconnects or needs re-auth is not a reason to stop: try another way to check it (another tool, skill or API), and keep retrying at your interval - connectors often come back.",
+		"The watch never expires. If your scheduled checks can expire (a recurring CronCreate job expires after 7 days, and so does /loop), create them again before they expire, so the watch never lapses.",
 		"If the conversation is compacted, the watch goes on: keep this whole instruction, word for word, in the summary, and carry on checking after it.",
 	].join("\n");
 }
