@@ -124,7 +124,7 @@ import {
 	normalizeTag,
 	readCustomTags,
 } from "shared/odin-tags";
-import { remoteCardsToReconnect } from "shared/remote-reconnect";
+import { remoteCardsToReconnect, tmuxSession } from "shared/remote-reconnect";
 import { setPhoneReply } from "./phone-resume";
 
 /** Tags the card shows as their own pill instead of in the #tag line. */
@@ -4861,6 +4861,15 @@ function DevBoardPage() {
 		}));
 	};
 
+	// Each host's tmux sessions, asked once the dead remote cards in `asked`
+	// had died, so a list never vouches for a card that died after it. Asked
+	// again when a new one dies, at most once a minute. Null: no answer.
+	const liveTmuxRef = useRef(
+		new Map<
+			string,
+			{ names: string[] | null; at: number; asked: Set<string> }
+		>(),
+	);
 	/**
 	 * `prompt` replaces the opening "Continue" (or the idle prompt): a "Do it"
 	 * on an ended session reopens it already working on that item. `restart`
@@ -5148,10 +5157,19 @@ function DevBoardPage() {
 		}
 		try {
 			// One Claude starting on the host at a time: a ticked batch of remote
-			// sessions resumed together froze every one of them there.
-			const startIn = card.pane.odinRemote
-				? hostStartDelay(card.pane.odinRemote)
-				: 0;
+			// sessions resumed together froze every one of them there. A reattach
+			// to a Claude still running in tmux starts nothing there, so it skips
+			// the line - every remote pane reconnecting after the Mac woke queued
+			// 15s apart, a toast each.
+			const host = card.pane.odinRemote;
+			const reattach =
+				!!host &&
+				!!sessionId &&
+				!restart &&
+				!!liveTmuxRef.current
+					.get(host)
+					?.names?.includes(tmuxSession(sessionId));
+			const startIn = host && !reattach ? hostStartDelay(host) : 0;
 			if (startIn > 0) {
 				toast.info(
 					`Starting on ${card.pane.odinRemote} in ${Math.ceil(startIn / 1000)}s - one session at a time`,
@@ -5345,15 +5363,6 @@ function DevBoardPage() {
 	// Re-runs the pick when a resume ends without touching any other dep
 	// (lost transcript, queued behind the gate).
 	const [autoResumeTick, setAutoResumeTick] = useState(0);
-	// Each host's tmux sessions, asked once the dead remote cards in `asked`
-	// had died, so a list never vouches for a card that died after it. Asked
-	// again when a new one dies, at most once a minute. Null: no answer.
-	const liveTmuxRef = useRef(
-		new Map<
-			string,
-			{ names: string[] | null; at: number; asked: Set<string> }
-		>(),
-	);
 	const askingTmuxRef = useRef(new Set<string>());
 	const tmuxWaitRef = useRef(new Set<string>());
 	// biome-ignore lint/correctness/useExhaustiveDependencies: autoResumeTick is the re-run trigger
