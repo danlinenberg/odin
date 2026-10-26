@@ -13,7 +13,9 @@ import {
 	bangCommands,
 	bashCommandOf,
 	commandItem,
+	commandLabel,
 	currentTurn,
+	earlierCommandHomes,
 	earlierCommandItem,
 	earlierCommandsText,
 	elapsedLabel,
@@ -1161,4 +1163,30 @@ test("movedHere: a host mirror under the card's own host folder stays the host's
 	expect(movedHere(mirror, "/Users/dan/dev/odin", "/home/odin/repos", id)).toBe(
 		false,
 	);
+});
+
+test("a Run button reads the note's first sentence, as plain text", () => {
+	expect(
+		commandLabel(
+			"Check that the key works with a free **Ahrefs** call. It prints only the HTTP status, `200`:",
+		),
+	).toBe("Check that the key works with a free Ahrefs call");
+	expect(commandLabel("A read-only preview:")).toBe("A read-only preview");
+});
+
+test("an earlier command no item asks for again is left out, not put at the foot", () => {
+	const earlier = ["du -sh ~/Downloads", "curl -s https://api.example.com"];
+	expect(
+		earlierCommandHomes(
+			earlier,
+			[],
+			[
+				"Send the message from my last reply to support.",
+				"Run the curl check from my earlier message.",
+			],
+		),
+	).toEqual([1, 1]);
+	expect(
+		earlierCommandHomes(earlier, [], ["Send the message from my last reply."]),
+	).toEqual([-2, -2]);
 });

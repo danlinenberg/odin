@@ -82,6 +82,7 @@ import {
 	actionItemList,
 	bangCommandNotes,
 	bangCommands,
+	commandLabel,
 	isAnswerItem,
 	isApprovalItem,
 	isDoneItem,
@@ -1811,6 +1812,7 @@ export {
 	actionItemEntries,
 	bangCommandNotes,
 	bangCommands,
+	commandLabel,
 	localCommand,
 	actionItemList,
 	isAnswerItem,
@@ -2092,13 +2094,10 @@ function ActionItems({
 			entries.map(({ under }) => under),
 		),
 	);
-	const earlierHomes = earlier.map((command) =>
-		commands.includes(command)
-			? -1
-			: earlierCommandItem(
-					command,
-					entries.map(({ item }) => item),
-				),
+	const earlierHomes = earlierCommandHomes(
+		earlier,
+		commands,
+		entries.map(({ item }) => item),
 	);
 	const commandsAt = (index: number) => [
 		...commands.filter((_, i) => homes[i] === index),
@@ -2305,6 +2304,22 @@ export function earlierCommandItem(command: string, items: string[]): number {
 	return best;
 }
 
+/**
+ * Where each earlier reply's command goes: its item's index, or -2 - nowhere.
+ * Not -1, the card's foot: an old command nobody asked for again isn't shown.
+ */
+export function earlierCommandHomes(
+	earlier: string[],
+	commands: string[],
+	items: string[],
+): number[] {
+	return earlier.map((command) => {
+		if (commands.includes(command)) return -2;
+		const home = earlierCommandItem(command, items);
+		return home < 0 ? -2 : home;
+	});
+}
+
 /** "Run the checks from my earlier message": an item that asks for a reply's commands from before. */
 const sendsBack = (item: string) =>
 	/\b(run|execute)\b/i.test(item) &&
@@ -2335,6 +2350,8 @@ function RunCommand({
 }) {
 	const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
 	const note = useContext(CommandNotes)[command];
+	// What it does on the button; the command itself on hover.
+	const label = note ? commandLabel(note) : "";
 	const local = localCommand(command);
 	const shown = local ?? command;
 	return (
@@ -2366,16 +2383,29 @@ function RunCommand({
 					)}
 				>
 					<LuSquareTerminal className="size-3.5 shrink-0" />
-					<span className="truncate font-mono">
-						{local
-							? state === "sent"
-								? "Started on my computer:"
-								: "Run on my computer:"
-							: state === "sent"
-								? "Sent !"
-								: "Run !"}{" "}
-						{shown.split("\n")[0]}
-					</span>
+					{label ? (
+						<span className="truncate">
+							{local
+								? state === "sent"
+									? "Started on my computer:"
+									: "Run on my computer:"
+								: state === "sent"
+									? "Sent:"
+									: "Run:"}{" "}
+							{label}
+						</span>
+					) : (
+						<span className="truncate font-mono">
+							{local
+								? state === "sent"
+									? "Started on my computer:"
+									: "Run on my computer:"
+								: state === "sent"
+									? "Sent !"
+									: "Run !"}{" "}
+							{shown.split("\n")[0]}
+						</span>
+					)}
 				</button>
 			</TooltipTrigger>
 			<TooltipContent
