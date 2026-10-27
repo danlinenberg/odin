@@ -112,6 +112,7 @@ import {
 	promptLine,
 } from "./host-delivery";
 import { launchRequest } from "./launch-request";
+import { PLAN_LIMIT_OPENING } from "./plan-limit-resume";
 import {
 	canSpeak,
 	speak,
@@ -3109,9 +3110,9 @@ export function ChatView({
 				: null,
 		[screenText, screenMenu, screenAside],
 	);
-	// Claude draws its limit menu only when the turn hits the limit. A session
-	// reopened after that (a night run the board picked up in the morning)
-	// shows the message with no menu on screen, so offer to open it.
+	// A session stopped by a usage or spend limit stays stuck: Claude's limit
+	// menu has nothing for a spend limit, so offer a restart, which comes back
+	// on the API key when its fallback is on. Without a restart, open the menu.
 	const lastItem = items.at(-1);
 	const limitHit =
 		!!onShowTerminal &&
@@ -3791,11 +3792,21 @@ export function ChatView({
 							<ReplyMark />
 							<button
 								type="button"
-								title="Open the usage limit menu: wait for the reset, or keep going on extra usage"
-								onClick={() => void sendKeys(["/rate-limit-options", "\r"])}
+								title={
+									onRestart
+										? "Restart this session and carry on - with the API key at the plan limit on, it runs on your API key"
+										: "Open the usage limit menu: wait for the reset, or keep going on extra usage"
+								}
+								onClick={() =>
+									onRestart
+										? onRestart(PLAN_LIMIT_OPENING)
+										: void sendKeys(["/rate-limit-options", "\r"])
+								}
 								className="h-7 rounded-lg border border-attention/35 bg-attention/[0.07] px-3 text-[12.5px] font-medium text-attention hover:bg-attention/15"
 							>
-								Show usage limit options
+								{onRestart
+									? "Restart and continue"
+									: "Show usage limit options"}
 							</button>
 						</div>
 					)}
