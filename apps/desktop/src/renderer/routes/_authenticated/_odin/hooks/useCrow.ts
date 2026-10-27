@@ -541,6 +541,7 @@ async function launchTask(
 	task: CrowDeps["todos"][number],
 	deps: CrowDeps,
 	onCreated?: (paneId: string) => void,
+	onHost?: boolean,
 ): Promise<string | null> {
 	const ensured = await deps.ensureWorkspace(null, { askForFolder: false });
 	if (!ensured.ok) {
@@ -555,6 +556,7 @@ async function launchTask(
 		brief: taskPrompt(task),
 		skill: task.skill,
 		repoPath: task.repo,
+		onHost,
 		onCreated: onCreated && ((created) => onCreated(created.paneId)),
 	});
 	if (!result.ok) {
@@ -572,13 +574,14 @@ async function launchTask(
 function openedPane(
 	task: CrowDeps["todos"][number],
 	deps: CrowDeps,
+	onHost?: boolean,
 ): Promise<string> {
 	return new Promise((resolve) => {
 		const answer = (paneId: string | null) =>
 			resolve(
 				JSON.stringify(paneId ? { paneId } : { error: "Couldn't start it." }),
 			);
-		void launchTask(task, deps, answer).then(answer);
+		void launchTask(task, deps, answer, onHost).then(answer);
 	});
 }
 
@@ -640,9 +643,11 @@ function runOdinAction(
 			args.start === "true" ? useOdinTasks.getState().tasks[0] : undefined;
 		if (!task) return `Added "${title}" to the backlog.`;
 		// The phone opens the new session: its paneId as JSON, once its card is up.
-		if (args.open === "true") return openedPane(task, deps);
+		// The phone's Where pick; none keeps Settings' rule.
+		const onHost = args.host ? args.host === "true" : undefined;
+		if (args.open === "true") return openedPane(task, deps, onHost);
 		// Not awaited: a launch can sit behind the machine's capacity gate.
-		void launchTask(task, deps);
+		void launchTask(task, deps, undefined, onHost);
 		return `Added "${title}" and started it on the board.`;
 	}
 	if (action === "profile") {
