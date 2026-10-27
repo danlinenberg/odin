@@ -93,6 +93,10 @@ STALE="$STALE_DIR/Odin-$(date +%s).app"
 if [[ -d /Applications/Odin.app ]]; then
   mv /Applications/Odin.app "$STALE" ||
     { log "could not move the installed bundle aside"; exit 1; }
+  # A parked bundle stays registered under Odin's bundle ID, and banners can
+  # draw its (older) icon instead of the installed one's.
+  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+    -u "$STALE" >/dev/null 2>&1 || true
 fi
 if ! ditto "$APP" /Applications/Odin.app >>"$LOG" 2>&1; then
   log "INSTALL FAILED - restoring the previous bundle"

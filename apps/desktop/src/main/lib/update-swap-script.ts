@@ -81,6 +81,9 @@ if [ -d "$APP" ] && ! mv "$APP" "$STALE"; then
 fi
 if ditto "$MNT/Odin.app" "$APP"; then
   xattr -dr com.apple.quarantine "$APP" >/dev/null 2>&1 || true
+  # A parked bundle stays registered under Odin's bundle ID, and banners can
+  # draw its (older) icon instead of the installed one's.
+  [ -d "$STALE" ] && /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u "$STALE" >/dev/null 2>&1 || true
   echo "[$(date '+%H:%M:%S')] installed; previous bundle parked at $STALE"
 else
   echo "[$(date '+%H:%M:%S')] INSTALL FAILED - restoring the previous bundle"
