@@ -465,7 +465,7 @@ for (const [label, line] of [
 		const focused = await page<string>(
 			`document.activeElement?.tagName + " " + (document.activeElement?.getAttribute("placeholder") ?? "")`,
 		);
-		if (!/^INPUT .*(search|⌘F)/i.test(focused))
+		if (!/^INPUT .*(search|⌘F|Ctrl\+Shift\+F)/i.test(focused))
 			throw new Error(`focus went to ${focused}`);
 	});
 }
