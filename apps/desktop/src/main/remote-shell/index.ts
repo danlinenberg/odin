@@ -1,12 +1,12 @@
 /**
  * The program a remote session's pane runs (under ELECTRON_RUN_AS_NODE): it
  * logs in to the host over SSM with a one-time key and connects this terminal
- * to the session's tmux session there. argv[2] is the base64 JSON spec. The
+ * to the session's tmux session there. argv[2] is the JSON spec's file. The
  * user's tokens come from Odin's local server with a single-use ticket
  * (argv[3]), so they are on no command line.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { appendFile, mkdir, readdir, stat, writeFile } from "node:fs/promises";
 import { connect } from "node:net";
 import { homedir } from "node:os";
@@ -666,8 +666,12 @@ const waitOrR = (ms: number) =>
 
 async function main(): Promise<void> {
 	const startedAt = Date.now();
+	const arg = process.argv[2] ?? "";
+	// A command from before the spec moved to a file carries it as base64.
 	const spec = JSON.parse(
-		Buffer.from(process.argv[2] ?? "", "base64").toString(),
+		existsSync(arg)
+			? readFileSync(arg, "utf8")
+			: Buffer.from(arg, "base64").toString(),
 	) as RemoteSessionSpec;
 	const env = await tokens(process.argv[3]);
 	const target = {

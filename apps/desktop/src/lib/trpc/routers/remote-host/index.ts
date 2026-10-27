@@ -1,5 +1,11 @@
 import { execFile } from "node:child_process";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir, userInfo } from "node:os";
 import { join } from "node:path";
@@ -13,6 +19,7 @@ import {
 	shell,
 } from "electron";
 import { getNotifyScriptPath } from "main/lib/agent-setup/notify-hook";
+import { ODIN_HOME_DIR } from "main/lib/app-environment";
 import { githubOwner, onGithubTokensChanged } from "main/lib/github-token";
 import {
 	apiKeyFallbackOn,
@@ -1077,7 +1084,19 @@ export const createRemoteHostRouter = () =>
 				const host = hostNamed(input.host);
 				if (!host) throw new Error("No remote host is set up.");
 				const session = await buildSessionSpec(host, input);
-				const spec = Buffer.from(JSON.stringify(session)).toString("base64");
+				// The spec goes in a file, not on the command line: Git Bash on
+				// Windows cuts a long command line short, and the prompt alone
+				// runs to several KB. One file per pane, rewritten each launch.
+				const spec = join(
+					ODIN_HOME_DIR,
+					"remote-specs",
+					`${input.pane.replace(/[^\w-]/g, "_")}.json`,
+				);
+				mkdirSync(join(ODIN_HOME_DIR, "remote-specs"), {
+					recursive: true,
+					mode: 0o700,
+				});
+				writeFileSync(spec, JSON.stringify(session), { mode: 0o600 });
 				const ticket = issueTicket(await sessionSecrets());
 				const script = join(
 					app.getAppPath(),
@@ -1085,7 +1104,7 @@ export const createRemoteHostRouter = () =>
 					"main",
 					"remote-shell.js",
 				);
-				return `ELECTRON_RUN_AS_NODE=1 ${sh(resolveElectronBinary())} ${sh(script)} ${spec} ${ticket}`;
+				return `ELECTRON_RUN_AS_NODE=1 ${sh(resolveElectronBinary())} ${sh(script)} ${sh(spec)} ${ticket}`;
 			}),
 
 		/**
