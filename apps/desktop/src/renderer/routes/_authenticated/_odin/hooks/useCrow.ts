@@ -662,16 +662,24 @@ function runOdinAction(
 	}
 	if (action === "card-flags") {
 		// What the phone's board cards show beside the title, as the desktop
-		// card does: "Dropped: PR merged" and the unread ping.
-		const { dropped } = useCardFlags.getState();
+		// card does: "Dropped: PR merged" and the unread ping. And the column it
+		// sits in, with "Ping me" sessions that wait on someone else marked.
+		const { dropped, column } = useCardFlags.getState();
 		const { watches } = useReplyWatch.getState();
-		const flags: Record<string, { dropped?: string; ping?: string }> = {};
+		const flags: Record<
+			string,
+			{ dropped?: string; ping?: string; column?: string; waiting?: true }
+		> = {};
 		for (const id of Object.keys(panes)) {
 			const ping = unreadPing(watches, id);
-			if (dropped[id] || ping)
+			const watched = Object.values(watches).some((w) => w.paneId === id);
+			const waiting = watched && !ping && column[id] === "idle";
+			if (dropped[id] || ping || column[id])
 				flags[id] = {
 					...(dropped[id] && { dropped: `Dropped: ${dropped[id]}` }),
 					...(ping && { ping }),
+					...(column[id] && { column: column[id] }),
+					...(waiting && { waiting: true as const }),
 				};
 		}
 		return JSON.stringify(flags);

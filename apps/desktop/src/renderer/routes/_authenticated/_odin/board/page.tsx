@@ -4339,6 +4339,7 @@ function DevBoardPage() {
 	const lastCardsRef = useRef(new Map<string, BoardCard>());
 	const {
 		cardsByStatus,
+		columnOf,
 		completedCards,
 		allTags,
 		allPeople,
@@ -4352,6 +4353,8 @@ function DevBoardPage() {
 		let starred = 0;
 		let viewed = 0;
 		const completed: BoardCard[] = [];
+		// Every card's column before the filters: the phone's board shows it too.
+		const columnOf: Record<string, PaneStatus> = {};
 		// Counted over the sessions the board actually shows - counting every
 		// pane made the pill promise cards that were killed or aren't tasks.
 		const tagCounts = new Map<string, number>();
@@ -4419,6 +4422,7 @@ function DevBoardPage() {
 					watchByPane.get(pane.id) ?? "none",
 					promptingByPane.get(pane.id),
 				);
+				columnOf[pane.id] = column;
 				for (const tag of boardTags(pane.odinTags, customTags))
 					tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
 				if (pane.odinStarred) starred++;
@@ -4463,6 +4467,7 @@ function DevBoardPage() {
 		}
 		return {
 			cardsByStatus: map,
+			columnOf,
 			completedCards: completed,
 			starredCount: starred,
 			viewedCount: viewed,
@@ -4499,6 +4504,10 @@ function DevBoardPage() {
 		isProfileLoading,
 		customTags,
 	]);
+	// The phone's board files each card where this board does.
+	useEffect(() => {
+		useCardFlags.setState({ column: columnOf });
+	}, [columnOf]);
 	// A card is armed for compaction by being seen in any column but Idle, and
 	// fires once it turns up in Idle - so a session already parked when the
 	// board loads is left alone, and one that comes back to Idle after its own

@@ -30,6 +30,8 @@ type Session = Omit<ActiveSession, "starred" | "statusAt"> &
 		dropped?: string;
 		/** The unread ping on a watched session: "New reply: ...", "Approved: ...". */
 		ping?: string;
+		/** A "Ping me" session in Idle, waiting on someone else, nothing new yet. */
+		waiting?: boolean;
 	};
 
 /** The desktop card's moon: a session the Night Agent started overnight. */
@@ -63,24 +65,41 @@ const EMPTY: Record<PaneStatus, string> = {
 	failed: "",
 };
 
+/** Starred first, then by last activity, newest first. */
+const byActivity = (a: Session, b: Session) =>
+	Number(!!b.starred) - Number(!!a.starred) ||
+	(b.statusAt ?? 0) - (a.statusAt ?? 0);
+
 /**
  * The board's sections: every column - Needs you, Working, Final Review,
  * Idle - empty or not, with starred sessions at the top of their own column
- * and the rest by last activity, newest first.
+ * and the rest by last activity, newest first. Above Idle, when there are
+ * any, the desktop Idle column's "Waiting on others": "Ping me" sessions
+ * with nothing new yet.
  */
 export function boardSections(sessions: Session[]) {
-	return ORDER.map((column) => ({
+	const waiting = sessions.filter((s) => s.column === "idle" && s.waiting);
+	const sections: {
+		key: PaneStatus | "waiting";
+		label: string;
+		rows: Session[];
+		empty: string;
+	}[] = ORDER.map((column) => ({
 		key: column,
 		label: STATUS[column].label,
 		rows: sessions
-			.filter((s) => s.column === column)
-			.sort(
-				(a, b) =>
-					Number(!!b.starred) - Number(!!a.starred) ||
-					(b.statusAt ?? 0) - (a.statusAt ?? 0),
-			),
+			.filter((s) => s.column === column && !waiting.includes(s))
+			.sort(byActivity),
 		empty: EMPTY[column],
 	}));
+	if (waiting.length)
+		sections.splice(ORDER.indexOf("idle"), 0, {
+			key: "waiting",
+			label: "Waiting on others",
+			rows: waiting.sort(byActivity),
+			empty: "",
+		});
+	return sections;
 }
 
 type DoneRow = {
