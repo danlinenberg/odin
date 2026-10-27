@@ -18,7 +18,7 @@ describe("activeSessions", () => {
 					status: "working",
 					odinSource: "jira",
 					odinContact: "Ladis",
-					odinTags: ["infra"],
+					odinTags: ["infra", "off-hours"],
 					initialCwd: "/Users/dan/dev/odin/",
 				}),
 				pane({ id: "asking", status: "permission", odinSource: "reactions" }),
@@ -49,6 +49,7 @@ describe("activeSessions", () => {
 				repo: null,
 				starred: false,
 				statusAt: null,
+				night: false,
 			},
 			{
 				paneId: "working",
@@ -62,6 +63,8 @@ describe("activeSessions", () => {
 				repo: "odin",
 				starred: false,
 				statusAt: null,
+				// The board drops "off-hours" from tags; the flag carries it.
+				night: true,
 			},
 		]);
 	});

@@ -22,6 +22,7 @@ import {
 	LuFileText,
 	LuLoaderCircle,
 	LuMonitor,
+	LuMoon,
 	LuPaperclip,
 	LuPlus,
 	LuQrCode,
@@ -54,6 +55,7 @@ import {
 	STATUS,
 } from "./cards";
 import { demoAnswer } from "./demo";
+import { NightPage } from "./night";
 import { channelFetch, type OdinFetch } from "./odin-fetch";
 import { type Pairing, parsePairLink } from "./pair-link";
 import { MenuCard, PlanCard, QuestionCard } from "./prompt-cards";
@@ -222,16 +224,20 @@ if (native?.Plugins?.App) {
 
 const POLL = 3_000;
 
-const paneInHash = () => location.hash.match(/^#\/s\/(.+)$/)?.[1] ?? null;
+/** The screen the hash names: a session (#/s/<paneId>), the Night Agent, or the board. */
+const screenInHash = () => {
+	const paneId = location.hash.match(/^#\/s\/(.+)$/)?.[1] ?? null;
+	return { paneId, night: location.hash === "#/night" };
+};
 
-const usePaneFromHash = () => {
-	const [paneId, setPaneId] = useState(paneInHash);
+const useScreenFromHash = () => {
+	const [screen, setScreen] = useState(screenInHash);
 	useEffect(() => {
-		const onHash = () => setPaneId(paneInHash());
+		const onHash = () => setScreen(screenInHash());
 		addEventListener("hashchange", onHash);
 		return () => removeEventListener("hashchange", onHash);
 	}, []);
-	return paneId;
+	return screen;
 };
 
 /** A plain message as the error line's input. */
@@ -439,7 +445,16 @@ function Home() {
 			<header className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-2 backdrop-blur">
 				<div className="flex items-center justify-between gap-3">
 					<h1 className="text-2xl font-bold">Board</h1>
-					<ProfilePicker />
+					<div className="flex min-w-0 items-center gap-2">
+						<ProfilePicker />
+						<a
+							href="#/night"
+							aria-label="Night Agent"
+							className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-primary"
+						>
+							<LuMoon className="size-[18px]" />
+						</a>
+					</div>
 				</div>
 				<SearchBox value={query} onChange={setQuery} />
 			</header>
@@ -1240,8 +1255,31 @@ function Pair() {
 	);
 }
 
+/** The Night Agent's page: read from the Mac, with its switch. */
+function NightAgent() {
+	const night = phone.night.useQuery(undefined, { refetchInterval: 15_000 });
+	const toggle = phone.setNight.useMutation({
+		onSuccess: () => void night.refetch(),
+	});
+	// A session the night started that's off the board: back on it, and open.
+	const resume = phone.resume.useMutation({
+		onSuccess: ({ paneId }) => {
+			location.hash = `#/s/${paneId}`;
+		},
+	});
+	return (
+		<NightPage
+			data={night.data}
+			error={<ErrorLine error={night.error ?? toggle.error ?? resume.error} />}
+			onToggle={(enabled) => toggle.mutate({ enabled })}
+			toggling={toggle.isPending}
+			onResume={(sessionId, title) => resume.mutate({ sessionId, title })}
+		/>
+	);
+}
+
 function App() {
-	const paneId = usePaneFromHash();
+	const { paneId, night } = useScreenFromHash();
 	// Drawn: screens Odin sent this phone worked, so boot.ts keeps them.
 	useEffect(markStarted, []);
 	if (!pairing && !devToken && !demo)
@@ -1254,7 +1292,13 @@ function App() {
 		);
 	return (
 		<>
-			{paneId ? <Session key={paneId} paneId={paneId} /> : <Home />}
+			{paneId ? (
+				<Session key={paneId} paneId={paneId} />
+			) : night ? (
+				<NightAgent />
+			) : (
+				<Home />
+			)}
 			<ShareTargets />
 			{native && pairing && <ScreensUpdate />}
 		</>

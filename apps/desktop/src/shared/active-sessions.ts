@@ -33,6 +33,8 @@ export interface ActiveSession {
 	starred: boolean;
 	/** When its status last changed - a turn that just ended reads as just done. */
 	statusAt: number | null;
+	/** Started overnight by the Night Agent - the board's moon pill. */
+	night?: boolean;
 }
 
 /** Needs-you first - the whole point of looking. */
@@ -78,6 +80,7 @@ export function activeSessions(
 				(pane.cwd ?? pane.initialCwd)?.split("/").filter(Boolean).pop() ?? null,
 			starred: !!pane.odinStarred,
 			statusAt: pane.odinStatusAt ?? null,
+			night: !!pane.odinTags?.includes("off-hours"),
 		}))
 		.sort(
 			(a, b) =>

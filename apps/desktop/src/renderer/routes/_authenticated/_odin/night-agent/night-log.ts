@@ -120,3 +120,59 @@ export function featuredNight(
 		}
 	);
 }
+
+/** How many nights, and lines per night, the phone's page gets. */
+const PHONE_NIGHTS = 7;
+const PHONE_LINES = 40;
+
+/** One night on the phone's Night Agent page. */
+export interface PhoneNight {
+	label: string;
+	date: string;
+	/** The sessions it started, in start order; paneId opens one still on the board. */
+	started: {
+		title: string;
+		source: string;
+		at: string;
+		sessionId?: string;
+		paneId?: string;
+	}[];
+	/** Every line of the night, newest first. */
+	lines: { at: string; event: string }[];
+}
+
+/**
+ * The newest nights, for the phone's Night Agent page. A started session's paneId is the pane still holding its
+ * conversation, so the phone opens it; without one the phone resumes it.
+ */
+export function phoneNights(
+	log: NightLogEntry[],
+	window: { start: string; end: string },
+	paneOf: (sessionId: string) => string | undefined,
+	now = new Date(),
+): PhoneNight[] {
+	return groupNights(log, window.start, window.end, now)
+		.slice(0, PHONE_NIGHTS)
+		.map((night) => ({
+			label: night.label,
+			date: night.date,
+			started: night.started.flatMap(({ at, started }) =>
+				started
+					? [
+							{
+								title: started.title,
+								source: started.source,
+								at,
+								sessionId: started.sessionId,
+								paneId: started.sessionId
+									? paneOf(started.sessionId)
+									: undefined,
+							},
+						]
+					: [],
+			),
+			lines: night.lines
+				.slice(0, PHONE_LINES)
+				.map(({ at, event }) => ({ at, event })),
+		}));
+}

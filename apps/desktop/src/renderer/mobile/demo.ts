@@ -30,6 +30,8 @@ const sessions = [
 	tags: [],
 	source: "tasks",
 	starred: paneId === "p4",
+	// p5 ran overnight: the Night Agent's moon.
+	night: paneId === "p5",
 	// p5 ended its turn 3 minutes ago: a Just done card.
 	statusAt: Date.now() - [40, 8, 2, 95, 3, 300, 140][i] * 60_000,
 }));
@@ -99,6 +101,51 @@ const profiles = [
 	{ id: "personal", name: "Personal" },
 ];
 let activeProfile = "default";
+
+/** Last night's run, for the Night Agent page. */
+const lastNight = (hour: number, minute: number) => {
+	const at = new Date();
+	at.setDate(at.getDate() - (hour >= 12 ? 1 : 0));
+	at.setHours(hour, minute, 0, 0);
+	return at.toISOString();
+};
+const night = {
+	enabled: true,
+	start: "23:00",
+	end: "07:00",
+	maxSessions: 8,
+	running: false,
+	startedTonight: 0,
+	nights: [
+		{
+			label: "Last night",
+			date: "",
+			started: [
+				{
+					title: "Board hover card",
+					source: "Tasks",
+					at: lastNight(23, 2),
+					sessionId: "s5",
+					paneId: "p5",
+				},
+				{
+					title: "Bump the relay's Node version",
+					source: "GitHub",
+					at: lastNight(1, 40),
+					sessionId: "s8",
+				},
+			],
+			lines: [
+				["Window closed: 2 started", 7, 0],
+				["Started Bump the relay's Node version", 1, 40],
+				["Started Board hover card", 23, 2],
+			].map(([event, hour, minute]) => ({
+				event: String(event),
+				at: lastNight(Number(hour), Number(minute)),
+			})),
+		},
+	],
+};
 
 export function answer(
 	path: string,
@@ -177,6 +224,12 @@ export function answer(
 				slack: "https://acme.slack.com/archives/C1/p1",
 				notion: null,
 			};
+		case "night":
+			return night;
+		case "setNight":
+			night.enabled = !!(input as unknown as { enabled: boolean }).enabled;
+			night.running = false;
+			return "ok";
 		case "repos":
 			return [
 				"/Users/you/code/api",

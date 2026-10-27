@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { NightLogEntry } from "renderer/stores/next-in-line-prompt";
-import { featuredNight, groupNights } from "./night-log";
+import { featuredNight, groupNights, phoneNights } from "./night-log";
 
 const ms = (iso: string) => new Date(iso).getTime();
 const line = (iso: string, event: string, rest?: Partial<NightLogEntry>) => ({
@@ -178,5 +178,37 @@ describe("featuredNight", () => {
 		expect(featuredNight(nights, ...window, now).from).toBe(
 			ms("2026-10-18T23:00:00"),
 		);
+	});
+});
+
+describe("phoneNights", () => {
+	test("a night's started sessions carry the pane still holding them", () => {
+		const nights = phoneNights(
+			[
+				line("2026-10-18T23:05:00", "Started a", {
+					started: { ...started("a"), sessionId: "s-a" },
+				}),
+				line("2026-10-19T01:00:00", "Started b", {
+					started: { ...started("b"), sessionId: "s-b" },
+				}),
+				line("2026-10-19T07:01:00", "Window closed"),
+			],
+			{ start: "23:00", end: "07:00" },
+			(sessionId) => (sessionId === "s-a" ? "pane-a" : undefined),
+			new Date("2026-10-19T09:00:00"),
+		);
+		expect(nights).toHaveLength(1);
+		expect(nights[0]?.label).toBe("Last night");
+		expect(
+			nights[0]?.started.map(({ title, paneId }) => [title, paneId]),
+		).toEqual([
+			["a", "pane-a"],
+			["b", undefined],
+		]);
+		expect(nights[0]?.lines.map((l) => l.event)).toEqual([
+			"Window closed",
+			"Started b",
+			"Started a",
+		]);
 	});
 });
