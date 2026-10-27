@@ -17,6 +17,17 @@ const PROSE_LANGUAGES = new Set(["text", "txt", "plaintext"]);
 /** Hebrew or Arabic letters: a right-to-left draft, which rarely ends its lines with a period. */
 const RTL_LETTERS = /[\u0590-\u05FF\u0600-\u06FF]/;
 
+/**
+ * Mostly Hebrew or Arabic letters. Not dir="auto", which goes by the first
+ * letter only: "btw כרגע..." or a leading <@U123> mention would read left-to-right.
+ */
+export function isRtlText(text: string): boolean {
+	const letters = text.replace(/<@[UW][A-Z0-9]+>/g, "");
+	const rtl = letters.match(/[\u0590-\u05FF\u0600-\u06FF]/g)?.length ?? 0;
+	const ltr = letters.match(/[A-Za-z]/g)?.length ?? 0;
+	return rtl > 0 && rtl >= ltr;
+}
+
 /** A word of a sentence: letters or a number, maybe with trailing punctuation. */
 const PLAIN_WORD = /^[("'`]?[\p{L}\d][\p{L}\d'’.,:;%)?!"`-]*$/u;
 
@@ -132,7 +143,7 @@ export function QuoteBlock({ children }: { children?: ReactNode }) {
 	// which carry their own dir, and would read the button's "Copy".
 	const [rtl, setRtl] = useState(false);
 	useEffect(() => {
-		setRtl(RTL_LETTERS.test(ref.current?.innerText.slice(0, 200) ?? ""));
+		setRtl(isRtlText(ref.current?.innerText.slice(0, 200) ?? ""));
 	});
 	const copy = async () => {
 		const text = ref.current?.innerText.trim() ?? "";
@@ -336,10 +347,9 @@ function PasteBlock({ text }: { text: string }) {
 		}
 	};
 	return (
-		// A Hebrew draft reads right-to-left: dir="auto" reads the text, which
-		// comes before the button, so the bar and Copy flip sides with it.
+		// A Hebrew draft reads right-to-left, and the bar and Copy flip sides with it.
 		<div
-			dir="auto"
+			dir={isRtlText(text) ? "rtl" : "ltr"}
 			className="group relative my-4 rounded-md border border-border border-s-2 border-s-primary/60 bg-muted/30 py-3 ps-4 pe-20"
 		>
 			<div className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-foreground">

@@ -1,5 +1,10 @@
 import { expect, test } from "bun:test";
-import { looksLikeProse, markRtlLines, toSlackTexty } from "./CodeBlock";
+import {
+	isRtlText,
+	looksLikeProse,
+	markRtlLines,
+	toSlackTexty,
+} from "./CodeBlock";
 
 test("a drafted message is prose, commands and trees are not", () => {
 	expect(
@@ -70,4 +75,15 @@ test("a copied Hebrew line starts with a right-to-left mark, English lines don't
 		"\u200Fשלום\n\u200F1. תפתחי Settings\nPlease review",
 	);
 	expect(markRtlLines("\u200Fשלום")).toBe("\u200Fשלום");
+});
+
+test("a draft reads right-to-left when most of its letters are Hebrew, whatever comes first", () => {
+	expect(
+		isRtlText("btw כרגע בעמוד הbilling שלהם התשלום הבא מציג את כל החודשים"),
+	).toBe(true);
+	expect(isRtlText("<@U0C62025C31> יכול לבדוק שוב?")).toBe(true);
+	expect(isRtlText("Can you check the invoice for Zappwise? CC שירה")).toBe(
+		false,
+	);
+	expect(isRtlText("git status")).toBe(false);
 });
