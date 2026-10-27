@@ -1,7 +1,7 @@
 # Every PR and every push to main: lint, typecheck, the unit and integration
 # suites, the app build, then a smoke test that boots the built app in a
 # throwaway home and clicks through its main flows (apps/desktop/scripts/smoke.ts).
-# Three jobs run side by side, so a run takes as long as the app build and
+# Four jobs run side by side, so a run takes as long as the app build and
 # smoke, not the sum of every step.
 name: CI
 
@@ -79,11 +79,45 @@ jobs:
           path: ${{ runner.temp }}/smoke
           if-no-files-found: ignore
 
+  # The same smoke on Windows, where Odin also ships. It skips the flows that
+  # run a session: their fake claude is an sh script.
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      SKIP_ENV_VALIDATION: "true"
+      ODIN_SKIP_SOURCEMAPS: "1"
+      # native-keymap builds with warnings-as-errors; see release.yml.
+      _CL_: -wd4996
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+
+      - run: bun run --filter=@odin/desktop install:deps
+
+      - run: bun run compile:app
+        working-directory: apps/desktop
+
+      - run: bun run smoke
+        working-directory: apps/desktop
+        env:
+          SMOKE_SHOTS_DIR: ${{ runner.temp }}/smoke
+
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-screenshots-windows
+          path: ${{ runner.temp }}/smoke
+          if-no-files-found: ignore
+
   # Branch protection requires one check named `check`. It passes only when all
-  # three jobs passed: a skipped required check would count as green.
+  # four jobs passed: a skipped required check would count as green.
   check:
     if: always()
-    needs: [static, test, app]
+    needs: [static, test, app, windows]
     runs-on: ubuntu-latest
     steps:
       - run: ${{ !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && !contains(needs.*.result, 'skipped') }}
