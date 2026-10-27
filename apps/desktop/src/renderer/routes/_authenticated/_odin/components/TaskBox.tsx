@@ -2,7 +2,7 @@ import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import type { AgentSkill } from "lib/trpc/routers/skills";
 import type { OdinDoc } from "lib/trpc/routers/system";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { HiOutlineClock, HiOutlineSparkles, HiXMark } from "react-icons/hi2";
 import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
@@ -1002,17 +1002,44 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 	const dialog = useRef<HTMLDivElement>(null);
 	const { keys: submitKeys } = useHotkeyDisplay("SUBMIT");
 
+	// The height you picked - the class default, the stored size or a drag -
+	// and the height the box last grew itself to. A style height that isn't the
+	// grown one is a drag, and becomes the new floor.
+	const picked = useRef(0);
+	const grown = useRef("");
+
 	// The size you last dragged it to. Chromium writes the drag straight into the
 	// element's inline style, so the element is the only source worth reading:
-	// restore it on open, write it back on close.
-	useEffect(() => {
+	// restore it on open, write back the picked height on close, not the grown one.
+	// A layout effect, so the grow below starts from the restored size.
+	useLayoutEffect(() => {
 		const box = dialog.current;
 		if (!box) return;
 		const size = parseSize(localStorage.getItem(SIZE_KEY));
 		if (size) [box.style.width, box.style.height] = size;
-		return () =>
-			localStorage.setItem(SIZE_KEY, `${box.style.width},${box.style.height}`);
+		return () => {
+			const height =
+				box.style.height === grown.current
+					? `${picked.current}px`
+					: box.style.height;
+			localStorage.setItem(SIZE_KEY, `${box.style.width},${height}`);
+		};
 	}, []);
+
+	// A long brief grows the box instead of scrolling in three lines: back to
+	// the picked height, measure what the text overflows by, add that. Up to
+	// max-h, where the text scrolls. Before paint, so the box never jumps.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: measure when the text changes
+	useLayoutEffect(() => {
+		const box = dialog.current;
+		const text = box?.querySelector("textarea");
+		if (!box || !text) return;
+		if (box.style.height !== grown.current) picked.current = box.offsetHeight;
+		box.style.height = `${picked.current}px`;
+		const overflow = Math.max(0, text.scrollHeight - text.clientHeight);
+		box.style.height = `${picked.current + overflow}px`;
+		grown.current = box.style.height;
+	}, [draft]);
 
 	const save = () => {
 		// Same rule the store uses - no title, no task, so don't claim one. A
