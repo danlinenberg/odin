@@ -25,7 +25,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import electronBinary from "electron";
 
 const APP_DIR = join(import.meta.dir, "..");
@@ -112,19 +112,23 @@ writeFileSync(
 	join(home, "bin", "claude"),
 	// One file per run, named by pid (exec keeps it), moved into place whole.
 	// A --session-id launch leaves a transcript, like the real one: Resume
-	// refuses an id Claude never saved.
-	`#!/bin/sh\nfor a; do [ "$prev" = --session-id ] && mkdir -p "$HOME/.claude/projects/smoke" && : > "$HOME/.claude/projects/smoke/$a.jsonl"; prev=$a; done\nprintf '%s %s' "$ODIN_PORT" "$ODIN_PANE_ID" > "$HOME/pane-$$"\nprintf '%s\\n' "$@" > "$HOME/.claude-$$"\nmv "$HOME/.claude-$$" "$HOME/claude-$$.args"\necho "fake claude is working"\nexec sleep 600\n`,
+	// refuses an id Claude never saved. Git Bash's $$ isn't the Windows pid,
+	// and its exec starts a new process, so there it names the file by the
+	// Windows pid and stays alive itself.
+	`#!/bin/sh\np=$$; [ -r /proc/$$/winpid ] && p=$(cat /proc/$$/winpid)\nfor a; do [ "$prev" = --session-id ] && mkdir -p "$HOME/.claude/projects/smoke" && : > "$HOME/.claude/projects/smoke/$a.jsonl"; prev=$a; done\nprintf '%s %s' "$ODIN_PORT" "$ODIN_PANE_ID" > "$HOME/pane-$p"\nprintf '%s\\n' "$@" > "$HOME/.claude-$p"\nmv "$HOME/.claude-$p" "$HOME/claude-$p.args"\necho "fake claude is working"\n[ "$p" = "$$" ] && exec sleep 600\nsleep 600\n`,
 	{ mode: 0o755 },
 );
 // A Mac without the Command Line Tools: /usr/bin/git is Apple's stub, which
 // fails with xcode-select's note. $HOME/no-git turns this fake into that stub.
-writeFileSync(
-	join(home, "bin", "git"),
-	`#!/bin/sh\nif [ -e "$HOME/no-git" ]; then echo "xcode-select: note: No developer tools were found, requesting install." >&2; exit 1; fi\nexec /usr/bin/git "$@"\n`,
-	{ mode: 0o755 },
-);
-// The fakes are sh scripts, so Windows runs none of the session flows below.
-if (!WIN) env.PATH = `${join(home, "bin")}:${env.PATH}`;
+if (!WIN)
+	writeFileSync(
+		join(home, "bin", "git"),
+		`#!/bin/sh\nif [ -e "$HOME/no-git" ]; then echo "xcode-select: note: No developer tools were found, requesting install." >&2; exit 1; fi\nexec /usr/bin/git "$@"\n`,
+		{ mode: 0o755 },
+	);
+// Windows names it Path, and two keys would leave the child either one.
+const PATH = Object.keys(env).find((k) => k.toUpperCase() === "PATH") ?? "PATH";
+env[PATH] = `${join(home, "bin")}${delimiter}${env[PATH]}`;
 // Sessions run in a login shell, which reads these after macOS's path_helper
 // has reordered PATH - so the fake beats a real claude in /opt/homebrew/bin.
 for (const profile of [".zprofile", ".bash_profile"])
@@ -366,8 +370,8 @@ function terminalTails() {
 
 // --- flows -------------------------------------------------------------------
 const failures: string[] = [];
-/** A flow that runs a session on the fake claude, an sh script Windows can't run. */
-const sessionStep = WIN
+/** A flow about macOS only. */
+const macStep = WIN
 	? async (name: string, _flow: () => Promise<void>) =>
 			console.log(`skip ${name}`)
 	: step;
@@ -863,7 +867,7 @@ await step("The raven opens its panel in place", async () => {
 
 const SESSION = `Smoke session ${Date.now()}`;
 let sessionPid = 0;
-await sessionStep(
+await step(
 	"New Session puts a card on the board and gives claude the prompt",
 	async () => {
 		// Esc first, so nothing an earlier step opened is in the way.
@@ -897,48 +901,38 @@ await sessionStep(
 	},
 );
 
-await sessionStep(
-	"an agent's command runs in its session's own Shell",
-	async () => {
-		// What the launch prompt tells the agent to do, done as the agent would.
-		const [port, paneId] = readFileSync(
-			join(home, `pane-${sessionPid}`),
-			"utf8",
-		)
-			.trim()
-			.split(" ");
-		const ran = join(home, "shell-ran");
-		const response = await fetch(`http://127.0.0.1:${port}/shell/run`, {
-			method: "POST",
-			body: new URLSearchParams({
-				paneId,
-				command: `echo "$ODIN_PANE_ID" > '${ran}'`,
-			}),
-		});
-		if (!response.ok)
-			throw new Error(`${response.status} ${await response.text()}`);
-		for (const end = Date.now() + 15_000; !existsSync(ran); await sleep(250)) {
-			if (Date.now() > end) throw new Error("the command never ran");
-		}
-		const shell = readFileSync(ran, "utf8").trim();
-		if (!shell || shell === paneId)
-			throw new Error(`ran in "${shell}", not a Shell pane of its own`);
-		// …and it's the pane the card's ❯ Shell opens.
-		const shellOf = () =>
-			JSON.parse(readFileSync(join(home, ".odin", "app-state.json"), "utf8"))
-				.tabsState?.panes?.[paneId]?.odinShellPaneId;
-		for (
-			const end = Date.now() + 10_000;
-			shellOf() !== shell;
-			await sleep(250)
-		) {
-			if (Date.now() > end)
-				throw new Error(`the card's Shell is ${shellOf()}, not ${shell}`);
-		}
-	},
-);
+await step("an agent's command runs in its session's own Shell", async () => {
+	// What the launch prompt tells the agent to do, done as the agent would.
+	const [port, paneId] = readFileSync(join(home, `pane-${sessionPid}`), "utf8")
+		.trim()
+		.split(" ");
+	const ran = join(home, "shell-ran");
+	const response = await fetch(`http://127.0.0.1:${port}/shell/run`, {
+		method: "POST",
+		body: new URLSearchParams({
+			paneId,
+			command: `echo "$ODIN_PANE_ID" > '${ran}'`,
+		}),
+	});
+	if (!response.ok)
+		throw new Error(`${response.status} ${await response.text()}`);
+	for (const end = Date.now() + 15_000; !existsSync(ran); await sleep(250)) {
+		if (Date.now() > end) throw new Error("the command never ran");
+	}
+	const shell = readFileSync(ran, "utf8").trim();
+	if (!shell || shell === paneId)
+		throw new Error(`ran in "${shell}", not a Shell pane of its own`);
+	// …and it's the pane the card's ❯ Shell opens.
+	const shellOf = () =>
+		JSON.parse(readFileSync(join(home, ".odin", "app-state.json"), "utf8"))
+			.tabsState?.panes?.[paneId]?.odinShellPaneId;
+	for (const end = Date.now() + 10_000; shellOf() !== shell; await sleep(250)) {
+		if (Date.now() > end)
+			throw new Error(`the card's Shell is ${shellOf()}, not ${shell}`);
+	}
+});
 
-await sessionStep(
+await step(
 	"Done on the card ends the session and clears the board",
 	async () => {
 		const found = await page<boolean>(`(() => {
@@ -961,22 +955,19 @@ await sessionStep(
 	},
 );
 
-await sessionStep(
-	"⌘Z after Done resumes the session onto the board",
-	async () => {
-		await page(`document.activeElement?.blur()`);
-		await page(
-			`document.dispatchEvent(new KeyboardEvent("keydown", { key: "z", code: "KeyZ", ${MOD}: true, bubbles: true }))`,
-		);
-		await waitForText(SESSION, true, 30_000);
-		for (const end = Date.now() + 30_000; ; await sleep(500)) {
-			if (fakeClaudeRuns().some((r) => r.args.includes("--resume"))) break;
-			if (Date.now() > end) throw new Error("no claude --resume ran");
-		}
-	},
-);
+await step("⌘Z after Done resumes the session onto the board", async () => {
+	await page(`document.activeElement?.blur()`);
+	await page(
+		`document.dispatchEvent(new KeyboardEvent("keydown", { key: "z", code: "KeyZ", ${MOD}: true, bubbles: true }))`,
+	);
+	await waitForText(SESSION, true, 30_000);
+	for (const end = Date.now() + 30_000; ; await sleep(500)) {
+		if (fakeClaudeRuns().some((r) => r.args.includes("--resume"))) break;
+		if (Date.now() > end) throw new Error("no claude --resume ran");
+	}
+});
 
-await sessionStep(
+await step(
 	"right-click → Move to Docs keeps the session under Docs, Back to board resumes it",
 	async () => {
 		const opened = await page<boolean>(`(() => {
@@ -1018,10 +1009,8 @@ await sessionStep(
 	},
 );
 
-await sessionStep(
-	"right-click → Done takes the session off the board",
-	async () => {
-		const opened = await page<boolean>(`(() => {
+await step("right-click → Done takes the session off the board", async () => {
+	const opened = await page<boolean>(`(() => {
 		const card = [...document.querySelectorAll('[role="button"][draggable="true"]')]
 			.find((c) => c.textContent.includes(${JSON.stringify(SESSION)}));
 		const at = card?.getBoundingClientRect();
@@ -1030,36 +1019,35 @@ await sessionStep(
 		card?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: at?.x, clientY: window.innerHeight - 20 }));
 		return !!card;
 	})()`);
-		if (!opened) throw new Error("no card for the resumed session");
-		// Tags start folded; the row opens the list.
-		const tagField = () =>
-			page<boolean>(
-				`!!document.querySelector('[data-session-menu] input[placeholder^="New tag"]')`,
-			);
-		if (await tagField()) throw new Error("the tag list starts open");
-		// Ping me needs a Slack thread, Jira ticket or PR; this one has none.
-		if (
-			await page<boolean>(
-				`[...document.querySelectorAll("[data-session-menu] button")].some((b) => b.textContent.includes("Ping me on"))`,
-			)
+	if (!opened) throw new Error("no card for the resumed session");
+	// Tags start folded; the row opens the list.
+	const tagField = () =>
+		page<boolean>(
+			`!!document.querySelector('[data-session-menu] input[placeholder^="New tag"]')`,
+		);
+	if (await tagField()) throw new Error("the tag list starts open");
+	// Ping me needs a Slack thread, Jira ticket or PR; this one has none.
+	if (
+		await page<boolean>(
+			`[...document.querySelectorAll("[data-session-menu] button")].some((b) => b.textContent.includes("Ping me on"))`,
 		)
-			throw new Error("Ping me offered on a session with no thread or PR");
-		await click("[data-session-menu] button", "▸Tags");
-		if (!(await tagField())) throw new Error("Tags didn't open the list");
-		// Opened low with Tags out, the whole menu still ends inside the window -
-		// the New tag field sat below it, out of reach.
-		const onScreen = await page<boolean>(`(() => {
+	)
+		throw new Error("Ping me offered on a session with no thread or PR");
+	await click("[data-session-menu] button", "▸Tags");
+	if (!(await tagField())) throw new Error("Tags didn't open the list");
+	// Opened low with Tags out, the whole menu still ends inside the window -
+	// the New tag field sat below it, out of reach.
+	const onScreen = await page<boolean>(`(() => {
 		const r = document.querySelector("[data-session-menu]").getBoundingClientRect();
 		return r.top >= 0 && r.bottom <= window.innerHeight;
 	})()`);
-		if (!onScreen) throw new Error("the card menu runs off the window");
-		// The menu's own Done - the card's ✓ Done would pass this step too.
-		await click("[data-session-menu] button", "✓Done");
-		await waitForText(SESSION, false);
-	},
-);
+	if (!onScreen) throw new Error("the card menu runs off the window");
+	// The menu's own Done - the card's ✓ Done would pass this step too.
+	await click("[data-session-menu] button", "✓Done");
+	await waitForText(SESSION, false);
+});
 
-await sessionStep(
+await step(
 	"New session in the drawer's session list opens the new session there",
 	async () => {
 		const stamp = Date.now();
@@ -1131,7 +1119,7 @@ await sessionStep(
 	},
 );
 
-await sessionStep(
+await step(
 	"a subagent the session launches shows in the drawer's Agents view",
 	async () => {
 		// The fake claude leaves an empty transcript for its --session-id; an
@@ -1202,7 +1190,7 @@ await sessionStep(
 	},
 );
 
-await sessionStep(
+await macStep(
 	"a Mac without Git is told to finish Apple's installer",
 	async () => {
 		writeFileSync(join(home, "no-git"), "");

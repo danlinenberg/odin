@@ -79,8 +79,8 @@ jobs:
           path: ${{ runner.temp }}/smoke
           if-no-files-found: ignore
 
-  # The same smoke on Windows, where Odin also ships. It skips the flows that
-  # run a session: their fake claude is an sh script.
+  # The same smoke on Windows, where Odin also ships. Sessions there run in
+  # Git Bash, so the sh fake claude works; only the macOS-only flow is skipped.
   windows:
     runs-on: windows-latest
     timeout-minutes: 45
