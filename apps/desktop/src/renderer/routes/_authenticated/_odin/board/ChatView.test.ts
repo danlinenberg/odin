@@ -427,6 +427,33 @@ describe("ChatView transcript", () => {
 		expect(bangCommands(fence)).toEqual(["echo a\n   - not an item"]);
 	});
 
+	test("a command written under its item gets its Run button there, labelled by its line", () => {
+		const block = [
+			"1. Sign in again before 23:18 UTC (you only)",
+			"   Sign in to AWS SSO again (opens the browser):",
+			"   ```",
+			"   ! aws sso login --sso-session imagen",
+			"   ```",
+			"2. Test a remote session in the Windows VM [test now | skip]",
+		].join("\n");
+		const entries = actionItemEntries(block);
+		const command = "aws sso login --sso-session imagen";
+		expect(entries.map((e) => e.text)).toEqual([
+			"Sign in again before 23:18 UTC (you only)",
+			"Test a remote session in the Windows VM [test now | skip]",
+		]);
+		expect(
+			commandItem(
+				command,
+				entries.map((e) => e.text),
+				entries.map((e) => e.fences.flatMap(bangCommands)),
+			),
+		).toBe(0);
+		expect(commandLabel(bangCommandNotes(block)[command] ?? "")).toBe(
+			"Sign in to AWS SSO again (opens the browser)",
+		);
+	});
+
 	test("an item asking you to approve something gets the Approve button", () => {
 		expect(
 			isApprovalItem("Approve a commit and PR, or tell me to hold. (you only)"),
