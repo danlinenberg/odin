@@ -6,6 +6,7 @@ import { SHELL_RULE, STE_RULE, VOICE_RULE } from "shared/constants";
 import {
 	getShellRuleScriptContent,
 	NOTIFY_SCRIPT_MARKER,
+	readScriptTemplate,
 	sessionStartOutput,
 } from "./notify-hook";
 
@@ -48,6 +49,14 @@ async function runNotifyHook(
 	]);
 	return { exitCode: await child.exited, stdout, stderr };
 }
+
+describe("readScriptTemplate", () => {
+	it("gives bash LF line ends from a CRLF copy", () => {
+		const file = path.join(mkdtempSync(path.join(tmpdir(), "crlf-")), "t.sh");
+		writeFileSync(file, "#!/bin/bash\r\necho hi\r\n");
+		expect(readScriptTemplate(file)).toBe("#!/bin/bash\necho hi\n");
+	});
+});
 
 describe("getNotifyScriptContent", () => {
 	it("bumps the notify hook marker when hook semantics change", () => {
