@@ -212,6 +212,7 @@ import {
 	movedHere,
 	typeIntoClaude,
 } from "./ChatView";
+import { droppedFlags, useCardFlags } from "./card-flags";
 import {
 	type CatchUpSuggestion,
 	catchUpOrder,
@@ -3393,6 +3394,12 @@ function DevBoardPage() {
 		() => new Set(droppedKey ? droppedKey.split(",") : []),
 		[droppedKey],
 	);
+	// The phone's board shows the same "Dropped: PR ..." line.
+	useEffect(() => {
+		useCardFlags.setState({
+			dropped: droppedFlags(droppedPaneIds, reviewMergedPaneIds),
+		});
+	}, [droppedPaneIds, reviewMergedPaneIds]);
 	/**
 	 * Needs you or Done, but Working while CI runs on one of its PRs: the
 	 * session is waiting on CI, not on you. Otherwise Needs you, unless all it

@@ -34,6 +34,9 @@ const sessions = [
 	night: paneId === "p5",
 	// p5 ended its turn 3 minutes ago: a Just done card.
 	statusAt: Date.now() - [40, 8, 2, 95, 3, 300, 140][i] * 60_000,
+	// p2's thread got an answer; p6's PR was closed: the card's ping and Dropped lines.
+	ping: paneId === "p2" ? "New reply: Maya: looks good, ship it" : undefined,
+	dropped: paneId === "p6" ? "Dropped: PR closed" : undefined,
 }));
 
 const messages: Record<string, Message[]> = {
