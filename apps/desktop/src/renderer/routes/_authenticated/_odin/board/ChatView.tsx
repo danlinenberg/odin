@@ -1785,7 +1785,8 @@ function AwsSignInButton({ onClick }: { onClick: () => void }) {
  */
 function sendFailedToast(error: unknown) {
 	const message = error instanceof Error ? error.message : String(error);
-	if (!/SSO session|token (has expired|is expired)|ExpiredToken/i.test(message)) {
+	const expired = /SSO session|token (has expired|is expired)|ExpiredToken/i;
+	if (!expired.test(message)) {
 		toast.error(message);
 		return;
 	}
