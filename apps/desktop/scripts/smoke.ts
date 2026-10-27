@@ -1012,6 +1012,19 @@ await step(
 await step(
 	"claude-auto's plan limit shows on the session, and Use plan restarts it on the plan",
 	async () => {
+		// The step before leaves the drawer open: close it, so the one opened
+		// below mounts the notice after the note is written, and clicking the
+		// card doesn't toggle it shut instead.
+		const drawerOpen = () =>
+			page<boolean>(
+				`!!document.querySelector('button[title="Click to rename this session"]')`,
+			);
+		for (const end = Date.now() + 5_000; await drawerOpen(); await sleep(250)) {
+			await page(
+				`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
+			);
+			if (Date.now() > end) throw new Error("the drawer won't close");
+		}
 		const note = join(home, ".claude", "plan-limit.json");
 		mkdirSync(join(home, ".claude"), { recursive: true });
 		writeFileSync(
@@ -1029,13 +1042,19 @@ await step(
 		return !!card;
 	})()`);
 		if (!opened) throw new Error("no card for the resumed session");
-		await waitForText("· plan limit");
+		await waitForText("· plan limit", true, 40_000);
 		await waitForText("api key until");
 		const resumes = fakeClaudeRuns().filter((r) =>
 			r.args.includes("--resume"),
 		).length;
 		await page("window.confirm = () => true");
-		await click("button", "Use plan");
+		// By its text: `click` reads the button's title first.
+		const used = await page<boolean>(`(() => {
+			const e = [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Use plan");
+			e?.click();
+			return !!e;
+		})()`);
+		if (!used) throw new Error('no "Use plan" button on the notice');
 		for (const end = Date.now() + 15_000; existsSync(note); await sleep(250)) {
 			if (Date.now() > end) throw new Error("Use plan left the note behind");
 		}
