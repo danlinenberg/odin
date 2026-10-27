@@ -34,6 +34,7 @@ import { boardSection } from "shared/board-section";
 import { withDismissalNote } from "shared/dismissed-match";
 import { interruptClaude } from "shared/interrupt-claude";
 import { boardTags } from "shared/odin-tags";
+import type { PaneStatus } from "shared/tabs-types";
 import stripAnsi from "strip-ansi";
 import superjson from "superjson";
 import { z } from "zod";
@@ -97,10 +98,15 @@ async function doneShelf(): Promise<
 
 /**
  * Per paneId, what the desktop card shows beside its title: "Dropped: PR
- * merged" and the unread ping. {} from a window that doesn't know the action.
+ * merged" and the unread ping. And the column the desktop board files it in
+ * (`waiting`: a "Ping me" session waiting on someone else, in Idle), which
+ * the pane alone can't tell. {} from a window that doesn't know the action.
  */
 async function cardFlags(): Promise<
-	Record<string, { dropped?: string; ping?: string }>
+	Record<
+		string,
+		{ dropped?: string; ping?: string; column?: PaneStatus; waiting?: true }
+	>
 > {
 	try {
 		return JSON.parse(await board("card-flags"));
@@ -504,10 +510,11 @@ export const phoneRouter = t.router({
 				titles,
 			});
 			// The board's column for a session on it, as its card shows it.
+			const flags = await cardFlags();
 			const columns = new Map(
 				(await loadSessions(true, activeProfileId())).map((row) => [
 					row.paneId,
-					row.column,
+					flags[row.paneId]?.column ?? row.column,
 				]),
 			);
 			return (
