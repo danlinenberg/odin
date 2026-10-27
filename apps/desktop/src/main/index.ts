@@ -31,6 +31,7 @@ import { getHostServiceCoordinator } from "./lib/host-service-coordinator";
 import { completeJiraOAuth, isJiraOAuthCallback } from "./lib/jira-oauth";
 import { localDb } from "./lib/local-db";
 import { startMemoryGuard } from "./lib/memory-guard";
+import { refreshNotificationIconCache } from "./lib/notification-icon-cache";
 import { completeNotionOAuth, isNotionOAuthCallback } from "./lib/notion-oauth";
 import {
 	initTanstackDbPersistence,
@@ -396,6 +397,7 @@ if (!gotTheLock) {
 		await app.whenReady();
 		// A smoke run (scripts/smoke.ts) gets no Dock icon or app switcher entry.
 		if (process.env.ODIN_SMOKE) app.dock?.hide();
+		refreshNotificationIconCache();
 		// No permission is asked for up front: each macOS prompt (notifications,
 		// Automation, folders) shows the first time something actually needs it.
 
