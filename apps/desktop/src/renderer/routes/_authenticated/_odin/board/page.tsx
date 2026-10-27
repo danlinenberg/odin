@@ -250,7 +250,7 @@ import {
 	sessionOrder,
 	statusAt,
 } from "./session-order";
-import { parkable, resumable } from "./session-pick";
+import { mergePrompt, parkable, resumable } from "./session-pick";
 import { moveToVsCode } from "./vscode-move";
 
 /**
@@ -6319,6 +6319,65 @@ function DevBoardPage() {
 			}),
 		);
 	};
+	/**
+	 * Merge: one new session carries every ticked session on as one task. Its
+	 * prompt holds each one's ask, status and transcript; it starts in the
+	 * first row's checkout, and the merged rows go to Done (Undo brings them
+	 * back).
+	 */
+	const mergePicked = async () => {
+		const cards = pickedCards;
+		const [first] = cards;
+		if (!first || cards.length < 2) return;
+		const prompt = mergePrompt(
+			cards.map((card) => {
+				const sessionId =
+					card.pane.claudeSessionId ?? sessionIdByPane[card.pane.id];
+				return {
+					title: cardTitle(card),
+					brief: card.pane.odinBrief ?? briefByPane[card.pane.id] ?? null,
+					sessionId,
+					status: sessionId ? briefStatus[sessionId] : undefined,
+					cwd: sessionCwd(card.pane) ?? card.repoPath,
+				};
+			}),
+		);
+		const title = sessionTitle(prompt, cardTitle(first));
+		clearPicked();
+		const result = await launch({
+			workspaceId: first.workspaceId,
+			title,
+			description: prompt,
+			images: [],
+			repoPath: sessionCwd(first.pane) ?? first.repoPath,
+			contact: cardContact(first),
+			pageId: first.pane.odinPageId ?? null,
+			source: first.pane.odinSource,
+			tags: [...new Set(cards.flatMap((card) => card.pane.odinTags ?? []))],
+			brief: prompt,
+		});
+		if (!result.ok) {
+			toast.error(result.error);
+			return;
+		}
+		usePaneMeta.getState().setBrief(result.paneId, prompt);
+		usePaneMeta.getState().setTitle(result.paneId, title);
+		usePaneMeta.getState().setSessionId(result.paneId, result.sessionId);
+		const undos = cards
+			.map((card) => toDone.end(card))
+			.filter((undo): undo is () => void => undo !== undefined);
+		usePendingFocus.getState().focus(result.paneId);
+		toast.success(
+			`Merged ${sessions(cards.length)} into one`,
+			undoAction(
+				undos.length
+					? () => {
+							for (const undo of undos) undo();
+						}
+					: undefined,
+			),
+		);
+	};
 	const liveCard = (paneId: string | undefined) =>
 		paneId
 			? [...cardsByStatus.values()].flat().find((c) => c.pane.id === paneId)
@@ -7354,6 +7413,20 @@ function DevBoardPage() {
 														>
 															<LuPause className="size-3" aria-hidden />
 															Idle
+														</button>
+														<button
+															type="button"
+															disabled={pickedCards.length < 2 || isLaunching}
+															title={
+																pickedCards.length < 2
+																	? "Select two or more sessions to merge"
+																	: "Merge - one new session carries the selected ones on as one task; they go to Done"
+															}
+															onClick={() => void mergePicked()}
+															className="flex items-center gap-1 hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
+														>
+															<LuGitMerge className="size-3" aria-hidden />
+															Merge
 														</button>
 													</div>
 												)}
