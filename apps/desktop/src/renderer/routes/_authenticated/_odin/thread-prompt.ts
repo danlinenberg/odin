@@ -66,6 +66,9 @@ export function buildThreadPrompt(
 		// The draft tool returns a bare channel link, which lands on the channel
 		// and not on the thread the draft sits in.
 		`- If you end with a reply for me to post in that thread, create it as a Slack draft reply in the thread with your Slack draft tool (slack_send_message_draft, thread_ts of the first message, mentions as <@USERID>) and give me this thread link: ${slackUrl} - not the channel link the tool returns. Never send it. Keep the text in your reply too, in a \`\`\`text fenced block with the same <@USERID> mentions, for when the tool is missing.`,
+		// A bot (Mesh's expense reminders, a Jira or Datadog app) reads no reply,
+		// and "yes" or "thanks" is quicker typed in Slack than reviewed in Odin.
+		"- No draft when the thread's other side is a bot or app, or when the reply would only be a one-word acknowledgement (yes, ok, thanks, done): there's nothing for me to send. Say what the bot wants, or leave the acknowledgement to me.",
 		"",
 		"Rules: do NOT post to Slack or Notion; everything stays in this session for review. A Slack draft is not a post: I review and send it myself.",
 	].join("\n");

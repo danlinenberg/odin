@@ -36,6 +36,12 @@ describe("buildThreadPrompt", () => {
 		expect(prompt).toContain(`give me this thread link: ${THREAD}`);
 	});
 
+	it("drafts nothing for a bot or a one-word acknowledgement", () => {
+		const prompt = buildThreadPrompt(THREAD, "hi");
+		expect(prompt).toContain("No draft when the thread's other side is a bot");
+		expect(prompt).toContain("one-word acknowledgement");
+	});
+
 	it("keeps its own thread link first, above any link in the message", () => {
 		const pasted =
 			"https://imagenai.slack.com/archives/C0C1GB6AHCY/p1788966541529909";
