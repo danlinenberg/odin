@@ -2842,6 +2842,10 @@ function DevBoardPage() {
 	const [isAgentsOpen, setIsAgentsOpen] = useState(false);
 	/** Which of the session's Shells the drawer shows: a name, or null for the main one. */
 	const [shellName, setShellName] = useState<string | null>(null);
+	// What the drawer shows now, for a `!local` run that ends after the chat
+	// view that started it has gone (the open Shell takes its place).
+	const shownShellRef = useRef({ paneId: null as string | null, shellName });
+	shownShellRef.current = { paneId: drawerCard?.pane.id ?? null, shellName };
 	const chatView = useSessionView((s) => s.chat);
 	const setChatView = useSessionView((s) => s.setChat);
 	// The chat can't answer a TUI menu; this pane's drawer shows the terminal
@@ -7452,7 +7456,14 @@ function DevBoardPage() {
 												setIsAgentsOpen(false);
 												setIsShellOpen(true);
 											}}
-											onShellDone={() => setIsShellOpen(false)}
+											onShellDone={() => {
+												const shown = shownShellRef.current;
+												if (
+													shown.paneId === drawerCard.pane.id &&
+													shown.shellName === "local"
+												)
+													setIsShellOpen(false);
+											}}
 											onStop={() => void interruptPane(drawerCard.pane.id)}
 											onRestart={(prompt) =>
 												void resumeCard(drawerCard, false, prompt, true)

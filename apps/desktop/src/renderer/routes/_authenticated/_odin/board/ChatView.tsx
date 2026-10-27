@@ -3325,16 +3325,10 @@ export function ChatView({
 		},
 		[paneId, write.mutateAsync],
 	);
-	const mountedRef = useRef(true);
-	useEffect(
-		() => () => {
-			mountedRef.current = false;
-		},
-		[],
-	);
 	// A `!local` block runs on this computer, in the session's Shell, which then
 	// shows; the rest go to Claude. Once it ends its output goes to Claude, and
-	// the drawer goes back to the chat if it still shows this session. A run
+	// the drawer goes back to the chat if it still shows this session - the
+	// board checks that: the open Shell has unmounted this view by then. A run
 	// with no session to run in says so, rather than the button claiming it
 	// started.
 	const runCommand = useCallback(
@@ -3352,7 +3346,7 @@ export function ChatView({
 			void localRunEnd(run.id).then((result) => {
 				if (!result) return;
 				sendToClaude(localRunMessage(local, result));
-				if (mountedRef.current) onShellDoneRef.current?.();
+				onShellDoneRef.current?.();
 			});
 		},
 		[paneId, workspaceId, runInClaude, onShellStarted, sendToClaude],
