@@ -549,27 +549,40 @@ function Home() {
 			)}
 			{!!board.data?.backlog.length && (
 				<section>
-					<h2 className="px-4 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-faint-foreground">
-						Backlog · {board.data.backlog.length}
-					</h2>
-					{board.data.backlog.map((task) => (
-						<div
-							key={task.id}
-							className="mx-3 my-1.5 flex items-center gap-3 rounded-[10px] border border-border bg-card px-3 py-2.5"
+					<h2>
+						<button
+							type="button"
+							aria-expanded={!folded.includes("backlog")}
+							onClick={() => fold("backlog")}
+							className="flex w-full items-center gap-1 px-4 pt-4 pb-1 text-left text-[11px] font-semibold uppercase tracking-wide text-faint-foreground"
 						>
-							<span className="min-w-0 flex-1 truncate text-[15px]">
-								{task.title}
-							</span>
-							<button
-								type="button"
-								disabled={start.isPending}
-								onClick={() => start.mutate({ id: task.id })}
-								className="h-9 shrink-0 rounded-full bg-secondary px-4 text-sm font-semibold text-primary"
+							{folded.includes("backlog") ? (
+								<LuChevronRight className="size-3.5" />
+							) : (
+								<LuChevronDown className="size-3.5" />
+							)}
+							Backlog · {board.data.backlog.length}
+						</button>
+					</h2>
+					{!folded.includes("backlog") &&
+						board.data.backlog.map((task) => (
+							<div
+								key={task.id}
+								className="mx-3 my-1.5 flex items-center gap-3 rounded-[10px] border border-border bg-card px-3 py-2.5"
 							>
-								Start
-							</button>
-						</div>
-					))}
+								<span className="min-w-0 flex-1 truncate text-[15px]">
+									{task.title}
+								</span>
+								<button
+									type="button"
+									disabled={start.isPending}
+									onClick={() => start.mutate({ id: task.id })}
+									className="h-9 shrink-0 rounded-full bg-secondary px-4 text-sm font-semibold text-primary"
+								>
+									Start
+								</button>
+							</div>
+						))}
 				</section>
 			)}
 			<DoneShelf rows={board.data?.done ?? []} />
@@ -612,6 +625,12 @@ function NewTask({ onClose }: { onClose: () => void }) {
 	const [text, setText] = useState("");
 	const [repo, setRepo] = useState("");
 	const [mark, setMark] = useState("");
+	// This Mac or the remote host, for the session Start now opens. Undefined
+	// until picked: the picker shows Settings' host switch till then.
+	const [onHost, setOnHost] = useState<boolean>();
+	// Null while no remote host is set up; an older Odin on the Mac has no
+	// such call, and the picker just doesn't show.
+	const host = phone.host.useQuery(undefined, { retry: false });
 	// Start now opens the new session; Save stays on the board.
 	const add = phone.add.useMutation({
 		onSuccess: ({ paneId }) => {
@@ -643,6 +662,8 @@ function NewTask({ onClose }: { onClose: () => void }) {
 			paths: uploads.paths,
 			...(repo && { repo }),
 			start,
+			// What the picker shows is where it runs, as the desktop's Where.
+			...(start && host.data && { onHost: onHost ?? host.data.on }),
 		});
 	};
 	return (
@@ -682,6 +703,17 @@ function NewTask({ onClose }: { onClose: () => void }) {
 							{path.split("/").filter(Boolean).pop()}
 						</option>
 					))}
+				</select>
+			)}
+			{host.data && (
+				<select
+					value={(onHost ?? host.data.on) ? "host" : "local"}
+					onChange={(event) => setOnHost(event.target.value === "host")}
+					aria-label="Where Start now runs it"
+					className="h-10 rounded-[10px] border border-input bg-secondary px-3 text-[15px] outline-none"
+				>
+					<option value="local">Start on: this Mac</option>
+					<option value="host">Start on: remote ({host.data.name})</option>
 				</select>
 			)}
 			<fieldset className="flex rounded-[10px] border border-input bg-secondary p-0.5">

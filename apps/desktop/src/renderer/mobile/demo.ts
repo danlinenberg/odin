@@ -233,6 +233,8 @@ export function answer(
 			night.enabled = !!(input as unknown as { enabled: boolean }).enabled;
 			night.running = false;
 			return "ok";
+		case "host":
+			return { name: "odin-host", on: false };
 		case "repos":
 			return [
 				"/Users/you/code/api",

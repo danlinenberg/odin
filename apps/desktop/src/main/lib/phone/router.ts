@@ -1,7 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { basename, resolve, sep } from "node:path";
 import { initTRPC, TRPCError } from "@trpc/server";
-import { activeProfileId, listProfiles } from "lib/trpc/routers/odin-config";
+import {
+	activeProfileId,
+	listProfiles,
+	readOdinConfig,
+} from "lib/trpc/routers/odin-config";
 import type { PullRequestStatus } from "lib/trpc/routers/terminal/pr-state";
 import { appState } from "main/lib/app-state";
 import {
@@ -418,6 +422,15 @@ export const phoneRouter = t.router({
 		return (await caller?.repos.list()) ?? [];
 	}),
 
+	/**
+	 * The remote host New task's Where picker offers, and whether Settings'
+	 * switch sends sessions there. Null while none is set up.
+	 */
+	host: t.procedure.query(() => {
+		const host = readOdinConfig().remoteHost;
+		return host ? { name: host.name || host.instanceId, on: !!host.on } : null;
+	}),
+
 	/** Star or unstar a session; the window owns pane state, so it goes there. */
 	star: t.procedure
 		.input(paneInput.extend({ starred: z.boolean() }))
@@ -700,6 +713,8 @@ export const phoneRouter = t.router({
 					repo: z.string().optional(),
 					/** Start it on the board now, not just save it to the backlog. */
 					start: z.boolean().default(false),
+					/** With start: true on the remote host, false on this Mac; none = Settings' rule. */
+					onHost: z.boolean().optional(),
 				})
 				.refine((input) => input.text.trim() || input.paths.length),
 		)
@@ -708,6 +723,7 @@ export const phoneRouter = t.router({
 				text: taskWithFiles(input.text, input.paths),
 				...(input.repo && { repo: input.repo }),
 				...(input.start && { start: "true", open: "true" }),
+				...(input.onHost !== undefined && { host: String(input.onHost) }),
 			});
 			return input.start ? startedPane(text) : {};
 		}),
