@@ -80,6 +80,9 @@ export function markStarted(where: "mac" | "host", at = Date.now()): void {
 	else lastHostStart = at;
 }
 
+/** When a session last started on the host; 0 for none yet. */
+export const lastHostStartAt = (): number => lastHostStart;
+
 /** Whether a host reading taken at `at` was taken after the last host start. */
 export function hostReadSinceStart(at: number | null | undefined): boolean {
 	return (at ?? Number.POSITIVE_INFINITY) > lastHostStart;
@@ -117,7 +120,7 @@ export async function currentHostBlocker(
 	host?: string,
 ): Promise<string | null> {
 	const gate = await client.remoteHost.launchGate
-		.query(host ? { host } : undefined)
+		.query({ host, since: lastHostStart })
 		.catch(() => null);
 	if (gate?.reason) return gate.reason;
 	if (gate && !hostReadSinceStart(gate.at))
@@ -418,10 +421,13 @@ export function useTaskQueue(): void {
 			(pane) => !!pane.odinQueued && (!!pane.odinRemote || hostOn),
 		),
 	);
-	const hostGate = electronTrpc.remoteHost.launchGate.useQuery(undefined, {
-		enabled: waitingForHost && !!remoteHost?.host,
-		...QUEUE_POLL,
-	});
+	const hostGate = electronTrpc.remoteHost.launchGate.useQuery(
+		{ since: lastHostStartAt() },
+		{
+			enabled: waitingForHost && !!remoteHost?.host,
+			...QUEUE_POLL,
+		},
+	);
 	// A spawn takes a second or two; without this the next poll starts the same
 	// card again while the first attach is still in flight.
 	const starting = useRef(false);

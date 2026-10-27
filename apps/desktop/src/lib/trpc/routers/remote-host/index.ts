@@ -660,10 +660,20 @@ export const createRemoteHostRouter = () =>
 		 * the launch through.
 		 */
 		launchGate: publicProcedure
-			.input(z.object({ host: paneHost }).optional())
+			.input(
+				z
+					.object({
+						host: paneHost,
+						/** The last start on the host: an older reading doesn't count. */
+						since: z.number().optional(),
+					})
+					.optional(),
+			)
 			.query(async ({ input }) => {
 				const host = hostNamed(input?.host);
-				const reading = host ? await hostLoad(host) : null;
+				const reading = host
+					? await hostLoad(host, undefined, input?.since)
+					: null;
 				return {
 					reason: host
 						? remoteLaunchBlocker(
