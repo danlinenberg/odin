@@ -58,3 +58,13 @@ Anyone whose AWS role has these on instances tagged `Odin = host`:
 With them, Use and the first session set up that user's own Linux user on the
 host. Nobody else has to do anything. A role without them gets a session that
 stops and says to ask an administrator for them.
+
+## VS Code on the host
+
+A session on the host has **Open in VS Code on the host** in its card menu
+(and in the Shell menu). Odin opens a local port that reaches the host's SSH
+over SSM, with a login key that lasts minutes, the same way its own
+connections do. It writes a `Host odin-<host>` entry for that port at the top
+of `~/.ssh/config`, adds the Remote-SSH extension to VS Code when it is
+missing, and opens the session's folder there. VS Code reaches the host only
+while Odin runs; `ssh odin-<host>` works from a terminal too.
