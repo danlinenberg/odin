@@ -103,7 +103,6 @@ import {
 	repoNameOf,
 	runScript,
 	secretsFile,
-	sh,
 } from "main/lib/remote-host/session";
 import {
 	connectHost,
@@ -124,6 +123,7 @@ import {
 	hostPolicyArnProblem,
 } from "shared/host-setup";
 import { remoteFrozenReason, remoteLaunchBlocker } from "shared/launch-gate";
+import { remoteShellCommand } from "shared/remote-shell-command";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import {
@@ -1120,7 +1120,12 @@ export const createRemoteHostRouter = () =>
 					"main",
 					"remote-shell.js",
 				);
-				return `ELECTRON_RUN_AS_NODE=1 ${sh(resolveElectronBinary())} ${sh(script)} ${sh(spec)} ${ticket}`;
+				return remoteShellCommand({
+					exe: resolveElectronBinary(),
+					script,
+					spec,
+					ticket,
+				});
 			}),
 
 		/**
