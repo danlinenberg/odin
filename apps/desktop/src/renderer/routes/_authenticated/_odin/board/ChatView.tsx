@@ -1779,6 +1779,31 @@ function AwsSignInButton({ onClick }: { onClick: () => void }) {
 	);
 }
 
+/**
+ * A failed send, as a toast. An expired AWS sign-in gets a button that opens
+ * the approval page again, for when the tab Odin opened was closed.
+ */
+function sendFailedToast(error: unknown) {
+	const message = error instanceof Error ? error.message : String(error);
+	if (!/SSO session|token (has expired|is expired)|ExpiredToken/i.test(message)) {
+		toast.error(message);
+		return;
+	}
+	toast.error("Your AWS sign-in expired. Sign in, then send again.", {
+		action: {
+			label: "Sign in to AWS",
+			onClick: () =>
+				void electronTrpcClient.remoteHost.openAwsSignIn
+					.mutate()
+					.catch((e: unknown) =>
+						toast.error(
+							`AWS sign-in failed: ${e instanceof Error ? e.message : String(e)}`,
+						),
+					),
+		},
+	});
+}
+
 const AWS_SIGN_IN_BUTTON =
 	"h-6 shrink-0 rounded-md border border-attention/35 bg-attention/[0.07] px-2.5 text-[12px] font-medium text-attention hover:bg-attention/15";
 
@@ -4346,7 +4371,7 @@ function Composer({
 			setDraft(body);
 			setBash(bash);
 			setAttached(sending);
-			toast.error(error instanceof Error ? error.message : String(error));
+			sendFailedToast(error);
 		}
 	};
 	return (
