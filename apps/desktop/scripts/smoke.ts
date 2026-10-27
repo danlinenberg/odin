@@ -33,8 +33,13 @@ const SHOTS = process.env.SMOKE_SHOTS_DIR;
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 
 const WIN = process.platform === "win32";
-// Windows reads Ctrl where macOS reads Cmd.
+// Windows reads Ctrl where macOS reads Cmd. Its Search adds Shift, so Ctrl+F
+// stays the terminal's find (hotkeys/registry.ts).
 const MOD = WIN ? "ctrlKey" : "metaKey";
+const SEARCH = WIN ? "ctrlKey: true, shiftKey: true" : "metaKey: true";
+const SEARCH_ALL = WIN
+	? "ctrlKey: true, shiftKey: true, altKey: true"
+	: "metaKey: true, shiftKey: true";
 // Short root: Darwin caps a unix socket path at 104 bytes.
 const home = mkdtempSync(join(WIN ? tmpdir() : "/tmp", "odin-smoke-"));
 const env: Record<string, string | undefined> = {
@@ -454,7 +459,7 @@ for (const [label, line] of [
 		await waitForText(line);
 		await page(`document.activeElement?.blur()`);
 		await page(
-			`document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", code: "KeyF", ${MOD}: true, bubbles: true }))`,
+			`document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", code: "KeyF", ${SEARCH}, bubbles: true }))`,
 		);
 		await sleep(300);
 		const focused = await page<string>(
@@ -759,7 +764,7 @@ await step("⌘⇧F Search all finds a task and opens its details", async () => 
 	await waitForText("next in line");
 	await page(`document.activeElement?.blur()`);
 	await page(
-		`document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", code: "KeyF", ${MOD}: true, shiftKey: true, bubbles: true }))`,
+		`document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", code: "KeyF", ${SEARCH_ALL}, bubbles: true }))`,
 	);
 	await sleep(300);
 	await fill(
