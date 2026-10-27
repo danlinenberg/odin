@@ -1022,7 +1022,9 @@ export const createRemoteHostRouter = () =>
 					`${Date.now()}-`,
 				);
 				if (!files.length) return input;
-				await copyFilesToHost(host, files);
+				// Signs in to AWS again on an expired SSO session, as the pane's
+				// connection does: otherwise the raw SDK error lands as a toast.
+				await withAwsSignIn(host, () => copyFilesToHost(host, files));
 				await rememberHostFiles(host.user, files);
 				const [text = "", ...paths] = prompt.split(marker);
 				return { text, paths };
@@ -1134,7 +1136,9 @@ export const createRemoteHostRouter = () =>
 			.query(async ({ input }) => {
 				const host = hostNamed(input.host);
 				if (!host) throw new Error("No remote host is set up.");
-				return hostHasConversation(host, input.sessionId);
+				return withAwsSignIn(host, () =>
+					hostHasConversation(host, input.sessionId),
+				);
 			}),
 
 		/**
