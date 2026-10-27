@@ -1,0 +1,3 @@
+# Everything checks out with LF, Windows too: the .sh templates Odin copies
+# to hooks and remote hosts break bash with CRLF ($'\r': command not found).
+* text=auto eol=lf
