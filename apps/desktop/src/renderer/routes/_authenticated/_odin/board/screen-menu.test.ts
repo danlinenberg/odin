@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
 	menuKeys,
 	parseScreenAside,
+	parseScreenAuth,
 	parseScreenDialog,
 	parseScreenMenu,
 } from "./screen-menu";
@@ -68,6 +69,60 @@ const MCP = `
   https://code.claude.com/docs/en/mcp for help
  ↑/↓ to navigate · Enter to confirm · Esc to cancel
 `;
+
+const MCP_SERVER = `
+ ▝▝   ▝▝   /…/scratchpad
+  ⎿  SessionStart:startup says: AWS unreachable
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔ You're close to your usage credit limit ▔
+   Claude.ai Imagen Real Estate MCP Server
+
+   Status:           ⚠ needs authentication
+   URL:              https://imagen-public-mcp.imagen-ai-op.com
+   Config location:  claude.ai
+
+   ❯ 1. Authenticate
+     2. Disable
+
+   ↑/↓ to navigate · Enter to select · Esc to back
+`;
+
+const MCP_AUTH = `
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Authenticating with claude.ai Imagen Real Estate…
+
+   ✶  A browser window will open for authentication
+
+   If your browser doesn't open automatically, copy this URL manually (c to copy)
+   https://claude.ai/api/organizations/bb25/mcp/start-auth/mcpsrv_01PA?product_surfac
+   e=cli
+
+      Press Enter after authenticating in your browser.
+
+      Esc to back
+`;
+
+describe("/mcp", () => {
+	it("offers Esc on the server list", () => {
+		expect(parseScreenMenu(MCP)?.escape).toBe("Cancel");
+	});
+
+	it("reads a server's actions, its title stopping at the dialog edge", () => {
+		const menu = parseScreenMenu(MCP_SERVER);
+		expect(menu?.options).toEqual(["Authenticate", "Disable"]);
+		expect(menu?.escape).toBe("Back");
+		expect(menu?.title.split("\n")[0]).toBe(
+			"Claude.ai Imagen Real Estate MCP Server",
+		);
+	});
+
+	it("reads the sign-in step, joining the wrapped URL", () => {
+		expect(parseScreenAuth(MCP_AUTH)).toEqual({
+			title: "Authenticating with claude.ai Imagen Real Estate",
+			url: "https://claude.ai/api/organizations/bb25/mcp/start-auth/mcpsrv_01PA?product_surface=cli",
+		});
+		expect(parseScreenAuth(MCP)).toBeNull();
+	});
+});
 
 describe("parseScreenMenu", () => {
 	it("reads /mcp's grouped list, skipping the group headers", () => {
@@ -149,6 +204,7 @@ describe("usage limit menu", () => {
 				"Wait here, then continue automatically at Oct 21, 4am",
 			],
 			selected: 0,
+			escape: "Cancel",
 		});
 	});
 });
