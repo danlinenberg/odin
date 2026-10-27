@@ -39,6 +39,7 @@ import {
 	LuChevronRight,
 	LuCircleCheck,
 	LuClock,
+	LuCode,
 	LuCopy,
 	LuEye,
 	LuEyeOff,
@@ -1209,6 +1210,7 @@ function ShellPlaceMenu({
 	shells,
 	onSelectShell,
 	onOpenInVsCode,
+	onOpenOnHost,
 }: {
 	card: BoardCard;
 	shell: Pane;
@@ -1216,6 +1218,8 @@ function ShellPlaceMenu({
 	shells: (readonly [string, Pane])[];
 	onSelectShell: (name: string) => void;
 	onOpenInVsCode: (dir: string) => void;
+	/** A session on the host: its folder there, in VS Code over SSH. */
+	onOpenOnHost?: () => void;
 }) {
 	const { here } = useShellPlace(card, shell);
 	const basename = (dir: string) => dir.split("/").pop() || dir;
@@ -1252,6 +1256,24 @@ function ShellPlaceMenu({
 						<span className="font-semibold">❯ {name || "Shell"}</span>
 					</DropdownMenuItem>
 				))}
+				{card.pane.odinRemote && onOpenOnHost && (
+					<>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem
+							title="Open this session's folder on the host in VS Code, over SSH"
+							onSelect={onOpenOnHost}
+							className="flex items-center gap-2 text-xs"
+						>
+							<span className="w-3" />
+							<span className="min-w-0 flex-1 truncate text-muted-foreground">
+								On {card.pane.odinRemote}
+							</span>
+							<span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+								VS Code
+							</span>
+						</DropdownMenuItem>
+					</>
+				)}
 				{here && (
 					<>
 						<DropdownMenuSeparator />
@@ -1722,6 +1744,7 @@ function TagMenu({
 	onRestart,
 	onRunHere,
 	onRunOnHost,
+	onVsCodeOnHost,
 	onRemind,
 	watching,
 	watchWhat,
@@ -1754,6 +1777,8 @@ function TagMenu({
 	onRunHere?: () => void;
 	/** A session on this computer, moved to the remote host; unset with no host. */
 	onRunOnHost?: () => void;
+	/** Set for a session on the host: its folder there, in VS Code over SSH. */
+	onVsCodeOnHost?: () => void;
 	onRemind: (day: string) => void;
 	/** Whether the session's thread or PR pings you; unset when it has neither. */
 	watching?: boolean;
@@ -1901,6 +1926,20 @@ function TagMenu({
 				>
 					<LuLaptop className="size-3" aria-hidden />
 					Run on this computer
+				</button>
+			)}
+			{onVsCodeOnHost && (
+				<button
+					type="button"
+					title="Open this session's folder on the remote host in VS Code, over SSH"
+					onClick={() => {
+						onVsCodeOnHost();
+						onClose();
+					}}
+					className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+				>
+					<LuCode className="size-3" aria-hidden />
+					Open in VS Code on the host
 				</button>
 			)}
 			{onRunOnHost && (
@@ -4082,6 +4121,26 @@ function DevBoardPage() {
 				"Paste in VS Code's terminal (⌃`) to continue this conversation there.",
 			duration: 30_000,
 		});
+	};
+	const openHostInVsCode = electronTrpc.remoteHost.openInVsCode.useMutation();
+	/** A host session's folder there, in VS Code over SSH. The conversation stays on the host. */
+	const openOnHostInVsCode = async (card: BoardCard) => {
+		const id = toast.loading(`Opening VS Code on ${card.pane.odinRemote}`);
+		try {
+			const { cwd } = await openHostInVsCode.mutateAsync({
+				host: card.pane.odinRemote,
+				sessionId: claudeSessionIdOf(card) ?? null,
+			});
+			toast.success("Opened in VS Code", {
+				id,
+				description: `${cwd} on ${card.pane.odinRemote}. Keep Odin open: VS Code reaches the host through it.`,
+			});
+		} catch (error) {
+			toast.error("Couldn't open VS Code on the host", {
+				id,
+				description: error instanceof Error ? error.message : String(error),
+			});
+		}
 	};
 	// Dev only: hold Vite's reloads while a session is open (see coalesceFullReloadPlugin).
 	const drawerOpen = !!drawerCard;
@@ -6487,6 +6546,7 @@ function DevBoardPage() {
 								]}
 								onSelectShell={(name) => setShellName(name || null)}
 								onOpenInVsCode={(dir) => void openInVsCode(drawerCard, dir)}
+								onOpenOnHost={() => void openOnHostInVsCode(drawerCard)}
 							/>
 						)}
 					</div>
@@ -6717,6 +6777,11 @@ function DevBoardPage() {
 						!tagMenuCard.pane.odinQueued &&
 						claudeSessionIdOf(tagMenuCard)
 							? () => void runOnHost(tagMenuCard)
+							: undefined
+					}
+					onVsCodeOnHost={
+						tagMenuCard?.pane.odinRemote
+							? () => void openOnHostInVsCode(tagMenuCard)
 							: undefined
 					}
 					onRemind={(day) => tagMenuCard && remindMe(tagMenuCard, day)}

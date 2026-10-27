@@ -183,7 +183,7 @@ export async function readTranscript(
 	return size ? range(0, size) : Buffer.alloc(0);
 }
 
-async function findMirror(
+export async function findMirror(
 	sessionId: string,
 	projects: string,
 ): Promise<string | undefined> {

@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { homedir, userInfo } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -35,7 +36,9 @@ import {
 	bringMirrorHome,
 	bringSessionHome,
 	endHostSession,
+	findMirror,
 	type HostWork,
+	lastCwd,
 	movedNote,
 	unpackWork,
 	unreachableNote,
@@ -99,6 +102,10 @@ import {
 	runOnHost,
 } from "main/lib/remote-host/ssh";
 import { awsClientConfig } from "main/lib/remote-host/ssm";
+import {
+	remoteFolderUri,
+	vscodeHost,
+} from "main/lib/remote-host/vscode-bridge";
 import { resolveElectronBinary } from "main/lib/terminal-host/electron-binary";
 import { readVoice, voiceText } from "main/lib/voice-profile";
 import {
@@ -125,6 +132,17 @@ const run = promisify(execFile);
 function hostNamed(name?: string | null) {
 	const { remoteHost, pastRemoteHosts } = readOdinConfig();
 	return hostByName(remoteHost, pastRemoteHosts, name);
+}
+
+/** Whether VS Code has the Remote-SSH extension. */
+function hasRemoteSsh(): boolean {
+	try {
+		return readdirSync(join(homedir(), ".vscode", "extensions")).some((dir) =>
+			/^ms-vscode-remote\.remote-ssh-\d/.test(dir),
+		);
+	} catch {
+		return false;
+	}
 }
 
 /** A pane's host name, for the procedures that act on one session. */
@@ -1120,6 +1138,83 @@ export const createRemoteHostRouter = () =>
 					console.warn("[remote-host] host up:", error);
 					return null;
 				});
+			}),
+
+		/**
+		 * A session's folder on the host, in VS Code over Remote-SSH (see
+		 * vscode-bridge). The folder is the session's last cwd, from its
+		 * transcript mirror here; without one, the login's home. Remote-SSH is
+		 * added to VS Code through its own CLI when it is missing. The
+		 * conversation stays on the host.
+		 */
+		openInVsCode: publicProcedure
+			.input(
+				z.object({
+					host: paneHost,
+					sessionId: z
+						.string()
+						.regex(/^[\w-]+$/)
+						.nullable()
+						.optional(),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				const host = hostNamed(input.host);
+				if (!host) throw new Error("No remote host is set up.");
+				const vscode = await app
+					.getApplicationInfoForProtocol("vscode://")
+					.catch(() => null);
+				if (!vscode)
+					throw new Error(
+						"VS Code isn't installed - get it from code.visualstudio.com",
+					);
+				// VS Code's own connections can't sign in to AWS: sign in here first.
+				const up = await withAwsSignIn(host, () =>
+					hostUp(
+						{
+							profile: host.profile ?? undefined,
+							region: host.region ?? undefined,
+						},
+						host.instanceId,
+					),
+				);
+				if (!up)
+					throw new Error(`${host.name || host.instanceId} is not running.`);
+				const mirror = input.sessionId
+					? await findMirror(
+							input.sessionId,
+							join(homedir(), ".claude", "projects"),
+						)
+					: undefined;
+				const cwd =
+					(mirror && lastCwd(await readFile(mirror, "utf8").catch(() => ""))) ||
+					`/home/${host.user}`;
+				const alias = await vscodeHost(host);
+				const cli =
+					process.platform === "darwin"
+						? join(vscode.path, "Contents/Resources/app/bin/code")
+						: null;
+				if (cli && existsSync(cli)) {
+					if (!hasRemoteSsh())
+						await run(cli, [
+							"--install-extension",
+							"ms-vscode-remote.remote-ssh",
+						]).catch((error) =>
+							console.warn("[remote-host] Remote-SSH install:", error),
+						);
+					const opened = await run(cli, [
+						"--folder-uri",
+						remoteFolderUri(alias, cwd),
+					]).then(
+						() => true,
+						() => false,
+					);
+					if (opened) return { alias, cwd };
+				}
+				await shell.openExternal(
+					`vscode://vscode-remote/ssh-remote+${alias}${encodeURI(cwd)}`,
+				);
+				return { alias, cwd };
 			}),
 
 		/**
