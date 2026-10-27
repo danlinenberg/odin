@@ -130,9 +130,12 @@ export function useTerminalStream({
 				: event.error;
 			console.warn("[Terminal] stream error:", message);
 
+			// The shell behind the pane is gone or shutting down. Every keystroke
+			// would fail the same way, so reconnect once instead of a toast per key.
 			if (
 				event.code === "WRITE_FAILED" &&
-				event.error?.includes("Session not found")
+				(event.error?.includes("Session not found") ||
+					event.error?.includes("Session not attachable"))
 			) {
 				setConnectionError("Session lost");
 				return;
