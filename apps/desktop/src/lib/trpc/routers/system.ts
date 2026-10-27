@@ -3,6 +3,8 @@ import { accessSync, constants } from "node:fs";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { buildKind } from "main/lib/build-channel";
+import { resolveFeatureFlags } from "shared/feature-flags";
 import { z } from "zod";
 import { publicProcedure, router } from "..";
 import {
@@ -260,6 +262,8 @@ export async function listDocs(
 
 export const createSystemRouter = () => {
 	return router({
+		/** Which feature flags are on in this build (shared/feature-flags.ts). */
+		featureFlags: publicProcedure.query(() => resolveFeatureFlags(buildKind())),
 		detectGhCli: publicProcedure.query(detectGhCli),
 		detectBrew: publicProcedure.query(detectBrew),
 		claudeAuthStatus: publicProcedure.query(claudeAuthStatus),

@@ -5,7 +5,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@odin/ui/select";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { useFeatureFlags } from "renderer/hooks/useFeatureFlag";
 import {
 	type RemoteControlMode,
 	useClaudeCommand,
@@ -28,6 +29,9 @@ export const Route = createFileRoute("/_authenticated/settings/remote/")({
  * the board, and the Claude app that follows a session.
  */
 function RemoteSettingsPage() {
+	const flags = useFeatureFlags();
+	if (!flags) return null;
+	if (!flags.remoteSettings) return <Navigate to="/settings" replace />;
 	return (
 		<SettingsPage
 			title="Remote"
