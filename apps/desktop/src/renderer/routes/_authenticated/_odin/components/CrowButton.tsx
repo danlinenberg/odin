@@ -20,8 +20,7 @@ import { endSession } from "../hooks/useDone";
 import { CrowIcon } from "./CrowIcon";
 import { type PromptImage, readFile } from "./OdinPromptDialog";
 
-/** Set once the raven's panel has been opened; until then it asks to be tried. */
-// Keeps its old name, so the ring does not come back for anyone who opened it.
+/** Set once the raven's panel has been opened; until then its tooltip says how to use it. */
 const SEEN_KEY = "odin-huginn-seen";
 const wasSeen = () => {
 	try {
@@ -440,7 +439,7 @@ export function CrowButton({
 			useTabsStore.getState().setPaneStatus(conversation.id, "idle");
 	}, [open, conversation]);
 	const rect = open ? button.current?.getBoundingClientRect() : undefined;
-	// Never opened: a pulsing ring, and the tooltip says how to use it.
+	// Never opened: the tooltip says how to use it.
 	const [seen, setSeen] = useState(wasSeen);
 	useEffect(() => {
 		if (!open || seen) return;
@@ -466,9 +465,6 @@ export function CrowButton({
 							className={`size-[19px] drop-shadow-[0_0_5px_rgba(167,139,250,0.6)] ${working ? "animate-[odin-nod_1.6s_ease-in-out_infinite]" : ""} motion-reduce:[&_*]:animate-none motion-reduce:animate-none`}
 							idle={!working}
 						/>
-						{!seen && !open && (
-							<span className="pointer-events-none absolute -inset-0.5 rounded-[11px] border-2 border-violet-400 animate-[raven-ring_2.4s_ease-out_infinite] motion-reduce:animate-none" />
-						)}
 						{(working || waiting) && !open && (
 							<span
 								className={`absolute right-1 top-1 size-2 rounded-full ring-2 ring-tertiary ${working ? "animate-pulse bg-working" : "bg-attention"}`}
