@@ -28,14 +28,21 @@ export const sessionStartOutput = (voiceGuide: string) => ({
 	},
 });
 
+/**
+ * A template script as bash can run it: LF line ends. A copy with CRLF (a
+ * Windows checkout or build) fails on its first line, on this machine and on
+ * the remote hosts its notify.sh is copied to.
+ */
+export function readScriptTemplate(file: string): string {
+	return fs.readFileSync(file, "utf-8").replaceAll("\r\n", "\n");
+}
+
 export function getShellRuleScriptContent(): string {
 	// Odin down or too old to answer: the rules without the guide inside.
 	const output = JSON.stringify(sessionStartOutput(""));
-	return fs
-		.readFileSync(
-			path.join(__dirname, "templates", "shell-rule.template.sh"),
-			"utf-8",
-		)
+	return readScriptTemplate(
+		path.join(__dirname, "templates", "shell-rule.template.sh"),
+	)
 		.replaceAll("{{MARKER}}", SHELL_RULE_SCRIPT_MARKER)
 		.replaceAll("{{OUTPUT_JSON}}", output);
 }
@@ -66,7 +73,7 @@ export function getNotifyScriptPath(): string {
 }
 
 export function getNotifyScriptContent(): string {
-	const template = fs.readFileSync(NOTIFY_SCRIPT_TEMPLATE_PATH, "utf-8");
+	const template = readScriptTemplate(NOTIFY_SCRIPT_TEMPLATE_PATH);
 	return template
 		.replaceAll("{{MARKER}}", NOTIFY_SCRIPT_MARKER)
 		.replaceAll("{{DEFAULT_PORT}}", String(env.DESKTOP_NOTIFICATIONS_PORT));
@@ -78,11 +85,9 @@ export function createNotifyScript(): void {
 	const changed = writeFileIfChanged(notifyPath, script, 0o755);
 	console.log(`[agent-setup] ${changed ? "Updated" : "Verified"} notify hook`);
 
-	const capScript = fs
-		.readFileSync(
-			path.join(__dirname, "templates", "subagent-cap.template.sh"),
-			"utf-8",
-		)
+	const capScript = readScriptTemplate(
+		path.join(__dirname, "templates", "subagent-cap.template.sh"),
+	)
 		.replaceAll("{{MARKER}}", SUBAGENT_CAP_SCRIPT_MARKER)
 		.replaceAll("{{DEFAULT_CAP}}", String(DEFAULT_SUBAGENT_CAP));
 	writeFileIfChanged(
