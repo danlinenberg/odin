@@ -3,7 +3,13 @@ import { describe, expect, it } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 // biome-ignore lint/style/noRestrictedImports: test file needs fs/path for source verification
 import { join } from "node:path";
-import { SCREENS, SETTINGS_INDEX, searchSettings } from "./settings-index";
+import { resolveFeatureFlags } from "shared/feature-flags";
+import {
+	SCREENS,
+	SETTINGS_INDEX,
+	searchSettings,
+	visibleScreens,
+} from "./settings-index";
 
 const SETTINGS_DIR = join(import.meta.dir, "../..");
 
@@ -53,5 +59,25 @@ describe("settings index", () => {
 			"Volume",
 		]);
 		expect(searchSettings("light mode")[0]?.label).toBe("Theme");
+	});
+});
+
+describe("feature-flagged screens", () => {
+	it("a screen whose flag is off is hidden from the list and from search", () => {
+		const off = resolveFeatureFlags("stable");
+		expect(visibleScreens(off).map((s) => s.to)).not.toContain(
+			"/settings/remote",
+		);
+		expect(
+			searchSettings("remote control", off).map((e) => e.to),
+		).not.toContain("/settings/remote");
+	});
+
+	it("a screen whose flag is on is shown and searchable", () => {
+		const on = resolveFeatureFlags("dev");
+		expect(visibleScreens(on).map((s) => s.to)).toContain("/settings/remote");
+		expect(searchSettings("remote control", on).map((e) => e.to)).toContain(
+			"/settings/remote",
+		);
 	});
 });

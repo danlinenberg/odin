@@ -10,6 +10,7 @@ import {
 	LuSquareTerminal,
 	LuUserPen,
 } from "react-icons/lu";
+import type { FeatureFlag, FeatureFlags } from "shared/feature-flags";
 
 /**
  * Odin's settings screens, each with the things on it spelled out underneath,
@@ -43,6 +44,7 @@ export const SCREENS = [
 		label: "Remote",
 		hint: "EC2 host, iPhone app, Remote Control",
 		icon: BsCloud,
+		flag: "remoteSettings",
 	},
 	{
 		to: "/settings/storage",
@@ -80,7 +82,14 @@ export const SCREENS = [
 		hint: "Claude command, default prompt",
 		icon: LuSlidersHorizontal,
 	},
-] as const;
+] as const satisfies readonly {
+	to: string;
+	label: string;
+	hint: string;
+	icon: unknown;
+	/** Shown only in builds where this feature flag is on. */
+	flag?: FeatureFlag;
+}[];
 
 type ScreenRoute = (typeof SCREENS)[number]["to"];
 
@@ -424,10 +433,22 @@ export function screenLabel(to: ScreenRoute): string {
  * Settings matching every word of `query`, against label, section, screen and
  * keywords. Label hits rank first; ties keep sidebar order.
  */
-export function searchSettings(query: string): SettingEntry[] {
+/** The screens this build shows: those without a flag, or whose flag is on. */
+export function visibleScreens(flags: FeatureFlags | undefined) {
+	return SCREENS.filter(
+		(screen) => !("flag" in screen) || flags?.[screen.flag] === true,
+	);
+}
+
+export function searchSettings(
+	query: string,
+	flags?: FeatureFlags,
+): SettingEntry[] {
 	const words = query.toLowerCase().split(/\s+/).filter(Boolean);
 	if (words.length === 0) return [];
+	const shown = new Set<string>(visibleScreens(flags).map((s) => s.to));
 	return SETTINGS_INDEX.flatMap((entry) => {
+		if (!shown.has(entry.to)) return [];
 		const label = entry.label.toLowerCase();
 		const haystack =
 			`${label} ${entry.section} ${screenLabel(entry.to)} ${entry.keywords ?? ""}`.toLowerCase();

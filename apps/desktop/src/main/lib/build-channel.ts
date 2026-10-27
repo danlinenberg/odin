@@ -1,5 +1,6 @@
 import { app } from "electron";
 import { prerelease } from "semver";
+import type { BuildKind } from "shared/feature-flags";
 
 /**
  * True for prerelease builds like "0.0.53-canary" (same detection as the
@@ -17,4 +18,10 @@ export function isPrereleaseBuild(): boolean {
  */
 export function isInternalBuild(): boolean {
 	return isPrereleaseBuild() || !app.isPackaged;
+}
+
+/** The build this is, for picking which feature flags are on. */
+export function buildKind(): BuildKind {
+	if (!app.isPackaged) return "dev";
+	return isPrereleaseBuild() ? "canary" : "stable";
 }

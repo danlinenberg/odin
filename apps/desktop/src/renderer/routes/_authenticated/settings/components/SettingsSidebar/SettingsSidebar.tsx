@@ -3,13 +3,14 @@ import { Link, useMatchRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { HiArrowLeft } from "react-icons/hi2";
 import { LuSearch } from "react-icons/lu";
+import { useFeatureFlags } from "renderer/hooks/useFeatureFlag";
 import { useSettingsOriginRoute } from "renderer/stores/settings-state";
 import { useSearchHotkey } from "../../../_odin/components/FeedChrome";
 import {
-	SCREENS,
 	type SettingEntry,
 	screenLabel,
 	searchSettings,
+	visibleScreens,
 } from "./settings-index";
 
 export function SettingsSidebar() {
@@ -19,7 +20,8 @@ export function SettingsSidebar() {
 	const { ref: searchRef, hint } = useSearchHotkey();
 	const [query, setQuery] = useState("");
 	const [active, setActive] = useState(0);
-	const results = searchSettings(query);
+	const flags = useFeatureFlags();
+	const results = searchSettings(query, flags);
 
 	const open = (entry: SettingEntry) => {
 		setQuery("");
@@ -102,7 +104,7 @@ export function SettingsSidebar() {
 						))
 					)
 				) : (
-					SCREENS.map(({ to, label, hint, icon: Icon }) => {
+					visibleScreens(flags).map(({ to, label, hint, icon: Icon }) => {
 						const isActive = !!matchRoute({ to, fuzzy: true });
 						return (
 							<Link
