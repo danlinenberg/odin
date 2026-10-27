@@ -1222,6 +1222,38 @@ function ShellPlaceMenu({
 	const where = here?.replace(/^\/Users\/[^/]+/, "~");
 	const [open, setOpen] = useState(false);
 	const shownName = shells.find(([, pane]) => pane.id === shell.id)?.[0];
+	// What each Shell is running - asked only while the menu is open.
+	const { data: daemonSessions } =
+		electronTrpc.terminal.listDaemonSessions.useQuery(undefined, {
+			enabled: open,
+			refetchInterval: open ? 2_000 : false,
+		});
+	const pidOfPane = new Map(
+		(daemonSessions?.sessions ?? [])
+			.filter((session) => session.isAlive && session.pid)
+			.map((session) => [session.paneId, session.pid as number]),
+	);
+	const shellPids = shells
+		.map(([, pane]) => pidOfPane.get(pane.id))
+		.filter((pid): pid is number => !!pid);
+	const { data: commands } = electronTrpc.terminal.shellCommands.useQuery(
+		{ pids: shellPids },
+		{
+			enabled: open && shellPids.length > 0,
+			refetchInterval: open ? 2_000 : false,
+		},
+	);
+	const runState = (pane: Pane): [string, string] | null => {
+		if (!daemonSessions) return null;
+		const pid = pidOfPane.get(pane.id);
+		if (!pid) return ["Disconnected", "bg-danger"];
+		if (!commands) return null;
+		if (!(pid in commands)) return ["Disconnected", "bg-danger"];
+		const running = commands[pid];
+		return running
+			? [`Running: ${running}`, "bg-success"]
+			: ["Idle", "bg-muted-foreground/50"];
+	};
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
 			<DropdownMenuTrigger asChild>
@@ -1240,18 +1272,30 @@ function ShellPlaceMenu({
 				<DropdownMenuLabel className="text-[10px] font-normal text-muted-foreground">
 					This session's Shells
 				</DropdownMenuLabel>
-				{shells.map(([name, pane]) => (
-					<DropdownMenuItem
-						key={pane.id}
-						onSelect={() => onSelectShell(name)}
-						className="flex items-center gap-2 text-xs"
-					>
-						<span className="w-3 text-primary">
-							{pane.id === shell.id ? "✓" : ""}
-						</span>
-						<span className="font-semibold">❯ {name || "Shell"}</span>
-					</DropdownMenuItem>
-				))}
+				{shells.map(([name, pane]) => {
+					const [state, color] = runState(pane) ?? [];
+					return (
+						<DropdownMenuItem
+							key={pane.id}
+							onSelect={() => onSelectShell(name)}
+							className="flex items-center gap-2 text-xs"
+						>
+							<span className="w-3 text-primary">
+								{pane.id === shell.id ? "✓" : ""}
+							</span>
+							<span
+								title={state}
+								className={cn(
+									"inline-block size-[6px] shrink-0 rounded-full",
+									color ?? "bg-transparent",
+								)}
+							/>
+							<span title={state} className="font-semibold">
+								❯ {name || "Shell"}
+							</span>
+						</DropdownMenuItem>
+					);
+				})}
 				{here && (
 					<>
 						<DropdownMenuSeparator />
