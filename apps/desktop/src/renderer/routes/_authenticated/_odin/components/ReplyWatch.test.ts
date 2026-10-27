@@ -159,6 +159,7 @@ test("a condition is not met by the prompt, an old line or a promise", () => {
 	expect(prompt).toContain("needs re-auth is not a reason to stop");
 	expect(prompt).not.toContain("GAVE UP");
 	expect(prompt).toContain("create them again before they expire");
+	expect(prompt).toContain("once an hour");
 	expect(prompt).toContain(
 		"If the conversation is compacted, the watch goes on",
 	);
