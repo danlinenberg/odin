@@ -72,6 +72,27 @@ export function toSlackTexty(
 	names: Record<string, string> = {},
 ): string {
 	const ops: TextyOp[] = [];
+	// A ``` fence pastes as a Slack code block: Slack's composer won't turn pasted backticks into one.
+	const parts = text.split(/^```.*\n([\s\S]*?)\n```[ \t]*(?:\n|$)/m);
+	for (const [i, part] of parts.entries()) {
+		if (i % 2 === 0) {
+			pushInline(ops, part, names);
+			continue;
+		}
+		for (const line of part.split("\n")) {
+			if (line) ops.push({ insert: line });
+			ops.push({ insert: "\n", attributes: { "code-block": true } });
+		}
+	}
+	ops.push({ insert: "\n" });
+	return JSON.stringify({ ops });
+}
+
+function pushInline(
+	ops: TextyOp[],
+	text: string,
+	names: Record<string, string>,
+): void {
 	let last = 0;
 	for (const match of text.matchAll(SLACK_MARKUP)) {
 		const [whole, userId, label, bold, code] = match;
@@ -93,8 +114,7 @@ export function toSlackTexty(
 		else ops.push({ insert: code, attributes: { code: true } });
 		last = match.index + whole.length;
 	}
-	ops.push({ insert: `${text.slice(last)}\n` });
-	return JSON.stringify({ ops });
+	if (last < text.length) ops.push({ insert: text.slice(last) });
 }
 
 /** The right-to-left mark: invisible, it makes a line read right-to-left. */

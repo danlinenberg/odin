@@ -62,6 +62,22 @@ test("a Slack mention copies as a real mention, markup as formatting", () => {
 	});
 });
 
+test("a ``` fence copies as a Slack code block", () => {
+	expect(
+		JSON.parse(toSlackTexty("1. add:\n```\n[sso]\nregion = *x*\n```\n2. done")),
+	).toEqual({
+		ops: [
+			{ insert: "1. add:\n" },
+			{ insert: "[sso]" },
+			{ insert: "\n", attributes: { "code-block": true } },
+			{ insert: "region = *x*" },
+			{ insert: "\n", attributes: { "code-block": true } },
+			{ insert: "2. done" },
+			{ insert: "\n" },
+		],
+	});
+});
+
 test("a known name labels the mention", () => {
 	const [mention] = JSON.parse(
 		toSlackTexty("<@U0C62025C31> hi", { U0C62025C31: "Ayelet Holtzman Ravid" }),
