@@ -15,7 +15,9 @@ import {
 import { getNotifyScriptPath } from "main/lib/agent-setup/notify-hook";
 import { githubOwner, onGithubTokensChanged } from "main/lib/github-token";
 import {
+	activePlanLimit,
 	apiKeyFallbackOn,
+	clearPlanLimit,
 	planLimitedUntil,
 } from "main/lib/remote-host/api-key-fallback";
 import {
@@ -470,6 +472,10 @@ export const createRemoteHostRouter = () =>
 		awsProfiles: publicProcedure.query(() => listAwsProfiles()),
 		/** Until when claude-auto keeps this computer on the API key, epoch seconds; 0 when it doesn't. */
 		planLimitedUntil: publicProcedure.query(() => planLimitedUntil()),
+		/** claude-auto's plan-limit note while it keeps sessions here on the API key; null when it doesn't. */
+		planLimit: publicProcedure.query(() => activePlanLimit()),
+		/** `claude-auto --use-plan`: the next launch here runs on the plan again. */
+		usePlan: publicProcedure.mutation(() => clearPlanLimit()),
 		/** The host's AWS profile is signed in, so a pane blocked on the sign-in can go on. */
 		awsSignedIn: publicProcedure.query(async () => {
 			const host = readOdinConfig().remoteHost;

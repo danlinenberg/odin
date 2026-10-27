@@ -3,7 +3,11 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { apiKeyFallbackOn, planLimitedUntil } from "./api-key-fallback";
+import {
+	activePlanLimit,
+	apiKeyFallbackOn,
+	planLimitedUntil,
+} from "./api-key-fallback";
 import { USE_API_KEY_IF_LIMITED } from "./session";
 
 const withHook = JSON.stringify({
@@ -38,6 +42,35 @@ test("this computer's plan limit: its until, else 0", () => {
 			throw new Error("ENOENT");
 		}),
 	).toBe(0);
+});
+
+test("the plan-limit note shows while its until is ahead", () => {
+	const note = JSON.stringify({
+		until: 2000,
+		reason: "You've hit your weekly limit · resets 6am ",
+		at: 900,
+	});
+	expect(activePlanLimit(1000, () => note)).toEqual({
+		until: 2000,
+		reason: "You've hit your weekly limit · resets 6am",
+	});
+	expect(activePlanLimit(1000, () => '{"until": 2000}')).toEqual({
+		until: 2000,
+		reason: "",
+	});
+});
+
+test("the plan-limit note is gone once it lapsed, missing or unreadable", () => {
+	expect(activePlanLimit(2000, () => '{"until": 2000}')).toBeNull();
+	expect(activePlanLimit(3000, () => '{"until": 2000}')).toBeNull();
+	expect(
+		activePlanLimit(1000, () => {
+			throw new Error("ENOENT");
+		}),
+	).toBeNull();
+	expect(activePlanLimit(1000, () => '{"until": 20')).toBeNull();
+	expect(activePlanLimit(1000, () => '{"until": "soon"}')).toBeNull();
+	expect(activePlanLimit(1000, () => "null")).toBeNull();
 });
 
 test("a host session starts on the key while this computer's plan is out", () => {

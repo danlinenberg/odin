@@ -1009,6 +1009,71 @@ await step(
 	},
 );
 
+await step(
+	"claude-auto's plan limit shows on the session, and Use plan restarts it on the plan",
+	async () => {
+		// The step before leaves the drawer open: close it, so the one opened
+		// below mounts the notice after the note is written, and clicking the
+		// card doesn't toggle it shut instead.
+		const drawerOpen = () =>
+			page<boolean>(
+				`!!document.querySelector('button[title="Click to rename this session"]')`,
+			);
+		for (const end = Date.now() + 5_000; await drawerOpen(); await sleep(250)) {
+			await page(
+				`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
+			);
+			if (Date.now() > end) throw new Error("the drawer won't close");
+		}
+		const note = join(home, ".claude", "plan-limit.json");
+		mkdirSync(join(home, ".claude"), { recursive: true });
+		writeFileSync(
+			note,
+			JSON.stringify({
+				until: Math.floor(Date.now() / 1000) + 3600,
+				reason: "You've hit your weekly limit",
+				at: Math.floor(Date.now() / 1000),
+			}),
+		);
+		const opened = await page<boolean>(`(() => {
+		const card = [...document.querySelectorAll('[role="button"][draggable="true"]')]
+			.find((c) => c.textContent.includes(${JSON.stringify(SESSION)}));
+		card?.click();
+		return !!card;
+	})()`);
+		if (!opened) throw new Error("no card for the resumed session");
+		await waitForText("· plan limit", true, 40_000);
+		await waitForText("api key until");
+		const resumes = fakeClaudeRuns().filter((r) =>
+			r.args.includes("--resume"),
+		).length;
+		await page("window.confirm = () => true");
+		// By its text: `click` reads the button's title first.
+		const used = await page<boolean>(`(() => {
+			const e = [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Use plan");
+			e?.click();
+			return !!e;
+		})()`);
+		if (!used) throw new Error('no "Use plan" button on the notice');
+		for (const end = Date.now() + 15_000; existsSync(note); await sleep(250)) {
+			if (Date.now() > end) throw new Error("Use plan left the note behind");
+		}
+		await waitForText("· plan limit", false);
+		for (const end = Date.now() + 30_000; ; await sleep(500)) {
+			if (
+				fakeClaudeRuns().filter((r) => r.args.includes("--resume")).length >
+				resumes
+			)
+				break;
+			if (Date.now() > end) throw new Error("Use plan didn't restart it");
+		}
+		for (let i = 0; i < 2; i++)
+			await page(
+				`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
+			);
+	},
+);
+
 await step("right-click → Done takes the session off the board", async () => {
 	const opened = await page<boolean>(`(() => {
 		const card = [...document.querySelectorAll('[role="button"][draggable="true"]')]

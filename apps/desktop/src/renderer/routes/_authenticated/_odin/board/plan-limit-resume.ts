@@ -22,3 +22,24 @@ export function planLimitResumeKey(
 		return null;
 	return `${paneId}:${until}`;
 }
+
+/** When claude-auto's API key spell ends, as "Wed 06:00" in local time. */
+export function planLimitEnds(until: number, timeZone?: string): string {
+	return new Date(until * 1000).toLocaleString("en-US", {
+		weekday: "short",
+		hour: "2-digit",
+		minute: "2-digit",
+		hourCycle: "h23",
+		timeZone,
+	});
+}
+
+/** The session's notice while claude-auto keeps it on the API key. */
+export function planLimitNotice(until: number, timeZone?: string): string {
+	return `API key until ${planLimitEnds(until, timeZone)} · plan limit`;
+}
+
+/** What a Restart says when it came back on the API key, not the plan. */
+export function restartedOnKey(until: number, timeZone?: string): string {
+	return `Restarted · on API key until ${planLimitEnds(until, timeZone)} (plan limit)`;
+}

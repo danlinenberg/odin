@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { planLimitResumeKey } from "./plan-limit-resume";
+import {
+	planLimitNotice,
+	planLimitResumeKey,
+	restartedOnKey,
+} from "./plan-limit-resume";
 
 const limit = {
 	role: "assistant",
@@ -21,5 +25,20 @@ describe("planLimitResumeKey", () => {
 		expect(
 			planLimitResumeKey("p1", { ...limit, role: "user" }, 2000, 1000),
 		).toBeNull();
+	});
+});
+
+describe("planLimitNotice", () => {
+	// Wed 28 Oct 2026, 06:00 in Jerusalem.
+	const until = Date.UTC(2026, 9, 28, 4) / 1000;
+	it("says until when the session stays on the key", () => {
+		expect(planLimitNotice(until, "Asia/Jerusalem")).toBe(
+			"API key until Wed 06:00 · plan limit",
+		);
+	});
+	it("says it on a Restart too", () => {
+		expect(restartedOnKey(until, "Asia/Jerusalem")).toBe(
+			"Restarted · on API key until Wed 06:00 (plan limit)",
+		);
 	});
 });
