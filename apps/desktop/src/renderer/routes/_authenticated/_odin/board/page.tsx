@@ -124,6 +124,7 @@ import {
 	normalizeTag,
 	readCustomTags,
 } from "shared/odin-tags";
+import { isQueuedResume } from "shared/queued-resume";
 import { remoteCardsToReconnect, tmuxSession } from "shared/remote-reconnect";
 import { setPhoneReply } from "./phone-resume";
 
@@ -6826,8 +6827,14 @@ function DevBoardPage() {
 							? () => doneAnywhere(tagMenuCard, toDocs)
 							: undefined
 					}
+					// A queued Resume still has a conversation (often a live one: a
+					// Continue that hit the gate queues while Claude keeps running),
+					// so Restart starts it now. A queued launch that never ran has
+					// nothing to restart.
 					onRestart={
-						tagMenuCard && !tagMenuCard.pane.odinQueued
+						tagMenuCard &&
+						(!tagMenuCard.pane.odinQueued ||
+							isQueuedResume(tagMenuCard.pane.odinQueued))
 							? () => void resumeCard(tagMenuCard, false, undefined, true)
 							: undefined
 					}
