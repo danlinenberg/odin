@@ -24,6 +24,7 @@ import {
 	rmSync,
 	writeFileSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import electronBinary from "electron";
 
@@ -31,11 +32,18 @@ const APP_DIR = join(import.meta.dir, "..");
 const SHOTS = process.env.SMOKE_SHOTS_DIR;
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 
+const WIN = process.platform === "win32";
+// Windows reads Ctrl where macOS reads Cmd.
+const MOD = WIN ? "ctrlKey" : "metaKey";
 // Short root: Darwin caps a unix socket path at 104 bytes.
-const home = mkdtempSync("/tmp/odin-smoke-");
+const home = mkdtempSync(join(WIN ? tmpdir() : "/tmp", "odin-smoke-"));
 const env: Record<string, string | undefined> = {
 	...process.env,
 	HOME: home,
+	// Windows takes the home and temp dirs from these, not HOME and TMPDIR.
+	USERPROFILE: home,
+	TEMP: home,
+	TMP: home,
 	ODIN_HOME_DIR: join(home, ".odin"),
 	TMPDIR: home,
 	NODE_ENV: "production",
@@ -110,7 +118,8 @@ writeFileSync(
 	`#!/bin/sh\nif [ -e "$HOME/no-git" ]; then echo "xcode-select: note: No developer tools were found, requesting install." >&2; exit 1; fi\nexec /usr/bin/git "$@"\n`,
 	{ mode: 0o755 },
 );
-env.PATH = `${join(home, "bin")}:${env.PATH}`;
+// The fakes are sh scripts, so Windows runs none of the session flows below.
+if (!WIN) env.PATH = `${join(home, "bin")}:${env.PATH}`;
 // Sessions run in a login shell, which reads these after macOS's path_helper
 // has reordered PATH - so the fake beats a real claude in /opt/homebrew/bin.
 for (const profile of [".zprofile", ".bash_profile"])
@@ -142,14 +151,26 @@ async function quit(code: number): Promise<never> {
 	// The terminal-host daemon, pty-daemon and host-service outlive the app by
 	// design. Whatever still holds a file under the throwaway home (or names
 	// it in its argv) is one of them - nothing else on the machine does.
-	const holders = Bun.spawnSync(["lsof", "-t", "+D", home]).stdout.toString();
-	for (const pid of new Set(holders.split("\n").filter(Boolean))) {
-		try {
-			process.kill(Number(pid), "SIGKILL");
-		} catch {}
+	if (WIN) {
+		Bun.spawnSync([
+			"powershell",
+			"-NoProfile",
+			"-Command",
+			`Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*${home}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`,
+		]);
+	} else {
+		const holders = Bun.spawnSync(["lsof", "-t", "+D", home]).stdout.toString();
+		for (const pid of new Set(holders.split("\n").filter(Boolean))) {
+			try {
+				process.kill(Number(pid), "SIGKILL");
+			} catch {}
+		}
+		Bun.spawnSync(["pkill", "-9", "-f", home]);
 	}
-	Bun.spawnSync(["pkill", "-9", "-f", home]);
-	rmSync(home, { recursive: true, force: true });
+	// Windows can still hold a file open for a moment after the kill.
+	try {
+		rmSync(home, { recursive: true, force: true });
+	} catch {}
 	process.exit(code);
 }
 setTimeout(() => {
@@ -326,18 +347,11 @@ function isAlive(pid: number) {
 }
 /** The end of every session's saved terminal output, for a failure report. */
 function terminalTails() {
-	const files = Bun.spawnSync([
-		"find",
-		join(home, ".odin"),
-		"-name",
-		"scrollback.bin",
-	])
-		.stdout.toString()
-		.split("\n")
-		.filter(Boolean);
-	return files
+	const dir = join(home, ".odin");
+	return readdirSync(dir, { recursive: true, encoding: "utf8" })
+		.filter((f) => f.endsWith("scrollback.bin"))
 		.map((f) =>
-			readFileSync(f, "utf8")
+			readFileSync(join(dir, f), "utf8")
 				// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI escapes
 				.replace(/\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07]*\x07/g, "")
 				.slice(-400),
@@ -347,6 +361,11 @@ function terminalTails() {
 
 // --- flows -------------------------------------------------------------------
 const failures: string[] = [];
+/** A flow that runs a session on the fake claude, an sh script Windows can't run. */
+const sessionStep = WIN
+	? async (name: string, _flow: () => Promise<void>) =>
+			console.log(`skip ${name}`)
+	: step;
 async function step(name: string, flow: () => Promise<void>) {
 	try {
 		await flow();
@@ -435,7 +454,7 @@ for (const [label, line] of [
 		await waitForText(line);
 		await page(`document.activeElement?.blur()`);
 		await page(
-			`document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", code: "KeyF", metaKey: true, bubbles: true }))`,
+			`document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", code: "KeyF", ${MOD}: true, bubbles: true }))`,
 		);
 		await sleep(300);
 		const focused = await page<string>(
@@ -740,7 +759,7 @@ await step("⌘⇧F Search all finds a task and opens its details", async () => 
 	await waitForText("next in line");
 	await page(`document.activeElement?.blur()`);
 	await page(
-		`document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", code: "KeyF", metaKey: true, shiftKey: true, bubbles: true }))`,
+		`document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", code: "KeyF", ${MOD}: true, shiftKey: true, bubbles: true }))`,
 	);
 	await sleep(300);
 	await fill(
@@ -839,7 +858,7 @@ await step("The raven opens its panel in place", async () => {
 
 const SESSION = `Smoke session ${Date.now()}`;
 let sessionPid = 0;
-await step(
+await sessionStep(
 	"New Session puts a card on the board and gives claude the prompt",
 	async () => {
 		// Esc first, so nothing an earlier step opened is in the way.
@@ -873,38 +892,48 @@ await step(
 	},
 );
 
-await step("an agent's command runs in its session's own Shell", async () => {
-	// What the launch prompt tells the agent to do, done as the agent would.
-	const [port, paneId] = readFileSync(join(home, `pane-${sessionPid}`), "utf8")
-		.trim()
-		.split(" ");
-	const ran = join(home, "shell-ran");
-	const response = await fetch(`http://127.0.0.1:${port}/shell/run`, {
-		method: "POST",
-		body: new URLSearchParams({
-			paneId,
-			command: `echo "$ODIN_PANE_ID" > '${ran}'`,
-		}),
-	});
-	if (!response.ok)
-		throw new Error(`${response.status} ${await response.text()}`);
-	for (const end = Date.now() + 15_000; !existsSync(ran); await sleep(250)) {
-		if (Date.now() > end) throw new Error("the command never ran");
-	}
-	const shell = readFileSync(ran, "utf8").trim();
-	if (!shell || shell === paneId)
-		throw new Error(`ran in "${shell}", not a Shell pane of its own`);
-	// …and it's the pane the card's ❯ Shell opens.
-	const shellOf = () =>
-		JSON.parse(readFileSync(join(home, ".odin", "app-state.json"), "utf8"))
-			.tabsState?.panes?.[paneId]?.odinShellPaneId;
-	for (const end = Date.now() + 10_000; shellOf() !== shell; await sleep(250)) {
-		if (Date.now() > end)
-			throw new Error(`the card's Shell is ${shellOf()}, not ${shell}`);
-	}
-});
+await sessionStep(
+	"an agent's command runs in its session's own Shell",
+	async () => {
+		// What the launch prompt tells the agent to do, done as the agent would.
+		const [port, paneId] = readFileSync(
+			join(home, `pane-${sessionPid}`),
+			"utf8",
+		)
+			.trim()
+			.split(" ");
+		const ran = join(home, "shell-ran");
+		const response = await fetch(`http://127.0.0.1:${port}/shell/run`, {
+			method: "POST",
+			body: new URLSearchParams({
+				paneId,
+				command: `echo "$ODIN_PANE_ID" > '${ran}'`,
+			}),
+		});
+		if (!response.ok)
+			throw new Error(`${response.status} ${await response.text()}`);
+		for (const end = Date.now() + 15_000; !existsSync(ran); await sleep(250)) {
+			if (Date.now() > end) throw new Error("the command never ran");
+		}
+		const shell = readFileSync(ran, "utf8").trim();
+		if (!shell || shell === paneId)
+			throw new Error(`ran in "${shell}", not a Shell pane of its own`);
+		// …and it's the pane the card's ❯ Shell opens.
+		const shellOf = () =>
+			JSON.parse(readFileSync(join(home, ".odin", "app-state.json"), "utf8"))
+				.tabsState?.panes?.[paneId]?.odinShellPaneId;
+		for (
+			const end = Date.now() + 10_000;
+			shellOf() !== shell;
+			await sleep(250)
+		) {
+			if (Date.now() > end)
+				throw new Error(`the card's Shell is ${shellOf()}, not ${shell}`);
+		}
+	},
+);
 
-await step(
+await sessionStep(
 	"Done on the card ends the session and clears the board",
 	async () => {
 		const found = await page<boolean>(`(() => {
@@ -927,19 +956,22 @@ await step(
 	},
 );
 
-await step("⌘Z after Done resumes the session onto the board", async () => {
-	await page(`document.activeElement?.blur()`);
-	await page(
-		`document.dispatchEvent(new KeyboardEvent("keydown", { key: "z", code: "KeyZ", metaKey: true, bubbles: true }))`,
-	);
-	await waitForText(SESSION, true, 30_000);
-	for (const end = Date.now() + 30_000; ; await sleep(500)) {
-		if (fakeClaudeRuns().some((r) => r.args.includes("--resume"))) break;
-		if (Date.now() > end) throw new Error("no claude --resume ran");
-	}
-});
+await sessionStep(
+	"⌘Z after Done resumes the session onto the board",
+	async () => {
+		await page(`document.activeElement?.blur()`);
+		await page(
+			`document.dispatchEvent(new KeyboardEvent("keydown", { key: "z", code: "KeyZ", ${MOD}: true, bubbles: true }))`,
+		);
+		await waitForText(SESSION, true, 30_000);
+		for (const end = Date.now() + 30_000; ; await sleep(500)) {
+			if (fakeClaudeRuns().some((r) => r.args.includes("--resume"))) break;
+			if (Date.now() > end) throw new Error("no claude --resume ran");
+		}
+	},
+);
 
-await step(
+await sessionStep(
 	"right-click → Move to Docs keeps the session under Docs, Back to board resumes it",
 	async () => {
 		const opened = await page<boolean>(`(() => {
@@ -981,8 +1013,10 @@ await step(
 	},
 );
 
-await step("right-click → Done takes the session off the board", async () => {
-	const opened = await page<boolean>(`(() => {
+await sessionStep(
+	"right-click → Done takes the session off the board",
+	async () => {
+		const opened = await page<boolean>(`(() => {
 		const card = [...document.querySelectorAll('[role="button"][draggable="true"]')]
 			.find((c) => c.textContent.includes(${JSON.stringify(SESSION)}));
 		const at = card?.getBoundingClientRect();
@@ -991,35 +1025,36 @@ await step("right-click → Done takes the session off the board", async () => {
 		card?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: at?.x, clientY: window.innerHeight - 20 }));
 		return !!card;
 	})()`);
-	if (!opened) throw new Error("no card for the resumed session");
-	// Tags start folded; the row opens the list.
-	const tagField = () =>
-		page<boolean>(
-			`!!document.querySelector('[data-session-menu] input[placeholder^="New tag"]')`,
-		);
-	if (await tagField()) throw new Error("the tag list starts open");
-	// Ping me needs a Slack thread, Jira ticket or PR; this one has none.
-	if (
-		await page<boolean>(
-			`[...document.querySelectorAll("[data-session-menu] button")].some((b) => b.textContent.includes("Ping me on"))`,
+		if (!opened) throw new Error("no card for the resumed session");
+		// Tags start folded; the row opens the list.
+		const tagField = () =>
+			page<boolean>(
+				`!!document.querySelector('[data-session-menu] input[placeholder^="New tag"]')`,
+			);
+		if (await tagField()) throw new Error("the tag list starts open");
+		// Ping me needs a Slack thread, Jira ticket or PR; this one has none.
+		if (
+			await page<boolean>(
+				`[...document.querySelectorAll("[data-session-menu] button")].some((b) => b.textContent.includes("Ping me on"))`,
+			)
 		)
-	)
-		throw new Error("Ping me offered on a session with no thread or PR");
-	await click("[data-session-menu] button", "▸Tags");
-	if (!(await tagField())) throw new Error("Tags didn't open the list");
-	// Opened low with Tags out, the whole menu still ends inside the window -
-	// the New tag field sat below it, out of reach.
-	const onScreen = await page<boolean>(`(() => {
+			throw new Error("Ping me offered on a session with no thread or PR");
+		await click("[data-session-menu] button", "▸Tags");
+		if (!(await tagField())) throw new Error("Tags didn't open the list");
+		// Opened low with Tags out, the whole menu still ends inside the window -
+		// the New tag field sat below it, out of reach.
+		const onScreen = await page<boolean>(`(() => {
 		const r = document.querySelector("[data-session-menu]").getBoundingClientRect();
 		return r.top >= 0 && r.bottom <= window.innerHeight;
 	})()`);
-	if (!onScreen) throw new Error("the card menu runs off the window");
-	// The menu's own Done - the card's ✓ Done would pass this step too.
-	await click("[data-session-menu] button", "✓Done");
-	await waitForText(SESSION, false);
-});
+		if (!onScreen) throw new Error("the card menu runs off the window");
+		// The menu's own Done - the card's ✓ Done would pass this step too.
+		await click("[data-session-menu] button", "✓Done");
+		await waitForText(SESSION, false);
+	},
+);
 
-await step(
+await sessionStep(
 	"New session in the drawer's session list opens the new session there",
 	async () => {
 		const stamp = Date.now();
@@ -1091,7 +1126,7 @@ await step(
 	},
 );
 
-await step(
+await sessionStep(
 	"a subagent the session launches shows in the drawer's Agents view",
 	async () => {
 		// The fake claude leaves an empty transcript for its --session-id; an
@@ -1162,7 +1197,7 @@ await step(
 	},
 );
 
-await step(
+await sessionStep(
 	"a Mac without Git is told to finish Apple's installer",
 	async () => {
 		writeFileSync(join(home, "no-git"), "");
