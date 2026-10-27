@@ -25,7 +25,12 @@ import { SwipeAction, SwipeRow } from "./swipe-row";
 
 /** An older Odin on the Mac sends sessions without these. */
 type Session = Omit<ActiveSession, "starred" | "statusAt"> &
-	Partial<Pick<ActiveSession, "starred" | "statusAt">>;
+	Partial<Pick<ActiveSession, "starred" | "statusAt">> & {
+		/** The desktop card's "Dropped: PR merged" / "Dropped: PR closed". */
+		dropped?: string;
+		/** The unread ping on a watched session: "New reply: ...", "Approved: ...". */
+		ping?: string;
+	};
 
 /** The desktop card's moon: a session the Night Agent started overnight. */
 export function NightPill() {
@@ -329,6 +334,7 @@ function RemindAction({ onPick }: { onPick: (day: string) => void }) {
  * One session on the board: its column's dot, the title (two lines), where
  * it runs and how long since its status changed, a Just done pill for a turn
  * that ended in the last 10 minutes, a moon for the Night Agent's, and its star.
+ * Under that, as on the desktop card: "Dropped: PR merged" and the unread ping.
  */
 export function SessionCard({
 	session,
@@ -414,6 +420,17 @@ export function SessionCard({
 						<Chips details={session} />
 						{at !== null && <span className="ml-auto shrink-0">{ago(at)}</span>}
 					</div>
+					{session.dropped && (
+						<div className="mt-1 pl-4 text-xs font-medium text-danger-ink">
+							{session.dropped}
+						</div>
+					)}
+					{session.ping && (
+						<div className="mt-1 flex min-w-0 items-center gap-1 pl-4 text-xs font-medium text-attention-ink">
+							<LuBellRing className="size-3 shrink-0" aria-hidden />
+							<span className="truncate">{session.ping}</span>
+						</div>
+					)}
 				</a>
 				<button
 					type="button"

@@ -35,9 +35,11 @@ import {
 import { CROW_TAG } from "shared/odin-tags";
 import stripAnsi from "strip-ansi";
 import { create } from "zustand";
+import { useCardFlags } from "../board/card-flags";
 import { phoneReply } from "../board/phone-resume";
 import { remindSession } from "../board/SessionReminders";
 import { type PromptImage, sessionTitle } from "../components/OdinPromptDialog";
+import { unreadPing, useReplyWatch } from "../components/ReplyWatch";
 import { phoneNights } from "../night-agent/night-log";
 import { readState, runAction, writeState } from "./crow-state";
 import { endSession, useDone } from "./useDone";
@@ -657,6 +659,22 @@ function runOdinAction(
 			.slice(0, 40)
 			.map(([key, row]) => ({ key, ...row }));
 		return JSON.stringify(rows);
+	}
+	if (action === "card-flags") {
+		// What the phone's board cards show beside the title, as the desktop
+		// card does: "Dropped: PR merged" and the unread ping.
+		const { dropped } = useCardFlags.getState();
+		const { watches } = useReplyWatch.getState();
+		const flags: Record<string, { dropped?: string; ping?: string }> = {};
+		for (const id of Object.keys(panes)) {
+			const ping = unreadPing(watches, id);
+			if (dropped[id] || ping)
+				flags[id] = {
+					...(dropped[id] && { dropped: `Dropped: ${dropped[id]}` }),
+					...(ping && { ping }),
+				};
+		}
+		return JSON.stringify(flags);
 	}
 	if (action === "star") {
 		const pane = args.paneId ? panes[args.paneId] : undefined;

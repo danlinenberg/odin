@@ -95,6 +95,20 @@ async function doneShelf(): Promise<
 	}
 }
 
+/**
+ * Per paneId, what the desktop card shows beside its title: "Dropped: PR
+ * merged" and the unread ping. {} from a window that doesn't know the action.
+ */
+async function cardFlags(): Promise<
+	Record<string, { dropped?: string; ping?: string }>
+> {
+	try {
+		return JSON.parse(await board("card-flags"));
+	} catch {
+		return {};
+	}
+}
+
 const paneInput = z.object({ paneId: z.string().min(1) });
 
 /** What the window's night-page action answers. */
@@ -230,7 +244,12 @@ export const phoneRouter = t.router({
 				repo?: string;
 			}[]
 		).filter((task) => !task.started);
-		return { sessions, backlog, done: await doneShelf() };
+		const flags = await cardFlags();
+		return {
+			sessions: sessions.map((s) => ({ ...s, ...flags[s.paneId] })),
+			backlog,
+			done: await doneShelf(),
+		};
 	}),
 
 	/** The conversation, prose only, plus the brief's TL;DR when one is cached or quick. */
