@@ -228,7 +228,13 @@ import { onIdleArrival, restoreAfterCompact } from "./idle-compact";
 import { menuTop } from "./menu-fit";
 import { BOARD_COLUMN_MIN_W, NextInLine, TonightCount } from "./NextInLine";
 import { NightAgentLive } from "./NightAgentLive";
-import { PLAN_LIMIT_OPENING, planLimitResumeKey } from "./plan-limit-resume";
+import {
+	PLAN_LIMIT_OPENING,
+	planLimitEnds,
+	planLimitNotice,
+	planLimitResumeKey,
+	restartedOnKey,
+} from "./plan-limit-resume";
 import { HoverBrief, MyTodos, SessionBrief } from "./SessionBrief";
 import {
 	PREFIX as REMIND_PREFIX,
@@ -1728,6 +1734,67 @@ function HostFrozenNotice({
 					Move to this computer
 				</button>
 			)}
+		</div>
+	);
+}
+
+/**
+ * A yellow line over a session on this computer while claude-auto keeps
+ * sessions here on the API key after the plan's limit (~/.claude/plan-limit.json):
+ * every Restart comes back on the key until then, and nothing else said why.
+ * Use plan does what `claude-auto --use-plan` does and restarts the session.
+ */
+function PlanLimitNotice({
+	paneId,
+	onRestart,
+}: {
+	paneId: string;
+	/** Set while the session has a conversation to reopen. */
+	onRestart?: () => void;
+}) {
+	const remote = useTabsStore((s) => !!s.panes[paneId]?.odinRemote);
+	const utils = electronTrpc.useUtils();
+	const { data: limit } = electronTrpc.remoteHost.planLimit.useQuery(
+		undefined,
+		{ enabled: !remote, refetchInterval: 30_000 },
+	);
+	const dropLimit = electronTrpc.remoteHost.usePlan.useMutation({
+		onSuccess: () => {
+			void utils.remoteHost.planLimit.invalidate();
+			onRestart?.();
+		},
+		onError: (error) => toast.error(error.message),
+	});
+	if (remote || !limit) return null;
+	const ends = planLimitEnds(limit.until);
+	return (
+		<div className="flex items-center gap-3 border-b border-border bg-attention/10 px-4 py-2 text-[12px] text-attention">
+			<span
+				className="flex-1"
+				title={limit.reason || "The Claude plan hit its usage limit"}
+			>
+				{planLimitNotice(limit.until)}
+			</span>
+			<button
+				type="button"
+				title="Run this session on the Claude plan again, as claude-auto --use-plan does"
+				disabled={dropLimit.isPending}
+				onClick={() => {
+					if (
+						!window.confirm(
+							`Switch back to the Claude plan${onRestart ? " and restart this session" : ""}?\n\nIf the plan's limit is still in effect (until ${ends}), its next turn fails again and claude-auto moves it back to the API key.`,
+						)
+					)
+						return;
+					dropLimit.mutate();
+				}}
+				className={cn(
+					"flex shrink-0 items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+					BUTTON.secondary,
+				)}
+			>
+				Use plan
+			</button>
 		</div>
 	);
 }
@@ -5391,6 +5458,17 @@ function DevBoardPage() {
 					"Resuming latest session in this repo (no session id found)",
 				);
 			}
+			// claude-auto keeps a Restart here on the API key until the plan's
+			// limit resets: say so, or it reads as a Restart that didn't work.
+			if (restart && !card.pane.odinRemote) {
+				const limit = await utils.client.remoteHost.planLimit
+					.query()
+					.catch(() => null);
+				if (limit)
+					toast.info(restartedOnKey(limit.until), {
+						description: limit.reason || undefined,
+					});
+			}
 			// Don't sit on the stale poll for up to 5s - ask now so the card leaves
 			// Idle as soon as the PTY exists.
 			void utils.terminal.listDaemonSessions.invalidate();
@@ -7507,6 +7585,23 @@ function DevBoardPage() {
 												: () => void runHere(drawerCard)
 										}
 									/>
+									{drawerCard.pane.type === "terminal" && (
+										<PlanLimitNotice
+											paneId={drawerCard.pane.id}
+											onRestart={
+												!drawerCard.pane.odinQueued ||
+												isQueuedResume(drawerCard.pane.odinQueued)
+													? () =>
+															void resumeCard(
+																drawerCard,
+																false,
+																undefined,
+																true,
+															)
+													: undefined
+											}
+										/>
+									)}
 									{isShellOpen && drawerShell ? (
 										// A shell in the same checkout, mounted like any other pane -
 										// it spawns on first mount with the session's cwd.

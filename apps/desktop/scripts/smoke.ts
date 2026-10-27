@@ -1009,6 +1009,52 @@ await step(
 	},
 );
 
+await step(
+	"claude-auto's plan limit shows on the session, and Use plan restarts it on the plan",
+	async () => {
+		const note = join(home, ".claude", "plan-limit.json");
+		mkdirSync(join(home, ".claude"), { recursive: true });
+		writeFileSync(
+			note,
+			JSON.stringify({
+				until: Math.floor(Date.now() / 1000) + 3600,
+				reason: "You've hit your weekly limit",
+				at: Math.floor(Date.now() / 1000),
+			}),
+		);
+		const opened = await page<boolean>(`(() => {
+		const card = [...document.querySelectorAll('[role="button"][draggable="true"]')]
+			.find((c) => c.textContent.includes(${JSON.stringify(SESSION)}));
+		card?.click();
+		return !!card;
+	})()`);
+		if (!opened) throw new Error("no card for the resumed session");
+		await waitForText("· plan limit");
+		await waitForText("api key until");
+		const resumes = fakeClaudeRuns().filter((r) =>
+			r.args.includes("--resume"),
+		).length;
+		await page("window.confirm = () => true");
+		await click("button", "Use plan");
+		for (const end = Date.now() + 15_000; existsSync(note); await sleep(250)) {
+			if (Date.now() > end) throw new Error("Use plan left the note behind");
+		}
+		await waitForText("· plan limit", false);
+		for (const end = Date.now() + 30_000; ; await sleep(500)) {
+			if (
+				fakeClaudeRuns().filter((r) => r.args.includes("--resume")).length >
+				resumes
+			)
+				break;
+			if (Date.now() > end) throw new Error("Use plan didn't restart it");
+		}
+		for (let i = 0; i < 2; i++)
+			await page(
+				`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
+			);
+	},
+);
+
 await step("right-click → Done takes the session off the board", async () => {
 	const opened = await page<boolean>(`(() => {
 		const card = [...document.querySelectorAll('[role="button"][draggable="true"]')]
