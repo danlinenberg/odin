@@ -18,6 +18,7 @@ import {
 import type { IPty } from "node-pty";
 import * as pty from "node-pty";
 import treeKill from "tree-kill";
+import { spawnPiped } from "./piped-process";
 import {
 	PtySubprocessFrameDecoder,
 	PtySubprocessIpcType,
@@ -35,6 +36,8 @@ interface SpawnPayload {
 	cols: number;
 	rows: number;
 	env: Record<string, string>;
+	/** Plain pipes, no PTY: a remote session's helper on Windows. */
+	pipes?: boolean;
 }
 
 // =============================================================================
@@ -317,13 +320,15 @@ function handleSpawn(payload: Buffer): void {
 	}
 
 	try {
-		ptyProcess = pty.spawn(msg.shell, msg.args, {
-			name: "xterm-256color",
-			cols: msg.cols,
-			rows: msg.rows,
-			cwd: msg.cwd,
-			env: msg.env,
-		});
+		ptyProcess = msg.pipes
+			? spawnPiped(msg.shell, msg.args, msg)
+			: pty.spawn(msg.shell, msg.args, {
+					name: "xterm-256color",
+					cols: msg.cols,
+					rows: msg.rows,
+					cwd: msg.cwd,
+					env: msg.env,
+				});
 
 		ptyFd = (ptyProcess as unknown as { fd?: number }).fd ?? null;
 		if (DEBUG_OUTPUT_BATCHING) {

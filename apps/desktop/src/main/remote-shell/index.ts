@@ -70,6 +70,25 @@ function tunnelPort(): number | null {
 
 const say = (text: string) => process.stderr.write(`\r\nOdin: ${text}\r\n`);
 
+/**
+ * The pane's size. With no terminal - the terminal host's pipes on Windows
+ * (piped-process.ts) - it comes as ODIN_PTY_COLS/ROWS, then each resize over
+ * the IPC channel, passed on as stdout's own "resize".
+ */
+const piped = {
+	cols: Number(process.env.ODIN_PTY_COLS) || 120,
+	rows: Number(process.env.ODIN_PTY_ROWS) || 40,
+};
+process.on("message", (size: { cols?: number; rows?: number }) => {
+	if (!size?.cols || !size.rows) return;
+	piped.cols = size.cols;
+	piped.rows = size.rows;
+	process.stdout.emit("resize");
+});
+process.channel?.unref();
+const paneCols = () => process.stdout.columns ?? piped.cols;
+const paneRows = () => process.stdout.rows ?? piped.rows;
+
 async function tokens(ticket: string | undefined): Promise<string> {
 	if (!ticket || !odinPort()) return "";
 	const res = await fetch(
@@ -605,8 +624,8 @@ async function attach(
 			{
 				pty: {
 					term: process.env.TERM ?? "xterm-256color",
-					cols: stdout.columns ?? 120,
-					rows: stdout.rows ?? 40,
+					cols: paneCols(),
+					rows: paneRows(),
 				},
 			},
 			(err, stream) => {
@@ -615,8 +634,7 @@ async function attach(
 				// Only a command that finished sends an exit status; a dropped
 				// connection doesn't, and a killed tmux exits non-zero or by signal.
 				let exited = false;
-				const resize = () =>
-					stream.setWindow(stdout.rows ?? 40, stdout.columns ?? 120, 0, 0);
+				const resize = () => stream.setWindow(paneRows(), paneCols(), 0, 0);
 				stdin.setRawMode?.(true);
 				stdin.pipe(stream);
 				stream.pipe(stdout, { end: false });

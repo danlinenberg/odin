@@ -18,6 +18,7 @@ import {
 	scanForShellReady,
 } from "@odin/shared/shell-ready-scanner";
 import { DEFAULT_TERMINAL_SCROLLBACK } from "shared/constants";
+import { remoteShellArgv } from "shared/remote-shell-command";
 import {
 	getCommandShellArgs,
 	getShellArgs,
@@ -281,9 +282,17 @@ export class Session {
 		const processEnv = buildSafeEnv(envSource);
 		processEnv.TERM = "xterm-256color";
 
-		const shellArgs = this.command
-			? getCommandShellArgs(this.shell, this.command)
-			: getShellArgs(this.shell);
+		// A remote session on Windows runs straight from its parts over pipes,
+		// not in Git Bash: see remote-shell-command.ts.
+		const direct =
+			process.platform === "win32" && this.command
+				? remoteShellArgv(this.command)
+				: null;
+		const shellArgs = direct
+			? direct.args
+			: this.command
+				? getCommandShellArgs(this.shell, this.command)
+				: getShellArgs(this.shell);
 		const subprocessPath = path.join(__dirname, "pty-subprocess.js");
 
 		// Spawn subprocess with filtered env to prevent leaking NODE_ENV etc.
@@ -336,12 +345,13 @@ export class Session {
 
 		// Store pending spawn config
 		this.pendingSpawn = {
-			shell: this.shell,
+			shell: direct ? direct.exe : this.shell,
 			args: shellArgs,
 			cwd,
 			cols,
 			rows,
-			env: processEnv,
+			env: direct ? { ...processEnv, ELECTRON_RUN_AS_NODE: "1" } : processEnv,
+			pipes: !!direct,
 		};
 
 		// Command is now passed via shell args (e.g., bash -lc "command"),
@@ -355,6 +365,7 @@ export class Session {
 		cols: number;
 		rows: number;
 		env: Record<string, string>;
+		pipes?: boolean;
 	} | null = null;
 
 	/**
@@ -571,6 +582,7 @@ export class Session {
 		cols: number;
 		rows: number;
 		env: Record<string, string>;
+		pipes?: boolean;
 	}): boolean {
 		return this.sendFrameToSubprocess(
 			PtySubprocessIpcType.Spawn,
