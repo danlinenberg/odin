@@ -805,6 +805,18 @@ describe("applyQueue", () => {
 		// Esc pulls everything back into the input.
 		expect(applyQueue(withNotice, [op("popAll", "mine")])).toEqual([]);
 	});
+	test("a queued message reads as you wrote it, without the dismissal note", () => {
+		const queue = applyQueue(
+			[],
+			[
+				op(
+					"enqueue",
+					"why?\n\n(I dismissed these action items - do not list them again:\n- Rotate the key)",
+				),
+			],
+		);
+		expect(yourQueued(queue)).toEqual(["why?"]);
+	});
 	test("a message that lands as a turn leaves the queue, older leftovers too", () => {
 		// A real log: a resume left a notice and "Continue" behind, so the
 		// dequeue that took "dsasda" shifted "Continue" instead.

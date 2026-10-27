@@ -568,9 +568,15 @@ export function bashCommandOf(
 	return ranAsBash.has(trimmed) ? trimmed : null;
 }
 
-/** Your queued messages: background-task notices ride the same queue. */
+/**
+ * Your queued messages as you wrote them: background-task notices ride the
+ * same queue, and Claude queues a message with the dismissal note it carries.
+ */
 export function yourQueued(queue: string[]): string[] {
-	return queue.filter((text) => !text.startsWith("<task-notification"));
+	return queue
+		.filter((text) => !text.startsWith("<task-notification"))
+		.map(withoutWrapping)
+		.filter(Boolean);
 }
 
 function parseLines(parts: string[]): Line[] {
