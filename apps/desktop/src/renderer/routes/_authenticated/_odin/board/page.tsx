@@ -505,8 +505,10 @@ function HistoryView({
 		);
 	}
 	// A fresh launch: the conversation file isn't written until Claude's first
-	// turn, and the daemon poll hasn't seen the PTY yet.
-	if (error && card.pane.status === "working")
+	// turn, and the daemon poll hasn't seen the PTY yet. Not one that already
+	// exited: a remote session that failed to connect stays "working" with no
+	// transcript, and showed "Starting session..." for good.
+	if (error && card.pane.status === "working" && !card.pane.odinExitCause)
 		return <StartingView label="Starting session…" />;
 	if (sessionId && !live && !error) {
 		return (

@@ -67,14 +67,17 @@ function probe(host: HostLogin): Promise<HostLoadReading | null> {
 /**
  * The host's fresh reading, else one probe's. A launch waits at most
  * `waitMs` for the probe (a busy host can take minutes to answer); the probe
- * still finishes and caches its reading for the next launch.
+ * still finishes and caches its reading for the next launch. A reading from
+ * before `since` (the last start there) doesn't count: the queue waited for
+ * the cached one to age out, up to two minutes after every start.
  */
 export async function hostLoad(
 	host: HostLogin,
 	waitMs = 15_000,
+	since = 0,
 ): Promise<HostLoadReading | null> {
 	const fresh = freshHostLoad(host.instanceId);
-	if (fresh) return fresh;
+	if (fresh && fresh.at > since) return fresh;
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	const timeout = new Promise<null>((resolve) => {
 		timer = setTimeout(() => resolve(null), waitMs);
