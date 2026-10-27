@@ -29,6 +29,7 @@ import {
 	slackThread,
 } from "renderer/routes/_authenticated/_odin/board/brief";
 import { parseScreenMenu } from "renderer/routes/_authenticated/_odin/board/screen-menu";
+import type { PhoneNight } from "renderer/routes/_authenticated/_odin/night-agent/night-log";
 import { boardSection } from "shared/board-section";
 import { withDismissalNote } from "shared/dismissed-match";
 import { interruptClaude } from "shared/interrupt-claude";
@@ -95,6 +96,17 @@ async function doneShelf(): Promise<
 }
 
 const paneInput = z.object({ paneId: z.string().min(1) });
+
+/** What the window's night-page action answers. */
+type NightPage = {
+	enabled: boolean;
+	start: string;
+	end: string;
+	maxSessions: number;
+	running: boolean;
+	startedTonight: number;
+	nights: PhoneNight[];
+};
 
 const sessionOf = (paneId: string) =>
 	appState.data.tabsState.panes?.[paneId]?.claudeSessionId;
@@ -708,6 +720,16 @@ export const phoneRouter = t.router({
 		.mutation(({ input }) =>
 			board("remind", { paneId: input.paneId, day: input.day }),
 		),
+
+	/** The Night Agent page: its schedule, whether it runs now, and its nights. */
+	night: t.procedure.query(
+		async () => JSON.parse(await board("night-page")) as NightPage,
+	),
+
+	/** The Night Agent's switch, as its page's on the Mac. */
+	setNight: t.procedure
+		.input(z.object({ enabled: z.boolean() }))
+		.mutation(({ input }) => board("night", { on: String(input.enabled) })),
 });
 
 export type PhoneRouter = typeof phoneRouter;

@@ -17,7 +17,10 @@ import {
 import { type CrowChat, useCrowChats } from "renderer/stores/crow-chats";
 import { useDismissedActions } from "renderer/stores/dismissed-actions";
 import { useDoneStore } from "renderer/stores/done";
-import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
+import {
+	inOffHours,
+	useNextInLinePrompt,
+} from "renderer/stores/next-in-line-prompt";
 import { useOneByOne } from "renderer/stores/one-by-one";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
@@ -35,6 +38,7 @@ import { create } from "zustand";
 import { phoneReply } from "../board/phone-resume";
 import { remindSession } from "../board/SessionReminders";
 import { type PromptImage, sessionTitle } from "../components/OdinPromptDialog";
+import { phoneNights } from "../night-agent/night-log";
 import { readState, runAction, writeState } from "./crow-state";
 import { endSession, useDone } from "./useDone";
 import { useOdinProfile } from "./useOdinProfile";
@@ -717,6 +721,25 @@ function runOdinAction(
 		return log.length
 			? `${status}\n\nWhat it did, newest last:\n${log.join("\n")}`
 			: `${status}\n\nNo night has run yet.`;
+	}
+	if (action === "night-page") {
+		// The phone's Night Agent page: the schedule, tonight's count, the nights.
+		const { offHours, offHoursStarted, nightLog } =
+			useNextInLinePrompt.getState();
+		const paneOf = (sessionId: string) =>
+			Object.values(panes).find((pane) => pane.claudeSessionId === sessionId)
+				?.id;
+		return JSON.stringify({
+			enabled: offHours.enabled,
+			start: offHours.start,
+			end: offHours.end,
+			maxSessions: offHours.maxSessions,
+			running:
+				offHours.enabled &&
+				inOffHours(new Date(), offHours.start, offHours.end),
+			startedTonight: offHoursStarted,
+			nights: phoneNights(nightLog, offHours, paneOf),
+		});
 	}
 	if (action === "guide") return odinGuide(args.q);
 	if (action === "state") return readState(args);

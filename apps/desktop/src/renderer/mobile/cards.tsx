@@ -12,6 +12,7 @@ import {
 	LuGitPullRequest,
 	LuHash,
 	LuLaptop,
+	LuMoon,
 	LuSquare,
 	LuStar,
 	LuTag,
@@ -25,6 +26,16 @@ import { SwipeAction, SwipeRow } from "./swipe-row";
 /** An older Odin on the Mac sends sessions without these. */
 type Session = Omit<ActiveSession, "starred" | "statusAt"> &
 	Partial<Pick<ActiveSession, "starred" | "statusAt">>;
+
+/** The desktop card's moon: a session the Night Agent started overnight. */
+export function NightPill() {
+	return (
+		<span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-semibold text-primary">
+			<LuMoon className="size-3" />
+			Night Agent
+		</span>
+	);
+}
 
 const STATUS: Record<PaneStatus, { color: string; label: string }> = {
 	permission: { color: "var(--attention)", label: "Needs you" },
@@ -317,7 +328,7 @@ function RemindAction({ onPick }: { onPick: (day: string) => void }) {
 /**
  * One session on the board: its column's dot, the title (two lines), where
  * it runs and how long since its status changed, a Just done pill for a turn
- * that ended in the last 10 minutes, and its star.
+ * that ended in the last 10 minutes, a moon for the Night Agent's, and its star.
  */
 export function SessionCard({
 	session,
@@ -399,6 +410,7 @@ export function SessionCard({
 								Just done
 							</span>
 						)}
+						{session.night && <NightPill />}
 						<Chips details={session} />
 						{at !== null && <span className="ml-auto shrink-0">{ago(at)}</span>}
 					</div>
