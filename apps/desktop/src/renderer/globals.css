@@ -2,6 +2,10 @@
 @import "tw-animate-css";
 @import "streamdown/styles.css";
 
+/* dark: follows Odin's theme (the .dark class on <html>), not the OS: on a
+   Windows set to light mode it left the Dark theme with light-mode images. */
+@custom-variant dark (&:is(.dark *));
+
 @source "./**/*.{ts,tsx}";
 @source "../../../../packages/ui/src/**/*.{ts,tsx}";
 @source "../../../../packages/ui/node_modules/streamdown/dist/*.js";
