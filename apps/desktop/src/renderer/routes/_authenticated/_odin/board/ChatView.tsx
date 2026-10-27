@@ -1187,19 +1187,20 @@ export function outputTokens(items: Item[]): number {
  * steps.
  */
 export function currentTurn(items: Item[], landed: boolean) {
-	const index = landed
-		? items.findLastIndex(
-				(item) => item.kind === "user" && item.at !== undefined,
-			)
-		: items.length;
+	const last = items.findLastIndex(
+		(item) => item.kind === "user" && item.at !== undefined,
+	);
+	const index = landed ? last : items.length;
 	const user: Item | undefined = items[index];
 	const rest = items.slice(index + 1);
+	// Until a message lands, the screen still shows the one before it.
+	const shown: Item | undefined = items[last];
 	return {
 		/** The message's row id: what "Hide the steps" is remembered by. */
 		id: user?.id ?? "",
 		start: user?.kind === "user" ? user.at : undefined,
 		/** What you sent: the rows of it still on screen are not steps. */
-		prompt: user?.kind === "user" ? user.text : "",
+		prompt: shown?.kind === "user" ? shown.text : "",
 		/** Everything Claude wrote and ran since. */
 		items: rest,
 		tools: rest.filter((item): item is Tool => item.kind === "tool"),

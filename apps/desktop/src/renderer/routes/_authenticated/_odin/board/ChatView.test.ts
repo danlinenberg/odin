@@ -1102,6 +1102,10 @@ describe("currentTurn - the turn the Working row shows", () => {
 		expect(turn.id).not.toBe("u2");
 	});
 
+	test("a message still on its way keeps the last one as the prompt on screen", () => {
+		expect(currentTurn(items, false).prompt).toBe("second");
+	});
+
 	test("with no message of yours, the whole transcript is the turn", () => {
 		const turn = currentTurn(
 			items.filter((item) => item.kind !== "user"),
