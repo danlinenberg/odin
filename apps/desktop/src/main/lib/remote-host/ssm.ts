@@ -66,9 +66,13 @@ export function awsClientConfig(target: {
 }) {
 	return {
 		region: target.region || undefined,
-		credentials: fromNodeProviderChain(
-			target.profile ? { profile: target.profile } : {},
-		),
+		// ignoreCache: the SDK keeps ~/.aws/config in memory for the life of
+		// the process, so a profile changed after Odin started kept failing
+		// on its old settings until Odin was restarted.
+		credentials: fromNodeProviderChain({
+			...(target.profile && { profile: target.profile }),
+			ignoreCache: true,
+		}),
 	};
 }
 

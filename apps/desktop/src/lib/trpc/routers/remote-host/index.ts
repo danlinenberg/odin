@@ -1136,7 +1136,9 @@ export const createRemoteHostRouter = () =>
 			.query(async ({ input }) => {
 				const host = hostNamed(input.host);
 				if (!host) throw new Error("No remote host is set up.");
-				return hostHasConversation(host, input.sessionId);
+				return withAwsSignIn(host, () =>
+					hostHasConversation(host, input.sessionId),
+				);
 			}),
 
 		/**
