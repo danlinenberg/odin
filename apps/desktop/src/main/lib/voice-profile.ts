@@ -42,6 +42,10 @@ const MAX_SAMPLES = 400;
 const MAX_NOTES = 40;
 export const LEARN_EVERY = 15;
 
+/** Notes are kept oldest first, and a newer one can reverse an older one ("no line breaks", later "add line breaks"). */
+const CORRECTIONS_HEADER =
+	"Corrections I made, oldest first - always follow these. When two disagree, the later one wins:";
+
 export const voicePath = () => join(ODIN_HOME_DIR, "voice.json");
 
 const empty = (): VoiceStore => ({
@@ -158,7 +162,7 @@ export function learnPrompt(store: VoiceStore): string {
 	const recent = store.samples.slice(-LEARN_FROM);
 	return [
 		'You write a style guide of how one person ("me") writes at work. A model reads it before drafting a message I will send as myself - a Slack reply, a Jira or GitHub comment - and the draft must read as if I typed it, so a colleague could not tell.',
-		"Work from evidence: my messages below (newest last), the counted numbers, and my corrections. My corrections always win. The current guide is only a starting point - drop anything in it the messages do not show.",
+		"Work from evidence: my messages below (newest last), the counted numbers, and my corrections. My corrections always win, and a later one wins over an earlier one it contradicts - drop the earlier one's rule. The current guide is only a starting point - drop anything in it the messages do not show.",
 		'Be specific and checkable, never generic (not "concise and direct" but "answers in one line, no greeting, often starts with the verb"). Quote my real words and phrases.',
 		'Messages may start with where I sent them: [dm], [group dm], [#channel], with "thread" for a thread reply. Say how my style changes with the place and the reader (one person vs a channel, Hebrew vs English speakers, a quick reply vs an update vs a request).',
 		"Sections, as short bullets:",
@@ -175,7 +179,7 @@ export function learnPrompt(store: VoiceStore): string {
 		"## Counted numbers",
 		voiceStats(recent) || "(no messages yet)",
 		"",
-		"## My corrections",
+		"## My corrections (oldest first)",
 		...(store.notes.length
 			? store.notes.map((note) => `- ${note}`)
 			: ["(none)"]),
@@ -194,7 +198,7 @@ export function voiceText(store: VoiceStore): string {
 	const parts: string[] = [];
 	if (store.notes.length)
 		parts.push(
-			`Corrections I made - always follow these:\n${store.notes.map((note) => `- ${note}`).join("\n")}`,
+			`${CORRECTIONS_HEADER}\n${store.notes.map((note) => `- ${note}`).join("\n")}`,
 		);
 	if (store.guide) parts.push(store.guide);
 	const stats = voiceStats(store.samples.slice(-LEARN_FROM));

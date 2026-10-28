@@ -106,7 +106,7 @@ describe("learnPrompt and voiceText", () => {
 		expect(voiceText(empty)).toBe("");
 		expect(voiceText({ ...empty, guide: "G", enabled: false })).toBe("");
 		expect(voiceText({ ...empty, guide: "G", notes: ["shorter"] })).toBe(
-			"Corrections I made - always follow these:\n- shorter\n\nG",
+			"Corrections I made, oldest first - always follow these. When two disagree, the later one wins:\n- shorter\n\nG",
 		);
 		expect(
 			voiceText({ ...empty, guide: "G", samples: ["a message of mine"] }),
