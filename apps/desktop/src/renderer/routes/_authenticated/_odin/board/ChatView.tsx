@@ -116,6 +116,7 @@ import {
 	promptLine,
 } from "./host-delivery";
 import { launchRequest } from "./launch-request";
+import { holdForMove, isMoving } from "./moving-home";
 import { PLAN_LIMIT_OPENING } from "./plan-limit-resume";
 import {
 	canSpeak,
@@ -483,15 +484,21 @@ type Sent = {
 	lost?: boolean;
 	/** A remote session's reply held until Claude is back on the host. */
 	waiting?: boolean;
+	/** Held instead for its session's move to this computer (moving-home.ts). */
+	moving?: boolean;
 };
 
 /** What a sender tells the bubble about a reply on its way to the host. */
-type SentHandle = Omit<HostMessage, "type">;
+type SentHandle = Omit<HostMessage, "type"> & {
+	/** Held for its session's move here, to go out with the resume. */
+	holdForMove: (text: string) => void;
+};
 
 const NO_HANDLE: SentHandle = {
 	arrived: () => true,
 	waiting: () => {},
 	lost: () => {},
+	holdForMove: () => {},
 };
 
 /**
@@ -1389,6 +1396,7 @@ function UserBubble({
 	pending,
 	lost,
 	waitingFor,
+	movingHere,
 	onShowTerminal,
 	onDismiss,
 	workspaceId,
@@ -1406,6 +1414,8 @@ function UserBubble({
 	lost?: boolean;
 	/** Held until Claude is back on this host. */
 	waitingFor?: string;
+	/** Held instead until the session has moved to this computer. */
+	movingHere?: boolean;
 	onShowTerminal?: () => void;
 	onDismiss?: () => void;
 	workspaceId?: string;
@@ -1485,7 +1495,9 @@ function UserBubble({
 			{waitingFor && !lost && (
 				<div className="mt-1.5 flex items-center justify-end gap-1.5 text-[12px] text-muted-foreground">
 					<BsCloud className="size-3 shrink-0" />
-					Waiting for {waitingFor} - goes to Claude once it is back
+					{movingHere
+						? "Goes to Claude once the session is on this computer"
+						: `Waiting for ${waitingFor} - goes to Claude once it is back`}
 				</div>
 			)}
 			{lost && (
@@ -3287,6 +3299,21 @@ export function ChatView({
 				// No transcript yet: nothing to tell a lost message from a slow one.
 				mark({ lost: itemsRef.current.length > 0, waiting: false });
 			},
+			holdForMove: (held) => {
+				waitingIds.add(id);
+				mark({ waiting: true, moving: true });
+				holdForMove(paneId, {
+					text: held,
+					sent: () => {
+						waitingIds.delete(id);
+						mark({ waiting: false });
+					},
+					lost: () => {
+						waitingIds.delete(id);
+						mark({ lost: true, waiting: false });
+					},
+				});
+			},
 		};
 	};
 	const itemsRef = useRef(items);
@@ -3306,6 +3333,10 @@ export function ChatView({
 	const sendToClaude = useCallback(
 		(message: string) => {
 			const text = withDismissals(paneId, message);
+			if (isMoving(paneId)) {
+				onSentRef.current(text, undefined, true).holdForMove(text);
+				return;
+			}
 			if (onResumeRef.current) {
 				onSentRef.current(text);
 				onResumeRef.current(text);
@@ -3714,6 +3745,7 @@ export function ChatView({
 								pending
 								lost={sent.lost}
 								waitingFor={sent.waiting ? (host ?? "the host") : undefined}
+								movingHere={sent.moving}
 								onShowTerminal={onShowTerminal}
 								onDismiss={() =>
 									setPending((list) =>
@@ -4372,6 +4404,15 @@ function Composer({
 		setBash(false);
 		if (!bash) setAttached([]);
 		const paths = await Promise.all(sending.map((item) => item.path));
+		// On its way here: its files stay here, and it goes with the resume.
+		if (!onResume && !onSend && isMoving(paneId)) {
+			onSent(
+				text,
+				sending.map((item) => item.preview),
+				true,
+			).holdForMove([text, ...paths].filter(Boolean).join(" "));
+			return;
+		}
 		// A session on the remote host can't read this computer's files:
 		// they go there first, and it gets the copies' paths.
 		const onHost =
