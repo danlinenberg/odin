@@ -226,6 +226,7 @@ import { deliverOnHost } from "./host-delivery";
 import { hostStartDelay } from "./host-start-gap";
 import { onIdleArrival, restoreAfterCompact } from "./idle-compact";
 import { menuTop } from "./menu-fit";
+import { endMove, holdForMove, startMove, withHeld } from "./moving-home";
 import { BOARD_COLUMN_MIN_W, NextInLine, TonightCount } from "./NextInLine";
 import { NightAgentLive } from "./NightAgentLive";
 import {
@@ -5537,6 +5538,8 @@ function DevBoardPage() {
 		const wanted =
 			card.pane.odinCwd || card.pane.initialCwd || card.repoPath || "";
 		const loading = toast.loading("Moving the session to this computer...");
+		// What you send until it lands here waits for its resume (moving-home.ts).
+		startMove(card.pane.id);
 		try {
 			const { cwd, note, offline } =
 				await utils.client.remoteHost.bringHome.mutate({
@@ -5561,15 +5564,18 @@ function DevBoardPage() {
 				toast.warning(
 					"The host did not answer, so the conversation moved without its code. The session may still run on the host.",
 				);
+			const held = endMove(card.pane.id);
 			await resumeCard(
 				{ ...card, pane },
 				false,
-				prompt ? `${note}\n\n${prompt}` : note,
+				withHeld(prompt ? `${note}\n\n${prompt}` : note, held),
 				true,
 			);
+			for (const message of held) message.sent();
 			if (!offline)
 				toast.success("Moved to this computer", { description: cwd });
 		} catch (error) {
+			for (const message of endMove(card.pane.id)) message.lost();
 			toast.dismiss(loading);
 			toast.error(error instanceof Error ? error.message : String(error));
 		}
@@ -5625,6 +5631,14 @@ function DevBoardPage() {
 	// this board's chat box does - on the remote host too.
 	useEffect(() => {
 		setPhoneReply((paneId, text) => {
+			if (
+				holdForMove(paneId, {
+					text,
+					sent: () => undefined,
+					lost: () => undefined,
+				})
+			)
+				return "delivered";
 			if (agentPaneIdsRef.current.has(paneId)) {
 				if (!useTabsStore.getState().panes[paneId]?.odinRemote) return "live";
 				// Remote: as its chat box does, the reply waits while the pane
