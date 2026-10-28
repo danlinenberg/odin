@@ -1,4 +1,17 @@
 import {
+	closestCenter,
+	DndContext,
+	MouseSensor,
+	useSensor,
+	useSensors,
+} from "@dnd-kit/core";
+import {
+	SortableContext,
+	useSortable,
+	verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
 	ContextMenu,
 	ContextMenuContent,
 	ContextMenuItem,
@@ -13,7 +26,11 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { PILL } from "../components/pill";
-import { type BriefLink, usePaneMeta } from "../hooks/usePaneMeta";
+import {
+	type BriefLink,
+	type BriefTodo,
+	usePaneMeta,
+} from "../hooks/usePaneMeta";
 import {
 	actionItems,
 	artifactLink,
@@ -55,73 +72,160 @@ import {
  */
 export function MyTodos({ paneId }: { paneId: string }) {
 	const todos = usePaneMeta((s) => s.todosByPane[paneId]) ?? [];
+	const moveTodo = usePaneMeta((s) => s.moveTodo);
+	// The row you're editing, by id: a drag moves it, and the edit box goes
+	// with it rather than staying on whatever row lands at its old place.
+	const [editing, setEditing] = useState<string | null>(null);
+	const sensors = useSensors(
+		useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+	);
+	if (!todos.length) return null;
+	const ids = todos.map(todoId);
+	return (
+		<DndContext
+			sensors={sensors}
+			collisionDetection={closestCenter}
+			onDragEnd={({ active, over }) => {
+				if (!over) return;
+				moveTodo(
+					paneId,
+					ids.indexOf(String(active.id)),
+					ids.indexOf(String(over.id)),
+				);
+			}}
+		>
+			<SortableContext items={ids} strategy={verticalListSortingStrategy}>
+				<ul className="flex flex-col gap-1">
+					{todos.map((todo, i) => (
+						<MyTodo
+							key={ids[i]}
+							id={ids[i]}
+							paneId={paneId}
+							index={i}
+							todo={todo}
+							editing={editing === ids[i]}
+							setEditing={(on) => setEditing(on ? ids[i] : null)}
+						/>
+					))}
+				</ul>
+			</SortableContext>
+		</DndContext>
+	);
+}
+
+// A to-do has no id of its own, and its index changes when you drag it. Every
+// store action keeps the objects it doesn't change, so the object is the id.
+const todoIds = new WeakMap<BriefTodo, string>();
+let nextTodoId = 0;
+function todoId(todo: BriefTodo): string {
+	let id = todoIds.get(todo);
+	if (!id) {
+		id = `todo-${nextTodoId++}`;
+		todoIds.set(todo, id);
+	}
+	return id;
+}
+
+function MyTodo({
+	id,
+	paneId,
+	index,
+	todo,
+	editing,
+	setEditing,
+}: {
+	id: string;
+	paneId: string;
+	index: number;
+	todo: BriefTodo;
+	editing: boolean;
+	setEditing: (on: boolean) => void;
+}) {
 	const updateTodo = usePaneMeta((s) => s.updateTodo);
 	const editTodo = usePaneMeta((s) => s.editTodo);
-	const [editing, setEditing] = useState<number | null>(null);
-	if (!todos.length) return null;
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		setActivatorNodeRef,
+		transform,
+		transition,
+		isDragging,
+	} = useSortable({ id });
 	return (
-		<ul className="flex flex-col gap-1">
-			{todos.map((todo, i) => (
-				<li
-					// biome-ignore lint/suspicious/noArrayIndexKey: the index is the to-do's id
-					key={i}
-					className="group flex items-start gap-2 text-[12.5px] leading-relaxed"
-				>
-					<input
-						type="checkbox"
-						checked={!!todo.done}
-						onChange={(event) => updateTodo(paneId, i, event.target.checked)}
-						aria-label="Done"
-						className="mt-1 shrink-0 accent-primary"
-					/>
-					{editing === i ? (
-						<textarea
-							dir="auto"
-							// biome-ignore lint/a11y/noAutofocus: opened by clicking the item
-							autoFocus
-							defaultValue={todo.text}
-							aria-label="Edit to-do"
-							onFocus={(event) => event.currentTarget.select()}
-							onBlur={(event) => {
-								editTodo(paneId, i, event.currentTarget.value);
-								setEditing(null);
-							}}
-							onKeyDown={(event) => {
-								if (event.key === "Enter" && !event.shiftKey) {
-									event.preventDefault();
-									editTodo(paneId, i, event.currentTarget.value);
-									setEditing(null);
-								}
-							}}
-							className="min-w-0 flex-1 resize-none rounded border border-border bg-transparent px-1 text-soft-foreground outline-none [field-sizing:content]"
-						/>
-					) : (
-						<button
-							type="button"
-							dir="auto"
-							title="Click to edit"
-							onClick={() => setEditing(i)}
-							className={cn(
-								"min-w-0 flex-1 cursor-text whitespace-pre-wrap break-words text-left",
-								todo.done
-									? "text-faint-foreground line-through"
-									: "text-soft-foreground",
-							)}
-						>
-							{todo.text}
-						</button>
+		<li
+			ref={setNodeRef}
+			style={{ transform: CSS.Transform.toString(transform), transition }}
+			className={cn(
+				"group relative flex items-start gap-2 text-[12.5px] leading-relaxed",
+				isDragging && "z-10 rounded bg-accent",
+			)}
+		>
+			<span
+				ref={setActivatorNodeRef}
+				{...attributes}
+				{...listeners}
+				title="Drag to reorder"
+				className={cn(
+					"-mr-1 mt-[1px] shrink-0 cursor-grab select-none text-[12px] text-faint-foreground hover:text-muted-foreground active:cursor-grabbing",
+					isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+				)}
+			>
+				⠿
+			</span>
+			<input
+				type="checkbox"
+				checked={!!todo.done}
+				onChange={(event) => updateTodo(paneId, index, event.target.checked)}
+				aria-label="Done"
+				className="mt-1 shrink-0 accent-primary"
+			/>
+			{editing ? (
+				<textarea
+					dir="auto"
+					// biome-ignore lint/a11y/noAutofocus: opened by clicking the item
+					autoFocus
+					defaultValue={todo.text}
+					aria-label="Edit to-do"
+					onFocus={(event) => event.currentTarget.select()}
+					onBlur={(event) => {
+						editTodo(paneId, index, event.currentTarget.value);
+						setEditing(false);
+					}}
+					onKeyDown={(event) => {
+						if (event.key === "Enter" && !event.shiftKey) {
+							event.preventDefault();
+							editTodo(paneId, index, event.currentTarget.value);
+							setEditing(false);
+						}
+					}}
+					className="min-w-0 flex-1 resize-none rounded border border-border bg-transparent px-1 text-soft-foreground outline-none [field-sizing:content]"
+				/>
+			) : (
+				<button
+					type="button"
+					dir="auto"
+					title="Click to edit"
+					onClick={() => setEditing(true)}
+					className={cn(
+						"min-w-0 flex-1 cursor-text whitespace-pre-wrap break-words text-left",
+						todo.done
+							? "text-faint-foreground line-through"
+							: "text-soft-foreground",
 					)}
-					<button
-						type="button"
-						title="Remove to-do"
-						onClick={() => updateTodo(paneId, i)}
-						className="text-[12px] text-faint-foreground opacity-0 hover:text-danger group-hover:opacity-100"
-					>
-						×
-					</button>
-				</li>
-			))}
-		</ul>
+				>
+					{todo.text}
+				</button>
+			)}
+			<button
+				type="button"
+				title="Remove to-do"
+				onClick={() => updateTodo(paneId, index)}
+				className="text-[12px] text-faint-foreground opacity-0 hover:text-danger group-hover:opacity-100"
+			>
+				×
+			</button>
+		</li>
 	);
 }
 
