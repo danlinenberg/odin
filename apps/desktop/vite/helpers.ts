@@ -169,3 +169,72 @@ export function coalesceFullReloadPlugin({
 		},
 	};
 }
+
+/**
+ * Compiles every module the renderer can reach - the lazy, code-split screens
+ * included - in the background, once the window has finished loading.
+ *
+ * Vite compiles a module the first time something asks for it, and keeps it
+ * only in memory. So after each restart of Odin Dev, every screen (Settings, a
+ * drawer, a board view) stalled on its first open while its chunk compiled:
+ * reaching all of them cold took 8.5s, warm 0.5s. `server.warmup` can't help -
+ * it follows static imports only, and the screens load through `import()`.
+ *
+ * It waits for the window's own requests to go quiet (compiling alongside them
+ * made the first paint 4x slower), and compiles a few modules at a time so a
+ * click mid-pass doesn't queue behind two thousand of them.
+ */
+export function warmAllModulesPlugin({
+	entry = "/index.tsx",
+	quietMs = 2_000,
+	concurrency = 8,
+} = {}): Plugin {
+	return {
+		name: "odin-warm-all-modules",
+		apply: "serve",
+		configureServer(server) {
+			const env = server.environments.client;
+			let lastRequest = Date.now();
+			server.middlewares.use((_req, _res, next) => {
+				lastRequest = Date.now();
+				next();
+			});
+
+			async function warm(): Promise<void> {
+				const t0 = Date.now();
+				const seen = new Set([entry]);
+				const queue = [entry];
+				const worker = async (): Promise<void> => {
+					for (let url = queue.shift(); url; url = queue.shift()) {
+						await env.transformRequest(url).catch(() => null);
+						const mod = await env.moduleGraph.getModuleByUrl(url);
+						for (const next of mod?.importedModules ?? []) {
+							if (seen.has(next.url)) continue;
+							seen.add(next.url);
+							queue.push(next.url);
+						}
+					}
+				};
+				// A worker that finds the queue empty exits, so keep starting them
+				// until a pass ends with nothing left.
+				while (queue.length > 0) {
+					await Promise.all(Array.from({ length: concurrency }, worker));
+				}
+				server.config.logger.info(
+					`odin: compiled ${seen.size} modules in the background (${Date.now() - t0}ms)`,
+				);
+			}
+
+			let started = false;
+			server.ws.on("connection", () => {
+				if (started) return;
+				started = true;
+				const timer = setInterval(() => {
+					if (Date.now() - lastRequest < quietMs) return;
+					clearInterval(timer);
+					void warm();
+				}, 500);
+			});
+		},
+	};
+}

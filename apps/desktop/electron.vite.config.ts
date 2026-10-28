@@ -16,6 +16,7 @@ import {
 	copyResourcesPlugin,
 	defineEnv,
 	devPath,
+	warmAllModulesPlugin,
 } from "./vite/helpers";
 
 // override: true ensures .env values take precedence over inherited env vars.
@@ -288,6 +289,7 @@ export default defineConfig({
 			}),
 			reactPlugin(),
 			coalesceFullReloadPlugin(),
+			warmAllModulesPlugin(),
 		],
 
 		worker: {
