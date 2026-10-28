@@ -1,1 +1,6 @@
-export { CodeBlock, QuoteBlock } from "./CodeBlock";
+export {
+	CodeBlock,
+	QuoteBlock,
+	regenerateMessage,
+	SendToSession,
+} from "./CodeBlock";

@@ -2,8 +2,15 @@ import { ShowCode } from "@odin/ui/ai-elements/show-code";
 import { Button } from "@odin/ui/button";
 import { toast } from "@odin/ui/sonner";
 import { mermaid } from "@streamdown/mermaid";
-import { CheckIcon, CopyIcon, SparklesIcon } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { CheckIcon, CopyIcon, RefreshCwIcon, SparklesIcon } from "lucide-react";
+import {
+	createContext,
+	type ReactNode,
+	useContext,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTheme } from "renderer/stores";
 import { Streamdown } from "streamdown";
@@ -219,16 +226,42 @@ function CopyButton({
 }
 
 /**
+ * Sends a message to the Claude session the draft came from. A chat view of a
+ * session provides it, so a tuned draft gets a Regenerate; elsewhere it's null.
+ */
+export const SendToSession = createContext<((message: string) => void) | null>(
+	null,
+);
+
+/** Asks Claude to write the draft again, with the voice change it just got. */
+export function regenerateMessage(
+	draft: string,
+	change: { note: string } | { rewrite: string },
+): string {
+	const why =
+		"note" in change
+			? `following this correction I just saved to my voice: ${change.note}`
+			: `in my voice - I just rewrote it like this, learn from the difference:\n\n${change.rewrite}`;
+	return `Regenerate this draft ${why}\n\nThe draft:\n\n${draft}`;
+}
+
+/**
  * "Tune voice" under a draft: one line on how it should sound, kept as a
  * correction in Your voice so every later draft follows it. "Rewrite it" takes
  * what I would have written instead, and Your voice learns from the difference.
+ * Once saved, Regenerate asks the session for the draft again with that change.
  * `draft` reads the draft's text when the rewrite opens.
  */
 function TuneVoice({ draft }: { draft: () => string }) {
+	const send = useContext(SendToSession);
 	const [mode, setMode] = useState<"closed" | "rule" | "rewrite">("closed");
 	const [note, setNote] = useState("");
 	const [rewrite, setRewrite] = useState("");
 	const [saved, setSaved] = useState<string | null>(null);
+	// The change just saved, for Regenerate; gone once it's sent.
+	const [change, setChange] = useState<
+		{ note: string } | { rewrite: string } | null
+	>(null);
 	const close = (message: string | null) => {
 		setNote("");
 		setRewrite("");
@@ -241,16 +274,21 @@ function TuneVoice({ draft }: { draft: () => string }) {
 			description: error.message,
 		});
 	const addNote = electronTrpc.voice.addNote.useMutation({
-		onSuccess: () => close("Saved to Your voice"),
+		onSuccess: (_, input) => {
+			setChange({ note: input.note });
+			close("Saved to Your voice");
+		},
 		onError: saveFailed,
 	});
 	const learn = electronTrpc.voice.learnFromRewrite.useMutation({
-		onSuccess: (learning) =>
+		onSuccess: (learning, input) => {
+			setChange({ rewrite: input.rewrite });
 			close(
 				learning
 					? "Learning from your version"
 					: "Turn on Your voice in Settings to learn from it",
-			),
+			);
+		},
 		onError: saveFailed,
 	});
 	const openRewrite = () => {
@@ -260,17 +298,34 @@ function TuneVoice({ draft }: { draft: () => string }) {
 	const linkClass = "text-xs text-muted-foreground hover:text-foreground";
 	if (mode === "closed")
 		return (
-			<button
-				type="button"
-				onClick={() => {
-					setSaved(null);
-					setMode("rule");
-				}}
-				className={`mt-2 flex items-center gap-1 ${linkClass}`}
-			>
-				<SparklesIcon className="size-3" />
-				{saved ?? "Tune voice"}
-			</button>
+			<div className="mt-2 flex items-center gap-3">
+				<button
+					type="button"
+					onClick={() => {
+						setSaved(null);
+						setChange(null);
+						setMode("rule");
+					}}
+					className={`flex items-center gap-1 ${linkClass}`}
+				>
+					<SparklesIcon className="size-3" />
+					{saved ?? "Tune voice"}
+				</button>
+				{send && change && (
+					<button
+						type="button"
+						onClick={() => {
+							send(regenerateMessage(draft(), change));
+							setChange(null);
+							setSaved("Regenerating");
+						}}
+						className={`flex items-center gap-1 ${linkClass}`}
+					>
+						<RefreshCwIcon className="size-3" />
+						Regenerate
+					</button>
+				)}
+			</div>
 		);
 	if (mode === "rewrite")
 		return (

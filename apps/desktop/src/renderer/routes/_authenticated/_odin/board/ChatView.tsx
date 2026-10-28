@@ -33,7 +33,10 @@ import {
 } from "react-icons/lu";
 import odinMarkDark from "renderer/assets/odin-mark/odin-mark-dark.png";
 import odinMarkLight from "renderer/assets/odin-mark/odin-mark-light.png";
-import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
+import {
+	MarkdownRenderer,
+	SendToSession,
+} from "renderer/components/MarkdownRenderer";
 import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
@@ -3597,84 +3600,97 @@ export function ChatView({
 							</div>
 						)
 					)}
-					{segments(items).map((segment, index, all) => {
-						const previous = all[index - 1];
-						const following = all[index + 1];
-						// A run's toggle sits at the end of the line before it.
-						if (
-							Array.isArray(segment) &&
-							!Array.isArray(previous) &&
-							previous?.kind === "text"
-						)
-							return null;
-						// A reply starts after your message (or at the top); its first
-						// block carries Claude's mark, the rest line up beside it.
-						const opensReply =
-							!(!Array.isArray(segment) && segment.kind === "user") &&
-							(index === 0 ||
-								(!Array.isArray(previous) &&
-									(previous?.kind === "user" || previous?.kind === "compact")));
-						if (
-							!Array.isArray(segment) &&
-							(segment.kind === "user" || segment.kind === "compact")
-						)
-							return (
+					{/* A tuned draft regenerates through the same send as the rest. */}
+					<SendToSession.Provider
+						value={onShowTerminal || onResumeWith ? sendToClaude : null}
+					>
+						{segments(items).map((segment, index, all) => {
+							const previous = all[index - 1];
+							const following = all[index + 1];
+							// A run's toggle sits at the end of the line before it.
+							if (
+								Array.isArray(segment) &&
+								!Array.isArray(previous) &&
+								previous?.kind === "text"
+							)
+								return null;
+							// A reply starts after your message (or at the top); its first
+							// block carries Claude's mark, the rest line up beside it.
+							const opensReply =
+								!(!Array.isArray(segment) && segment.kind === "user") &&
+								(index === 0 ||
+									(!Array.isArray(previous) &&
+										(previous?.kind === "user" ||
+											previous?.kind === "compact")));
+							if (
+								!Array.isArray(segment) &&
+								(segment.kind === "user" || segment.kind === "compact")
+							)
+								return (
+									<ItemView
+										key={segment.id}
+										item={segment}
+										refs={refs}
+										refsKey={refsKey}
+										workspaceId={workspaceId}
+										paneId={paneId}
+									/>
+								);
+							const key = Array.isArray(segment) ? segment[0]?.id : segment.id;
+							const itemView = !Array.isArray(segment) && (
 								<ItemView
-									key={segment.id}
 									item={segment}
 									refs={refs}
 									refsKey={refsKey}
 									workspaceId={workspaceId}
 									paneId={paneId}
+									onDo={onShowTerminal || onResumeWith ? doItem : undefined}
+									hideActions={segment.id !== actionsId}
+									earlierText={
+										segment.id === actionsId ? earlierText : undefined
+									}
+									tldr={segment.id === lastTextId ? tldr : null}
+									readAloud={segment.id === lastTextId ? readAloud : null}
+									onRun={
+										// Only a live PTY runs a ! command; a resume or the raven's send can't.
+										onShowTerminal && !onSend ? runCommand : undefined
+									}
+									onRestart={segment.id === lastTextId ? onRestart : undefined}
+									onSend={
+										// Only the latest reply: an old expired-token error is fixed.
+										(onShowTerminal || onResumeWith) &&
+										segment.id === lastTextId
+											? sendToClaude
+											: undefined
+									}
 								/>
 							);
-						const key = Array.isArray(segment) ? segment[0]?.id : segment.id;
-						const itemView = !Array.isArray(segment) && (
-							<ItemView
-								item={segment}
-								refs={refs}
-								refsKey={refsKey}
-								workspaceId={workspaceId}
-								paneId={paneId}
-								onDo={onShowTerminal || onResumeWith ? doItem : undefined}
-								hideActions={segment.id !== actionsId}
-								earlierText={segment.id === actionsId ? earlierText : undefined}
-								tldr={segment.id === lastTextId ? tldr : null}
-								readAloud={segment.id === lastTextId ? readAloud : null}
-								onRun={
-									// Only a live PTY runs a ! command; a resume or the raven's send can't.
-									onShowTerminal && !onSend ? runCommand : undefined
-								}
-								onRestart={segment.id === lastTextId ? onRestart : undefined}
-								onSend={
-									// Only the latest reply: an old expired-token error is fixed.
-									(onShowTerminal || onResumeWith) && segment.id === lastTextId
-										? sendToClaude
-										: undefined
-								}
-							/>
-						);
-						return (
-							<div
-								key={key}
-								className={cn(
-									"flex min-w-0 gap-3",
-									key && !firstIdsRef.current?.has(key) && ENTER,
-								)}
-							>
-								{opensReply ? <ReplyMark /> : <span className="w-7 shrink-0" />}
-								<div className="min-w-0 flex-1">
-									{Array.isArray(segment) ? (
-										<ToolGroup group={segment} />
-									) : Array.isArray(following) ? (
-										<ToolGroup group={following} lead={itemView} />
-									) : (
-										itemView
+							return (
+								<div
+									key={key}
+									className={cn(
+										"flex min-w-0 gap-3",
+										key && !firstIdsRef.current?.has(key) && ENTER,
 									)}
+								>
+									{opensReply ? (
+										<ReplyMark />
+									) : (
+										<span className="w-7 shrink-0" />
+									)}
+									<div className="min-w-0 flex-1">
+										{Array.isArray(segment) ? (
+											<ToolGroup group={segment} />
+										) : Array.isArray(following) ? (
+											<ToolGroup group={following} lead={itemView} />
+										) : (
+											itemView
+										)}
+									</div>
 								</div>
-							</div>
-						);
-					})}
+							);
+						})}
+					</SendToSession.Provider>
 					{pending.map((sent) => {
 						const command = sent.lost
 							? null
