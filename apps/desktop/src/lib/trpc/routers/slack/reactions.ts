@@ -304,6 +304,20 @@ export function toTitle(text: string): string {
 	return line.length > 120 ? `${line.slice(0, 120)}…` : line;
 }
 
+/** A row's first-line label: "Image" for a bare screenshot, else `toTitle`. */
+export function lineTitle(text: string): string {
+	return onlyImage(text) ? "Image" : toTitle(text);
+}
+
+/**
+ * The name a row goes by: the model's title once it's written, the first line
+ * until then - and for good when the model had nothing to call it (stored as
+ * an empty title, so it isn't asked again).
+ */
+export function taskTitle(summaryTitle: string | null, text: string): string {
+	return summaryTitle?.trim() || lineTitle(text);
+}
+
 /**
  * Permalink for a message, when Slack didn't hand one over. Thread replies need
  * the parent ts, else the link opens the channel at the wrong place.

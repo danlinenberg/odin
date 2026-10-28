@@ -43,7 +43,7 @@ Tasks waiting to start, from Tasks, Slack, Jira, GitHub and Notion only (not Ema
 - Store: nightAgent.
 
 ## Slack feed
-- React to a Slack message with the **Queue** emoji (default :eyes:) to bring it in. The **Auto-start** emoji (default :robot_face:) brings it in and starts a session at once. Click either chip to change its emoji.
+- React to a Slack message with the **Queue** emoji (default :eyes:) to bring it in. The **Auto-start** emoji (default :robot_face:) brings it in and starts a session at once. Click either chip to change its emoji. The row is named by Claude (Haiku) from the message and its thread, a few words on what it's about; until that lands, or when Claude isn't there, it shows the message's first line. Your own rename always wins.
 - Pills: Not started (no session ever), In progress (a session was started once), Done. It opens on the first pill with rows. Search matches the author only.
 - Removing the reaction in Slack does not remove the row; Review's sweep can drop it.
 

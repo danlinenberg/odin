@@ -1,0 +1,1 @@
+ALTER TABLE `slack_reactions` ADD `summary_title` text;

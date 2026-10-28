@@ -47,7 +47,7 @@ export function useStartReaction() {
 			title: row.title,
 			description: buildThreadPrompt(row.permalink, row.title, row.text),
 			contact: row.authorName,
-			// The whole message: the title is cut at 120 chars.
+			// The whole message: the title is a few words, or the first line cut.
 			brief: row.text || row.title,
 			pageId: row.id,
 			source: "reactions",
