@@ -46,5 +46,8 @@ cp "$REPO/apps/desktop/src/resources/build/icons/icon.icns" \
 codesign --force --sign - "$APP" >/dev/null 2>&1
 touch "$APP"
 "$LSREGISTER" -f "$APP" >/dev/null 2>&1
+# usernoted and NotificationCenter keep the icon they first drew for an app;
+# launchd restarts both.
+killall usernoted NotificationCenter >/dev/null 2>&1 || true
 
 echo "installed $APP -> $FOCUS"

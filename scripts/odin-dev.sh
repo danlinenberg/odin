@@ -29,8 +29,13 @@ if ! command -v bun >/dev/null 2>&1; then
   exit 1
 fi
 
-[[ -d "/Applications/Odin Dev.app" ]] ||
+# Also when the launcher's icon is not the repo's: banners for "Odin Dev" draw
+# the launcher's icon, and it kept the one it was installed with.
+if [[ ! -d "/Applications/Odin Dev.app" ]] ||
+  ! cmp -s "$REPO/apps/desktop/src/resources/build/icons/icon.icns" \
+    "/Applications/Odin Dev.app/Contents/Resources/applet.icns"; then
   "$REPO/scripts/odin-dev-install-launcher.sh" || true
+fi
 
 # shellcheck source=scripts/odin-procs.sh
 source "$REPO/scripts/odin-procs.sh"
