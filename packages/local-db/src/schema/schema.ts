@@ -496,6 +496,12 @@ export const slackReactions = sqliteTable(
 		startedAt: integer("started_at"),
 		/** Local-only "handled" marker. */
 		doneAt: integer("done_at"),
+		/**
+		 * A model's few-word name for the task, read from the message and its
+		 * thread. Null until it's written, or when it couldn't be: the row then
+		 * goes by the message's first line.
+		 */
+		summaryTitle: text("summary_title"),
 	},
 	(table) => [
 		index("slack_reactions_first_seen_at_idx").on(table.firstSeenAt),

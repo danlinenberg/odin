@@ -44,8 +44,8 @@ export function buildThreadPrompt(
 		// The message itself, quoted - without it the opening prompt is pure Odin
 		// plumbing, so Claude's generated title comes out as "Ingest and execute
 		// Slack thread task" and Session History has nothing of the real ask to
-		// search. `title` is only the message's first line, which is routinely a
-		// greeting.
+		// search. `title` is a few words, or until they're written the message's
+		// first line, which is routinely a greeting.
 		...(posted ? ["What was posted there:", posted, ""] : []),
 		"PHASE 1 - INGEST (do this first, before anything else):",
 		`- Read the ENTIRE thread ${readVia("Slack", slackUrl)}`,

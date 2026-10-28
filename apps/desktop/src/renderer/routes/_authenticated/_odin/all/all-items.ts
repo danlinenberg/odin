@@ -330,7 +330,9 @@ export function allItems(
 							row.text,
 						),
 						contact: row.authorName,
-						brief: row.title,
+						// The whole message, as the Slack page's Start passes it: the
+						// title is a model's few words, or the first line cut at 120.
+						brief: row.text || row.title,
 						pageId: row.id,
 						source: "reactions",
 					},

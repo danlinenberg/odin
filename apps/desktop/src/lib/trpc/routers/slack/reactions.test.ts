@@ -13,6 +13,7 @@ import {
 	rowsToVerify,
 	type SlackReactionsListItem,
 	slackTextToPlain,
+	taskTitle,
 	threadParentTs,
 	toTitle,
 	untilNextQueued,
@@ -225,6 +226,22 @@ describe("onlyImage", () => {
 		expect(onlyImage(body)).toBe(url);
 		expect(onlyImage(messageBody({ text: "see this", files: [] }))).toBeNull();
 		expect(onlyImage("")).toBeNull();
+	});
+});
+
+describe("taskTitle", () => {
+	test("the model's title once written", () => {
+		expect(taskTitle("Export stuck for Acme", "hey can you look?")).toBe(
+			"Export stuck for Acme",
+		);
+	});
+
+	test("the first line while pending, or when the model had nothing", () => {
+		expect(taskTitle(null, "Hi Dan\ncan you look at BUGT-1?")).toBe(
+			"can you look at BUGT-1?",
+		);
+		expect(taskTitle("", "can you look?")).toBe("can you look?");
+		expect(taskTitle(null, "https://files.slack.com/x.png")).toBe("Image");
 	});
 });
 

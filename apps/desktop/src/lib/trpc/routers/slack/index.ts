@@ -27,6 +27,7 @@ import {
 	type SlackAttachment,
 	type SlackReactionsListItem,
 	slackTextToPlain,
+	taskTitle,
 	threadParentTs,
 	toTitle,
 	untilNextQueued,
@@ -1011,6 +1012,7 @@ async function slackPreview(url: string): Promise<SlackPreview | null> {
 
 export interface ReactionRow {
 	id: string;
+	/** A model's name for the task once written, the first line until then. */
 	title: string;
 	text: string;
 	channelId: string;
@@ -1041,7 +1043,7 @@ function readRows(): ReactionRow[] {
 		.all()
 		.map((row) => ({
 			id: row.id,
-			title: onlyImage(row.text) ? "Image" : toTitle(row.text),
+			title: taskTitle(row.summaryTitle, row.text),
 			text: row.text,
 			channelId: row.channelId,
 			channelName: channelLabel(row.channelName),
@@ -1056,6 +1058,42 @@ function readRows(): ReactionRow[] {
 				launchRequested.has(row.id) && reactionStatus(row) === "Not started",
 			image: onlyImage(row.text),
 		}));
+}
+
+/**
+ * Ask a model to name each row still going by its first line. Only rows that
+ * wait in the queue: a started one has a session card with a title of its own,
+ * and a done or unreacted one is off the list. The title shows on the next poll.
+ */
+function nameNewRows(): void {
+	const rows = localDb
+		.select()
+		.from(slackReactions)
+		.where(
+			and(
+				eq(slackReactions.profileId, activeProfileId()),
+				isNull(slackReactions.summaryTitle),
+				isNull(slackReactions.doneAt),
+				isNull(slackReactions.unreactedAt),
+				isNull(slackReactions.startedAt),
+			),
+		)
+		.all();
+	if (rows.length === 0) return;
+	void import("main/lib/slack-task-title").then(({ warmSlackTitles }) =>
+		warmSlackTitles(
+			rows.map((row) => ({ id: row.id, text: row.text })),
+			{
+				read: (id) => slackConversation(id),
+				save: (id, title) =>
+					localDb
+						.update(slackReactions)
+						.set({ summaryTitle: title })
+						.where(eq(slackReactions.id, id))
+						.run(),
+			},
+		),
+	);
 }
 
 export const createSlackRouter = () => {
@@ -1076,6 +1114,9 @@ export const createSlackRouter = () => {
 					syncError = error instanceof Error ? error.message : String(error);
 				}
 			}
+			// Rows already stored get named with or without a sync: a thread
+			// Slack won't read is named from the message alone.
+			nameNewRows();
 			return {
 				rows: readRows(),
 				syncError,

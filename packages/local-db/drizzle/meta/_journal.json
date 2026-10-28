@@ -365,6 +365,13 @@
       "when": 1792415087978,
       "tag": "0051_add_odin_reply_tldr_setting",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "6",
+      "when": 1793183290871,
+      "tag": "0052_add_slack_summary_title",
+      "breakpoints": true
     }
   ]
 }
