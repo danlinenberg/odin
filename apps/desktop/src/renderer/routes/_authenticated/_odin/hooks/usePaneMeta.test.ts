@@ -61,6 +61,35 @@ describe("todos", () => {
 	});
 });
 
+describe("moveTodo", () => {
+	it("moves a to-do up or down and keeps the rest in order", () => {
+		const s = usePaneMeta.getState();
+		for (const text of ["a", "b", "c", "d"]) s.addTodo("p7", text);
+		s.updateTodo("p7", 0, true);
+		const order = () =>
+			usePaneMeta.getState().todosByPane.p7?.map((t) => t.text);
+
+		s.moveTodo("p7", 0, 2);
+		expect(order()).toEqual(["b", "c", "a", "d"]);
+		expect(usePaneMeta.getState().todosByPane.p7?.[2]).toEqual({
+			text: "a",
+			done: true,
+		});
+
+		s.moveTodo("p7", 3, 0);
+		expect(order()).toEqual(["d", "b", "c", "a"]);
+
+		// Out of range or in place: nothing changes.
+		const before = usePaneMeta.getState().todosByPane.p7;
+		s.moveTodo("p7", 1, 9);
+		s.moveTodo("p7", -1, 0);
+		s.moveTodo("p7", 2, 2);
+		s.moveTodo("missing", 0, 1);
+		expect(usePaneMeta.getState().todosByPane.p7).toBe(before);
+		expect("missing" in usePaneMeta.getState().todosByPane).toBe(false);
+	});
+});
+
 describe("addTodos", () => {
 	it("appends the agent's items once, after yours", () => {
 		const s = usePaneMeta.getState();

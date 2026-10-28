@@ -82,6 +82,8 @@ export const usePaneMeta = create<{
 	updateTodo: (paneId: string, index: number, done?: boolean) => void;
 	/** Empty text keeps the to-do as it was. */
 	editTodo: (paneId: string, index: number, text: string) => void;
+	/** Drag in My notes: the to-do at `from` moves to `to`. */
+	moveTodo: (paneId: string, from: number, to: number) => void;
 	addLink: (paneId: string, url: string, name?: string) => void;
 	removeLink: (paneId: string, url: string) => void;
 	setHidden: (paneId: string, url: string, hidden: boolean) => void;
@@ -173,6 +175,14 @@ export const usePaneMeta = create<{
 							),
 						},
 					};
+				}),
+			moveTodo: (paneId, from, to) =>
+				set((s) => {
+					const todos = s.todosByPane[paneId];
+					if (!todos?.[from] || !todos[to] || from === to) return {};
+					const moved = [...todos];
+					moved.splice(to, 0, ...moved.splice(from, 1));
+					return { todosByPane: { ...s.todosByPane, [paneId]: moved } };
 				}),
 			addLink: (paneId, url, name) =>
 				set((s) => {
