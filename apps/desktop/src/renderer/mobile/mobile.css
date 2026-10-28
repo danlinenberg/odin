@@ -78,6 +78,29 @@ body {
 	padding: 0;
 	font-size: 0.8em;
 }
+/* A draft to paste somewhere: wrapped prose with Copy, like the desktop's paste block. */
+.md .draft {
+	margin: 0.6em 0;
+	border: 1px solid var(--border);
+	border-inline-start: 3px solid var(--primary);
+	border-radius: 8px;
+	background: var(--secondary);
+	padding: 0.6em 0.75em;
+}
+.md .draft-text {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	line-height: 1.45;
+}
+.md .draft-copy {
+	margin-top: 0.5em;
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	padding: 0.25em 0.8em;
+	font-size: 0.85em;
+	color: var(--foreground);
+	background: var(--background);
+}
 .md blockquote {
 	border-left: 3px solid var(--border);
 	padding-left: 0.7em;
