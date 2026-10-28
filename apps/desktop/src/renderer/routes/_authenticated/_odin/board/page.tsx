@@ -2397,9 +2397,9 @@ const SwitchRow = memo(function SwitchRow({
 				leaving
 					? "pointer-events-none -translate-x-6 bg-success/20 text-success-ink opacity-0"
 					: open
-						? // The open row gets a violet edge and a stronger tint, so it
-							// still stands out next to an amber starred row.
-							"bg-primary/25 font-semibold text-foreground shadow-[inset_3px_0_0_var(--primary)]"
+						? // The open row is outlined all round, not edged and tinted
+							// like a starred row, so it reads as the selection.
+							"bg-primary/30 font-semibold text-foreground shadow-[inset_0_0_0_1.5px_var(--primary)]"
 						: picked
 							? "bg-primary/10 text-foreground"
 							: "text-muted-foreground hover:bg-accent hover:text-foreground",
