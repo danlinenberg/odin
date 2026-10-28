@@ -2400,6 +2400,17 @@ const SwitchRow = memo(function SwitchRow({
 						: picked
 							? "bg-primary/10 text-foreground"
 							: "text-muted-foreground hover:bg-accent hover:text-foreground",
+				// A starred row carries an amber edge and tint, so it reads at a
+				// glance in a long list. The edge is an inset shadow, not a
+				// border, so the row's text doesn't shift.
+				card.pane.odinStarred &&
+					!leaving &&
+					"shadow-[inset_2px_0_0_var(--attention)]",
+				card.pane.odinStarred &&
+					!leaving &&
+					!open &&
+					!picked &&
+					"bg-attention/10",
 			)}
 		>
 			{min ? (
@@ -2438,18 +2449,18 @@ const SwitchRow = memo(function SwitchRow({
 			{!min && (
 				<span className="flex min-w-0 flex-1 flex-col">
 					<span className="flex min-w-0 items-center gap-1.5">
+						{card.pane.odinStarred && (
+							<LuStar
+								title="Starred - right-click to unstar"
+								className="size-3 shrink-0 fill-current text-attention"
+							/>
+						)}
 						<span className="truncate">
 							<WatchMark paneId={card.pane.id} />
 							<RemoteMark paneId={card.pane.id} />
 							<HostMark paneId={card.pane.id} state={hostState} />
 							{title}
 						</span>
-						{card.pane.odinStarred && (
-							<LuStar
-								title="Starred - right-click to unstar"
-								className="ml-auto size-[11px] shrink-0 fill-current text-attention"
-							/>
-						)}
 					</span>
 					<WatchRowLine paneId={card.pane.id} status={status} />
 				</span>
