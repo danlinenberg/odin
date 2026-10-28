@@ -346,7 +346,7 @@ function TuneVoice({ draft }: { draft: () => string }) {
 	);
 }
 
-function PasteBlock({ text }: { text: string }) {
+export function PasteBlock({ text }: { text: string }) {
 	const [isCopied, setIsCopied] = useState(false);
 	// Looked up on render, not on click: the copy has to run inside the click.
 	const ids = [
