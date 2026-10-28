@@ -272,6 +272,9 @@ describe("parseDataUrl", () => {
 			"mov",
 		);
 		expect(parseDataUrl("data:video/mp4;base64,EEE").extension).toBe("mp4");
+		expect(parseDataUrl("data:application/pdf;base64,GGG").extension).toBe(
+			"pdf",
+		);
 	});
 
 	it("falls back to png for a header it can't read", () => {

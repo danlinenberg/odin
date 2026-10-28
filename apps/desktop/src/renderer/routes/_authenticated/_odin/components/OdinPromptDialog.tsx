@@ -12,10 +12,13 @@ import { insertSkill, matchSkills, skillToken } from "./skill-picker";
 import { WherePicker } from "./WherePicker";
 
 /**
- * An attachment (image or video): either bytes to copy in (`dataUrl`) or a
+ * An attachment (image, video or PDF): either bytes to copy in (`dataUrl`) or a
  * file already on disk (`path`).
  */
 export type PromptImage = { name: string; dataUrl?: string; path?: string };
+
+const isPdf = (file: File) =>
+	file.type === "application/pdf" || /\.pdf$/i.test(file.name);
 
 /**
  * Read a File as a data URL - the browser does the base64 for us, and unlike
@@ -103,7 +106,7 @@ export function cardBody(title: string, source: string | null): string | null {
 }
 
 /**
- * Session composer: a multi-line prompt plus images and videos (paste, drop,
+ * Session composer: a multi-line prompt plus images, videos and PDFs (paste, drop,
  * or pick). Attachments ride along as files in the workspace; the prompt
  * points the agent at their paths. Used by "Work on Odin" (Odin's own repo)
  * and the Dev Board's "New Session" (default repo).
@@ -227,13 +230,15 @@ export function OdinPromptDialog({
 	const addFiles = async (picked: FileList | null) => {
 		const accepted = [...(picked ?? [])].filter(
 			(file) =>
-				file.type.startsWith("image/") || file.type.startsWith("video/"),
+				file.type.startsWith("image/") ||
+				file.type.startsWith("video/") ||
+				isPdf(file),
 		);
 		if (accepted.length === 0) return;
 		const read = await Promise.all(
 			accepted.map(async (file) => {
-				// Pasted video (no path) still falls back to bytes.
-				const path = file.type.startsWith("video/")
+				// A pasted video or PDF (no path) still falls back to bytes.
+				const path = !file.type.startsWith("image/")
 					? window.webUtils.getPathForFile(file)
 					: "";
 				return path ? { name: file.name, path } : readFile(file);
@@ -269,7 +274,8 @@ export function OdinPromptDialog({
 				<div className="mb-2 flex items-baseline justify-between gap-3 text-xs font-semibold text-foreground">
 					{heading}
 					<span className="truncate text-[11px] font-normal text-muted-foreground/70">
-						{sendKeys} start · / for skills · paste or drop images and video
+						{sendKeys} start · / for skills · paste or drop images, video and
+						PDFs
 					</span>
 				</div>
 				{note && (
@@ -376,17 +382,19 @@ export function OdinPromptDialog({
 								}
 								className="group relative size-14 overflow-hidden rounded-[6px] border border-border"
 							>
-								{file.dataUrl ? (
+								{file.dataUrl?.startsWith("data:image/") ? (
 									<img
 										src={file.dataUrl}
 										alt={file.name}
 										className="size-full object-cover"
 									/>
 								) : (
-									// A path-only attachment (video): no bytes to preview, so
-									// the name is the thumbnail.
+									// A video or PDF: nothing to draw, so the name is the
+									// thumbnail.
 									<span className="flex size-full flex-col items-center justify-center gap-0.5 bg-card px-1 text-[9px] leading-tight text-muted-foreground">
-										<span className="text-[13px]">🎬</span>
+										<span className="text-[13px]">
+											{/\.pdf$/i.test(file.name) ? "📄" : "🎬"}
+										</span>
 										<span className="w-full truncate text-center">
 											{file.name}
 										</span>
@@ -429,7 +437,7 @@ export function OdinPromptDialog({
 					<input
 						ref={fileInput}
 						type="file"
-						accept="image/*,video/*"
+						accept="image/*,video/*,application/pdf"
 						multiple
 						className="hidden"
 						onChange={(event) => {
@@ -440,7 +448,7 @@ export function OdinPromptDialog({
 					<button
 						type="button"
 						onClick={() => fileInput.current?.click()}
-						title="Add images or video - you can also paste or drop them"
+						title="Add images, video or PDFs - you can also paste or drop them"
 						className="h-7 shrink-0 rounded-[6px] bg-secondary px-2.5 text-[11.5px] font-semibold whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground"
 					>
 						+ Attach
