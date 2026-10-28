@@ -107,9 +107,22 @@ export function OnePasswordButton({
 	const lookUp = () => {
 		const view = webview();
 		if (!view) return;
+		// 1Password can take a while: the first lookup waits for you to unlock
+		// it and approve Odin, so say so instead of a silent, disabled button.
+		const waiting = setTimeout(
+			() =>
+				toast.loading("Waiting for 1Password - unlock it and approve Odin", {
+					id: "one-password-wait",
+				}),
+			1500,
+		);
 		findLogins.mutate(
 			{ url: view.getURL() },
 			{
+				onSettled: () => {
+					clearTimeout(waiting);
+					toast.dismiss("one-password-wait");
+				},
 				onSuccess: (result) => {
 					if (!result.matches) {
 						setSetup(result.message ?? "");

@@ -89,6 +89,36 @@ const notConnected = (account: string, cause: unknown) =>
 		`Couldn't reach 1Password account "${account}". In 1Password, turn on Settings → Developer → Integrate with 1Password SDKs, and check the account name. (${cause instanceof Error ? cause.message : String(cause)})`,
 	);
 
+/**
+ * How long a call waits on 1Password. The SDK blocks until you unlock
+ * 1Password and approve Odin, and that prompt can open behind other windows,
+ * so without a limit the key button would sit disabled with no word why.
+ */
+const ANSWER_TIMEOUT_MS = 60_000;
+
+export async function answered<T>(
+	account: string,
+	work: Promise<T>,
+	ms = ANSWER_TIMEOUT_MS,
+): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const timeout = new Promise<never>((_, reject) => {
+		timer = setTimeout(() => {
+			clients.delete(account);
+			reject(
+				new Error(
+					`1Password didn't answer for "${account}". Open 1Password, unlock it and approve Odin, then click the key again.`,
+				),
+			);
+		}, ms);
+	});
+	try {
+		return await Promise.race([work, timeout]);
+	} finally {
+		clearTimeout(timer);
+	}
+}
+
 async function clientFor(account: string): Promise<Client> {
 	let client = clients.get(account);
 	if (!client) {
@@ -120,41 +150,40 @@ export async function findOnePasswordLogins(
 		);
 	}
 	const pageHost = new URL(pageUrl).hostname;
+	const loginsIn = async (account: string) => {
+		const client = await clientFor(account);
+		const vaults = (await client.vaults.list()).filter(
+			(vault) => !SKIPPED_VAULTS.has(vault.vaultType),
+		);
+		const perVault = await Promise.allSettled(
+			vaults.map((vault) => client.items.list(vault.id)),
+		);
+		const listed = perVault.flatMap((result) =>
+			result.status === "fulfilled" ? [result.value] : [],
+		);
+		// A vault you can see but not read (a business account's shared
+		// vaults can be set up that way) skips; only all of them failing is
+		// an error.
+		const [failed] = perVault.filter((result) => result.status === "rejected");
+		if (!listed.length && failed) throw failed.reason;
+		return listed.flat().flatMap((item) => {
+			if (item.category !== "Login") return [];
+			const score = Math.max(
+				0,
+				...item.websites.map((site) => siteMatch(pageHost, site.url)),
+			);
+			if (!score) return [];
+			const match: OnePasswordMatch = {
+				account,
+				vaultId: item.vaultId,
+				id: item.id,
+				title: item.title,
+			};
+			return [{ match, score }];
+		});
+	};
 	const perAccount = await Promise.all(
-		accounts.map(async (account) => {
-			const client = await clientFor(account);
-			const vaults = (await client.vaults.list()).filter(
-				(vault) => !SKIPPED_VAULTS.has(vault.vaultType),
-			);
-			const perVault = await Promise.allSettled(
-				vaults.map((vault) => client.items.list(vault.id)),
-			);
-			const listed = perVault.flatMap((result) =>
-				result.status === "fulfilled" ? [result.value] : [],
-			);
-			// A vault you can see but not read (a business account's shared
-			// vaults can be set up that way) skips; only all of them failing is
-			// an error.
-			const [failed] = perVault.filter(
-				(result) => result.status === "rejected",
-			);
-			if (!listed.length && failed) throw failed.reason;
-			return listed.flat().flatMap((item) => {
-				if (item.category !== "Login") return [];
-				const score = Math.max(
-					0,
-					...item.websites.map((site) => siteMatch(pageHost, site.url)),
-				);
-				if (!score) return [];
-				const match: OnePasswordMatch = {
-					account,
-					vaultId: item.vaultId,
-					id: item.id,
-					title: item.title,
-				};
-				return [{ match, score }];
-			});
-		}),
+		accounts.map((account) => answered(account, loginsIn(account))),
 	);
 	return perAccount
 		.flat()
@@ -171,8 +200,10 @@ export async function getOnePasswordLogin({
 	OnePasswordMatch,
 	"account" | "vaultId" | "id"
 >): Promise<OnePasswordLogin | null> {
-	const client = await clientFor(account);
-	const item = await client.items.get(vaultId, id);
+	const item = await answered(
+		account,
+		clientFor(account).then((client) => client.items.get(vaultId, id)),
+	);
 	const byId = (fieldId: string) =>
 		item.fields.find((field) => field.id === fieldId)?.value;
 	const password =

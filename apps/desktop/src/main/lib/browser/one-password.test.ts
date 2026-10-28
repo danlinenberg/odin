@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { siteMatch } from "./one-password";
+import { answered, siteMatch } from "./one-password";
 
 describe("siteMatch", () => {
 	test("the same host and its subdomains match best", () => {
@@ -19,5 +19,17 @@ describe("siteMatch", () => {
 		expect(siteMatch("a.co.uk", "b.co.uk")).toBe(0);
 		expect(siteMatch("evil.github.io", "me.github.io")).toBe(0);
 		expect(siteMatch("github.com", "not a url")).toBe(0);
+	});
+});
+
+describe("answered", () => {
+	test("a 1Password call that never answers fails with what to do", async () => {
+		await expect(answered("Imagen", new Promise(() => {}), 10)).rejects.toThrow(
+			/unlock it and approve Odin/,
+		);
+	});
+
+	test("an answer in time comes through", async () => {
+		expect(await answered("Imagen", Promise.resolve(3), 1000)).toBe(3);
 	});
 });
