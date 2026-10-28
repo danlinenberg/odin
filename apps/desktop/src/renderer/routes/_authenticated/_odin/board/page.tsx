@@ -2397,7 +2397,9 @@ const SwitchRow = memo(function SwitchRow({
 				leaving
 					? "pointer-events-none -translate-x-6 bg-success/20 text-success-ink opacity-0"
 					: open
-						? "bg-primary/15 font-semibold text-foreground"
+						? // The open row gets a violet edge and a stronger tint, so it
+							// still stands out next to an amber starred row.
+							"bg-primary/25 font-semibold text-foreground shadow-[inset_3px_0_0_var(--primary)]"
 						: picked
 							? "bg-primary/10 text-foreground"
 							: "text-muted-foreground hover:bg-accent hover:text-foreground",
@@ -2406,6 +2408,7 @@ const SwitchRow = memo(function SwitchRow({
 				// border, so the row's text doesn't shift.
 				card.pane.odinStarred &&
 					!leaving &&
+					!open &&
 					"shadow-[inset_2px_0_0_var(--attention)]",
 				card.pane.odinStarred &&
 					!leaving &&
