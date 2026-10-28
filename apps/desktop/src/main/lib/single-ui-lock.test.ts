@@ -55,13 +55,47 @@ describe("acquireSingleUiLock", () => {
 	});
 
 	test("a live holder is never stolen, however old the lock", () => {
+		const week = 7 * 24 * 60 * 60 * 1000;
+		const bootedAt = Date.now() - 2 * week;
 		fs.mkdirSync(home, { recursive: true });
 		fs.writeFileSync(
 			lockFile(),
-			JSON.stringify({ pid: 4242, app: "Odin", acquiredAt: 0 }),
+			JSON.stringify({ pid: 4242, app: "Odin", acquiredAt: bootedAt + 1000 }),
 		);
 
-		expect(acquireSingleUiLock("Odin", home).ok).toBe(false);
+		expect(acquireSingleUiLock("Odin", home, bootedAt).ok).toBe(false);
+	});
+
+	test("a lock from before the last boot is stolen, though its pid is alive again", () => {
+		// After a reboot the crashed Odin's pid belongs to another process.
+		const bootedAt = Date.now() - 10 * 60 * 1000;
+		fs.mkdirSync(home, { recursive: true });
+		fs.writeFileSync(
+			lockFile(),
+			JSON.stringify({
+				pid: 521,
+				app: "Odin",
+				acquiredAt: bootedAt - 5 * 60 * 1000,
+			}),
+		);
+
+		const result = acquireSingleUiLock("Odin", home, bootedAt);
+
+		expect(result.ok).toBe(true);
+		expect(JSON.parse(fs.readFileSync(lockFile(), "utf-8")).pid).toBe(
+			process.pid,
+		);
+	});
+
+	test("a lock just before the computed boot time is kept, for clock slack", () => {
+		const bootedAt = Date.now() - 10 * 60 * 1000;
+		fs.mkdirSync(home, { recursive: true });
+		fs.writeFileSync(
+			lockFile(),
+			JSON.stringify({ pid: 4242, app: "Odin", acquiredAt: bootedAt - 5000 }),
+		);
+
+		expect(acquireSingleUiLock("Odin", home, bootedAt).ok).toBe(false);
 	});
 
 	test("a dead holder's lock is stolen - a crash must not lock the user out", () => {
