@@ -3,6 +3,7 @@ import {
 	isRtlText,
 	looksLikeProse,
 	markRtlLines,
+	regenerateMessage,
 	toSlackTexty,
 } from "./CodeBlock";
 
@@ -102,4 +103,12 @@ test("a draft reads right-to-left when most of its letters are Hebrew, whatever 
 		false,
 	);
 	expect(isRtlText("git status")).toBe(false);
+});
+
+test("Regenerate sends the draft with the voice change just saved", () => {
+	const rule = regenerateMessage("Hey, fixed it.", { note: "no greetings" });
+	expect(rule).toContain("no greetings");
+	expect(rule.endsWith("Hey, fixed it.")).toBe(true);
+	const rewrite = regenerateMessage("Hey, fixed it.", { rewrite: "fixed" });
+	expect(rewrite).toContain("fixed\n\nThe draft:\n\nHey, fixed it.");
 });
