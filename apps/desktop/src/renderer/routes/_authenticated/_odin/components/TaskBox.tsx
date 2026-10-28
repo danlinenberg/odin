@@ -58,10 +58,10 @@ const FIELD_MENU =
 
 /** What the box takes on a drop or paste: photos, videos and markdown docs. */
 const isAttachable = (file: File) =>
-	/^(image|video)\//.test(file.type) || /\.md$/i.test(file.name);
+	/^(image|video)\//.test(file.type) || /\.(md|pdf)$/i.test(file.name);
 
 /**
- * Dropped or pasted photos and videos, as paths the session can open. A task
+ * Dropped or pasted photos, videos and PDFs, as paths the session can open. A task
  * is one string in localStorage, so it holds paths, never bytes: a file from
  * Finder is cited where it lies, a pasted screenshot is saved to disk first.
  * Imported on use so the box still renders without Electron (the tests).
@@ -85,14 +85,14 @@ export async function attachmentPaths(files: File[]): Promise<string[]> {
 
 /**
  * A line that is nothing but an attachment's path: absolute (or under ~), to
- * a photo, video or markdown doc. The box shows such a line as a chip under
+ * a photo, video, markdown doc or PDF. The box shows such a line as a chip under
  * the text, never as text. The chat view reads the same lines as previews.
  */
 export const isAttachmentLine = (line: string): boolean => {
 	const text = line.trim();
 	return (
 		/^(\/|~\/|[A-Za-z]:[\\/])/.test(text) &&
-		(!!getImageMimeType(text) || isVideoFile(text) || /\.md$/i.test(text))
+		(!!getImageMimeType(text) || isVideoFile(text) || /\.(md|pdf)$/i.test(text))
 	);
 };
 

@@ -210,20 +210,21 @@ describe("TaskBox attachments", () => {
 		});
 	});
 
-	it("takes only a bare path to a photo, video or doc as an attachment", () => {
+	it("takes only a bare path to a photo, video, doc or PDF as an attachment", () => {
 		expect(isAttachmentLine(shot)).toBe(true);
 		expect(isAttachmentLine(`  ${shot}  `)).toBe(true);
 		expect(isAttachmentLine("~/.odin/attachments/shot.png")).toBe(true);
 		expect(isAttachmentLine("C:\\Users\\dan\\shot.png")).toBe(true);
 		expect(isAttachmentLine("/Users/dan/clip.mov")).toBe(true);
 		expect(isAttachmentLine("/Users/dan/notes.md")).toBe(true);
+		expect(isAttachmentLine("/Users/dan/Downloads/invoice (1).pdf")).toBe(true);
 		// Not a path on its own, a doc the picker cites, a URL, a plain file.
 		expect(isAttachmentLine("see /Users/dan/shot.png")).toBe(false);
 		expect(isAttachmentLine("Context doc: /h/.odin/docs/pricing.md")).toBe(
 			false,
 		);
 		expect(isAttachmentLine("https://x.com/shot.png")).toBe(false);
-		expect(isAttachmentLine("/Users/dan/report.pdf")).toBe(false);
+		expect(isAttachmentLine("/Users/dan/report.zip")).toBe(false);
 	});
 });
 

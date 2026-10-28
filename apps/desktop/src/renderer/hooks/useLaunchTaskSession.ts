@@ -139,7 +139,7 @@ const EXTENSIONS: Record<string, string> = {
 };
 
 /**
- * Split a `data:image/png;base64,…` (or `data:video/mp4;…`) URL into what the
+ * Split a `data:image/png;base64,…` (or `data:video/mp4;…`, `data:application/pdf;…`) URL into what the
  * filesystem router wants. Extension comes from the mime type, never the
  * original filename - the name is user-supplied and would need sanitising to
  * be safe in a path.
@@ -150,8 +150,9 @@ export function parseDataUrl(dataUrl: string): {
 } {
 	const [header = "", base64 = ""] = dataUrl.split(",", 2);
 	const subtype =
-		/^data:(?:image|video)\/([a-z0-9.+-]+)/i.exec(header)?.[1]?.toLowerCase() ??
-		"png";
+		/^data:(?:image|video|application)\/([a-z0-9.+-]+)/i
+			.exec(header)?.[1]
+			?.toLowerCase() ?? "png";
 	return {
 		base64,
 		extension: EXTENSIONS[subtype] ?? subtype.replace(/[^a-z0-9]/gi, ""),
