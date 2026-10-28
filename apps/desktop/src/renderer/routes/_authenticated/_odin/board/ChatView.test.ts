@@ -43,6 +43,7 @@ import {
 	outputTokens,
 	segments,
 	shownTldr,
+	slackDraftText,
 	splitActionItems,
 	splitEarlier,
 	ToolGroup,
@@ -1263,5 +1264,20 @@ describe("opensTerminalScreen - commands finished in Claude's terminal", () => {
 	test("a command with arguments, or a message, writes to the transcript", () => {
 		expect(opensTerminalScreen("/model opus")).toBe(false);
 		expect(opensTerminalScreen("please /login")).toBe(false);
+	});
+});
+
+describe("slackDraftText", () => {
+	test("a saved Slack draft gives its text, other tools give none", () => {
+		const draft = {
+			kind: "tool",
+			id: "t1",
+			name: "mcp__plugin_slack_slack__slack_send_message_draft",
+			input: { channel_id: "U1", message: " Hey, a question \n" },
+		} as const;
+		expect(slackDraftText(draft)).toBe("Hey, a question");
+		expect(
+			slackDraftText({ kind: "tool", id: "t2", name: "Bash", input: {} }),
+		).toBeNull();
 	});
 });

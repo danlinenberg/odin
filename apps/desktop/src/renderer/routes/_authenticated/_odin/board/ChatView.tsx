@@ -35,6 +35,7 @@ import odinMarkDark from "renderer/assets/odin-mark/odin-mark-dark.png";
 import odinMarkLight from "renderer/assets/odin-mark/odin-mark-light.png";
 import {
 	MarkdownRenderer,
+	PasteBlock,
 	SendToSession,
 } from "renderer/components/MarkdownRenderer";
 import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
@@ -1015,6 +1016,16 @@ function asking(items: Item[]): Tool | null {
 		: null;
 }
 
+/** The text of a Slack draft the session saved, so the chat shows it like a draft in a reply. */
+export function slackDraftText(item: Item): string | null {
+	return item.kind === "tool" &&
+		item.name.endsWith("slack_send_message_draft") &&
+		typeof item.input.message === "string" &&
+		item.input.message.trim()
+		? item.input.message.trim()
+		: null;
+}
+
 const ToolGroup = memo(
 	function ToolGroup({
 		group,
@@ -1065,6 +1076,11 @@ const ToolGroup = memo(
 						))}
 					</div>
 				)}
+				{/* A draft saved to Slack stays in view, with Copy and Tune voice, without opening the run. */}
+				{group.map((item) => {
+					const draft = slackDraftText(item);
+					return draft && <PasteBlock key={item.id} text={draft} />;
+				})}
 			</div>
 		);
 	},
