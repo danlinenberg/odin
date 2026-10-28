@@ -1,6 +1,7 @@
 import { cn } from "@odin/ui/utils";
 import { useState } from "react";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
+import { openUrl } from "renderer/stores/in-app-browser";
 import { BUTTON } from "../components/pill";
 import { COMPACT_MARKDOWN } from "../components/TranscriptView";
 import {
@@ -10,7 +11,12 @@ import {
 	oneLine,
 	type Question,
 } from "./prompt-keys";
-import { menuKeys, type ScreenAside, type ScreenMenu } from "./screen-menu";
+import {
+	menuKeys,
+	type ScreenAside,
+	type ScreenAuth,
+	type ScreenMenu,
+} from "./screen-menu";
 
 export { answerKeys, chatAboutKeys, hasPreview, oneLine };
 
@@ -274,6 +280,78 @@ export function ScreenMenuCard({
 						{option}
 					</button>
 				))}
+				{menu.escape && (
+					<button
+						type="button"
+						disabled={sent}
+						onClick={() => {
+							setSent(true);
+							onKeys(["\x1b"]);
+						}}
+						className="rounded-lg px-3 py-1.5 text-[12.5px] text-muted-foreground hover:text-foreground disabled:opacity-60"
+					>
+						{menu.escape}
+					</button>
+				)}
+			</div>
+		</div>
+	);
+}
+
+/**
+ * /mcp's sign-in step. The browser Claude opens is on the machine Claude runs
+ * on, which for a remote session isn't yours - so the card opens the URL here.
+ */
+export function ScreenAuthCard({
+	auth,
+	onKeys,
+}: {
+	auth: ScreenAuth;
+	onKeys: (keys: string[]) => void;
+}) {
+	const [sent, setSent] = useState(false);
+	const send = (keys: string[]) => {
+		setSent(true);
+		onKeys(keys);
+	};
+	return (
+		<div className="rounded-xl border border-attention/35 bg-attention/[0.07] px-4 py-3">
+			<div className="mb-2 text-[11px] font-semibold uppercase tracking-[.08em] text-attention">
+				The terminal is asking
+			</div>
+			<div className="mb-3 text-[12.5px] text-soft-foreground">
+				{auth.title}: sign in, then come back here.
+			</div>
+			<div className="flex flex-wrap gap-2">
+				<button
+					type="button"
+					onClick={() => openUrl(auth.url)}
+					className={cn(
+						"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+						BUTTON.primary,
+					)}
+				>
+					Open sign-in page
+				</button>
+				<button
+					type="button"
+					disabled={sent}
+					onClick={() => send(["\r"])}
+					className={cn(
+						"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:opacity-50",
+						BUTTON.secondary,
+					)}
+				>
+					I've signed in
+				</button>
+				<button
+					type="button"
+					disabled={sent}
+					onClick={() => send(["\x1b"])}
+					className="rounded-lg px-3 py-1.5 text-[12.5px] text-muted-foreground hover:text-foreground disabled:opacity-60"
+				>
+					Back
+				</button>
 			</div>
 		</div>
 	);

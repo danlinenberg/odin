@@ -7,6 +7,8 @@ export type ScreenMenu = {
 	options: string[];
 	/** The option the `❯` cursor sits on. */
 	selected: number;
+	/** What Esc does here, from the footer ("Cancel", "Back"), or null. */
+	escape: string | null;
 };
 
 const CURSOR = "❯";
@@ -15,6 +17,18 @@ const RULE_RE = /^[\s─━═▔╭╮╰╯┌┐└┘├┤-]*[─━═▔]
 const NUMBERED_RE = /^\s*(?:❯\s*)?(\d+)\.\s+(.+)$/;
 const FOOTER_RE =
 	/enter to (?:confirm|select)|esc to (?:cancel|exit|go back)|↑\/↓/i;
+const ESC_RE = /esc to (cancel|exit|(?:go )?back|close)/i;
+// A dialog's top edge with a notice painted into it ("▔▔▔ You're close to
+// your usage limit ▔") - not a rule to RULE_RE, but the title stops there.
+const EDGE_RE = /^\s*[─━═▔]{3,}/;
+
+/** "Esc to back" reads "Back" on a button. */
+function escapeLabel(footer: string): string | null {
+	const action = ESC_RE.exec(footer)?.[1]?.replace(/^go /i, "");
+	return action
+		? action.charAt(0).toUpperCase() + action.slice(1).toLowerCase()
+		: null;
+}
 
 /** Drops box sides so a boxed dialog reads like a plain one. */
 function unbox(line: string): string {
@@ -107,10 +121,9 @@ export function parseScreenMenu(screen: string): ScreenMenu | null {
 	if (numbered) {
 		const numbers = block.map((line) => Number(NUMBERED_RE.exec(line)?.[1]));
 		if (numbers.some((n, i) => n !== i + 1)) return null;
-	} else {
-		const after = lines.slice(last + 1, last + 4).join("\n");
-		if (!FOOTER_RE.test(after)) return null;
 	}
+	const after = lines.slice(last + 1, last + 4).join("\n");
+	if (!numbered && !FOOTER_RE.test(after)) return null;
 	const selected = block.findIndex((line) =>
 		line.trimStart().startsWith(CURSOR),
 	);
@@ -118,13 +131,14 @@ export function parseScreenMenu(screen: string): ScreenMenu | null {
 	const title: string[] = [];
 	for (let i = first - 1; i >= 0 && title.length < 12; i--) {
 		const line = lines[i] ?? "";
-		if (RULE_RE.test(line)) break;
+		if (RULE_RE.test(line) || EDGE_RE.test(line)) break;
 		title.unshift(line.trim());
 	}
 	return {
 		title: title.join("\n").trim(),
 		options,
 		selected,
+		escape: escapeLabel(after),
 	};
 }
 
@@ -153,6 +167,44 @@ export function parseScreenDialog(screen: string): string | null {
 		.replace(/\n{3,}/g, "\n\n")
 		.trim();
 	return text || null;
+}
+
+/** /mcp's sign-in step: the server, and the URL it asks you to open. */
+export type ScreenAuth = {
+	title: string;
+	url: string;
+};
+
+/**
+ * /mcp's "Authenticating with <server>..." screen. It has no `❯` menu, only
+ * a URL and "Press Enter after authenticating", so the menu reader skips it.
+ * The URL wraps over several rows at the terminal's width; its rows have no
+ * spaces, so they join back up.
+ */
+export function parseScreenAuth(screen: string): ScreenAuth | null {
+	const lines = screen.split("\n").map((line) => unbox(line).trim());
+	const enter = lines.findLastIndex((line) =>
+		/press enter after authenticating/i.test(line),
+	);
+	if (enter < 0) return null;
+	const head = lines.findLastIndex(
+		(line, i) => i < enter && /^Authenticating with /.test(line),
+	);
+	if (head < 0 || enter - head > 12) return null;
+	const start = lines.findIndex(
+		(line, i) => i > head && i < enter && /^https?:\/\//.test(line),
+	);
+	if (start < 0) return null;
+	let url = lines[start] ?? "";
+	for (let i = start + 1; i < enter; i++) {
+		const line = lines[i] ?? "";
+		if (!line || /\s/.test(line)) break;
+		url += line;
+	}
+	return {
+		title: (lines[head] ?? "").replace(/[….]+$/, ""),
+		url,
+	};
 }
 
 /** Arrow from the cursor to `target`, then Enter - every Select takes these. */

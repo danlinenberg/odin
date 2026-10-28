@@ -103,6 +103,7 @@ import {
 	PlanCard,
 	QuestionCard,
 	ScreenAsideCard,
+	ScreenAuthCard,
 	ScreenDialogCard,
 	ScreenMenuCard,
 } from "./ChatPrompts";
@@ -126,6 +127,7 @@ import {
 } from "./read-aloud";
 import {
 	parseScreenAside,
+	parseScreenAuth,
 	parseScreenDialog,
 	parseScreenMenu,
 } from "./screen-menu";
@@ -3112,12 +3114,19 @@ export function ChatView({
 		() => (screenText ? parseScreenAside(screenText) : null),
 		[screenText],
 	);
-	const screenDialog = useMemo(
+	const screenAuth = useMemo(
 		() =>
 			screenText && !screenMenu && !screenAside
-				? parseScreenDialog(screenText)
+				? parseScreenAuth(screenText)
 				: null,
 		[screenText, screenMenu, screenAside],
+	);
+	const screenDialog = useMemo(
+		() =>
+			screenText && !screenMenu && !screenAside && !screenAuth
+				? parseScreenDialog(screenText)
+				: null,
+		[screenText, screenMenu, screenAside, screenAuth],
 	);
 	// A session stopped by a usage or spend limit stays stuck: Claude's limit
 	// menu has nothing for a spend limit, so offer a restart, which comes back
@@ -3787,6 +3796,18 @@ export function ChatView({
 							</div>
 						</div>
 					)}
+					{screenAuth && (
+						<div className={cn("flex min-w-0 gap-3", ENTER)}>
+							<ReplyMark />
+							<div className="min-w-0 flex-1">
+								<ScreenAuthCard
+									key={screenAuth.url}
+									auth={screenAuth}
+									onKeys={sendKeys}
+								/>
+							</div>
+						</div>
+					)}
 					{screenDialog && onShowTerminal && (
 						<div className={cn("flex min-w-0 gap-3", ENTER)}>
 							<ReplyMark />
@@ -3981,8 +4002,8 @@ export function ChatView({
 			</div>
 			{onShowTerminal ? (
 				<>
-					{/* While a menu or /btw waits, typed text would land in it - the card answers. */}
-					{!prompt && !screenMenu && !screenAside && (
+					{/* While a menu, /btw or a sign-in waits, typed text would land in it - the card answers. */}
+					{!prompt && !screenMenu && !screenAside && !screenAuth && (
 						<Composer
 							paneId={paneId}
 							working={working}
