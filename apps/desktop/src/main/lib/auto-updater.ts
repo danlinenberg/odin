@@ -17,6 +17,7 @@ import {
 	type AutoUpdateStatusEvent,
 } from "shared/auto-update";
 import { PLATFORM } from "shared/constants";
+import { newestTagFromFeed, tagFromLocation } from "./release-tags";
 import { swapScript } from "./update-swap-script";
 
 /**
@@ -45,10 +46,8 @@ import { swapScript } from "./update-swap-script";
  */
 
 const REPO_SLUG = "danlinenberg/odin";
-const LATEST_RELEASE_API = `https://api.github.com/repos/${REPO_SLUG}/releases/latest`;
-// The newest release, latest or not: a silent release (scripts/release.sh
-// --silent) is not latest, so only someone who asks gets it.
-const NEWEST_RELEASE_API = `https://api.github.com/repos/${REPO_SLUG}/releases?per_page=1`;
+// github.com, not api.github.com: see release-tags.ts for the 403s that cost.
+const RELEASES_URL = `https://github.com/${REPO_SLUG}/releases`;
 // release.yml keeps these asset names stable (the cask resolves the DMG's).
 const ASSET_NAME = PLATFORM.IS_WINDOWS
 	? "Odin-Setup-x64.exe"
@@ -163,31 +162,35 @@ async function fetchLatestRelease(newest = false): Promise<{
 	version: string;
 	url: string;
 } | null> {
-	const response = await fetch(
-		newest ? NEWEST_RELEASE_API : LATEST_RELEASE_API,
-		{
-			headers: {
-				Accept: "application/vnd.github+json",
-				"User-Agent": `Odin/${app.getVersion()}`,
-			},
-		},
-	);
-	if (!response.ok) {
-		throw new Error(
-			`GitHub returned ${response.status} for the latest release`,
-		);
-	}
-	type Release = {
-		tag_name?: string;
-		assets?: { name: string; browser_download_url: string }[];
+	const headers = { "User-Agent": `Odin/${app.getVersion()}` };
+	const get = async (url: string, init?: RequestInit) => {
+		const response = await fetch(url, { ...init, headers });
+		// redirect: "manual" hands back the 302 itself.
+		if (!response.ok && response.status !== 302)
+			throw new Error(`GitHub returned ${response.status} for ${url}`);
+		return response;
 	};
-	const body = (await response.json()) as Release | Release[];
-	const release = (Array.isArray(body) ? body[0] : body) ?? {};
-	const version = release.tag_name?.replace(/^v/, "");
-	const url = release.assets?.find(
-		(asset) => asset.name === ASSET_NAME,
-	)?.browser_download_url;
-	return version && valid(version) && url ? { version, url } : null;
+	// The newest release, latest or not: a silent release (scripts/release.sh
+	// --silent) is not latest, so only someone who asks gets it.
+	const tag = newest
+		? newestTagFromFeed(await (await get(`${RELEASES_URL}.atom`)).text())
+		: tagFromLocation(
+				(
+					await get(`${RELEASES_URL}/latest`, {
+						method: "HEAD",
+						redirect: "manual",
+					})
+				).headers.get("location"),
+			);
+	const version = tag?.replace(/^v/, "");
+	if (!tag || !version || !valid(version)) return null;
+	const url = `${RELEASES_URL}/download/${tag}/${ASSET_NAME}`;
+	const asset = await fetch(url, {
+		method: "HEAD",
+		redirect: "manual",
+		headers,
+	});
+	return asset.status === 302 || asset.ok ? { version, url } : null;
 }
 
 const PROGRESS_EMIT_INTERVAL_MS = 500;
