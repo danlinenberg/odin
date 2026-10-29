@@ -25,7 +25,7 @@ import {
 	hostGithubLoginFile,
 	hostServiceInstallScript,
 } from "./host-service";
-import { GITHUB_HELPERS_SCRIPT, sh } from "./session";
+import { GITHUB_HELPERS_SCRIPT, pruneInstallScript, sh } from "./session";
 import { adminLogin, connectHost, type HostLogin, runOnHost } from "./ssh";
 
 /**
@@ -220,10 +220,12 @@ export async function pushHostTokens(
 			JSON.stringify({ tokens, githubKeep: allowed }),
 		);
 		const identity = gitIdentityScript(await localGitIdentity());
+		const { pruneScriptText } = await import("../prune-worktrees");
+		const prune = pruneInstallScript(pruneScriptText());
 		await runOnHost(
 			client,
 			"bash",
-			`${HELPERS_AS_USER}${awsConfig}\n${identity}\ntrue\n`,
+			`${HELPERS_AS_USER}${awsConfig}\n${identity}\n${prune}\ntrue\n`,
 		);
 	} catch (error) {
 		throw new Error(

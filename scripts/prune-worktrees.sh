@@ -103,6 +103,22 @@ ended_at_head() { # ended_at_head <branch> <sha>
 	grep -qxF "$1 $2" <<<"$closed_heads"
 }
 
+# stat's flags differ: -f on macOS, -c on Linux, where -f reads the file
+# system instead and prints its whole report.
+if stat -c %Y / >/dev/null 2>&1; then
+	mtime=(stat -c %Y) device=(stat -c %d)
+else
+	mtime=(stat -f %m) device=(stat -f %d)
+fi
+
+# Folders a running Claude works in (Linux, from /proc; none elsewhere). A
+# remote host's sessions live for days in tmux, and one asked a follow-up
+# after its PR merged must not lose its folder mid-turn.
+busy="$(for pid in $(pgrep -x claude 2>/dev/null); do readlink "/proc/$pid/cwd" 2>/dev/null; done || true)"
+in_use() { # in_use <worktree>
+	awk -v w="$1" '$0 == w || index($0, w "/") == 1 { found = 1 } END { exit !found }' <<<"$busy"
+}
+
 # Commit a worktree's uncommitted files to refs/pruned/<name>, so removing it
 # loses nothing: `git checkout refs/pruned/<name> -- .` brings them back.
 pruned_ref() { # pruned_ref <name> - a path keeps its slashes, so two paths never share a ref
@@ -126,7 +142,7 @@ fast_remove() { # fast_remove <worktree> <name>
 	# In .git/, where the leftover sweep below looks and git status never does,
 	# unless that is another disk: there mv would copy, so it goes beside the worktree.
 	local trash="$root/.git/odin-trash-$(basename "$1")-$$"
-	[ "$(stat -f %d "$1")" = "$(stat -f %d "$root/.git")" ] ||
+	[ "$("${device[@]}" "$1")" = "$("${device[@]}" "$root/.git")" ] ||
 		trash="$(dirname "$1")/.trash-$(basename "$1")-$$"
 	mv "$1" "$trash"
 	git -C "$root" worktree prune
@@ -160,12 +176,17 @@ git -C "$root" worktree list --porcelain |
 		continue
 	fi
 
+	if in_use "$wt"; then
+		echo "keep   $name (a running Claude works in it)"
+		continue
+	fi
+
 	# The newest of: last commit or checkout here, last write to its index.
 	# The reflog's own timestamp, not its mtime: gc's `reflog expire` rewrites
 	# every worktree's reflog at once, so the mtime kept all of them "fresh".
 	gitdir="$(git -C "$wt" rev-parse --absolute-git-dir)"
 	touched=$( {
-		stat -f %m "$gitdir/index" "$gitdir/HEAD" 2>/dev/null
+		"${mtime[@]}" "$gitdir/index" "$gitdir/HEAD" 2>/dev/null
 		tail -1 "$gitdir/logs/HEAD" 2>/dev/null | cut -f1 | awk '{print $(NF-1)}'
 	} | sort -n | tail -1)
 	age=$(( now - ${touched:-$now} ))
@@ -195,7 +216,7 @@ git -C "$root" worktree list --porcelain |
 		# Editing a file touches no git state, so the files' own mtimes count too.
 		# A deleted file has none: stat fails on it, and pipefail must not end the run.
 		edited=$(git -C "$wt" ls-files -z --modified --others --exclude-standard |
-			(cd "$wt" && xargs -0 stat -f %m 2>/dev/null || true) | sort -n | tail -1)
+			(cd "$wt" && xargs -0 "${mtime[@]}" 2>/dev/null || true) | sort -n | tail -1)
 		if [ "$age" -lt "$dirty_min_age" ] || [ $(( now - ${edited:-0} )) -lt "$dirty_min_age" ]; then
 			echo "keep   $name (uncommitted or untracked files)"
 		elif [ "$dry" = 1 ]; then
