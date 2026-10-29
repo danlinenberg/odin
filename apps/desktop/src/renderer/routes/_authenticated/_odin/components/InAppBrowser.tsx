@@ -177,66 +177,55 @@ async function openSlackThread({
 
 /**
  * Runs in Slack's web client: hides its workspace rail and channel list, so
- * the panel shows just the conversation, or brings them back. The rail has a
- * grid column of its own. The channel list shares a grid with the
- * conversation and the thread, whose columns Slack sizes itself, so they're
- * measured and every column before the conversation's (the list and its
- * resize handle) squeezed to nothing. Measured again when Slack redraws that
- * grid: opening a thread adds a column.
+ * the panel shows just the conversation, or brings them back. Slack's grid
+ * can't be resized from outside (its columns kept their room, empty), so the
+ * part of the page under the top bar slides left until the conversation
+ * starts at the edge, and is widened by as much: the rail and the list sit
+ * off-screen, the conversation and thread keep their full width. Measured
+ * again whenever Slack redraws, so a thread opening or a channel switch
+ * keeps it lined up.
  */
 function slackSidebar(show: boolean) {
-	const STYLE = "odin-slack-sidebar";
-	const FIT = "odin-slack-fit";
+	const SHIFT = "odin-slack-shift";
 	const state = window as unknown as { odinSlackSidebar?: MutationObserver };
 	state.odinSlackSidebar?.disconnect();
-	document.getElementById(STYLE)?.remove();
-	document.getElementById(FIT)?.remove();
-	for (const grid of document.querySelectorAll(`.${FIT}`)) {
-		grid.classList.remove(FIT);
+	document.getElementById(SHIFT)?.remove();
+	for (const element of document.querySelectorAll(`.${SHIFT}`)) {
+		element.classList.remove(SHIFT);
 	}
 	if (show) return;
 	const style = document.createElement("style");
-	style.id = STYLE;
-	style.textContent = `.p-tab_rail { display: none !important; }
-.p-client_workspace_wrapper { grid-template-columns: 0px auto !important; }
-.p-view_contents--sidebar { visibility: hidden !important; min-width: 0 !important; overflow: hidden !important; }`;
-	const fitStyle = document.createElement("style");
-	fitStyle.id = FIT;
-	document.head.append(style, fitStyle);
-	let last = "";
+	style.id = SHIFT;
+	document.head.append(style);
+	let shift = 0;
 	const fit = () => {
-		const grid = document.querySelector(
-			".p-view_contents--sidebar",
-		)?.parentElement;
-		const primary = grid?.querySelector(":scope > .p-view_contents--primary");
-		if (!grid || !primary) return;
-		// Slack mutates its page constantly; only a changed grid is measured.
-		const key = `${grid.className}|${grid.childElementCount}`;
-		if (grid.classList.contains(FIT) && key === last) return;
-		last = key;
-		grid.classList.remove(FIT);
-		const css = getComputedStyle(grid);
-		const tracks = css.gridTemplateColumns.split(" ").map(parseFloat);
-		if (css.display !== "grid" || tracks.some(Number.isNaN)) return;
-		const gap = parseFloat(css.columnGap) || 0;
-		const origin =
-			grid.getBoundingClientRect().left +
+		const primary = document.querySelector(".p-view_contents--primary");
+		if (!primary) return;
+		// The highest box around the conversation that leaves the top bar
+		// (history, search) where it is.
+		let area = primary as Element;
+		while (
+			area.parentElement &&
+			area.parentElement !== document.body &&
+			!area.parentElement.querySelector(".p-ia4_top_nav")
+		) {
+			area = area.parentElement;
+		}
+		area.classList.add(SHIFT);
+		const parent = area.parentElement;
+		if (!parent) return;
+		const css = getComputedStyle(parent);
+		const edge =
+			parent.getBoundingClientRect().left +
 			parseFloat(css.borderLeftWidth) +
 			parseFloat(css.paddingLeft);
-		const at = primary.getBoundingClientRect().left - origin;
-		let start = 0;
-		const index = tracks.findIndex((width) => {
-			const hit = Math.abs(start - at) < 2;
-			start += width + gap;
-			return hit;
-		});
-		if (index < 1) return;
-		const columns = tracks.map((width, i) =>
-			i < index ? "0px" : i === index ? "minmax(0, 1fr)" : `${width}px`,
+		const next = Math.max(
+			0,
+			Math.round(shift + primary.getBoundingClientRect().left - edge),
 		);
-		fitStyle.textContent = `.${FIT} { grid-template-columns: ${columns.join(" ")} !important; column-gap: 0 !important; }`;
-		grid.classList.add(FIT);
-		last = `${grid.className}|${grid.childElementCount}`;
+		if (next === shift && style.textContent) return;
+		shift = next;
+		style.textContent = `.${SHIFT} { position: relative !important; left: -${shift}px !important; width: calc(100% + ${shift}px) !important; max-width: none !important; }`;
 	};
 	let queued = false;
 	const observer = new MutationObserver(() => {
