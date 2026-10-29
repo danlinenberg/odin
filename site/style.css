@@ -320,6 +320,19 @@ h3 {
 	mask-image: linear-gradient(to bottom, #000 78%, transparent);
 }
 
+.demo {
+	position: relative;
+}
+
+/* Over the trailer's bottom right corner, out of its captions' way. */
+.demo .sound {
+	position: absolute;
+	right: 14px;
+	bottom: 14px;
+	background: rgb(11 11 14 / 0.75);
+	cursor: pointer;
+}
+
 .session-shot {
 	margin: 48px 0 0;
 }
