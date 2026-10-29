@@ -48,9 +48,9 @@
 		</div>
 
 		<div class="stage">
-			<div class="window" aria-label="Odin's board, with sessions grouped by what each agent is doing">
+			<div class="window">
 				<div class="chrome"><i></i><i></i><i></i><span>Odin · Dev Board</span></div>
-				<img class="shot fade" src="shots/board.png" width="2200" height="760" alt="Odin's Dev Board: sessions under Working, Needs you, Final review and Idle, with starred sessions first and a Just done chip">
+				<video class="shot" id="demo" src="demo.webm" poster="demo.jpg" width="1600" height="1000" autoplay muted loop playsinline preload="metadata" aria-label="A 35-second demo of Odin: sessions move across the board by agent state, a task in the queue starts an agent, the session asks for you with its action items, and Search All finds a task"></video>
 			</div>
 		</div>
 
@@ -291,6 +291,13 @@
 <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 <script>
 	lucide.createIcons();
+	// No autoplay for people who asked for less motion; the poster stays, with controls to play it.
+	const demo = document.getElementById("demo");
+	if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+		demo.removeAttribute("autoplay");
+		demo.pause();
+		demo.controls = true;
+	}
 	document.getElementById("copy").addEventListener("click", async (event) => {
 		const button = event.currentTarget;
 		const code = document.getElementById("brew");
