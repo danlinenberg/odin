@@ -8,13 +8,15 @@ import { persist } from "zustand/middleware";
  * links skip it for your own browser (Settings → Appearance, or "Always" on
  * the browser's "Open in browser" button); the sites whose links skip it
  * (Settings → Appearance); and the panel's width as a share of
- * the window, once you've dragged its edge (null = the default width).
+ * the window, once you've dragged its edge (null = the default width); and
+ * whether Slack shows its own sidebars (off: just the conversation).
  */
 interface InAppBrowserState {
 	url: string | null;
 	external: boolean;
 	browserSites: LinkSiteId[];
 	widthFraction: number | null;
+	slackSidebar: boolean;
 }
 
 export const useInAppBrowser = create<InAppBrowserState>()(
@@ -24,13 +26,20 @@ export const useInAppBrowser = create<InAppBrowserState>()(
 			external: false,
 			browserSites: [],
 			widthFraction: null,
+			slackSidebar: false,
 		}),
 		{
 			name: "odin-in-app-browser",
-			partialize: ({ external, browserSites, widthFraction }) => ({
+			partialize: ({
 				external,
 				browserSites,
 				widthFraction,
+				slackSidebar,
+			}) => ({
+				external,
+				browserSites,
+				widthFraction,
+				slackSidebar,
 			}),
 		},
 	),
