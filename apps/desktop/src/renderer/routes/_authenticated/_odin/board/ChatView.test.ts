@@ -1006,6 +1006,16 @@ describe("an earlier reply's commands in the action items card", () => {
 		expect(
 			earlierCommandsText([...items, text("c", unrelated)], "c"),
 		).toBeUndefined();
+		// "Run the three AWS commands" names commands this reply doesn't have.
+		const named =
+			"Approved.\n\nACTION ITEMS\n1. Run the three AWS commands, then delete the key file.";
+		expect(earlierCommandsText([...items, text("d", named)], "d")).toBe(checks);
+		expect(
+			earlierCommandItem(
+				"local aws iam list-attached-role-policies --role-name OdinSsmHost",
+				["Run the three AWS commands, then delete the key file.", "Merge #12"],
+			),
+		).toBe(0);
 	});
 
 	test("each goes under the item that asks for it, and never to the card's foot", () => {
