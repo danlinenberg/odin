@@ -257,17 +257,27 @@ export async function getProcessEnvWithShellPath(
 export async function execWithShellEnv(
 	cmd: string,
 	args: string[],
-	options?: Omit<ExecFileOptionsWithStringEncoding, "encoding">,
+	{
+		unsetEnv = [],
+		...options
+	}: Omit<ExecFileOptionsWithStringEncoding, "encoding"> & {
+		/** Left out of the child's env even when the login shell exports them. */
+		unsetEnv?: string[];
+	} = {},
 ): Promise<{ stdout: string; stderr: string }> {
-	const baseEnv = options?.env
+	const baseEnv = options.env
 		? { ...process.env, ...options.env }
 		: process.env;
+	const without = (env: Record<string, string>) => {
+		for (const key of unsetEnv) delete env[key];
+		return env;
+	};
 
 	try {
 		const run = execFileAsync(cmd, args, {
 			...options,
 			encoding: "utf8",
-			env: await getProcessEnvWithShellEnv(baseEnv),
+			env: without(await getProcessEnvWithShellEnv(baseEnv)),
 		});
 		// Nothing can write to it from here, and an open pipe makes `claude -p`
 		// wait 3s for input that never comes.
@@ -292,9 +302,8 @@ export async function execWithShellEnv(
 
 		try {
 			const shellEnvResult = await getShellEnvironment({ forceRefresh: true });
-			const mergedShellEnv = await getProcessEnvWithShellEnv(
-				baseEnv,
-				shellEnvResult,
+			const mergedShellEnv = without(
+				await getProcessEnvWithShellEnv(baseEnv, shellEnvResult),
 			);
 
 			// Retry with fixed env (respect caller's other env vars, force PATH if present)
