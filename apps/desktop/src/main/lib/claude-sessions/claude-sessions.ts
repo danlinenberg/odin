@@ -1754,7 +1754,27 @@ interface Tally {
 const busiest = (a: Tally, b: Tally) =>
 	a.count > b.count || (a.count === b.count && a.lastSeen > b.lastSeen);
 
-/** Every checkout the transcript ran commands in, and the repo that won. */
+const EDIT_TOOLS = new Set(["Edit", "MultiEdit", "Write", "NotebookEdit"]);
+
+/** The absolute paths an assistant message's file-editing tool calls wrote to. */
+function editedFilesOf(message: unknown): string[] {
+	const content = (message as { content?: unknown } | undefined)?.content;
+	if (!Array.isArray(content)) return [];
+	const files: string[] = [];
+	for (const block of content as {
+		type?: string;
+		name?: string;
+		input?: { file_path?: unknown; notebook_path?: unknown };
+	}[]) {
+		if (block?.type !== "tool_use" || !EDIT_TOOLS.has(block.name ?? ""))
+			continue;
+		const path = block.input?.file_path ?? block.input?.notebook_path;
+		if (typeof path === "string" && path.startsWith("/")) files.push(path);
+	}
+	return files;
+}
+
+/** Every checkout the transcript ran commands in or edited, and the repo that won. */
 async function tallyCheckouts(
 	sessionId: string,
 	root: string,
@@ -1767,24 +1787,31 @@ async function tallyCheckouts(
 	let index = 0;
 	for (const line of (await readFile(found.path, "utf-8")).split("\n")) {
 		index += 1;
-		let cwd: unknown;
+		let entry: { cwd?: unknown; message?: unknown };
 		try {
-			cwd = (JSON.parse(line) as { cwd?: unknown }).cwd;
+			entry = JSON.parse(line);
 		} catch {
 			continue; // blank line, or a truncated write mid-line
 		}
-		if (typeof cwd !== "string" || !cwd) continue;
+		// The folder of each file the entry edited votes beside its cwd. A `cd`
+		// that ends outside the session's working directories snaps back to the
+		// start folder, so a worktree cut beside the clone (`~/dev/dbt-fix` next
+		// to `~/dev/dbt`) never shows up as a cwd - only its edits name it.
+		const dirs = editedFilesOf(entry.message).map(dirname);
+		if (typeof entry.cwd === "string" && entry.cwd) dirs.unshift(entry.cwd);
 
-		if (!checkoutOfDir.has(cwd)) checkoutOfDir.set(cwd, repoRootOf(cwd));
-		const checkout = checkoutOfDir.get(cwd);
-		if (!checkout) continue;
+		for (const dir of dirs) {
+			if (!checkoutOfDir.has(dir)) checkoutOfDir.set(dir, repoRootOf(dir));
+			const checkout = checkoutOfDir.get(dir);
+			if (!checkout) continue;
 
-		const tally = perCheckout.get(checkout);
-		if (tally) {
-			tally.count += 1;
-			tally.lastSeen = index;
-		} else {
-			perCheckout.set(checkout, { count: 1, lastSeen: index });
+			const tally = perCheckout.get(checkout);
+			if (tally) {
+				tally.count += 1;
+				tally.lastSeen = index;
+			} else {
+				perCheckout.set(checkout, { count: 1, lastSeen: index });
+			}
 		}
 	}
 
