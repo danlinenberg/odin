@@ -36,8 +36,6 @@ const HEIGHT = 1000;
 // 1600x1000 CSS pixels, drawn at 1.2x: a 1920x1200 video.
 const SCALE = 1.2;
 const FPS = 30;
-// The poster: the board, a dozen agents sorted.
-const POSTER_AT = 10.6;
 
 function findFfmpeg(): string {
 	if (process.env.FFMPEG) return process.env.FFMPEG;
@@ -247,6 +245,18 @@ try {
 		`document.fonts.ready.then(() => Promise.all([...document.images].map((i) => i.decode().catch(() => {}))))`,
 	);
 	const duration = await page<number>("window.DURATION");
+	const posterAt = await page<number>("window.MOMENTS.poster");
+	if (process.env.STILLS) {
+		const dir = mkdtempSync(join(tmpdir(), "odin-trailer-stills-"));
+		for (const t of process.env.STILLS.split(",").map(Number)) {
+			await page(`render(${t})`);
+			const { data } = await send("Page.captureScreenshot", { format: "png" });
+			writeFileSync(join(dir, `${t}.png`), Buffer.from(data ?? "", "base64"));
+		}
+		console.log(`saved stills in ${dir}`);
+		await quit(0);
+	}
+
 	const music = join(work, "music.wav");
 	writeFileSync(
 		music,
@@ -261,17 +271,6 @@ try {
 		for (const file of ["demo.mp4", "demo.webm"])
 			if (!score(file, music)) throw new Error(`couldn't score ${file}`);
 		console.log("rescored site/demo.mp4 and site/demo.webm");
-		await quit(0);
-	}
-
-	if (process.env.STILLS) {
-		const dir = mkdtempSync(join(tmpdir(), "odin-trailer-stills-"));
-		for (const t of process.env.STILLS.split(",").map(Number)) {
-			await page(`render(${t})`);
-			const { data } = await send("Page.captureScreenshot", { format: "png" });
-			writeFileSync(join(dir, `${t}.png`), Buffer.from(data ?? "", "base64"));
-		}
-		console.log(`saved stills in ${dir}`);
 		await quit(0);
 	}
 
@@ -332,7 +331,7 @@ try {
 		const jpeg = Buffer.from(data ?? "", "base64");
 		webm.stdin?.write(jpeg);
 		if (mp4Alive) mp4.stdin?.write(jpeg);
-		if (Math.abs(t - POSTER_AT) < 0.5 / FPS)
+		if (Math.abs(t - posterAt) < 0.5 / FPS)
 			writeFileSync(join(SITE, "demo.jpg"), jpeg);
 		if (i % (FPS * 5) === 0) console.log(`${Math.round(t)}s / ${duration}s`);
 	}

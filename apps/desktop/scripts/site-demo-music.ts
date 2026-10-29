@@ -21,6 +21,8 @@ const RATE = 44_100;
 /** The trailer's moments, from window.MOMENTS in site/trailer.html. */
 export type Moments = {
 	duration: number;
+	/** The video's poster frame. */
+	poster: number;
 	hookWords: number[];
 	hookAnswer: number;
 	/** Where the music's drop lands: the cut out of the hook. */
@@ -41,6 +43,12 @@ export type Moments = {
 const MUSIC = "https://assets.mixkit.co/music/69/69.mp3";
 // The track's hardest hit: the drop, put on the end of the hook.
 const DROP_AT = 63.9;
+// Where its ending has faded out.
+const TRACK_END = 97.8;
+// A trailer longer than the track repeats the bars before this point, a beat
+// ahead of the next section's hit, so the ending still lands on the close.
+const LOOP_END = 79.65;
+const BAR = 2;
 const sfx = (id: number) =>
 	`https://assets.mixkit.co/active_storage/sfx/${id}/${id}-preview.mp3`;
 const SFX = {
@@ -161,8 +169,19 @@ export async function trailerAudio(
 	const cuts = await Promise.all(SFX.cut.map((u) => load(u, ffmpeg)));
 	const pings = await Promise.all(SFX.pings.map((u) => load(u, ffmpeg)));
 
-	// The track, its drop on the end of the hook, running out on its own ending.
-	place(music, 0, 0.75, DROP_AT - m.grooveFrom);
+	// The track, its drop on the end of the hook, running out on its own ending:
+	// whatever the trailer runs past the track repeats, in whole bars.
+	const start = DROP_AT - m.grooveFrom;
+	const extra = Math.max(
+		0,
+		Math.round((m.duration - (TRACK_END - start)) / BAR) * BAR,
+	);
+	const seam = 0.02;
+	place(music, 0, 0.75, start, LOOP_END - start + seam, seam);
+	if (extra) {
+		place(music, LOOP_END - start, 0.75, LOOP_END - extra, extra + seam, seam);
+		place(music, LOOP_END - start + extra, 0.75, LOOP_END);
+	} else place(music, LOOP_END - start, 0.75, LOOP_END);
 
 	for (const t of m.hookWords) hit(hookWord, t, 0.55);
 	hit(hookAnswer, m.hookAnswer, 0.6);
