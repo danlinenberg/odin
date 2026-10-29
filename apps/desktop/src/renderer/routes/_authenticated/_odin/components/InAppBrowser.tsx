@@ -181,23 +181,29 @@ async function openSlackThread({
  * can't be resized from outside (its columns kept their room, empty), so the
  * part of the page under the top bar slides left until the conversation
  * starts at the edge, and is widened by as much: the rail and the list sit
- * off-screen, the conversation and thread keep their full width. Measured
+ * off-screen, the conversation and thread keep their full width. An open
+ * thread's columns are sized from the window, not that wider area, so they
+ * stop short of the edge: the right-most pane takes up the rest. The rail's
+ * own buttons (+, theme) don't move with it, so they're hidden. Measured
  * again whenever Slack redraws, so a thread opening or a channel switch
  * keeps it lined up.
  */
 function slackSidebar(show: boolean) {
 	const SHIFT = "odin-slack-shift";
+	const STRETCH = "odin-slack-stretch";
 	const state = window as unknown as { odinSlackSidebar?: MutationObserver };
 	state.odinSlackSidebar?.disconnect();
 	document.getElementById(SHIFT)?.remove();
-	for (const element of document.querySelectorAll(`.${SHIFT}`)) {
-		element.classList.remove(SHIFT);
+	for (const element of document.querySelectorAll(`.${SHIFT}, .${STRETCH}`)) {
+		element.classList.remove(SHIFT, STRETCH);
 	}
 	if (show) return;
 	const style = document.createElement("style");
 	style.id = SHIFT;
 	document.head.append(style);
 	let shift = 0;
+	let stretch = 0;
+	let stretched: Element | null = null;
 	const fit = () => {
 		const primary = document.querySelector(".p-view_contents--primary");
 		if (!primary) return;
@@ -215,17 +221,53 @@ function slackSidebar(show: boolean) {
 		const parent = area.parentElement;
 		if (!parent) return;
 		const css = getComputedStyle(parent);
-		const edge =
-			parent.getBoundingClientRect().left +
-			parseFloat(css.borderLeftWidth) +
-			parseFloat(css.paddingLeft);
-		const next = Math.max(
+		const box = parent.getBoundingClientRect();
+		const left =
+			box.left + parseFloat(css.borderLeftWidth) + parseFloat(css.paddingLeft);
+		const right =
+			box.right -
+			parseFloat(css.borderRightWidth) -
+			parseFloat(css.paddingRight);
+		const nextShift = Math.max(
 			0,
-			Math.round(shift + primary.getBoundingClientRect().left - edge),
+			Math.round(shift + primary.getBoundingClientRect().left - left),
 		);
-		if (next === shift && style.textContent) return;
-		shift = next;
-		style.textContent = `.${SHIFT} { position: relative !important; left: -${shift}px !important; width: calc(100% + ${shift}px) !important; max-width: none !important; }`;
+		const panes = [
+			primary,
+			...document.querySelectorAll(".p-view_contents--secondary"),
+		].filter((pane) => pane.getClientRects().length > 0);
+		// By where it starts: a stretched pane ends at the edge either way.
+		const last = panes.reduce((a, b) =>
+			b.getBoundingClientRect().left > a.getBoundingClientRect().left ? b : a,
+		);
+		if (last !== stretched) {
+			stretched?.classList.remove(STRETCH);
+			last.classList.add(STRETCH);
+			stretched = last;
+			stretch = 0;
+		}
+		// The gap is what the shift added, so never more: a pane that won't
+		// widen can't grow it every frame.
+		const nextStretch = Math.min(
+			nextShift,
+			Math.max(
+				0,
+				Math.round(stretch + right - last.getBoundingClientRect().right),
+			),
+		);
+		if (nextShift === shift && nextStretch === stretch && style.textContent) {
+			return;
+		}
+		shift = nextShift;
+		stretch = nextStretch;
+		const stretchRule = stretch
+			? `.${STRETCH} { width: calc(100% + ${stretch}px) !important; max-width: none !important; }`
+			: "";
+		style.textContent = `.${SHIFT} { position: relative !important; left: -${shift}px !important; width: calc(100% + ${shift}px) !important; max-width: none !important; }
+${stretchRule}
+.p-control_strip { display: none !important; }`;
+		// A new shift moves the panes too, so look again once it's drawn.
+		requestAnimationFrame(fit);
 	};
 	let queued = false;
 	const observer = new MutationObserver(() => {
