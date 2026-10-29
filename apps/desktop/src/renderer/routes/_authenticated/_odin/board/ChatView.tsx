@@ -1026,6 +1026,36 @@ export function slackDraftText(item: Item): string | null {
 		: null;
 }
 
+/**
+ * Thread tasks ask for the draft both as a Slack draft and as a ```text block in
+ * the reply, for when the Slack tool is missing. When the tool saved it, its
+ * card already shows the draft: drop the block that repeats it in the same turn.
+ */
+export function withoutDraftCopies(items: Item[]): Item[] {
+	const flat = (text: string) => text.replace(/\s+/g, " ").trim();
+	const out = [...items];
+	let start = 0;
+	for (let end = 0; end <= items.length; end++) {
+		if (end < items.length && items[end]?.kind !== "user") continue;
+		const drafts = new Set<string>();
+		for (let i = start; i < end; i++) {
+			const draft = slackDraftText(items[i] as Item);
+			if (draft) drafts.add(flat(draft));
+		}
+		for (let i = start; drafts.size && i < end; i++) {
+			const item = items[i];
+			if (item?.kind !== "text") continue;
+			const text = item.text.replace(
+				/\n*^```text\n([\s\S]*?)\n```[ \t]*$\n*/gm,
+				(block, body: string) => (drafts.has(flat(body)) ? "\n\n" : block),
+			);
+			if (text !== item.text) out[i] = { ...item, text: text.trim() };
+		}
+		start = end + 1;
+	}
+	return out;
+}
+
 const ToolGroup = memo(
 	function ToolGroup({
 		group,
@@ -3469,6 +3499,7 @@ export function ChatView({
 	// latest reply that has it, also while Claude works on the next one.
 	const actionsId = lastActionsId(items);
 	const earlierText = earlierCommandsText(items, actionsId);
+	const shownItems = useMemo(() => withoutDraftCopies(items), [items]);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const pinnedRef = useRef(true);
 	const lastScrollTopRef = useRef(0);
@@ -3660,7 +3691,7 @@ export function ChatView({
 					<SendToSession.Provider
 						value={onShowTerminal || onResumeWith ? sendToClaude : null}
 					>
-						{segments(items).map((segment, index, all) => {
+						{segments(shownItems).map((segment, index, all) => {
 							const previous = all[index - 1];
 							const following = all[index + 1];
 							// A run's toggle sits at the end of the line before it.
