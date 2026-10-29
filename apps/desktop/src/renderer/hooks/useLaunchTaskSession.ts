@@ -463,6 +463,10 @@ export function useLaunchTaskSession() {
 							...state.panes[paneId],
 							claudeSessionId: sessionId,
 							odinTaskTitle: title,
+							// A resume keeps the name it was resumed under: the brief
+							// already titles that conversation, and renaming the card
+							// to it lost the session you just picked in History.
+							...(resumeSessionId ? { odinAutoTitled: true } : {}),
 							odinProfile,
 							...(contact ? { odinContact: contact } : {}),
 							...(brief ? { odinBrief: brief } : {}),
@@ -731,6 +735,7 @@ export function useLaunchTaskSession() {
 						initialCwd: sessionCwd,
 						claudeSessionId: sessionId,
 						odinTaskTitle: card.title,
+						...(resumeSessionId ? { odinAutoTitled: true } : {}),
 						odinProfile,
 						...(checkout ? { odinCwd: checkout } : {}),
 						...(card.contact ? { odinContact: card.contact } : {}),
