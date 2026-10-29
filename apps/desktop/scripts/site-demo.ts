@@ -449,7 +449,7 @@ async function note(task: string | null) {
  * Move the camera so the element `find` returns sits in the middle of the frame
  * at `scale`, never past the window's edges. No element: back to the whole window.
  */
-async function zoom(find: string | null, scale = 1, ms = 1100) {
+async function zoom(find: string | null, scale = 1, ms = 1800) {
 	await page(`(() => {
 		const app = document.body;
 		const z = window.__z;
@@ -464,7 +464,7 @@ async function zoom(find: string | null, scale = 1, ms = 1100) {
 			x = Math.min(0, Math.max(innerWidth - innerWidth * s, innerWidth / 2 - cx * s));
 			y = Math.min(0, Math.max(innerHeight - innerHeight * s, innerHeight / 2 - cy * s));
 		}
-		app.style.transition = "transform ${ms}ms cubic-bezier(.45,.05,.2,1)";
+		app.style.transition = "transform ${ms}ms cubic-bezier(.4,0,.2,1)";
 		app.style.transform = "translate(" + x + "px," + y + "px) scale(" + s + ")";
 		window.__z = { s, x, y };
 	})()`);
@@ -771,7 +771,7 @@ try {
 
 	// The board: every agent, by what it's doing.
 	await card(null);
-	await zoom(`() => __find("button", "Dev Board")`, 1.06, 7000);
+	await zoom(`() => __find("button", "Dev Board")`, 1.04, 8000);
 	await third("ONE BOARD", "Every agent, sorted by what it's doing");
 	await sleep(1300);
 	for (const sample of SESSIONS)
@@ -785,11 +785,12 @@ try {
 	await sleep(600);
 
 	// The queue: one click hands a task to an agent.
-	await zoom(null, 1, 500);
+	await zoom(null, 1, 1000);
+	await sleep(700);
 	await clickOn(button("Tasks"));
 	await waitForText(HERO);
 	await third("ONE QUEUE", "Slack, Jira, GitHub, email and your own tasks");
-	await zoom(`() => __leaf(${JSON.stringify(HERO)})`, 1.35);
+	await zoom(`() => __leaf(${JSON.stringify(HERO)})`, 1.15);
 	await sleep(1300);
 	const START = `button[aria-label="Start session"]`;
 	await clickOn(`() => {
@@ -808,7 +809,8 @@ try {
 
 	// Back on the board, it asks for you.
 	await third("");
-	await zoom(null, 1, 600);
+	await zoom(null, 1, 1000);
+	await sleep(700);
 	await pressEscape();
 	await pressEscape();
 	await clickOn(button("Dev Board"));
@@ -821,19 +823,19 @@ try {
 	await hook(HERO, "PermissionRequest");
 	await sleep(300);
 	await note(HERO);
-	await zoom(`() => __leaf(${JSON.stringify(HERO)})`, 1.25);
+	await zoom(`() => __leaf(${JSON.stringify(HERO)})`, 1.12);
 	await sleep(2600);
 
 	// Its reply, and what it needs from you.
 	await note(null);
 	await clickOn(`() => __leaf(${JSON.stringify(HERO)})`);
-	await zoom(null, 1, 400);
+	await zoom(null, 1, 0);
 	await waitForText("found it", true, 20_000).catch(() => {});
 	await third("ACTION ITEMS", "Every reply ends with what's on you");
 	await sleep(500);
 	await zoom(
 		`() => { let e = __leaf("ACTION ITEMS") ?? __leaf("Action items"); while (e && e.getBoundingClientRect().height < 120) e = e.parentElement; return e; }`,
-		1.55,
+		1.3,
 	);
 	await sleep(1300);
 	await clickOn(
@@ -844,7 +846,8 @@ try {
 
 	// The Night Agent: tonight's picks, and it's on.
 	await third("");
-	await zoom(null, 1, 500);
+	await zoom(null, 1, 1000);
+	await sleep(700);
 	await pressEscape();
 	await clickOn(button("Night Agent"));
 	await waitForText("next run");
@@ -855,16 +858,17 @@ try {
 	}
 	await clickOn(`() => document.querySelector('[role="switch"]')`);
 	await sleep(400);
-	await zoom(`() => document.querySelector('[role="switch"]')`, 1.3);
+	await zoom(`() => document.querySelector('[role="switch"]')`, 1.12);
 	await sleep(1900);
 
 	// Huginn: ask in plain words.
 	await third("");
-	await zoom(null, 1, 500);
+	await zoom(null, 1, 1000);
+	await sleep(700);
 	await clickOn(button("Ask the raven"));
 	await sleep(400);
 	await third("HUGINN", "Ask Odin for anything, in plain words");
-	await zoom(`() => document.querySelector("[data-crow-panel]")`, 1.45);
+	await zoom(`() => document.querySelector("[data-crow-panel]")`, 1.2);
 	await sleep(1100);
 	await type(
 		'[data-crow-panel] textarea, [data-crow-panel] input[type="text"], [data-crow-panel] [placeholder]',
@@ -874,7 +878,8 @@ try {
 
 	// Search All.
 	await third("");
-	await zoom(null, 1, 400);
+	await zoom(null, 1, 1000);
+	await sleep(700);
 	await pressEscape();
 	await pressEscape();
 	await clickOn(button("Dev Board"));
