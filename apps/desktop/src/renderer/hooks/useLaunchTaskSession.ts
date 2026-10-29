@@ -93,7 +93,7 @@ export function buildPrompt(
 					...(attachmentPaths.some(isVideoFile)
 						? [
 								"",
-								"Videos can't be read directly - pull frames first, e.g. `ffmpeg -i <video> -vf fps=1 /tmp/frame-%03d.png`, then read those.",
+								'Videos can\'t be read directly - get their frames as one image from Odin: `curl -sfG http://127.0.0.1:$ODIN_PORT/frames --data-urlencode "src=<video>" -o /tmp/frames.png`, then read that.',
 							]
 						: []),
 				]

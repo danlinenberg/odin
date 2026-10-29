@@ -84,13 +84,15 @@ describe("buildPrompt", () => {
 	it("tells the agent how to get at a video", () => {
 		const prompt = buildPrompt("Watch this", null, ["/Users/dan/bug.mov"]);
 		expect(prompt).toContain("/Users/dan/bug.mov");
-		expect(prompt).toContain("ffmpeg");
+		// Odin's own frames, not an ffmpeg the machine may not have.
+		expect(prompt).toContain("$ODIN_PORT/frames");
+		expect(prompt).not.toContain("ffmpeg");
 	});
 
-	it("keeps the ffmpeg hint out of image-only prompts", () => {
+	it("keeps the video hint out of image-only prompts", () => {
 		expect(
 			buildPrompt("Watch this", null, ["/repo/.odin/a.png"]),
-		).not.toContain("ffmpeg");
+		).not.toContain("/frames");
 	});
 
 	it("says nothing about attachments when there are none", () => {
