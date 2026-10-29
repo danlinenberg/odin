@@ -3676,7 +3676,11 @@ export function ChatView({
 						openUrl(anchor.href);
 					}
 				}}
-				className="min-h-0 flex-1 overflow-y-auto px-8 py-6"
+				// The gutter stays when the scrollbar goes. Without it, a reply near
+				// the view's height folded, the chat stopped scrolling, the 12px
+				// scrollbar went, the wider reply fit and unfolded, the scrollbar
+				// came back - every frame, in a window of that size.
+				className="min-h-0 flex-1 overflow-y-auto px-8 py-6 [scrollbar-gutter:stable]"
 			>
 				<div ref={contentRef} className="flex flex-col gap-2.5">
 					{starting ? (
