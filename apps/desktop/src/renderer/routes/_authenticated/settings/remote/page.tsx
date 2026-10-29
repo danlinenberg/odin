@@ -61,7 +61,7 @@ function RemoteControlRow() {
 				mode === "all"
 					? "Every session shows up in claude.ai/code and the Claude app as [Odin] <task>. That is a lot of sessions in your Claude app - pick Selected sessions to choose them one by one."
 					: mode === "selected"
-						? "Turn it on for one session from its right-click menu or the Remote Control button in its drawer. It shows up in claude.ai/code and the Claude app as [Odin] <task>."
+						? "Turn it on for one session from its right-click menu. It shows up in claude.ai/code and the Claude app as [Odin] <task>."
 						: "Follow and answer sessions from claude.ai/code or the Claude app on your phone. Uses your claude.ai login, not a setup-token or API key from your shell."
 			}
 		>

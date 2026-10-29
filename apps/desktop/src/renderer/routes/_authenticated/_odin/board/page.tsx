@@ -6717,23 +6717,6 @@ function DevBoardPage() {
 					</button>
 				)}
 				<WatchPill paneId={drawerCard.pane.id} />
-				{remoteMode === "selected" && (
-					<button
-						type="button"
-						title="Follow and answer this session from claude.ai/code or the Claude app. Click to switch."
-						onClick={() => toggleRemote(drawerCard)}
-						className={cn(
-							"flex shrink-0 items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
-							remotePanes.includes(drawerCard.pane.id)
-								? PILL.brand
-								: "bg-secondary text-muted-foreground hover:text-foreground",
-						)}
-					>
-						<LuRadioTower className="size-3" aria-hidden />
-						Remote Control
-						{remotePanes.includes(drawerCard.pane.id) ? " on" : ""}
-					</button>
-				)}
 				{sessionCwd(drawerCard.pane) && (
 					<span
 						title={sessionCwd(drawerCard.pane)}
