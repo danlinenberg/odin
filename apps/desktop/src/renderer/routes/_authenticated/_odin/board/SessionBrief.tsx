@@ -1237,7 +1237,9 @@ export function SessionBrief({
 							</div>
 						)}
 						{conflictNote}
-						{error && starting ? (
+						{/* `starting` is also true for any working session, so a
+						    transcript on disk means it did start - show the real error. */}
+						{error && starting && !transcript ? (
 							<div className="text-[12px] text-muted-foreground">
 								Nothing yet - the session hasn't started.
 							</div>
