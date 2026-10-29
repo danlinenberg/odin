@@ -1291,6 +1291,24 @@ describe("slackDraftText", () => {
 			slackDraftText({ kind: "tool", id: "t2", name: "Bash", input: {} }),
 		).toBeNull();
 	});
+
+	test("a draft Slack refused shows no card", () => {
+		const probe = {
+			kind: "tool",
+			id: "t3",
+			name: "mcp__claude_ai_Slack__slack_send_message_draft",
+			input: { channel_id: "C1", message: "probe" },
+		} as const;
+		expect(
+			slackDraftText({ ...probe, result: '{"error":"attached_draft_exists"}' }),
+		).toBeNull();
+		expect(
+			slackDraftText({ ...probe, result: "failed", isError: true }),
+		).toBeNull();
+		expect(
+			slackDraftText({ ...probe, result: '{"channel_link":"https://x"}' }),
+		).toBe("probe");
+	});
 });
 
 describe("withoutDraftCopies", () => {

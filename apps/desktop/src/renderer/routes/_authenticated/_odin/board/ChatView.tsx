@@ -1016,10 +1016,21 @@ function asking(items: Item[]): Tool | null {
 		: null;
 }
 
-/** The text of a Slack draft the session saved, so the chat shows it like a draft in a reply. */
+/** The error codes Slack's draft tool answers with when it saves nothing. */
+const SLACK_DRAFT_FAILED =
+	/\b(attached_draft_exists|channel_not_found|not_in_channel|failed_to_create_draft)\b/;
+
+/**
+ * The text of a Slack draft the session saved, so the chat shows it like a
+ * draft in a reply. A call Slack refused saved nothing - a session that tries
+ * a throwaway "probe" draft to learn whether one already exists gets back
+ * `attached_draft_exists` - so it shows no card.
+ */
 export function slackDraftText(item: Item): string | null {
 	return item.kind === "tool" &&
 		item.name.endsWith("slack_send_message_draft") &&
+		!item.isError &&
+		!SLACK_DRAFT_FAILED.test(item.result ?? "") &&
 		typeof item.input.message === "string" &&
 		item.input.message.trim()
 		? item.input.message.trim()
