@@ -1,6 +1,6 @@
 {
 	"name": "@odin/host-service",
-	"version": "1.0.24",
+	"version": "--silent",
 	"private": true,
 	"type": "module",
 	"exports": {
