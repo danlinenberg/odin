@@ -1936,8 +1936,13 @@ export function earlierCommandsText(
 	if (at < 0 || own?.kind !== "text" || bangCommands(own.text).length)
 		return undefined;
 	// Only an item that points back ("the checks from my earlier message",
-	// "the commands above") borrows them; any other reply gets no Run button.
-	if (!actionItemList(own.text).some((item) => POINTS_BACK.test(item)))
+	// "the commands above", "Run the three AWS commands") borrows them; any
+	// other reply gets no Run button.
+	if (
+		!actionItemList(own.text).some(
+			(item) => POINTS_BACK.test(item) || sendsBack(item),
+		)
+	)
 		return undefined;
 	const earlier = items
 		.slice(0, at)
@@ -2405,10 +2410,15 @@ export function earlierCommandHomes(
 	});
 }
 
-/** "Run the checks from my earlier message": an item that asks for a reply's commands from before. */
+/**
+ * "Run the checks from my earlier message", or "Run the three AWS commands"
+ * from a reply that has none of its own: an item that asks for a reply's
+ * commands from before.
+ */
 const sendsBack = (item: string) =>
 	/\b(run|execute)\b/i.test(item) &&
-	/\b(earlier|last|previous|above)\s+(message|reply)\b/i.test(item);
+	(/\b(earlier|last|previous|above)\s+(message|reply)\b/i.test(item) ||
+		/\bthe\s+(\S+\s+){0,3}commands?\b/i.test(item));
 
 function RunCommands({
 	commands,
