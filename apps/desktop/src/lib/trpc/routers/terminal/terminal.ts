@@ -553,6 +553,17 @@ export const createTerminalRouter = () => {
 			}),
 
 		/**
+		 * Odin fork: a PR's failed checks with their logs, for the message that
+		 * wakes its session when CI turns red.
+		 */
+		failedChecks: publicProcedure
+			.input(z.object({ url: z.string().url() }))
+			.query(async ({ input }) => {
+				const { failedChecks } = await import("./ci-failures");
+				return failedChecks(input.url);
+			}),
+
+		/**
 		 * Odin fork: close a PR from the brief's right-click. Resolves to why
 		 * when it couldn't; the caller refetches the states so the chip flips.
 		 */
