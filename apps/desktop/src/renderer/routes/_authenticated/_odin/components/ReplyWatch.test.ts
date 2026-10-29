@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
 	conditionOutcome,
 	conditionPrompt,
+	isNewer,
 	newReplies,
 	restartedWatches,
 	resumeWatchPrompt,
@@ -345,4 +346,32 @@ test("a watch is handed back only to a Claude that left and came back", () => {
 	const prompt = resumeWatchPrompt("the deploy is done");
 	expect(prompt).toContain("This session restarted");
 	expect(prompt).toContain(conditionPrompt("the deploy is done"));
+});
+
+test("a dismissed reply stays read when a check reads an older stamp", () => {
+	const s = () => useReplyWatch.getState();
+	const key = "slack:D9:1.1";
+	s().toggle([key], "DM", "pane-r");
+	s().setStamps({ [key]: "5.5" }, { [key]: "Saving only $34" });
+	s().dismiss(key);
+	// The inline lookup was rate-limited: the thread's older reply comes back.
+	expect(newReplies(s().watches, { [key]: reply("3.3") })).toEqual([]);
+	s().setStamps({ [key]: "3.3" });
+	expect(s().watches[key]?.stamp).toBe("5.5");
+	// Next minute the inline one is back - the same reply, not a new one.
+	expect(newReplies(s().watches, { [key]: reply("5.5") })).toEqual([]);
+	expect(newReplies(s().watches, { [key]: reply("6.1") })).toEqual([key]);
+	s().stop("pane-r");
+});
+
+test("isNewer compares Slack ts as numbers and Jira stamps as dates", () => {
+	expect(isNewer("10.0", "9.5")).toBe(true);
+	expect(isNewer("9.5", "10.0")).toBe(false);
+	expect(isNewer("", "1.1")).toBe(false);
+	expect(isNewer("1.1", "")).toBe(true);
+	expect(
+		isNewer("2026-10-29T10:00:00.000+0300", "2026-10-28T23:00:00.000+0300"),
+	).toBe(true);
+	expect(isNewer("approved", "")).toBe(true);
+	expect(isNewer("", "approved")).toBe(false);
 });

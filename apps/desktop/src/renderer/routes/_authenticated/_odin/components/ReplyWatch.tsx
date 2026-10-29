@@ -121,7 +121,12 @@ export const useReplyWatch = create<{
 							key in stamps
 								? {
 										...watch,
-										stamp: stamps[key],
+										// Never back: a lookup that comes back older isn't the thread.
+										stamp:
+											watch.stamp === undefined ||
+											isNewer(stamps[key] ?? "", watch.stamp)
+												? stamps[key]
+												: watch.stamp,
 										reply: replies[key] ?? watch.reply,
 										url: urls[key] ?? watch.url,
 									}
@@ -344,6 +349,22 @@ export function unreadPings(
 }
 
 /**
+ * Whether stamp `now` is past `seen`. Slack ts and Jira dates only grow, so a
+ * check that reads an older one - a DM's inline lookup Slack rate-limited, so
+ * the thread's older reply wins - isn't news. Comparing with `!==` made the
+ * same reply ping again the next minute, after its ✕.
+ */
+export function isNewer(now: string, seen: string): boolean {
+	if (now && seen) {
+		const [a, b] = [Number(now), Number(seen)];
+		if (!Number.isNaN(a) && !Number.isNaN(b)) return a > b;
+		const [da, db] = [Date.parse(now), Date.parse(seen)];
+		if (!Number.isNaN(da) && !Number.isNaN(db)) return da > db;
+	}
+	return now > seen;
+}
+
+/**
  * The watches with a new reply from someone else. A thread's first check only
  * records where it stands: the replies already there are why you watched it,
  * not news. A PR already approved by its first check is news - approval is
@@ -360,7 +381,7 @@ export function newReplies(
 		return (
 			!!now &&
 			!now.byMe &&
-			now.stamp !== seen &&
+			(first || isNewer(now.stamp, seen)) &&
 			(!first || key.startsWith("pr:"))
 		);
 	});
