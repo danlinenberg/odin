@@ -93,7 +93,12 @@ describe("writeBrief", () => {
 		const bin = join(root, "key-claude.sh");
 		writeFileSync(
 			bin,
-			'#!/bin/sh\necho "TITLE: key=${ANTHROPIC_API_KEY:-none}"\necho "GOAL: g"\n',
+			[
+				"#!/bin/sh",
+				'[ -n "$ANTHROPIC_API_KEY" ] && echo "TITLE: key=$ANTHROPIC_API_KEY" || echo "TITLE: key=none"',
+				'echo "GOAL: g"',
+				"",
+			].join("\n"),
 		);
 		chmodSync(bin, 0o755);
 		const saved = process.env.ANTHROPIC_API_KEY;
