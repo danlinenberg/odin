@@ -941,6 +941,43 @@ describe("workingRepoOf", () => {
 		expect(await workingWorktreeOf(SESSION, root)).toBe(worktree);
 	});
 
+	/**
+	 * A `cd` outside the session's working directories snaps back to the start
+	 * folder, so a worktree cut beside the clone is never a cwd. Its edits are
+	 * the only trace of it, and the Diff tab showed the clean clone instead.
+	 */
+	test("workingWorktreeOf finds a sibling worktree known only by its edits", async () => {
+		const { root, tree } = dirs();
+		repos(tree, { dbt: "clone" });
+		const worktree = join(tree, "dbt-fix");
+		mkdirSync(join(worktree, "models"), { recursive: true });
+		writeFileSync(
+			join(worktree, ".git"),
+			`gitdir: ${join(tree, "dbt")}/.git/worktrees/dbt-fix\n`,
+		);
+		const project = join(root, "-Users-dan-dev");
+		mkdirSync(project, { recursive: true });
+		const clone = join(tree, "dbt");
+		const edit = (name: string, input: Record<string, string>) =>
+			JSON.stringify({
+				type: "assistant",
+				cwd: clone,
+				message: { content: [{ type: "tool_use", name, input }] },
+			});
+		writeFileSync(
+			join(project, `${SESSION}.jsonl`),
+			[
+				...Array(9).fill(JSON.stringify({ type: "assistant", cwd: clone })),
+				edit("Edit", { file_path: join(worktree, "models/model.sql") }),
+				edit("Read", { file_path: join(tree, "elsewhere/x.sql") }),
+				JSON.stringify({ type: "assistant", cwd: clone }),
+			].join("\n"),
+		);
+
+		expect(await workingRepoOf(SESSION, root)).toBe(clone);
+		expect(await workingWorktreeOf(SESSION, root)).toBe(worktree);
+	});
+
 	test("workingWorktreeOf is null when the session never left the clone", async () => {
 		const { root, tree } = dirs();
 		repos(tree, { app: "clone" });
