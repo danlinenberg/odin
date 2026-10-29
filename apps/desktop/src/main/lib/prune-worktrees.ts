@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -50,6 +50,12 @@ function pruneScript(): string | null {
 function storageScript(): string | null {
 	const shipped = path.join(process.resourcesPath, "resources", SCRIPT);
 	return pruneScript() ?? (existsSync(shipped) ? shipped : null);
+}
+
+/** The script's text, for a remote host to run itself (host-tokens). */
+export function pruneScriptText(): string | null {
+	const script = storageScript();
+	return script ? readFileSync(script, "utf8") : null;
 }
 
 // The scan skips ~/Documents, so a ~/Documents/GitHub clone is only known as a project.

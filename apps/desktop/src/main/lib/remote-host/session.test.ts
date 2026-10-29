@@ -31,6 +31,8 @@ import {
 	mainCheckoutOf,
 	PROMPT_TAKEN,
 	parseClaudeLogin,
+	pruneInstallScript,
+	prunePass,
 	RECORD_LIMIT_HIT,
 	type RemoteSessionSpec,
 	reconnectSpec,
@@ -811,4 +813,33 @@ test("a Resume of a conversation stuck at the usage limit records the limit", ()
 		readFileSync(join(home, ".claude", "plan-limit.json"), "utf8"),
 	).until;
 	expect(until).toBeGreaterThan(Date.now() / 1000 + 4 * 3600);
+});
+
+test("the host's prune pass runs the script once per repo with worktrees, at most every 10 min", () => {
+	const home = mkdtempSync(join(tmpdir(), "odin-prune-home-"));
+	const repo = (dir: string, worktrees: boolean) => {
+		mkdirSync(join(home, dir, ".git", worktrees ? "worktrees" : "objects"), {
+			recursive: true,
+		});
+		return realpathSync(join(home, dir));
+	};
+	const a = repo("repos/a", true);
+	repo("repos/b", false);
+	const c = repo("clones/c", true);
+	const bash = (script: string) =>
+		execFileSync("bash", ["-c", `HOME=${home}\n${script}`]);
+	mkdirSync(join(home, ".odin"));
+	bash(pruneInstallScript('echo "$1" >> "$HOME/ran"'));
+	expect(pruneInstallScript(null)).toBe("");
+	const ran = () => readFileSync(join(home, "ran"), "utf8").trim().split("\n");
+
+	bash(prunePass('"$HOME"/clones'));
+	expect(ran().sort()).toEqual([a, c].sort());
+	// Within 10 min of a pass, another one does nothing.
+	bash(prunePass('"$HOME"/clones'));
+	expect(ran()).toHaveLength(2);
+	// The clone folder is ~/repos itself: each repo still goes once.
+	rmSync(join(home, ".odin", "pruned-at"));
+	bash(prunePass('"$HOME"/repos'));
+	expect(ran().slice(2)).toEqual([a]);
 });

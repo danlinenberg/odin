@@ -1,6 +1,13 @@
 import { expect, test } from "bun:test";
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
+import { execFileSync, spawn } from "node:child_process";
+import {
+	copyFileSync,
+	existsSync,
+	mkdtempSync,
+	readFileSync,
+	utimesSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseVerdicts, prunedRef } from "./prune-worktrees";
@@ -71,6 +78,32 @@ test("a dirty worktree whose files were just edited stays", () => {
 	const repo = staleDirtyWorktree(10, true);
 	expect(prune(repo)).toContain("keep   w (uncommitted or untracked files)");
 });
+
+// /proc tells which folder a process works in: Linux, as on a remote host.
+test.skipIf(!existsSync("/proc/self/cwd"))(
+	"a worktree a running Claude works in stays",
+	async () => {
+		const repo = staleDirtyWorktree(10);
+		const wt = path.join(repo, ".worktrees/w");
+		// `sleep` under Claude's process name, working in a folder of the worktree.
+		const claude = path.join(
+			mkdtempSync(path.join(tmpdir(), "bin-")),
+			"claude",
+		);
+		copyFileSync(
+			execFileSync("which", ["sleep"], { encoding: "utf8" }).trim(),
+			claude,
+		);
+		const child = spawn(claude, ["30"], { cwd: wt });
+		await new Promise((resolve) => setTimeout(resolve, 200));
+		try {
+			expect(prune(repo)).toContain("keep   w (a running Claude works in it)");
+		} finally {
+			child.kill();
+		}
+		expect(prune(repo)).toContain("remove w (files saved to refs/pruned/w)");
+	},
+);
 
 test("a worktree outside .worktrees/ goes by its path, and a locked one stays", () => {
 	const repo = staleDirtyWorktree(10);

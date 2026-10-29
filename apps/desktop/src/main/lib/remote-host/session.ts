@@ -229,6 +229,28 @@ const installFile = (path: string, content: string) =>
 	`printf %s ${sh(Buffer.from(content).toString("base64"))} | base64 -d > ${path}.$$ && chmod 755 ${path}.$$ && mv -f ${path}.$$ ${path}`;
 
 /**
+ * A host has no Odin of its own to run the 10-minute worktree pruner
+ * (prune-worktrees.ts), and its sessions stay open for days, so their
+ * worktrees outlived the merged PRs: 72 of them on one host. The user's Odin
+ * puts the script here with each token push (host-tokens), and every
+ * session's run script runs it (pruneLoop).
+ */
+const PRUNE_SCRIPT = '"$HOME/.odin/prune-worktrees.sh"';
+export const pruneInstallScript = (text: string | null) =>
+	text ? installFile(PRUNE_SCRIPT, text) : "";
+
+/**
+ * One prune pass over every repo with worktrees under the clone folder and
+ * ~/repos, at most every 10 min for the whole user: each session runs the
+ * loop, the lock and the timestamp make one of them do it. The last pass's
+ * output stays in ~/.odin/prune.log.
+ */
+export const prunePass = (root: string) =>
+	`[ -n "$(find "$HOME/.odin/pruned-at" -mmin -10 2>/dev/null)" ] && exit; touch "$HOME/.odin/pruned-at"; exec >"$HOME/.odin/prune.log" 2>&1; seen=; for g in ${root}/*/.git "$HOME"/repos/*/.git; do [ -d "$g/worktrees" ] || continue; r=$(cd "\${g%/.git}" && pwd -P) || continue; case " $seen " in *" $r "*) continue ;; esac; seen="$seen $r"; bash ${PRUNE_SCRIPT} "$r"; done`;
+const pruneLoop = (root: string) =>
+	`( while sleep 600; do kill -0 $$ 2>/dev/null || exit; [ -f ${PRUNE_SCRIPT} ] && flock -n "$HOME/.odin/prune.lock" bash -c ${sh(prunePass(root))}; done ) >/dev/null 2>&1 &`;
+
+/**
  * Puts the helper and the wrapper on disk and names the helper in the user's
  * ~/.gitconfig. On disk, not in a session's environment, so a session already
  * running picks them up at its next git or gh call. A gh binary an older Odin
@@ -554,6 +576,7 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 	// a resume finds the same one by name, or, after Done removed it, gets it
 	// back from its branch, which Done keeps.
 	const worktree = `${repo}/.worktrees/${sh(worktreeDir(spec.pane))}`;
+	const addWorktree = `[ -d ${worktree} ] || git -C ${repo} worktree add -q -b ${sh(sessionBranch(spec.pane))} ${worktree} origin/HEAD 2>/dev/null || git -C ${repo} worktree add -q -b ${sh(sessionBranch(spec.pane))} ${worktree} 2>/dev/null || git -C ${repo} worktree add -q ${worktree} ${sh(sessionBranch(spec.pane))} 2>/dev/null || true`;
 	// The prompt as Claude's last argument, in an array so a session with
 	// nothing to say gets no argument at all. A reconnect's attach puts it in
 	// only when the conversation has not taken it. A Resume with nothing to
@@ -594,9 +617,7 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 			? `[ -d ${repo}/.git ] || git clone ${sh(spec.cloneUrl)} ${repo} || echo "Odin: could not clone ${spec.cloneUrl.replaceAll('"', "")}"`
 			: "",
 		spec.repoName ? `git -C ${repo} fetch --quiet origin || true` : "",
-		spec.repoName
-			? `[ -d ${worktree} ] || git -C ${repo} worktree add -q -b ${sh(sessionBranch(spec.pane))} ${worktree} origin/HEAD 2>/dev/null || git -C ${repo} worktree add -q -b ${sh(sessionBranch(spec.pane))} ${worktree} 2>/dev/null || git -C ${repo} worktree add -q ${worktree} ${sh(sessionBranch(spec.pane))} 2>/dev/null || true`
-			: "",
+		spec.repoName ? addWorktree : "",
 		spec.repoName ? `cd ${worktree} 2>/dev/null || cd ${repo}` : `cd ${repo}`,
 		resumed
 			? `d=$(python3 -c ${sh(CONVERSATION_DIR)} ${sh(resumed)} 2>/dev/null) && [ -d "$d" ] && cd "$d"; true`
@@ -620,12 +641,13 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		`rm -f ${idleMarker(spec.pane)}`,
 		'[ -n "$TMUX_PANE" ] && command -v pgrep >/dev/null && ' +
 			idleWatcher(spec.pane),
+		`command -v flock >/dev/null && ${pruneLoop(root)}`,
 		...promptLines,
 		`claude --settings ${sh(hostSettings)} ${spec.claudeArgs} "\${p[@]}"`,
 		// Stopped for being idle: the next prompt, typed here or a board reply
 		// (left in idlePrompt), resumes the conversation with it. Enter alone
 		// resumes it as it was.
-		`while [ -e ${idleMarker(spec.pane)} ]; do clear; printf '\\nOdin stopped Claude here after 2 hours with no output, to free memory on this host.\\nType a message to pick the conversation up with it, or press Enter.\\n\\n'; IFS= read -e -r -p '> ' m; rm -f ${idleMarker(spec.pane)}; if [ -s ${idlePrompt(spec.pane)} ]; then m=$(cat ${idlePrompt(spec.pane)}); fi; rm -f ${idlePrompt(spec.pane)}; if [ -n "$m" ]; then claude --settings ${sh(hostSettings)} --resume ${sh(spec.pane)} "$m"; elif python3 -c ${sh(CUT_OFF_TURN)} ${sh(spec.pane)} 2>/dev/null; then claude --settings ${sh(hostSettings)} --resume ${sh(spec.pane)} Continue; else claude --settings ${sh(hostSettings)} --resume ${sh(spec.pane)}; fi; done`,
+		`while [ -e ${idleMarker(spec.pane)} ]; do clear; printf '\\nOdin stopped Claude here after 2 hours with no output, to free memory on this host.\\nType a message to pick the conversation up with it, or press Enter.\\n\\n'; IFS= read -e -r -p '> ' m; rm -f ${idleMarker(spec.pane)};${spec.repoName ? ` [ -d "$PWD" ] || { ${addWorktree}; cd ${worktree} 2>/dev/null || cd ${repo}; };` : ""} if [ -s ${idlePrompt(spec.pane)} ]; then m=$(cat ${idlePrompt(spec.pane)}); fi; rm -f ${idlePrompt(spec.pane)}; if [ -n "$m" ]; then claude --settings ${sh(hostSettings)} --resume ${sh(spec.pane)} "$m"; elif python3 -c ${sh(CUT_OFF_TURN)} ${sh(spec.pane)} 2>/dev/null; then claude --settings ${sh(hostSettings)} --resume ${sh(spec.pane)} Continue; else claude --settings ${sh(hostSettings)} --resume ${sh(spec.pane)}; fi; done`,
 		`if [ -s "$HOME/.odin/resume-$$" ]; then s=$(cat "$HOME/.odin/resume-$$"); rm -f "$HOME/.odin/resume-$$"; ODIN_FALLBACK_API_KEY="$fallback" python3 -c ${sh(USE_API_KEY_IF_LIMITED)}; ANTHROPIC_API_KEY="$fallback" exec claude --settings ${sh(hostSettings)} --resume "$s" "Continue where you left off."; fi`,
 	]
 		.filter(Boolean)
