@@ -14,6 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=block">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 <style>
 	:root {
 		--bg: #0b0b0e;
@@ -53,7 +54,8 @@
 
 	/* Sources */
 	.src { position: absolute; left: 110px; width: 360px; height: 132px; display: flex; align-items: center; gap: 22px; padding: 0 28px; }
-	.src .logo { flex: none; width: 72px; height: 72px; border-radius: 18px; display: grid; place-items: center; font: 700 36px/1 var(--sans); color: #fff; }
+	.src .logo { flex: none; width: 72px; height: 72px; border-radius: 18px; display: grid; place-items: center; color: #fff; }
+	.src .logo svg { width: 38px; height: 38px; }
 	.src b { display: block; font: 600 32px/1.1 var(--sans); }
 	.src small { display: block; margin-top: 6px; font: 18px/1 var(--sans); color: var(--muted); }
 	.srcmini { position: absolute; left: 110px; top: 770px; display: flex; flex-wrap: wrap; width: 360px; gap: 12px; }
@@ -62,7 +64,8 @@
 	#queue h6 { margin: 0; padding: 0 30px; font: 600 15px/1 var(--sans); letter-spacing: .16em; color: var(--muted); }
 	.row { position: absolute; left: 18px; right: 18px; height: 82px; display: flex; align-items: center; gap: 18px; padding: 0 18px;
 		border-radius: 14px; background: var(--card); border: 1px solid var(--line); }
-	.row .ic { flex: none; width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; font: 700 22px/1 var(--sans); color: #fff; }
+	.row .ic { flex: none; width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; color: #fff; }
+	.row .ic svg { width: 24px; height: 24px; }
 	.row .tx { flex: 1; min-width: 0; }
 	.row .tx b { display: block; font: 600 22px/1.2 var(--sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.row .tx small { display: block; margin-top: 5px; font: 16px/1 var(--sans); color: var(--muted); }
@@ -110,6 +113,7 @@
 		border-radius: 26px; background: rgb(40 38 50 / .96); border: 1px solid rgb(255 255 255 / .12); box-shadow: 0 40px 90px rgb(0 0 0 / .6); }
 	.note .ni { flex: none; width: 70px; height: 70px; border-radius: 16px; display: grid; place-items: center; font: 700 32px/1 var(--sans); color: #fff; overflow: hidden; }
 	.note .ni img { width: 100%; height: 100%; }
+	.note .ni svg { width: 36px; height: 36px; }
 	.note small { display: block; font: 500 17px/1 var(--sans); color: var(--muted); margin-bottom: 8px; }
 	.note b { display: block; font: 600 25px/1.2 var(--sans); }
 	.note span { display: block; font: 21px/1.3 var(--sans); color: rgb(237 237 242 / .75); margin-top: 4px; }
@@ -142,7 +146,7 @@
 	.item .btn { flex: none; width: 150px; padding: 11px 0; text-align: center; border-radius: 12px; border: 1.5px solid rgb(245 184 61 / .65);
 		color: var(--attention); font: 600 21px/1 var(--sans); }
 	.item .num { color: var(--faint); width: 26px; }
-	.item code { font: 23px var(--mono); background: var(--raised); padding: 2px 8px; border-radius: 7px; }
+	#items .item code { font: 23px var(--mono); background: var(--raised); padding: 2px 8px; border-radius: 7px; }
 
 	/* Night Agent */
 	#night-sky { background: radial-gradient(80% 70% at 70% 0%, #1b1840, transparent 70%), #07070d; }
@@ -157,22 +161,23 @@
 	.toggle i { position: absolute; top: 5px; left: 5px; width: 30px; height: 30px; border-radius: 50%; background: #fff; }
 	.na-row { display: flex; align-items: center; gap: 18px; padding: 15px 4px; border-top: 1px solid var(--border); font: 23px/1.2 var(--sans); }
 	.na-row:first-of-type { border-top: 0; }
-	.na-row .n { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: rgb(163 148 255 / .14); color: var(--primary); font: 600 17px/1 var(--mono); }
+	.na-row .pn { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: rgb(163 148 255 / .14); color: var(--primary); font: 600 17px/1 var(--mono); }
 	.clock { font: 500 96px/1 var(--mono); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 	.log { margin-top: 22px; }
 	.log div { display: flex; gap: 18px; align-items: center; padding: 10px 0; font: 22px/1.2 var(--sans); color: var(--muted); }
 	.log div .t { font: 18px var(--mono); color: var(--faint); width: 64px; }
 	.log div .ok { color: var(--success); }
 
-	/* The wall */
-	.chips { position: absolute; left: 110px; right: 110px; top: 330px; display: flex; flex-wrap: wrap; gap: 24px 22px; }
-	.chip { position: relative; padding: 22px 36px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel);
-		font: 600 40px/1 var(--sans); letter-spacing: -.01em; white-space: nowrap; }
-	.chip i { font-style: normal; color: var(--primary); margin-right: 12px; }
+	/* Everything in Odin: the landing page's feature grid */
+	.feats { position: absolute; left: 110px; right: 110px; top: 285px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+	.feat { padding: 16px 16px 18px; border-radius: 16px; border: 1px solid var(--border); background: var(--panel); }
+	.feats .feat svg { width: 26px; height: 26px; color: var(--primary); }
+	.feat b { display: block; margin-top: 10px; font: 600 19px/1.2 var(--sans); letter-spacing: -.01em; }
+	.feat p { margin: 7px 0 0; font: 13.5px/1.4 var(--sans); color: var(--muted); }
 
 	/* End */
 	.end { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 30px; }
-	.end img { width: 168px; height: 168px; border-radius: 38px; box-shadow: 0 40px 120px rgb(120 96 255 / .5); }
+	#s-end .end img { width: 168px; height: 168px; border-radius: 38px; box-shadow: 0 40px 120px rgb(120 96 255 / .5); }
 	.end h1 { margin: 0; font: 700 104px/1.04 var(--display); }
 	.end h1 i { font-style: normal; color: rgb(237 237 242 / .42); }
 	.end p { margin: 0; font: 500 28px/1.3 var(--sans); color: var(--muted); }
@@ -197,9 +202,9 @@
 	<!-- Sources: everything that asks something of you, in one queue -->
 	<div class="layer" id="s-src">
 		<div class="head"><span class="kicker">ONE QUEUE</span>Slack, Jira, GitHub.<br><i>One click starts an agent.</i></div>
-		<div class="src panel" id="src0" style="top:300px"><div class="logo slack">#</div><div><b>Slack</b><small>React 👀 to a message</small></div></div>
-		<div class="src panel" id="src1" style="top:452px"><div class="logo jira">◆</div><div><b>Jira</b><small>Issues assigned to you</small></div></div>
-		<div class="src panel" id="src2" style="top:604px"><div class="logo github">⑂</div><div><b>GitHub</b><small>PRs waiting on your review</small></div></div>
+		<div class="src panel" id="src0" style="top:300px"><div class="logo slack"><i data-lucide="slack"></i></div><div><b>Slack</b><small>React 👀 to a message</small></div></div>
+		<div class="src panel" id="src1" style="top:452px"><div class="logo jira"><i data-lucide="square-kanban"></i></div><div><b>Jira</b><small>Issues assigned to you</small></div></div>
+		<div class="src panel" id="src2" style="top:604px"><div class="logo github"><i data-lucide="github"></i></div><div><b>GitHub</b><small>PRs waiting on your review</small></div></div>
 		<div class="srcmini" id="srcmini"><span>Notion</span><span>Email</span><span>Calendar</span><span>ClickUp</span></div>
 		<div class="panel" id="queue"><h6>WAITING ON YOU</h6></div>
 	</div>
@@ -215,12 +220,12 @@
 	<div class="layer" id="s-remote">
 		<div class="head"><span class="kicker">REMOTE HOST</span>Laptop full?<br><i>Move them to the cloud.</i></div>
 		<div class="machine panel" style="left:110px">
-			<div class="top"><svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#ededf2" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M2 20h20"/></svg>
+			<div class="top"><svg aria-hidden="true" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#ededf2" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M2 20h20"/></svg>
 				<div><b class="name">This Mac</b><small>Your laptop</small></div></div>
 			<div class="meter"><div class="lab"><span>Memory</span><span id="mem-n">94%</span></div><div class="bar"><i id="mem"></i></div></div>
 		</div>
 		<div class="machine panel" style="left:850px">
-			<div class="top"><svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#a394ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.8A6 6 0 0 0 4.5 12a4 4 0 0 0 .5 8z"/></svg>
+			<div class="top"><svg aria-hidden="true" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#a394ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.8A6 6 0 0 0 4.5 12a4 4 0 0 0 .5 8z"/></svg>
 				<div><b class="name">Your cloud host</b><small>EC2 in your own AWS account</small></div></div>
 			<div class="meter"><div class="lab"><span>Memory</span><span id="host-n">8%</span></div><div class="bar"><i id="host"></i></div></div>
 		</div>
@@ -233,8 +238,8 @@
 		<div class="head"><span class="kicker">PING ME</span>Pinged the moment<br><i>it matters.</i></div>
 		<div id="ping-sub">Odin watches <b>your agents</b>, the <b>Slack threads</b> a session came from, and its <b>pull requests</b>.</div>
 		<div class="note" id="p0" style="top:300px"><div class="ni"><img src="icon.png" alt=""></div><div><small>Odin · now</small><b>Fix flaky upload test needs you</b><span>Waiting for your reply</span></div></div>
-		<div class="note" id="p1" style="top:480px"><div class="ni slack">#</div><div><small>Odin · #payments</small><b>Maya replied in the thread</b><span>"Looks good, ship it after standup"</span></div></div>
-		<div class="note" id="p2" style="top:660px"><div class="ni github">⑂</div><div><small>Odin · PR #812</small><b>Your PR was approved</b><span>Rate limiter for the public API</span></div></div>
+		<div class="note" id="p1" style="top:480px"><div class="ni slack"><i data-lucide="slack"></i></div><div><small>Odin · #payments</small><b>Maya replied in the thread</b><span>"Looks good, ship it after standup"</span></div></div>
+		<div class="note" id="p2" style="top:660px"><div class="ni github"><i data-lucide="github"></i></div><div><small>Odin · PR #812</small><b>Your PR was approved</b><span>Rate limiter for the public API</span></div></div>
 	</div>
 
 	<!-- Your voice -->
@@ -243,7 +248,7 @@
 		<div class="panel" id="thread">
 			<div class="msg"><div class="av" style="background:#2b6e57">M</div><div><div class="who">Maya<em>10:42 · #payments</em></div><div class="body">Is the CSV export fix going out today?</div></div></div>
 			<div id="draft">
-				<div class="tag">✦ ODIN DRAFTED THIS IN YOUR VOICE</div>
+				<div class="tag">ODIN DRAFTED THIS IN YOUR VOICE</div>
 				<div class="text"><span id="typed"></span><span class="caret" id="caret"></span></div>
 				<div class="foot"><span id="send">Send</span><small>Learned from how you write in Slack</small></div>
 			</div>
@@ -271,7 +276,7 @@
 		<div id="na">
 			<div class="na-card panel">
 				<div class="na-top">
-					<div class="moon"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#a394ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg></div>
+					<div class="moon"><svg aria-hidden="true" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#a394ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg></div>
 					<div><div class="na-label">NIGHT AGENT</div><div class="na-state"><span id="na-state">Off</span><span class="toggle" id="toggle"><i id="knob"></i></span></div></div>
 				</div>
 				<div style="margin-top:26px" id="picks"></div>
@@ -285,7 +290,7 @@
 	</div>
 
 	<!-- Everything else -->
-	<div class="layer" id="s-more"><div class="head"><span class="kicker">AND</span>Everything else<br><i>you'd want.</i></div></div>
+	<div class="layer" id="s-more"><div class="head"><span class="kicker">EVERYTHING IN ODIN</span>Every part buys back<br><i>a little of your attention.</i></div></div>
 
 	<!-- The close -->
 	<div class="layer" id="s-end">
@@ -297,7 +302,7 @@
 		</div>
 	</div>
 
-	<svg id="cursor" viewBox="0 0 24 24"><path d="M4 2l16 10.5-7 1.3 4.2 7.4-2.8 1.5-4.2-7.4L5 20z" fill="#fff" stroke="#111" stroke-width="1.3" stroke-linejoin="round"/></svg>
+	<svg id="cursor" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 2l16 10.5-7 1.3 4.2 7.4-2.8 1.5-4.2-7.4L5 20z" fill="#fff" stroke="#111" stroke-width="1.3" stroke-linejoin="round"/></svg>
 	<div id="click"></div>
 </div>
 
@@ -305,7 +310,7 @@
 	// --- the timeline: when each scene runs, and the moments the sound hits -----------
 	// Each scene's length, in whole beats of the 120 BPM track (0.5s) after the hook,
 	// so the cuts stay on the beat. Each leaves a beat or two to read once it's done.
-	const LENGTHS = { hook: 2.6, src: 6.6, board: 5.5, remote: 6.2, ping: 5.5, voice: 5.7, items: 4.6, night: 4.4, more: 3.2, end: 4.2 };
+	const LENGTHS = { hook: 2.6, src: 6.6, board: 5.5, remote: 6.2, ping: 5.5, voice: 5.7, items: 4.6, night: 4.4, more: 7.2, end: 4.2 };
 	const S = {};
 	let clock = 0;
 	for (const [name, length] of Object.entries(LENGTHS)) {
@@ -328,7 +333,7 @@
 	const PICK = (i) => S.night[0] + 0.45 + i * 0.2;
 	const SWITCH = S.night[0] + 1.25;
 	const CLOCK = [S.night[0] + 1.6, S.night[0] + 3.1];
-	const CHIP = (i) => S.more[0] + 0.25 + i * 0.07;
+	const CHIP = (i) => S.more[0] + 0.3 + i * 0.06;
 	window.MOMENTS = {
 		duration: DURATION,
 		hookWords: HOOK_WORDS,
@@ -339,7 +344,6 @@
 		clicks: [...Array.from({ length: 6 }, (_, i) => QUEUE_GO(i)), SEND, ...CLICKS, PICK(0), PICK(1), PICK(2), SWITCH],
 		whooshes: [...Array.from({ length: 6 }, (_, i) => TO_HOST(i)), BACK],
 		typing: TYPE,
-		chips: Array.from({ length: 15 }, (_, i) => CHIP(i)),
 		close: S.end[0] + 0.15,
 		// The video's poster: the board, a dozen agents sorted.
 		poster: SORT(11) + 1.2,
@@ -379,19 +383,19 @@
 
 	// --- the queue ---------------------------------------------------------------------
 	const QUEUE = [
-		["slack", "#", "Is the CSV export fix going out today?", "Slack · #payments · Maya"],
-		["jira", "◆", "PAY-212 CSV export stuck at 99%", "Jira · assigned to you"],
-		["github", "⑂", "Rate limiter for the public API", "GitHub · PR #812 · review requested"],
-		["slack", "#", "Can someone check the pricing page copy?", "Slack · #design · Noa"],
-		["jira", "◆", "PAY-219 Webhook retries double-charge", "Jira · assigned to you"],
-		["github", "⑂", "Migrate auth to the new SDK", "GitHub · PR #820 · review requested"],
+		["slack", "slack", "Is the CSV export fix going out today?", "Slack · #payments · Maya"],
+		["jira", "square-kanban", "PAY-212 CSV export stuck at 99%", "Jira · assigned to you"],
+		["github", "github", "Rate limiter for the public API", "GitHub · PR #812 · review requested"],
+		["slack", "slack", "Can someone check the pricing page copy?", "Slack · #design · Noa"],
+		["jira", "square-kanban", "PAY-219 Webhook retries double-charge", "Jira · assigned to you"],
+		["github", "github", "Migrate auth to the new SDK", "GitHub · PR #820 · review requested"],
 	];
 	const ROW_TOP = (i) => 54 + i * 94;
 	const queueEls = QUEUE.map(([cls, icon, title, from], i) => {
 		const el = document.createElement("div");
 		el.className = "row";
 		el.style.top = `${ROW_TOP(i)}px`;
-		el.innerHTML = `<div class="ic ${cls}">${icon}</div><div class="tx"><b>${title}</b><small>${from}</small></div><div class="go">Start</div>`;
+		el.innerHTML = `<div class="ic ${cls}"><i data-lucide="${icon}"></i></div><div class="tx"><b>${title}</b><small>${from}</small></div><div class="go">Start</div>`;
 		$("queue").append(el);
 		return el;
 	});
@@ -442,7 +446,10 @@
 		CARDS.forEach(([, , col, slot], i) => {
 			const el = cardEls[i];
 			const arrive = BOARD_IN(i);
-			if (t < arrive) return css(el, 0);
+			if (t < arrive) {
+				css(el, 0);
+				return;
+			}
 			// All land in Working first, the last ones piling on the bottom one.
 			const fromY = i < 7 ? SLOT_Y(i) : SLOT_Y(6) + 10 * (i - 6);
 			const p = inOutCubic(seg(t, SORT(i), SORT(i) + 0.55));
@@ -461,7 +468,9 @@
 			el.style.boxShadow = lift > 0.01 ? `0 ${18 + 22 * lift}px ${40 + 30 * lift}px rgb(0 0 0 / .55)` : "0 6px 16px rgb(0 0 0 / .3)";
 			css(el, a, `scale(${1 + 0.05 * lift})`);
 		});
-		counts.forEach((n, i) => ($(`n${i}`).textContent = n));
+		counts.forEach((n, i) => {
+			$(`n${i}`).textContent = n;
+		});
 		$("count-n").textContent = running;
 	}
 
@@ -479,7 +488,7 @@
 
 	// --- the night ----------------------------------------------------------------------
 	const PICKS = ["Rotate the staging database password", "Bump the image library", "Write the release notes for 2.4"];
-	$("picks").innerHTML = PICKS.map((p, i) => `<div class="na-row" id="pk${i}"><span class="n">${i + 1}</span>${p}</div>`).join("");
+	$("picks").innerHTML = PICKS.map((p, i) => `<div class="na-row" id="pk${i}"><span class="pn">${i + 1}</span>${p}</div>`).join("");
 	const LOG = [["23:00", "Started 3 sessions"], ["01:42", "Rotate the staging password - PR open"], ["04:15", "Image library bumped - PR open"], ["07:00", "<span class=ok>3 sessions ready for review</span>"]];
 	$("log").innerHTML = LOG.map(([time, text], i) => `<div id="lg${i}"><span class="t">${time}</span><span>${text}</span></div>`).join("");
 	const sky = $("night-sky");
@@ -492,22 +501,21 @@
 		sky.append(s);
 	}
 
-	// --- the wall ------------------------------------------------------------------------
-	const MORE = [
-		["▥", "One queue"], ["#", "Slack"], ["◆", "Jira"], ["⑂", "GitHub"], ["N", "Notion"], ["@", "Email"],
-		["⌕", "Search all"], ["⟷", "Diff review"], ["☁", "Remote host"], ["✎", "Drafts in your voice"], ["▤", "Briefs"], ["◷", "Reminders"],
-		["⚑", "Huginn"], ["▣", "iPhone app"], ["∞", "Sessions that survive"],
-	];
-	const chipRow = document.createElement("div");
-	chipRow.className = "chips";
-	$("s-more").append(chipRow);
-	const chips = MORE.map(([icon, label]) => {
+	// --- everything in Odin: the landing page's feature grid, its own words ---------------
+	const FEATURES = [["inbox", "One queue", "Slack, Jira, GitHub, Notion, Email, Calendar, ClickUp and your own tasks in one list. Badges count what waits on you, not every row."], ["kanban", "A board by agent state", "Working, Needs you, Final review, Idle. Cards move by what the agent is doing, read from its own hooks."], ["message-square", "Chat view", "Each session reads as a conversation: replies folded to a TL;DR, its steps while it works, screenshots and files in, the reply read aloud."], ["cloud", "Remote host", "When the laptop is full, run sessions on an EC2 host in your own account. Set up over SSM, no open port. Run here brings one back."], ["bell-ring", "Ping me", "Odin watches a session's Slack thread and pull requests, and pings you when someone replies or a PR is approved."], ["list-checks", "Action items", "Every reply ends with what you have to do next. A choice is a row of buttons, a command gets a Run button."], ["file-text", "Briefs", "A written answer to “what did I walk into?” for every session, so coming back takes seconds, not a reread."], ["bird", "Huginn", "Odin's raven. Ask in plain words for anything Odin can do, and he does it. He writes standing rules for your agents too."], ["pen-line", "Drafts in your voice", "Odin learns how you write from your own Slack messages, so the replies agents draft for you sound like you."], ["git-compare", "Diff review", "A session's changes since main, PR or not. Comment on lines, send them to the agent, tick files as reviewed."], ["moon", "Night Agent", "Queue tonight's work. It runs in parallel overnight, on the Mac or the host, and waits for review in the morning."], ["history", "Session History", "Search every agent conversation on the machine by what was said in it. Read it, resume it."], ["search", "Search all", "⌘⇧F finds any row, board card or past conversation, through a typo, with its actions one key away."], ["alarm-clock", "Reminders", "Bring back a row, a thread or a note of your own on the day you pick. Snooze it if today is not the day."], ["activity", "Insights", "How much lands on you, how much you hand over, how long things wait, and who asks most."], ["gauge", "Paced launches", "A new session waits for room when the machine is loaded, instead of starting a sixth agent into a swap storm."], ["infinity", "Sessions that survive", "A background daemon owns every terminal, so sessions live through a closed window, a restart and an update."], ["users", "Profiles", "Work and personal accounts kept apart, one click to switch, on the Mac and on the phone."]];
+	const grid = document.createElement("div");
+	grid.className = "feats";
+	$("s-more").append(grid);
+	const chips = FEATURES.map(([icon, title, text]) => {
 		const el = document.createElement("div");
-		el.className = "chip";
-		el.innerHTML = `<i>${icon}</i>${label}`;
-		chipRow.append(el);
+		el.className = "feat";
+		el.innerHTML = `<i data-lucide="${icon}"></i><b>${title}</b><p>${text}</p>`;
+		grid.append(el);
 		return el;
 	});
+	window.MOMENTS.chips = FEATURES.map((_, i) => CHIP(i));
+	// Every data-lucide placeholder above, now an inline SVG.
+	lucide.createIcons();
 
 	const REPLY = "yep, fixed it - deploying in 10m 🙂";
 
@@ -650,7 +658,7 @@
 		scene("s-more", S.more, t);
 		chips.forEach((el, i) => {
 			const p = outBack(seg(t, CHIP(i), CHIP(i) + 0.35));
-			css(el, seg(t, CHIP(i), CHIP(i) + 0.15), `translateY(${(1 - p) * 70}px) scale(${lerp(0.7, 1, p)})`);
+			css(el, seg(t, CHIP(i), CHIP(i) + 0.15), `translateY(${(1 - p) * 50}px) scale(${lerp(0.85, 1, p)})`);
 		});
 
 		// The close.

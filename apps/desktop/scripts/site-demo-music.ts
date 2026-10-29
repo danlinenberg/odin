@@ -49,6 +49,8 @@ const TRACK_END = 97.8;
 // ahead of the next section's hit, so the ending still lands on the close.
 const LOOP_END = 79.65;
 const BAR = 2;
+// Four bars: what repeats, so a long extension never reaches back to the drop.
+const LOOP = 4 * BAR;
 const sfx = (id: number) =>
 	`https://assets.mixkit.co/active_storage/sfx/${id}/${id}-preview.mp3`;
 const SFX = {
@@ -178,10 +180,16 @@ export async function trailerAudio(
 	);
 	const seam = 0.02;
 	place(music, 0, 0.75, start, LOOP_END - start + seam, seam);
-	if (extra) {
-		place(music, LOOP_END - start, 0.75, LOOP_END - extra, extra + seam, seam);
-		place(music, LOOP_END - start + extra, 0.75, LOOP_END);
-	} else place(music, LOOP_END - start, 0.75, LOOP_END);
+	// The repeat: the last LOOP bars before LOOP_END, as many times as it takes
+	// (a part of them first when the extra isn't a whole number of them).
+	let at = LOOP_END - start;
+	for (let left = extra; left > 0; ) {
+		const part = left % LOOP || LOOP;
+		place(music, at, 0.75, LOOP_END - part, part + seam, seam);
+		at += part;
+		left -= part;
+	}
+	place(music, at, 0.75, LOOP_END);
 
 	for (const t of m.hookWords) hit(hookWord, t, 0.55);
 	hit(hookAnswer, m.hookAnswer, 0.6);
