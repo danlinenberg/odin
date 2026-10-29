@@ -28,6 +28,7 @@ import {
 } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import {
+	addressToUrl,
 	type SlackThread,
 	slackThread,
 	slackWebClientUrl,
@@ -392,6 +393,8 @@ export function InAppBrowser() {
 	const zoomFactor = browserZoomFor(windowZoom, textSize);
 	const site = url ? siteOf(url) : null;
 	const page = (site && pages[site]) || { title: "", url: "" };
+	// What you're typing in the address bar; null while it shows the page's URL.
+	const [address, setAddress] = useState<string | null>(null);
 	// The find bar's text; null while it's hidden.
 	const [find, setFind] = useState<string | null>(null);
 	const [matches, setMatches] = useState({ active: 0, total: 0 });
@@ -578,9 +581,12 @@ export function InAppBrowser() {
 				return;
 			}
 			if (event.key !== "Escape") return;
-			// The "Open in browser" menu and the find bar close themselves first.
+			// The "Open in browser" menu, the find bar and the address bar
+			// close themselves first.
 			if (
-				(event.target as HTMLElement | null)?.closest("[role=menu],[data-find]")
+				(event.target as HTMLElement | null)?.closest(
+					"[role=menu],[data-find],[data-address]",
+				)
 			)
 				return;
 			event.preventDefault();
@@ -596,6 +602,22 @@ export function InAppBrowser() {
 
 	if (!url && !sites.slack && !sites.web) return null;
 	const view = () => (site ? views.current[site] : undefined);
+	const leaveAddress = () => {
+		setAddress(null);
+		view()?.focus();
+	};
+	// Through the store, like any other link, so a Slack link goes to Slack's
+	// own page; the same link again reloads it in place.
+	const go = () => {
+		const target = addressToUrl(address ?? page.url);
+		leaveAddress();
+		if (!target) return;
+		if (target === url)
+			view()
+				?.loadURL(target)
+				.catch(() => {});
+		else useInAppBrowser.setState({ url: target });
+	};
 
 	return (
 		<>
@@ -667,12 +689,21 @@ export function InAppBrowser() {
 							<HiViewColumns className="size-4" />
 						</button>
 					)}
-					<span
-						title={page.url}
-						className="min-w-0 flex-1 truncate px-2 text-[13px] text-muted-foreground"
-					>
-						{url && (page.title || new URL(page.url || url).host)}
-					</span>
+					<input
+						data-address
+						aria-label="Address"
+						title={page.title}
+						value={address ?? (url ? page.url || url : "")}
+						spellCheck={false}
+						className="min-w-0 flex-1 truncate rounded-md bg-transparent px-2 py-1 text-[13px] text-muted-foreground outline-none hover:bg-accent/50 focus:bg-accent focus:text-foreground"
+						onFocus={(event) => event.currentTarget.select()}
+						onChange={(event) => setAddress(event.target.value)}
+						onBlur={() => setAddress(null)}
+						onKeyDown={(event) => {
+							if (event.key === "Enter") go();
+							if (event.key === "Escape") leaveAddress();
+						}}
+					/>
 					{find !== null && (
 						<div
 							data-find

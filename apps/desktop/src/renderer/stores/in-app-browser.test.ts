@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { slackThread, slackWebClientUrl } from "./in-app-browser";
+import { addressToUrl, slackThread, slackWebClientUrl } from "./in-app-browser";
 
 describe("slackThread", () => {
 	it("reads a reply's thread off its link", () => {
@@ -58,5 +58,36 @@ describe("slackWebClientUrl", () => {
 		]) {
 			expect(slackWebClientUrl(url)).toBe(url);
 		}
+	});
+});
+
+describe("addressToUrl", () => {
+	it("loads a web address as typed", () => {
+		expect(addressToUrl("https://my.1password.com/signin")).toBe(
+			"https://my.1password.com/signin",
+		);
+		expect(addressToUrl("  http://example.com  ")).toBe("http://example.com");
+	});
+
+	it("puts https in front of a bare host", () => {
+		expect(addressToUrl("github.com/danlinenberg/odin")).toBe(
+			"https://github.com/danlinenberg/odin",
+		);
+		expect(addressToUrl("my.1password.com")).toBe("https://my.1password.com");
+	});
+
+	it("opens localhost over http", () => {
+		expect(addressToUrl("localhost:3000/x")).toBe("http://localhost:3000/x");
+	});
+
+	it("searches Google for anything else", () => {
+		expect(addressToUrl("1password extension")).toBe(
+			"https://www.google.com/search?q=1password%20extension",
+		);
+		expect(addressToUrl("odin")).toBe("https://www.google.com/search?q=odin");
+	});
+
+	it("loads nothing for blank input", () => {
+		expect(addressToUrl("   ")).toBeNull();
 	});
 });

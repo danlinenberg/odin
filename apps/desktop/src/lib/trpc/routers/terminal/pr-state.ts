@@ -47,6 +47,10 @@ export interface PullRequestStatus {
 	title: string | null;
 	/** The description's first paragraph, plain text, clipped. */
 	summary: string | null;
+	/** The head commit the checks ran on: one CI run per push. */
+	headSha?: string | null;
+	/** When the newest failed check finished (ISO), null while none has. */
+	failedAt?: string | null;
 }
 
 /** Injectable so the retry below is testable without a GitHub account. */
@@ -73,6 +77,7 @@ interface RollupEntry {
 	state?: string;
 	workflowName?: string;
 	startedAt?: string;
+	completedAt?: string;
 }
 
 /**
@@ -156,6 +161,7 @@ interface PrJson {
 	author?: { login?: string } | null;
 	title?: string;
 	body?: string;
+	headRefOid?: string;
 }
 
 function status(stdout: string): PullRequestStatus | null {
@@ -187,6 +193,8 @@ function statusOf(pr: PrJson): PullRequestStatus | null {
 		mine: null,
 		title: pr.title || null,
 		summary: firstParagraph(pr.body ?? ""),
+		headSha: pr.headRefOid || null,
+		failedAt: null,
 	};
 	for (const entry of latestRuns(pr.statusCheckRollup ?? [])) {
 		const name = entry.name ?? entry.context ?? "check";
@@ -200,6 +208,8 @@ function statusOf(pr: PrJson): PullRequestStatus | null {
 			out.pending.push(name);
 		} else if (FAILED.has(result)) {
 			out.failed.push(name);
+			const at = entry.completedAt ?? entry.startedAt ?? null;
+			if (at && at > (out.failedAt ?? "")) out.failedAt = at;
 		} else if (result === "SUCCESS") {
 			out.passed += 1;
 		}
@@ -351,6 +361,7 @@ interface RestCheckRun {
 	status?: string;
 	conclusion?: string | null;
 	started_at?: string | null;
+	completed_at?: string | null;
 }
 
 /**
@@ -394,10 +405,12 @@ async function restPullRequest(
 			status: run.status?.toUpperCase(),
 			conclusion: run.conclusion?.toUpperCase(),
 			startedAt: run.started_at ?? undefined,
+			completedAt: run.completed_at ?? undefined,
 		})),
 		author: { login: pull.user?.login },
 		title: pull.title,
 		body: pull.body ?? "",
+		headRefOid: pull.head?.sha,
 	});
 }
 
@@ -413,7 +426,7 @@ export async function pullRequestState(
 				"view",
 				url,
 				"--json",
-				"state,isDraft,reviewDecision,latestReviews,statusCheckRollup,mergeable,mergeStateStatus,baseRefName,author,title,body",
+				"state,isDraft,reviewDecision,latestReviews,statusCheckRollup,mergeable,mergeStateStatus,baseRefName,author,title,body,headRefOid",
 			],
 			status,
 			exec,

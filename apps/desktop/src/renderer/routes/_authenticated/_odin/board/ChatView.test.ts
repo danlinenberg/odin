@@ -52,6 +52,7 @@ import {
 	transcriptPath,
 	userText,
 	withoutAttachments,
+	withoutDraftCopies,
 	withoutMediaPaths,
 	yourQueued,
 } from "./ChatView";
@@ -1289,5 +1290,36 @@ describe("slackDraftText", () => {
 		expect(
 			slackDraftText({ kind: "tool", id: "t2", name: "Bash", input: {} }),
 		).toBeNull();
+	});
+});
+
+describe("withoutDraftCopies", () => {
+	const draft = {
+		kind: "tool",
+		id: "t1",
+		name: "mcp__claude_ai_Slack__slack_send_message_draft",
+		input: { channel_id: "D1", message: "Skip the token part.  just push" },
+	} as const;
+	const reply = (id: string, text: string) =>
+		({ kind: "text", id, text }) as const;
+	const body =
+		"Saved it:\n\n```text\nSkip the token part. just push\n```\n\nACTION ITEMS: none";
+
+	test("drops the text block that repeats the turn's saved draft", () => {
+		const out = withoutDraftCopies([draft, reply("r1", body)]);
+		expect(out[1]).toEqual(reply("r1", "Saved it:\n\nACTION ITEMS: none"));
+	});
+
+	test("keeps the block with no saved draft, another text, or in another turn", () => {
+		const other = reply("r2", body.replace("just push", "open a PR"));
+		const items = [
+			draft,
+			other,
+			{ kind: "user", id: "u1", text: "next" } as const,
+			reply("r3", body),
+		];
+		const out = withoutDraftCopies(items);
+		expect(out[1]).toBe(other);
+		expect(out[3]).toBe(items[3]);
 	});
 });

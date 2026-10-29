@@ -44,6 +44,8 @@ describe("pullRequestState", () => {
 			mine: null,
 			title: null,
 			summary: null,
+			headSha: null,
+			failedAt: null,
 		});
 	});
 
@@ -135,6 +137,8 @@ describe("pullRequestState", () => {
 			mine: null,
 			title: null,
 			summary: null,
+			headSha: null,
+			failedAt: null,
 		});
 	});
 

@@ -220,6 +220,13 @@ import {
 	catchUpOrder,
 	catchUpSuggestion,
 } from "./catch-up";
+import {
+	ciWakeMessage,
+	ciWakePlan,
+	gaveUpPanes,
+	useCiWake,
+	woke,
+} from "./ci-wake";
 import { DiffView } from "./DiffView";
 import { escStaysWithTarget } from "./drawer-esc";
 import { deliverOnHost } from "./host-delivery";
@@ -2299,6 +2306,8 @@ interface BoardCardTileProps {
 	dropped: boolean;
 	merged: boolean;
 	ciChecks: string | undefined;
+	/** CI stayed red through every fix Odin asked for. */
+	ciGaveUp: boolean;
 	conflicts: string | undefined;
 	duplicate: BoardCard | undefined;
 	since: number | undefined;
@@ -2483,6 +2492,7 @@ const BoardCardTile = memo(
 		dropped,
 		merged,
 		ciChecks,
+		ciGaveUp,
 		conflicts,
 		duplicate,
 		since,
@@ -2620,6 +2630,14 @@ const BoardCardTile = memo(
 								>
 									<span className="size-1.5 shrink-0 animate-pulse rounded-full bg-working" />
 									CI running
+								</span>
+							)}
+							{ciGaveUp && (
+								<span
+									title="CI stayed red after the session's fixes - your turn"
+									className="font-medium text-danger"
+								>
+									CI still red
 								</span>
 							)}
 							{!!conflicts && (
@@ -3572,17 +3590,25 @@ function DevBoardPage() {
 			),
 		[promptingKey],
 	);
+	// CI stayed red through the fixes Odin asked for: it's yours now.
+	const ciGaveUpKey = useCiWake((s) => gaveUpPanes(s.byPane).sort().join(","));
+	const ciGaveUpPaneIds = useMemo(
+		() => new Set(ciGaveUpKey ? ciGaveUpKey.split(",") : []),
+		[ciGaveUpKey],
+	);
 	const withMergeReady = useCallback(
 		(column: PaneStatus, paneId: string): PaneStatus =>
 			(column === "permission" || column === "review") &&
 			ciChecksByPane.has(paneId)
 				? "working"
-				: column === "permission" && mergeReadyPaneIds.has(paneId)
-					? "review"
-					: column === "review" && briefAsksPaneIds.has(paneId)
-						? "permission"
-						: column,
-		[mergeReadyPaneIds, ciChecksByPane, briefAsksPaneIds],
+				: column === "review" && ciGaveUpPaneIds.has(paneId)
+					? "permission"
+					: column === "permission" && mergeReadyPaneIds.has(paneId)
+						? "review"
+						: column === "review" && briefAsksPaneIds.has(paneId)
+							? "permission"
+							: column,
+		[mergeReadyPaneIds, ciChecksByPane, briefAsksPaneIds, ciGaveUpPaneIds],
 	);
 	// A reload paints cards before the daemon poll, transcripts and PR states
 	// answer, so they hop columns for a second. Hold a spinner until those
@@ -5630,6 +5656,74 @@ function DevBoardPage() {
 	agentPaneIdsRef.current = agentPaneIds;
 	const cardsRef = useRef(cardsByStatus);
 	cardsRef.current = cardsByStatus;
+	// CI turned red on a session's PR after it stopped: send it the failed
+	// checks and their logs so it fixes them, once per red run (ci-wake.ts). A
+	// live Claude gets it typed at its prompt - not while it works or shows a
+	// question; a closed one is resumed with it. One session per pass.
+	const ciWakeRef = useRef<() => Promise<void>>(async () => {});
+	const ciWakingRef = useRef(false);
+	ciWakeRef.current = async () => {
+		// Before the first answers land the panes and PR states are half
+		// there: a pruned record would wake a session again for an old run.
+		if (ciWakingRef.current || !isBoardSettled || !firstAnswersIn) return;
+		const { since, byPane, set, prune } = useCiWake.getState();
+		prune(new Set(Object.keys(panes)));
+		for (const [i, { paneId }] of mergeCandidates.entries()) {
+			const messages = mergeTranscripts[i]?.data?.messages;
+			const data = mergeStateQueries[i]?.data;
+			if (!messages || !data) continue;
+			const { next, wakes } = ciWakePlan(
+				byPane[paneId],
+				claimOpened(messages, data),
+				since,
+			);
+			set(paneId, next);
+			const wake = wakes[0];
+			const card = [...cardsByStatus.values()]
+				.flat()
+				.find((c) => c.pane.id === paneId);
+			if (!wake || !card || card.pane.odinQueued) continue;
+			if (resumingPaneIds.includes(paneId) || startingPaneIds.includes(paneId))
+				continue;
+			const live = agentPaneIds.has(paneId);
+			if (live) {
+				const text = await utils.client.terminal.readScreen
+					.query({ paneId })
+					.then((result) => result.text)
+					.catch(() => null);
+				if (
+					!text ||
+					odinScreenStatus(text) !== "review" ||
+					!inputBoxEmpty(text)
+				)
+					continue;
+			}
+			ciWakingRef.current = true;
+			try {
+				const checks = await utils.client.terminal.failedChecks
+					.query({ url: wake.url })
+					.catch(() => []);
+				const message = ciWakeMessage(wake, checks);
+				console.warn(`[board] CI red on ${wake.url}, waking ${paneId}`);
+				if (live)
+					await typeIntoClaude(
+						utils.client.terminal.write.mutate,
+						paneId,
+						message,
+					);
+				else await resumeCardRef.current(card, true, message);
+				const records = useCiWake.getState().byPane[paneId] ?? {};
+				set(paneId, woke(records, wake));
+			} finally {
+				ciWakingRef.current = false;
+			}
+			return;
+		}
+	};
+	useEffect(() => {
+		const id = setInterval(() => void ciWakeRef.current(), 30_000);
+		return () => clearInterval(id);
+	}, []);
 	// A reply from the phone to a session Claude has exited resumes it, as
 	// this board's chat box does - on the remote host too.
 	useEffect(() => {
@@ -7181,6 +7275,7 @@ function DevBoardPage() {
 														ciChecks={ciChecksByPane
 															.get(card.pane.id)
 															?.join(", ")}
+														ciGaveUp={ciGaveUpPaneIds.has(card.pane.id)}
 														conflicts={conflictsByPane.get(card.pane.id)}
 														duplicate={duplicateOf.get(card.pane.id)}
 														since={statusSinceRef.current.get(card.pane.id)?.at}
