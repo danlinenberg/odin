@@ -13,6 +13,7 @@
  * site-demo-music.ts from the trailer's own moments.
  *
  *   STILLS=1.5,8.4 bun run site-demo     # just those moments, as PNGs in a temp folder
+ *   RESCORE=1 bun run site-demo          # just the score, into the videos already there
  */
 import { spawn } from "node:child_process";
 import {
@@ -201,6 +202,38 @@ function encoder(bin: string, args: string[], out: string, audio?: string) {
 	return Object.assign(proc, { closed });
 }
 
+/** Puts `music` in site/`file` as its sound, keeping its video as is. */
+function score(file: string, music: string): boolean {
+	const out = join(work, file);
+	const ok =
+		Bun.spawnSync(
+			[
+				process.env.FFMPEG_MP4 ?? "ffmpeg",
+				"-loglevel",
+				"error",
+				"-y",
+				"-i",
+				join(SITE, file),
+				"-i",
+				music,
+				"-map",
+				"0:v",
+				"-map",
+				"1:a",
+				"-c:v",
+				"copy",
+				...(file.endsWith(".webm")
+					? ["-c:a", "libopus", "-b:a", "128k"]
+					: ["-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart"]),
+				"-shortest",
+				out,
+			],
+			{ stderr: "inherit" },
+		).exitCode === 0;
+	if (ok) writeFileSync(join(SITE, file), readFileSync(out));
+	return ok;
+}
+
 try {
 	await send("Runtime.enable");
 	await send("Emulation.setDeviceMetricsOverride", {
@@ -216,6 +249,14 @@ try {
 	const duration = await page<number>("window.DURATION");
 	const music = join(work, "music.wav");
 	writeFileSync(music, musicWav(await page<Moments>("window.MOMENTS")));
+
+	// Just the sound: the score swapped into the videos already there, no frames rendered.
+	if (process.env.RESCORE) {
+		for (const file of ["demo.mp4", "demo.webm"])
+			if (!score(file, music)) throw new Error(`couldn't score ${file}`);
+		console.log("rescored site/demo.mp4 and site/demo.webm");
+		await quit(0);
+	}
 
 	if (process.env.STILLS) {
 		const dir = mkdtempSync(join(tmpdir(), "odin-trailer-stills-"));
@@ -295,35 +336,7 @@ try {
 	if ((await webm.closed) !== 0) throw new Error("the webm encode failed");
 	const mp4Saved = (await mp4.closed) === 0;
 	// Playwright's ffmpeg has no audio encoder: the full ffmpeg adds the score to the webm.
-	const scored = join(work, "demo.webm");
-	const withAudio =
-		mp4Saved &&
-		Bun.spawnSync(
-			[
-				process.env.FFMPEG_MP4 ?? "ffmpeg",
-				"-loglevel",
-				"error",
-				"-y",
-				"-i",
-				join(SITE, "demo.webm"),
-				"-i",
-				music,
-				"-map",
-				"0:v",
-				"-map",
-				"1:a",
-				"-c:v",
-				"copy",
-				"-c:a",
-				"libopus",
-				"-b:a",
-				"128k",
-				"-shortest",
-				scored,
-			],
-			{ stderr: "inherit" },
-		).exitCode === 0;
-	if (withAudio) writeFileSync(join(SITE, "demo.webm"), readFileSync(scored));
+	const withAudio = mp4Saved && score("demo.webm", music);
 	console.log(
 		`saved site/demo.webm${withAudio ? ", with the score" : ", silent"}`,
 	);

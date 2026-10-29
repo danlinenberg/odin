@@ -193,8 +193,42 @@ export function musicWav(m: Moments): Buffer {
 	};
 	sweep(grooveFrom - 1.1, grooveFrom, 0.6);
 	sweep(close - 1.1, close, 0.7);
-	for (const t of m.cuts) sweep(t - 0.45, t, 0.35);
-	for (const t of m.whooshes) sweep(t, t + 0.35, 0.18);
+
+	// A whoosh: noise through a resonant band-pass that sweeps up into `peak` and
+	// back down, panned across, so it reads over the drums instead of hiding as hiss.
+	const whoosh = (
+		peak: number,
+		before: number,
+		after: number,
+		gain: number,
+	) => {
+		let low = 0;
+		let band = 0;
+		const from = peak - before;
+		for (let k = 0; k < (before + after) * RATE; k++) {
+			const s = k / RATE;
+			const rise = s < before;
+			const p = rise ? s / before : 1 - (s - before) / after;
+			const f = 250 + 4800 * p ** 2;
+			// Chamberlin state-variable filter, Q around 2.
+			const c = 2 * Math.sin((Math.PI * f) / RATE);
+			const high = rnd() - low - 0.5 * band;
+			band += c * high;
+			low += c * band;
+			const env = rise ? p ** 1.5 : p ** 3;
+			add(at(from) + k, gain * env * band, -0.8 + 1.6 * (s / (before + after)));
+		}
+		// A soft low thump where it lands.
+		for (let k = 0; k < 0.25 * RATE; k++) {
+			const s = k / RATE;
+			add(
+				at(peak) + k,
+				gain * 0.5 * Math.sin(2 * Math.PI * 70 * s) * Math.exp(-s / 0.07),
+			);
+		}
+	};
+	for (const t of m.cuts) whoosh(t, 0.42, 0.25, 0.75);
+	for (const t of m.whooshes) whoosh(t + 0.3, 0.3, 0.2, 0.3);
 
 	// Pings: a bell each, stepping up. Clicks, ticks and the wall's chips: blips.
 	for (const [j, ping] of m.pings.entries()) {
