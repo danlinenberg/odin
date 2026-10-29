@@ -88,6 +88,7 @@
 	.card .meta { display: flex; align-items: center; gap: 8px; margin-top: 7px; font: 13px/1 var(--sans); color: var(--muted); }
 	.card .st { display: inline-flex; align-items: center; gap: 6px; }
 	.card .st::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--sc, var(--working)); }
+	.board-label { position: absolute; top: -96px; white-space: nowrap; font: 600 46px/1 var(--sans); letter-spacing: -.02em; color: var(--muted); }
 	#count { position: absolute; right: 110px; top: 110px; text-align: right; }
 	#count b { display: block; font: 600 120px/1 var(--sans); letter-spacing: -.05em; font-variant-numeric: tabular-nums; }
 	#count span { font: 500 22px/1 var(--sans); color: var(--muted); }
@@ -119,6 +120,23 @@
 	.note span { display: block; font: 21px/1.3 var(--sans); color: rgb(237 237 242 / .75); margin-top: 4px; }
 	#ping-sub { position: absolute; left: 110px; top: 330px; width: 520px; font: 26px/1.45 var(--sans); color: var(--muted); }
 	#ping-sub b { color: var(--fg); font-weight: 600; }
+
+	/* The brief */
+	#brief { position: absolute; left: 110px; top: 300px; width: 1380px; display: grid; grid-template-columns: 560px 1fr; gap: 28px; }
+	.bk { padding: 26px 30px; }
+	#brief .bk h6 { margin: 0 0 14px; font: 600 15px/1 var(--sans); letter-spacing: .16em; color: var(--muted); }
+	.bk .tldr { font: 23px/1.5 var(--sans); color: rgb(237 237 242 / .9); }
+	.bk .todo { display: flex; align-items: center; gap: 14px; margin-top: 12px; font: 20px/1.3 var(--sans); color: var(--muted); }
+	.bk .todo i { flex: none; width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--line); }
+	.found { display: flex; flex-direction: column; gap: 14px; }
+	.fl { padding: 18px 24px; }
+	#brief .fl h6 { margin: 0 0 12px; font: 600 14px/1 var(--sans); letter-spacing: .16em; color: var(--muted); }
+	.fl .r { display: flex; align-items: center; gap: 16px; font: 600 22px/1.25 var(--sans); }
+	.fl .r .ic { flex: none; width: 42px; height: 42px; border-radius: 11px; display: grid; place-items: center; color: #fff; }
+	.fl .r .ic svg { width: 22px; height: 22px; }
+	.fl .r .ft { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.fl .r .bp { flex: none; padding: 7px 14px; border-radius: 999px; font: 600 15px/1 var(--sans); }
+	.notion { background: #2f2f36; } .links { background: #23232b; }
 
 	/* Voice */
 	#thread { position: absolute; left: 110px; top: 320px; width: 1380px; padding: 34px 40px; }
@@ -194,7 +212,7 @@
 	<!-- The hook -->
 	<div class="layer" id="s-hook">
 		<div class="hook">
-			<div><span class="w">A</span><span class="w">dozen</span><span class="w">agents.</span></div>
+			<div><span class="w">Dozens</span><span class="w">of</span><span class="w">agents.</span></div>
 			<div class="line2">One of you.</div>
 		</div>
 	</div>
@@ -212,8 +230,14 @@
 	<!-- The board -->
 	<div class="layer" id="s-board">
 		<div class="head"><span class="kicker">ONE BOARD</span>Every agent, sorted<br><i>by what it's doing.</i></div>
-		<div id="count"><b id="count-n">0</b><span>agents on the board</span></div>
-		<div id="board-cam"><div id="board"></div></div>
+		<div class="head" id="h-more-agents"><span class="kicker">ONE BOARD</span>As many agents<br><i>as you need.</i></div>
+		<div id="count"><b id="count-n">0</b><span>agents running</span></div>
+		<div id="board-cam">
+			<div class="board-label" id="bl0" style="left:0">This Mac</div>
+			<div class="board-label" id="bl1" style="left:1500px">Your cloud host</div>
+			<div id="board"></div>
+			<div id="board2" style="position:absolute;left:1500px;top:0;width:1380px;height:640px"></div>
+		</div>
 	</div>
 
 	<!-- Remote -->
@@ -240,6 +264,21 @@
 		<div class="note" id="p0" style="top:300px"><div class="ni"><img src="icon.png" alt=""></div><div><small>Odin · now</small><b>Fix flaky upload test needs you</b><span>Waiting for your reply</span></div></div>
 		<div class="note" id="p1" style="top:480px"><div class="ni slack"><i data-lucide="slack"></i></div><div><small>Odin · #payments</small><b>Maya replied in the thread</b><span>"Looks good, ship it after standup"</span></div></div>
 		<div class="note" id="p2" style="top:660px"><div class="ni github"><i data-lucide="github"></i></div><div><small>Odin · PR #812</small><b>Your PR was approved</b><span>Rate limiter for the public API</span></div></div>
+	</div>
+
+	<!-- The brief: what a session is about, and everything it touched -->
+	<div class="layer" id="s-brief">
+		<div class="head"><span class="kicker">THE BRIEF</span>Walk back in<br><i>and know what happened.</i></div>
+		<div id="brief">
+			<div class="bk panel" id="bk">
+				<h6>WHAT'S GOING ON</h6>
+				<div class="tldr">The upload test failed one CI run in five: the server stores files in the order they finish. Fixed with a sort, 38 tests pass. <b>Waiting on you</b> to approve a staging migration.</div>
+				<h6 style="margin-top:28px">MY NOTES</h6>
+				<div class="todo"><i></i>Ask Maya if anything relies on upload order</div>
+				<div class="todo"><i></i>Ship after standup</div>
+			</div>
+			<div class="found" id="found"></div>
+		</div>
 	</div>
 
 	<!-- Your voice -->
@@ -310,7 +349,7 @@
 	// --- the timeline: when each scene runs, and the moments the sound hits -----------
 	// Each scene's length, in whole beats of the 120 BPM track (0.5s) after the hook,
 	// so the cuts stay on the beat. Each leaves a beat or two to read once it's done.
-	const LENGTHS = { hook: 2.6, src: 6.6, board: 5.5, remote: 6.2, ping: 5.5, voice: 5.7, items: 4.6, night: 4.4, more: 7.2, end: 4.2 };
+	const LENGTHS = { hook: 2.6, src: 6.6, board: 7.5, remote: 6.2, ping: 5.5, brief: 6.0, voice: 5.7, items: 4.6, night: 4.4, more: 7.2, end: 4.2 };
 	const S = {};
 	let clock = 0;
 	for (const [name, length] of Object.entries(LENGTHS)) {
@@ -324,6 +363,10 @@
 	const QUEUE_GO = (i) => S.src[0] + 3.0 + i * 0.17;
 	const BOARD_IN = (i) => S.board[0] + 0.25 + i * 0.07;
 	const SORT = (i) => S.board[0] + 2.0 + i * 0.07;
+	// Then the camera pulls back: more columns' worth on this Mac, and a whole board on the host.
+	const ZOOM = S.board[0] + 3.7;
+	const EXTRA_IN = (k) => ZOOM + 0.25 + k * 0.013;
+	const FOUND_IN = (i) => S.brief[0] + 1.0 + i * 0.38;
 	const TO_HOST = (i) => S.remote[0] + 1.4 + i * 0.16;
 	const BACK = S.remote[0] + 3.7;
 	const PINGS = [0.6, 1.6, 2.6].map((d) => S.ping[0] + d);
@@ -339,14 +382,15 @@
 		hookWords: HOOK_WORDS,
 		hookAnswer: 1.2,
 		grooveFrom: S.src[0],
-		cuts: [S.board[0], S.remote[0], S.ping[0], S.voice[0], S.items[0], S.night[0], S.more[0]],
+		cuts: [S.board[0], S.remote[0], S.ping[0], S.brief[0], S.voice[0], S.items[0], S.night[0], S.more[0]],
 		pings: PINGS,
 		clicks: [...Array.from({ length: 6 }, (_, i) => QUEUE_GO(i)), SEND, ...CLICKS, PICK(0), PICK(1), PICK(2), SWITCH],
 		whooshes: [...Array.from({ length: 6 }, (_, i) => TO_HOST(i)), BACK],
 		typing: TYPE,
 		close: S.end[0] + 0.15,
-		// The video's poster: the board, a dozen agents sorted.
-		poster: SORT(11) + 1.2,
+		pops: [0, 1, 2, 3].map(FOUND_IN),
+		// The video's poster: both boards, full.
+		poster: ZOOM + 2.6,
 	};
 
 	const $ = (id) => document.getElementById(id);
@@ -440,6 +484,45 @@
 		board.append(el);
 		return el;
 	});
+	// The rest of the fleet, filling the columns to 12 deep on both boards.
+	const MORE_TASKS = [
+		"Upgrade the test runner", "Dark mode for settings", "Fix the iOS push token refresh", "Cache the pricing API",
+		"Paginate the audit log", "Retry failed webhooks", "Split the billing service tests", "Localize the onboarding emails",
+		"Speed up the search index build", "Drop the legacy auth cookie", "Add rate limits to exports", "Fix the timezone in reports",
+		"Clean up feature flags", "Move images to the CDN", "Handle 429s from the CRM", "Profile the slow dashboard query",
+		"Add tracing to checkout", "Fix flaky e2e login test", "Archive old projects", "Update the API docs",
+		"Debounce the autosave", "Fix the CSV encoding", "Add SSO for admins", "Tidy the Terraform modules",
+	];
+	const REPOS = ["api", "web", "mobile", "infra", "docs", "billing"];
+	const DEPTH = 12;
+	const extras = [];
+	for (const [b, root] of [$("board"), $("board2")].entries()) {
+		if (b === 1)
+			for (const [i, col] of COLS.entries()) {
+				const el = document.createElement("div");
+				el.className = "col";
+				el.style.left = `${COL_X(i)}px`;
+				el.style.setProperty("--c", col.c);
+				el.innerHTML = `<h4><span class="dot"></span>${col.name}<span class="n">${DEPTH}</span></h4>`;
+				root.append(el);
+			}
+		// Board one already holds the dozen: fill beneath them.
+		const taken = b === 0 ? [5, 3, 3, 1] : [0, 0, 0, 0];
+		for (const [c, from] of taken.entries())
+			for (let slot = from; slot < DEPTH; slot++) {
+				const k = extras.length;
+				const el = document.createElement("div");
+				el.className = "card";
+				el.innerHTML = `<b>${MORE_TASKS[k % MORE_TASKS.length]}</b><div class="meta">${REPOS[k % REPOS.length]} · <span class="st" style="--sc: rgb(${COLS[c].c})">${COLS[c].status}</span></div>`;
+				el.style.left = `${COL_X(c) + 16}px`;
+				el.style.top = `${SLOT_Y(slot)}px`;
+				root.append(el);
+				extras.push({ el, board: b, col: c });
+			}
+	}
+	// Shuffled so the boards fill everywhere at once, not column by column.
+	const order = extras.map((_, k) => k).sort((x, y) => ((x * 7919) % 101) - ((y * 7919) % 101));
+
 	function renderBoard(t) {
 		const counts = [0, 0, 0, 0];
 		let running = 0;
@@ -468,11 +551,36 @@
 			el.style.boxShadow = lift > 0.01 ? `0 ${18 + 22 * lift}px ${40 + 30 * lift}px rgb(0 0 0 / .55)` : "0 6px 16px rgb(0 0 0 / .3)";
 			css(el, a, `scale(${1 + 0.05 * lift})`);
 		});
+		let more = 0;
+		order.forEach((k, rank) => {
+			const { el, board: b, col } = extras[k];
+			const p = outCubic(seg(t, EXTRA_IN(rank), EXTRA_IN(rank) + 0.35));
+			if (p > 0) {
+				more++;
+				if (b === 0) counts[col]++;
+			}
+			css(el, p, `translateY(${(1 - p) * 30}px)`);
+		});
 		counts.forEach((n, i) => {
 			$(`n${i}`).textContent = n;
 		});
-		$("count-n").textContent = running;
+		$("count-n").textContent = running + more;
 	}
+
+	// --- the brief: what the session touched, found for it -------------------------------
+	const FOUND = [
+		["JIRA TICKET", "square-kanban", "jira", "PAY-231 Flaky upload test on CI", "In Progress", "background:rgb(90 169 255 / .16);color:var(--working)"],
+		["SLACK THREAD", "slack", "slack", "#eng-ci · “upload test is red again”", "Open thread ↗", "background:var(--raised);color:var(--muted)"],
+		["PULL REQUEST", "git-pull-request", "github", "#826 Sort uploads before comparing", "Open · checks pass", "background:rgb(62 207 142 / .16);color:var(--success)"],
+		["NOTION PAGE", "file-text", "notion", "Upload service runbook", "↗", "background:var(--raised);color:var(--muted)"],
+	];
+	const foundEls = FOUND.map(([label, icon, cls, title, pill, pillStyle]) => {
+		const el = document.createElement("div");
+		el.className = "fl panel";
+		el.innerHTML = `<h6>${label}</h6><div class="r"><div class="ic ${cls}"><i data-lucide="${icon}"></i></div><span class="ft">${title}</span><span class="bp" style="${pillStyle}">${pill}</span></div>`;
+		$("found").append(el);
+		return el;
+	});
 
 	// --- remote: sessions cross from the Mac to the host -----------------------------------
 	const SESSIONS = ["CSV export stuck at 99%", "Webhook retries", "Search ranking", "Bump the image library", "Rotate the password", "Migrate auth to the SDK"];
@@ -567,6 +675,18 @@
 		$("board").style.transform = `perspective(1800px) rotateX(${14 * (1 - inOutCubic(seg(t, SORT(0) - 0.2, SORT(0) + 1.2)))}deg) translateY(${(1 - enter) * 160}px)`;
 		const cIn = outCubic(seg(t, S.board[0] + 0.2, S.board[0] + 0.7));
 		css($("count"), cIn, `translateY(${(1 - cIn) * 20}px)`);
+		// Pulling back: both boards in frame, their columns as deep as the fleet.
+		const back = inOutCubic(seg(t, ZOOM, ZOOM + 1.4));
+		$("board-cam").style.transform = `scale(${lerp(1, 0.47, back)})`;
+		$("board-cam").style.top = `${lerp(300, 360, back)}px`;
+		for (const col of document.querySelectorAll("#board .col, #board2 .col")) col.style.height = `${lerp(640, SLOT_Y(DEPTH) + 10, back)}px`;
+		css($("board2"), seg(t, ZOOM + 0.2, ZOOM + 0.7));
+		css($("bl0"), seg(t, ZOOM + 0.5, ZOOM + 0.9));
+		css($("bl1"), seg(t, ZOOM + 0.6, ZOOM + 1.0));
+		const h1 = $("s-board").querySelector(".head");
+		const swap = seg(t, ZOOM + 0.2, ZOOM + 0.6);
+		if (swap > 0) css(h1, 1 - swap, `translateY(${-swap * 16}px)`);
+		css($("h-more-agents"), seg(t, ZOOM + 0.45, ZOOM + 0.85), `translateY(${(1 - outCubic(seg(t, ZOOM + 0.45, ZOOM + 0.85))) * 26}px)`);
 		renderBoard(t);
 
 		// Remote: the Mac is full; sessions cross to the host, and one comes back.
@@ -606,6 +726,15 @@
 		PINGS.forEach((at0, i) => {
 			const p = outBack(seg(t, at0, at0 + 0.5));
 			css($(`p${i}`), seg(t, at0, at0 + 0.15), `translateX(${(1 - p) * 820}px)`);
+		});
+
+		// The brief: what's going on, then everything the session touched, stacking in.
+		scene("s-brief", S.brief, t);
+		const bkIn = outCubic(seg(t, S.brief[0] + 0.35, S.brief[0] + 0.8));
+		css($("bk"), bkIn, `translateY(${(1 - bkIn) * 30}px)`);
+		foundEls.forEach((el, i) => {
+			const p = outBack(seg(t, FOUND_IN(i), FOUND_IN(i) + 0.45));
+			css(el, seg(t, FOUND_IN(i), FOUND_IN(i) + 0.15), `translateX(${(1 - p) * 120}px)`);
 		});
 
 		// Your voice: the question, Odin's draft types itself out, then Send.

@@ -37,6 +37,8 @@ export type Moments = {
 	/** The draft typing itself out. */
 	typing: [number, number];
 	chips: number[];
+	/** The brief's links landing. */
+	pops: number[];
 	close: number;
 };
 
@@ -205,6 +207,7 @@ export async function trailerAudio(
 	}
 	place(typing, m.typing[0], 0.5, 1, m.typing[1] - m.typing[0] + 0.15, 0.15);
 	for (const t of m.chips) hit(chip, t, 0.18);
+	for (const t of m.pops) hit(chip, t, 0.4);
 	hit(close, m.close, 0.85);
 
 	// A soft limiter, then -1 dBFS at the peak.
