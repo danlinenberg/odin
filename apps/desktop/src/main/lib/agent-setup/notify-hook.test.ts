@@ -2,12 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import {
-	SHELL_RULE,
-	STE_RULE,
-	VIDEO_RULE,
-	VOICE_RULE,
-} from "shared/constants";
+import { SHELL_RULE, STE_RULE, VIDEO_RULE, VOICE_RULE } from "shared/constants";
 import {
 	getShellRuleScriptContent,
 	NOTIFY_SCRIPT_MARKER,
