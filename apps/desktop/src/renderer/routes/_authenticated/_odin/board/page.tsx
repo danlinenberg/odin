@@ -374,6 +374,13 @@ function ViewToggle({
 	);
 }
 
+/**
+ * The live screen - the last `rows` lines (`baseY`), not the viewport. Scrolled
+ * up into the history, the viewport shows no Claude chrome: the agent-gone scan
+ * read that as Claude quitting, the drawer dropped the terminal for the chat
+ * view, and a cached xterm left scrolled up made the chat view flip between
+ * its live and history forms every few seconds.
+ */
 function visibleScreen(paneId: string): string {
 	const xterm = terminalCache.get(paneId)?.xterm;
 	if (!xterm) return "";
@@ -381,7 +388,7 @@ function visibleScreen(paneId: string): string {
 	const lines: string[] = [];
 	for (let row = 0; row < xterm.rows; row++)
 		lines.push(
-			buffer.getLine(buffer.viewportY + row)?.translateToString(true) ?? "",
+			buffer.getLine(buffer.baseY + row)?.translateToString(true) ?? "",
 		);
 	return lines.join("\n");
 }
