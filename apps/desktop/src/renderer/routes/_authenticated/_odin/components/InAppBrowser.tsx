@@ -17,6 +17,7 @@ import {
 	HiChevronDown,
 	HiChevronUp,
 	HiLink,
+	HiViewColumns,
 	HiXMark,
 } from "react-icons/hi2";
 import { useZoomFactor } from "renderer/hooks/useZoomFactor";
@@ -173,6 +174,83 @@ async function openSlackThread({
 	return false;
 }
 
+/**
+ * Runs in Slack's web client: hides its workspace rail and channel list, so
+ * the panel shows just the conversation, or brings them back. The rail has a
+ * grid column of its own. The channel list shares a grid with the
+ * conversation and the thread, whose columns Slack sizes itself, so they're
+ * measured and every column before the conversation's (the list and its
+ * resize handle) squeezed to nothing. Measured again when Slack redraws that
+ * grid: opening a thread adds a column.
+ */
+function slackSidebar(show: boolean) {
+	const STYLE = "odin-slack-sidebar";
+	const FIT = "odin-slack-fit";
+	const state = window as unknown as { odinSlackSidebar?: MutationObserver };
+	state.odinSlackSidebar?.disconnect();
+	document.getElementById(STYLE)?.remove();
+	document.getElementById(FIT)?.remove();
+	for (const grid of document.querySelectorAll(`.${FIT}`)) {
+		grid.classList.remove(FIT);
+	}
+	if (show) return;
+	const style = document.createElement("style");
+	style.id = STYLE;
+	style.textContent = `.p-tab_rail { display: none !important; }
+.p-client_workspace_wrapper { grid-template-columns: 0px auto !important; }
+.p-view_contents--sidebar { visibility: hidden !important; min-width: 0 !important; overflow: hidden !important; }`;
+	const fitStyle = document.createElement("style");
+	fitStyle.id = FIT;
+	document.head.append(style, fitStyle);
+	let last = "";
+	const fit = () => {
+		const grid = document.querySelector(
+			".p-view_contents--sidebar",
+		)?.parentElement;
+		const primary = grid?.querySelector(":scope > .p-view_contents--primary");
+		if (!grid || !primary) return;
+		// Slack mutates its page constantly; only a changed grid is measured.
+		const key = `${grid.className}|${grid.childElementCount}`;
+		if (grid.classList.contains(FIT) && key === last) return;
+		last = key;
+		grid.classList.remove(FIT);
+		const css = getComputedStyle(grid);
+		const tracks = css.gridTemplateColumns.split(" ").map(parseFloat);
+		if (css.display !== "grid" || tracks.some(Number.isNaN)) return;
+		const gap = parseFloat(css.columnGap) || 0;
+		const origin =
+			grid.getBoundingClientRect().left +
+			parseFloat(css.borderLeftWidth) +
+			parseFloat(css.paddingLeft);
+		const at = primary.getBoundingClientRect().left - origin;
+		let start = 0;
+		const index = tracks.findIndex((width) => {
+			const hit = Math.abs(start - at) < 2;
+			start += width + gap;
+			return hit;
+		});
+		if (index < 1) return;
+		const columns = tracks.map((width, i) =>
+			i < index ? "0px" : i === index ? "minmax(0, 1fr)" : `${width}px`,
+		);
+		fitStyle.textContent = `.${FIT} { grid-template-columns: ${columns.join(" ")} !important; column-gap: 0 !important; }`;
+		grid.classList.add(FIT);
+		last = `${grid.className}|${grid.childElementCount}`;
+	};
+	let queued = false;
+	const observer = new MutationObserver(() => {
+		if (queued) return;
+		queued = true;
+		requestAnimationFrame(() => {
+			queued = false;
+			fit();
+		});
+	});
+	observer.observe(document.body, { childList: true, subtree: true });
+	state.odinSlackSidebar = observer;
+	fit();
+}
+
 /** Takes a page that's already open to a new link. */
 async function show(webview: WebviewTag, url: string) {
 	try {
@@ -245,6 +323,7 @@ const ICON_BUTTON =
 export function InAppBrowser() {
 	const url = useInAppBrowser((state) => state.url);
 	const widthFraction = useInAppBrowser((state) => state.widthFraction);
+	const showSlackSidebar = useInAppBrowser((state) => state.slackSidebar);
 	const [resizing, setResizing] = useState(false);
 	const openExternal = electronTrpc.external.openUrl.useMutation();
 	const { mutate: copyText } = electronTrpc.external.copyText.useMutation();
@@ -364,6 +443,11 @@ export function InAppBrowser() {
 				setPage({ title: (event as { title?: string }).title ?? "" });
 			const onReady = () => {
 				webview.executeJavaScript(REPORT_KEYS).catch(() => {});
+				if (site === "slack") {
+					webview
+						.executeJavaScript(`(${slackSidebar})(${showSlackSidebar})`)
+						.catch(() => {});
+				}
 			};
 			const onConsole = (event: Event) => {
 				const message = (event as { message?: string }).message;
@@ -440,7 +524,14 @@ export function InAppBrowser() {
 		return () => {
 			for (const listener of detach) listener();
 		};
-	}, [sites, zoomFactor, copyText]);
+	}, [sites, zoomFactor, copyText, showSlackSidebar]);
+
+	// The Slack page that's already loaded takes the toggle at once.
+	useEffect(() => {
+		views.current.slack
+			?.executeJavaScript(`(${slackSidebar})(${showSlackSidebar})`)
+			.catch(() => {});
+	}, [showSlackSidebar]);
 
 	// A new link, or the panel closing, ends the find.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: runs on url only
@@ -559,6 +650,23 @@ export function InAppBrowser() {
 						<HiArrowPath className="size-4" />
 					</button>
 					<OnePasswordButton className={ICON_BUTTON} webview={view} />
+					{site === "slack" && (
+						<button
+							type="button"
+							title={
+								showSlackSidebar
+									? "Hide Slack's sidebar"
+									: "Show Slack's sidebar"
+							}
+							aria-pressed={showSlackSidebar}
+							className={cn(ICON_BUTTON, showSlackSidebar && "text-foreground")}
+							onClick={() =>
+								useInAppBrowser.setState({ slackSidebar: !showSlackSidebar })
+							}
+						>
+							<HiViewColumns className="size-4" />
+						</button>
+					)}
 					<span
 						title={page.url}
 						className="min-w-0 flex-1 truncate px-2 text-[13px] text-muted-foreground"
