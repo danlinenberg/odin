@@ -361,6 +361,38 @@ app.get("/file", async (req, res) => {
 	res.send(Buffer.from(await file.arrayBuffer()));
 });
 
+/**
+ * A video as one contact-sheet PNG (video-frames.ts), for a session that
+ * can't open a video. src is a path here, a remote session's copy on its
+ * host, or a Slack or Jira file link; count, from and to (seconds) zoom in.
+ */
+app.get("/frames", async (req, res) => {
+	if (req.headers.origin) {
+		return res.status(403).send("Not from a browser.\n");
+	}
+	const { src, count, from, to } = req.query;
+	if (typeof src !== "string" || !src) {
+		return res.status(400).send("Need src: a video's path or file link.\n");
+	}
+	const seconds = (value: unknown) =>
+		typeof value === "string" && value.trim() && Number.isFinite(Number(value))
+			? Number(value)
+			: undefined;
+	try {
+		const { videoContactSheet } = await import("../video-frames");
+		const png = await videoContactSheet(src, {
+			count: seconds(count),
+			from: seconds(from),
+			to: seconds(to),
+		});
+		res.type("image/png").send(png);
+	} catch (error) {
+		res
+			.status(502)
+			.send(`${error instanceof Error ? error.message : String(error)}\n`);
+	}
+});
+
 /** A remote session's tokens, for its pane's helper. Single use; never to a browser. */
 app.get("/remote-host/env", (req, res) => {
 	const secrets =

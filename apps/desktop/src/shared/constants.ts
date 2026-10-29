@@ -110,6 +110,9 @@ export const voiceRuleWith = (guide: string) =>
 		: VOICE_RULE;
 
 /** How every Claude session in Odin writes its replies - delivered with SHELL_RULE at SessionStart. */
+/** How a session sees a video: Odin's /frames (main/lib/video-frames.ts), not an ffmpeg it may not have. */
+export const VIDEO_RULE = `To see a video - an attachment, a screen recording, a Slack or Jira video link - don't look for ffmpeg: \`curl -sfG http://127.0.0.1:$ODIN_PORT/frames --data-urlencode "src=<path or link>" -o /tmp/frames.png\` returns one image of frames from across the video, each labeled with its time, and you read that image. To look closer at one part, add \`--data-urlencode from=<seconds> --data-urlencode to=<seconds>\`; for more frames, \`--data-urlencode count=<n>\` (up to 36).`;
+
 export const STE_RULE =
 	"Write your replies in ASD-STE100 Simplified Technical English: short sentences (procedural steps 20 words or fewer, descriptive text 25 or fewer), active voice, one instruction per sentence, the imperative for instructions, simple common words with one meaning each, and no idioms or phrasal verbs. Code, commands, file paths, identifiers and quoted text stay exactly as they are.";
 
