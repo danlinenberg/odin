@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Odin trailer</title>
+<!--
+	The 25-second trailer on the landing page (demo.mp4 / demo.webm). Every frame
+	is render(t): apps/desktop/scripts/site-demo.ts steps t at 30 fps and records
+	each one. Opened in a browser it plays on its own, on a loop.
+	The UI pieces are Odin's own, drawn at trailer size in its palette.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=block">
+<style>
+	:root {
+		--bg: #0b0b0e;
+		--panel: #121217;
+		--card: #16161b;
+		--raised: #1d1d24;
+		--border: #24242c;
+		--line: #2e2e38;
+		--fg: #ededf2;
+		--muted: #8f8f9c;
+		--faint: #5d5d69;
+		--primary: #a394ff;
+		--attention: #f5b83d;
+		--working: #5aa9ff;
+		--success: #3ecf8e;
+		--sans: "Geist", "Helvetica Neue", Arial, sans-serif;
+		--mono: "Geist Mono", ui-monospace, Menlo, monospace;
+		--display: "Cinzel", "Trajan Pro", Georgia, serif;
+	}
+	* { box-sizing: border-box; }
+	html, body { margin: 0; height: 100%; background: #000; }
+	body { display: grid; place-items: center; overflow: hidden; -webkit-font-smoothing: antialiased; }
+	#stage { position: relative; width: 1600px; height: 1000px; overflow: hidden; background: var(--bg);
+		color: var(--fg); font-family: var(--sans); transform-origin: center; }
+	.layer { position: absolute; inset: 0; will-change: transform, opacity; }
+	.glow { position: absolute; border-radius: 50%; pointer-events: none; }
+
+	/* Type */
+	.hook { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+	.hook .w { display: inline-block; margin: 0 .13em; font: 700 132px/1.02 var(--display); letter-spacing: .01em; }
+	.hook .line2 { font: 700 132px/1.02 var(--display); color: rgb(237 237 242 / .42); }
+	.head { position: absolute; left: 110px; top: 84px; font: 600 66px/1.08 var(--sans); letter-spacing: -.035em; }
+	.head i { font-style: normal; color: rgb(237 237 242 / .42); }
+	.kicker { display: block; font: 600 17px/1 var(--sans); letter-spacing: .26em; color: var(--primary); margin-bottom: 22px; }
+
+	/* The board */
+	#board-cam { position: absolute; left: 110px; top: 300px; width: 1380px; height: 640px; transform-origin: 0 0; }
+	#board { position: absolute; inset: 0; transform-origin: 50% 0; }
+	.col { position: absolute; top: 0; width: 333px; height: 640px; border-radius: 18px; border: 1px solid var(--border);
+		background: linear-gradient(to bottom, rgb(var(--c) / .10), rgb(18 18 23 / .6) 160px), var(--panel); }
+	.col::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; border-radius: 18px 18px 0 0; background: rgb(var(--c)); opacity: .9; }
+	.col h4 { margin: 0; display: flex; align-items: center; gap: 10px; padding: 20px 20px 0; font: 600 15px/1 var(--sans); letter-spacing: .1em; color: rgb(237 237 242 / .85); }
+	.col h4 .dot { width: 9px; height: 9px; border-radius: 50%; background: rgb(var(--c)); }
+	.col h4 .n { margin-left: auto; font: 500 15px/1 var(--mono); color: var(--muted); }
+	.card { position: absolute; width: 301px; height: 78px; padding: 14px 16px; border-radius: 13px; border: 1px solid var(--line);
+		background: var(--card); box-shadow: 0 8px 22px rgb(0 0 0 / .35); }
+	.card b { display: block; font: 600 16.5px/1.25 var(--sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.card .meta { display: flex; align-items: center; gap: 8px; margin-top: 9px; font: 13.5px/1 var(--sans); color: var(--muted); }
+	.card .st { display: inline-flex; align-items: center; gap: 6px; }
+	.card .st::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--sc, var(--working)); }
+	.card .star { position: absolute; right: 14px; top: 13px; color: var(--attention); font-size: 15px; }
+	.card.hero { border-color: rgb(245 184 61 / .7); }
+
+	/* Ping banner: Odin's notification (notification-manager.ts) */
+	#note { position: absolute; right: 70px; top: 60px; width: 640px; display: flex; gap: 22px; align-items: center; padding: 22px 26px;
+		border-radius: 26px; background: rgb(40 38 50 / .94); border: 1px solid rgb(255 255 255 / .12);
+		box-shadow: 0 40px 90px rgb(0 0 0 / .6); }
+	#note img { width: 72px; height: 72px; border-radius: 16px; }
+	#note small { display: block; font: 500 17px/1 var(--sans); color: var(--muted); margin-bottom: 8px; }
+	#note b { display: block; font: 600 25px/1.2 var(--sans); }
+	#note span { display: block; font: 21px/1.3 var(--sans); color: rgb(237 237 242 / .75); margin-top: 4px; }
+
+	/* Action items */
+	#chat { position: absolute; left: 110px; top: 330px; width: 1380px; }
+	#chat .reply { font: 400 27px/1.5 var(--sans); color: rgb(237 237 242 / .9); max-width: 1240px; }
+	#chat .reply code { font: 24px var(--mono); background: var(--raised); padding: 2px 8px; border-radius: 7px; }
+	#items { margin-top: 34px; border: 1.5px solid rgb(245 184 61 / .55); border-radius: 22px; padding: 26px 32px 30px;
+		background: linear-gradient(rgb(245 184 61 / .07), rgb(245 184 61 / .03)); }
+	#items h5 { margin: 0 0 22px; font: 600 18px/1 var(--sans); letter-spacing: .14em; color: var(--attention); }
+	.item { display: flex; align-items: center; gap: 22px; padding: 11px 0; font: 26px/1.3 var(--sans); }
+	.item .btn { flex: none; width: 150px; padding: 11px 0; text-align: center; border-radius: 12px; border: 1.5px solid rgb(245 184 61 / .65);
+		color: var(--attention); font: 600 21px/1 var(--sans); }
+	.item .num { color: var(--faint); width: 26px; }
+	.item code { font: 23px var(--mono); background: var(--raised); padding: 2px 8px; border-radius: 7px; }
+
+	/* Night Agent */
+	#night-sky { background: radial-gradient(80% 70% at 70% 0%, #1b1840, transparent 70%), #07070d; }
+	.star-dot { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #fff; }
+	#na { position: absolute; left: 110px; top: 330px; width: 1380px; display: grid; grid-template-columns: 1.05fr 1fr; gap: 36px; }
+	.na-card { border: 1px solid var(--border); border-radius: 22px; background: rgb(18 18 23 / .92); padding: 30px 34px; }
+	.na-top { display: flex; align-items: center; gap: 26px; }
+	.moon { width: 84px; height: 84px; border-radius: 22px; display: grid; place-items: center; background: rgb(163 148 255 / .12); }
+	.na-label { font: 600 16px/1 var(--sans); letter-spacing: .16em; color: var(--muted); }
+	.na-state { margin-top: 10px; display: flex; align-items: center; gap: 18px; font: 600 40px/1 var(--sans); letter-spacing: -.02em; }
+	.toggle { position: relative; width: 74px; height: 40px; border-radius: 20px; background: var(--line); }
+	.toggle i { position: absolute; top: 5px; left: 5px; width: 30px; height: 30px; border-radius: 50%; background: #fff; }
+	.na-row { display: flex; align-items: center; gap: 18px; padding: 15px 4px; border-top: 1px solid var(--border); font: 23px/1.2 var(--sans); }
+	.na-row:first-of-type { border-top: 0; }
+	.na-row .n { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: rgb(163 148 255 / .14); color: var(--primary); font: 600 17px/1 var(--mono); }
+	.clock { font: 500 96px/1 var(--mono); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+	.log { margin-top: 22px; }
+	.log div { display: flex; gap: 18px; align-items: center; padding: 10px 0; font: 22px/1.2 var(--sans); color: var(--muted); }
+	.log div .t { font: 18px var(--mono); color: var(--faint); width: 64px; }
+	.log div .ok { color: var(--success); }
+
+	/* Montage */
+	.chips { position: absolute; left: 110px; right: 110px; top: 330px; display: flex; flex-wrap: wrap; gap: 24px 22px; }
+	.chip { position: relative; padding: 22px 36px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel);
+		font: 600 40px/1 var(--sans); letter-spacing: -.01em; white-space: nowrap; }
+	.chip i { font-style: normal; color: var(--primary); margin-right: 12px; }
+
+	/* End */
+	.end { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 30px; }
+	.end img { width: 168px; height: 168px; border-radius: 38px; box-shadow: 0 40px 120px rgb(120 96 255 / .5); }
+	.end h1 { margin: 0; font: 700 104px/1.04 var(--display); }
+	.end h1 i { font-style: normal; color: rgb(237 237 242 / .42); }
+	.end p { margin: 0; font: 500 28px/1.3 var(--sans); color: var(--muted); }
+	.end .url { font: 500 24px var(--mono); color: var(--primary); }
+
+	#cursor { position: absolute; left: 0; top: 0; width: 40px; height: 40px; filter: drop-shadow(0 3px 6px rgb(0 0 0 / .5)); }
+	#click { position: absolute; width: 70px; height: 70px; margin: -35px 0 0 -35px; border-radius: 50%; background: rgb(163 148 255 / .5); }
+</style>
+</head>
+<body>
+<div id="stage">
+	<div class="glow" id="glow" style="width:1400px;height:1100px;left:100px;top:-50px;background:radial-gradient(closest-side, rgb(110 86 255 / .34), rgb(110 86 255 / .12) 55%, transparent)"></div>
+
+	<!-- 1. The hook -->
+	<div class="layer" id="s-hook">
+		<div class="hook">
+			<div><span class="w">A</span> <span class="w">dozen</span> <span class="w">agents.</span></div>
+			<div class="line2">One of you.</div>
+		</div>
+	</div>
+
+	<!-- 2-3. The board, then a ping -->
+	<div class="layer" id="s-board">
+		<div class="head" id="h-board"><span class="kicker">ONE BOARD</span>Every agent, sorted<br><i>by what it's doing.</i></div>
+		<div class="head" id="h-ping"><span class="kicker">PINGS</span>Know the second<br><i>one needs you.</i></div>
+		<div id="board-cam"><div id="board"></div></div>
+		<div id="note"><img src="icon.png" alt=""><div><small>Odin · now</small><b>Fix flaky upload test needs you</b><span>Waiting for your reply</span></div></div>
+	</div>
+
+	<!-- 4. Action items -->
+	<div class="layer" id="s-items">
+		<div class="head"><span class="kicker">ACTION ITEMS</span>Every reply ends<br><i>with what's on you.</i></div>
+		<div id="chat">
+			<div class="reply">Found it. The test asserts the upload order, but the server stores files as they finish. I sort by name now and added a test for <code>ordered: true</code>. 38 tests pass, 20 runs in a row.</div>
+			<div id="items">
+				<h5>ACTION ITEMS</h5>
+				<div class="item" id="it1"><span class="btn" id="b1">Approve</span><span class="num">1.</span><span>Run the migration that adds <code>position</code> on staging</span></div>
+				<div class="item" id="it2"><span class="btn">Do it</span><span class="num">2.</span><span>Pick the branch to push to: main / release</span></div>
+				<div class="item" id="it3"><span class="btn" id="b3">Do it</span><span class="num">3.</span><span>Open the PR for review</span></div>
+			</div>
+		</div>
+	</div>
+
+	<!-- 5. The Night Agent -->
+	<div class="layer" id="s-night">
+		<div class="layer" id="night-sky"></div>
+		<div class="head"><span class="kicker">NIGHT AGENT</span>Your agents keep going<br><i>after you stop.</i></div>
+		<div id="na">
+			<div class="na-card">
+				<div class="na-top">
+					<div class="moon"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#a394ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg></div>
+					<div><div class="na-label">NIGHT AGENT</div><div class="na-state"><span id="na-state">Off</span><span class="toggle" id="toggle"><i id="knob"></i></span></div></div>
+				</div>
+				<div style="margin-top:26px" id="picks"></div>
+			</div>
+			<div class="na-card">
+				<div class="na-label">TONIGHT</div>
+				<div class="clock" id="clock" style="margin-top:16px">23:00</div>
+				<div class="log" id="log"></div>
+			</div>
+		</div>
+	</div>
+
+	<!-- 6. Everything else, fast -->
+	<div class="layer" id="s-more"><div class="head" id="h-more"><span class="kicker">AND</span>Everything else<br><i>you'd want.</i></div></div>
+
+	<!-- 7. The close -->
+	<div class="layer" id="s-end">
+		<div class="end">
+			<img src="icon.png" alt="">
+			<h1>Make AI work for you.<br><i>Not the other way around.</i></h1>
+			<p>Free and open source · macOS and Windows</p>
+			<div class="url">github.com/danlinenberg/odin</div>
+		</div>
+	</div>
+
+	<svg id="cursor" viewBox="0 0 24 24"><path d="M4 2l16 10.5-7 1.3 4.2 7.4-2.8 1.5-4.2-7.4L5 20z" fill="#fff" stroke="#111" stroke-width="1.3" stroke-linejoin="round"/></svg>
+	<div id="click"></div>
+</div>
+
+<script>
+	const DURATION = 25;
+	const $ = (id) => document.getElementById(id);
+	const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+	const lerp = (a, b, p) => a + (b - a) * p;
+	/** 0..1 across [a, b]. */
+	const seg = (t, a, b) => clamp((t - a) / (b - a));
+	const outCubic = (p) => 1 - (1 - p) ** 3;
+	const inOutCubic = (p) => (p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2);
+	const outBack = (p) => 1 + 2.2 * (p - 1) ** 3 + 1.2 * (p - 1) ** 2;
+	/** In over [a, a+fade], out over [b-fade, b]. */
+	const win = (t, a, b, fade = 0.35) => Math.min(seg(t, a, a + fade), 1 - seg(t, b - fade, b));
+	/** An element's centre on the stage, ignoring transforms (the layout is fixed). */
+	const at = (el) => {
+		let x = el.offsetWidth / 2, y = el.offsetHeight / 2;
+		for (let e = el; e && e.id !== "stage"; e = e.offsetParent) { x += e.offsetLeft; y += e.offsetTop; }
+		return { x, y };
+	};
+	const css = (el, opacity, transform = "") => {
+		el.style.opacity = opacity;
+		el.style.transform = transform;
+		el.style.visibility = opacity <= 0.001 ? "hidden" : "visible";
+	};
+
+	// --- the board's cards: where each one sits, and when it moves --------------
+	const COLS = [
+		{ name: "WORKING", c: "90 169 255", status: "agent running" },
+		{ name: "NEEDS YOU", c: "245 184 61", status: "waiting for you" },
+		{ name: "FINAL REVIEW", c: "62 207 142", status: "just done" },
+		{ name: "IDLE", c: "143 143 156", status: "idle" },
+	];
+	const COL_X = (i) => i * 349;
+	const SLOT_Y = (s) => 58 + s * 88;
+	// [title, repo, star, moves: [time, column, slot]...]; the first move is its arrival.
+	const CARDS = [
+		["Pricing page copy", "web", false, [[3.0, 0, 0], [4.6, 2, 0]]],
+		["Settings menu cleanup", "web", false, [[3.08, 0, 1], [4.75, 1, 0], [7.45, 1, 1]]],
+		["Search ranking ignores exact matches", "api", true, [[3.16, 0, 2], [5.55, 0, 0]]],
+		["Review the rate limiter PR", "api", false, [[3.24, 0, 6], [4.9, 2, 1]]],
+		["PAY-212 CSV export stuck at 99%", "api", false, [[3.32, 0, 3], [5.62, 0, 1]]],
+		["Migrate auth to the new SDK", "mobile", false, [[3.4, 0, 4], [5.05, 1, 1], [7.5, 1, 2]]],
+		["Bump the image library", "web", false, [[3.48, 0, 5], [5.69, 0, 2]]],
+		["Old flaky CI run on deploy", "infra", false, [[3.56, 0, 6], [5.2, 3, 0]]],
+		["Fix flaky upload test", "api", false, [[7.35, 1, 0]], true],
+	];
+	const MOVE = 0.55;
+	const board = $("board");
+	for (const [i, col] of COLS.entries()) {
+		const el = document.createElement("div");
+		el.className = "col";
+		el.style.left = `${COL_X(i)}px`;
+		el.style.setProperty("--c", col.c);
+		el.innerHTML = `<h4><span class="dot"></span>${col.name}<span class="n" id="n${i}">0</span></h4>`;
+		board.append(el);
+	}
+	const cardEls = CARDS.map(([title, repo, star, , hero]) => {
+		const el = document.createElement("div");
+		el.className = `card${hero ? " hero" : ""}`;
+		el.innerHTML = `<b>${title}</b><div class="meta">${repo} · <span class="st"></span></div>${star ? '<span class="star">★</span>' : ""}`;
+		board.append(el);
+		return el;
+	});
+
+	function renderBoard(t) {
+		const counts = [0, 0, 0, 0];
+		CARDS.forEach(([, , , moves, hero], i) => {
+			const el = cardEls[i];
+			const [arrive, col0, slot0] = moves[0];
+			if (t < arrive) return css(el, 0);
+			// Where it is: the last move started, eased from the one before.
+			let k = 0;
+			while (k + 1 < moves.length && t >= moves[k + 1][0]) k++;
+			const [start, col, slot] = moves[k];
+			const prev = moves[k - 1];
+			const p = inOutCubic(seg(t, start, start + MOVE));
+			let x = COL_X(col) + 16;
+			let y = SLOT_Y(slot);
+			if (prev) {
+				x = lerp(COL_X(prev[1]) + 16, x, p);
+				y = lerp(SLOT_Y(prev[2]), y, p);
+			}
+			// Arriving: from below for the board's first fill, from above for the ping.
+			const a = outCubic(seg(t, arrive, arrive + 0.5));
+			if (k === 0) y += (1 - a) * (hero ? -260 : 420);
+			const lift = prev ? Math.sin(Math.PI * p) * 1 : 0;
+			const shown = prev && p < 0.5 ? prev[1] : col;
+			counts[shown]++;
+			el.style.left = `${x}px`;
+			el.style.top = `${y}px`;
+			el.style.zIndex = lift > 0 ? 5 : hero ? 4 : 1;
+			el.querySelector(".st").textContent = COLS[shown].status;
+			el.querySelector(".st").style.setProperty("--sc", `rgb(${COLS[shown].c})`);
+			el.style.boxShadow = lift > 0
+				? `0 ${18 + 22 * lift}px ${40 + 30 * lift}px rgb(0 0 0 / .55)`
+				: hero && shown === 1
+					? `0 0 0 ${2 + 10 * Math.max(0, Math.sin((t - 7.8) * 5))}px rgb(245 184 61 / ${0.35 * clamp(1 - seg(t, 7.8, 10))})`
+					: "";
+			css(el, a, `scale(${1 + 0.05 * lift})`);
+		});
+		counts.forEach((n, i) => ($(`n${i}`).textContent = n));
+	}
+
+	// --- the night: picks land, the switch goes on, the night runs -----------------
+	const PICKS = ["Rotate the staging database password", "Bump the image library", "Write the release notes for 2.4"];
+	$("picks").innerHTML = PICKS.map((p, i) => `<div class="na-row" id="pk${i}"><span class="n">${i + 1}</span>${p}</div>`).join("");
+	const LOG = [["23:00", "Started 3 sessions"], ["01:42", "Rotate the staging password - PR open"], ["04:15", "Image library bumped - PR open"], ["07:00", "<span class=ok>3 sessions ready for review</span>"]];
+	$("log").innerHTML = LOG.map(([time, text], i) => `<div id="lg${i}"><span class="t">${time}</span><span>${text}</span></div>`).join("");
+	const sky = $("night-sky");
+	for (let i = 0; i < 70; i++) {
+		const s = document.createElement("i");
+		s.className = "star-dot";
+		s.style.left = `${(i * 733) % 1600}px`;
+		s.style.top = `${(i * 389) % 1000}px`;
+		s.style.opacity = 0.15 + ((i * 37) % 60) / 100;
+		sky.append(s);
+	}
+
+	// --- everything else: chips that fly in fast -----------------------------------
+	const MORE = [
+		["inbox", "One queue"], ["#", "Slack"], ["◆", "Jira"], ["⑂", "GitHub"], ["N", "Notion"], ["@", "Email"],
+		["⌕", "Search all"], ["⟷", "Diff review"], ["☁", "Remote host"], ["✎", "Drafts in your voice"], ["▤", "Briefs"], ["◷", "Reminders"],
+		["⚑", "Huginn"], ["▣", "iPhone app"],
+	];
+	const chipRow = document.createElement("div");
+	chipRow.className = "chips";
+	$("s-more").append(chipRow);
+	const chips = MORE.map(([icon, label]) => {
+		const el = document.createElement("div");
+		el.className = "chip";
+		el.innerHTML = `<i>${icon === "inbox" ? "▥" : icon}</i>${label}`;
+		chipRow.append(el);
+		return el;
+	});
+
+	function render(t) {
+		t = clamp(t, 0, DURATION);
+		// The glow drifts the whole time; the hook and the close make it bloom.
+		$("glow").style.transform = `translate(${Math.sin(t * 0.4) * 120}px, ${Math.cos(t * 0.3) * 60}px) scale(${1 + 0.25 * win(t, 0, 2.8) + 0.3 * win(t, 20.3, 26)})`;
+		$("glow").style.opacity = 0.55 + 0.45 * Math.max(win(t, 0, 2.8), win(t, 20.3, 26));
+
+		// 1. The hook, 0-2.8: three words slam in, then the answer.
+		const hook = $("s-hook");
+		css(hook, 1 - seg(t, 2.45, 2.8), `scale(${1 + 0.18 * outCubic(seg(t, 2.45, 2.8))})`);
+		[...hook.querySelectorAll(".w")].forEach((w, i) => {
+			const p = outCubic(seg(t, 0.15 + i * 0.22, 0.5 + i * 0.22));
+			css(w, p, `scale(${lerp(1.6, 1, p)})`);
+			w.style.filter = `blur(${(1 - p) * 14}px)`;
+		});
+		const l2 = hook.querySelector(".line2");
+		const q = outCubic(seg(t, 1.2, 1.7));
+		css(l2, q, `translateY(${(1 - q) * 30}px)`);
+
+		// 2-3. The board 2.7-10.4, its camera on Needs you from 7.
+		const sBoard = $("s-board");
+		css(sBoard, win(t, 2.65, 10.45, 0.25));
+		const hb = $("h-board"), hp = $("h-ping");
+		const hbIn = outCubic(seg(t, 2.75, 3.2));
+		css(hb, Math.min(hbIn, 1 - seg(t, 6.75, 7.05)), `translateY(${(1 - hbIn) * 26}px)`);
+		const hpIn = outCubic(seg(t, 7.05, 7.5));
+		css(hp, hpIn, `translateY(${(1 - hpIn) * 26}px)`);
+		const tilt = 1 - inOutCubic(seg(t, 6.6, 7.6));
+		const enter = outCubic(seg(t, 2.7, 3.4));
+		$("board").style.transform = `perspective(1800px) rotateX(${16 * tilt}deg) translateY(${(1 - enter) * 160}px) scale(${lerp(0.97, 1, 1 - tilt)})`;
+		const zoom = inOutCubic(seg(t, 6.9, 8.0)) * (1 - inOutCubic(seg(t, 9.9, 10.5)));
+		$("board-cam").style.transform = `translate(${-500 * zoom}px, ${10 * zoom}px) scale(${1 + 0.5 * zoom})`;
+		renderBoard(t);
+		const nIn = outBack(seg(t, 7.95, 8.5));
+		css($("note"), Math.min(seg(t, 7.95, 8.15), 1 - seg(t, 10.0, 10.4)), `translateX(${(1 - nIn) * 760}px)`);
+
+		// 4. Action items 10.3-14.2: the reply, then Approve.
+		const sItems = $("s-items");
+		const iIn = outCubic(seg(t, 10.45, 11.0));
+		css(sItems, win(t, 10.45, 14.25, 0.3), `translateX(${(1 - iIn) * 120}px)`);
+		const box = $("items");
+		const bIn = outCubic(seg(t, 10.7, 11.2));
+		css(box, bIn, `translateY(${(1 - bIn) * 40}px)`);
+		const approved = t >= 12.35, done3 = t >= 13.2;
+		const b1 = $("b1"), b3 = $("b3");
+		b1.textContent = approved ? "✓ Approved" : "Approve";
+		b1.style.cssText = approved ? "color:#0b0b0e;background:var(--success);border-color:var(--success)" : "";
+		b1.style.transform = `scale(${1 + 0.12 * Math.sin(Math.PI * seg(t, 12.3, 12.6))})`;
+		$("it1").style.opacity = approved ? 0.5 : 1;
+		b3.textContent = done3 ? "✓ Sent" : "Do it";
+		b3.style.cssText = done3 ? "color:#0b0b0e;background:var(--success);border-color:var(--success)" : "";
+		b3.style.transform = `scale(${1 + 0.12 * Math.sin(Math.PI * seg(t, 13.15, 13.45))})`;
+		$("it3").style.opacity = done3 ? 0.5 : 1;
+
+		// 5. The Night Agent 14.1-18.2.
+		const sNight = $("s-night");
+		css(sNight, win(t, 14.1, 18.25, 0.35));
+		PICKS.forEach((_, i) => {
+			const p = outBack(seg(t, 14.55 + i * 0.22, 14.95 + i * 0.22));
+			css($(`pk${i}`), seg(t, 14.55 + i * 0.22, 14.75 + i * 0.22), `translateX(${(1 - p) * -60}px)`);
+		});
+		const on = inOutCubic(seg(t, 15.55, 15.8));
+		$("knob").style.transform = `translateX(${34 * on}px)`;
+		$("toggle").style.background = on > 0.5 ? "var(--primary)" : "var(--line)";
+		$("na-state").textContent = on > 0.5 ? "Next run at 23:00" : "Off";
+		// The night: 23:00 to 07:00 in two seconds.
+		const night = inOutCubic(seg(t, 16.0, 17.7));
+		const minutes = (23 * 60 + night * 8 * 60) % (24 * 60);
+		$("clock").textContent = `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(Math.floor(minutes % 60 / 5) * 5).padStart(2, "0")}`;
+		LOG.forEach((_, i) => {
+			const at = [16.0, 16.6, 17.15, 17.75][i];
+			const p = outCubic(seg(t, at, at + 0.3));
+			css($(`lg${i}`), p, `translateY(${(1 - p) * 14}px)`);
+		});
+		sky.style.opacity = 0.6 + 0.4 * Math.sin(t * 2);
+
+		// 6. Everything else 18.1-20.6.
+		css($("s-more"), win(t, 18.1, 20.6, 0.3));
+		const hm = outCubic(seg(t, 18.15, 18.55));
+		css($("h-more"), hm, `translateY(${(1 - hm) * 26}px)`);
+		chips.forEach((el, i) => {
+			const at = 18.35 + i * 0.075;
+			const p = outBack(seg(t, at, at + 0.35));
+			css(el, seg(t, at, at + 0.15), `translateY(${(1 - p) * 70}px) scale(${lerp(0.7, 1, p)})`);
+		});
+
+		// 7. The close 20.4-25.
+		const sEnd = $("s-end");
+		css(sEnd, seg(t, 20.45, 20.85));
+		[...sEnd.querySelector(".end").children].forEach((el, i) => {
+			const p = outCubic(seg(t, 20.55 + i * 0.22, 21.15 + i * 0.22));
+			css(el, p, `translateY(${(1 - p) * 34}px) scale(${i === 0 ? lerp(0.8, 1, outBack(seg(t, 20.55, 21.2))) : 1})`);
+		});
+
+		// The cursor: to Approve, click, down to Do it, click.
+		const a = at($("b1")), d = at($("b3"));
+		const toA = inOutCubic(seg(t, 11.4, 12.2)), toD = inOutCubic(seg(t, 12.6, 13.05));
+		const cx = lerp(lerp(1300, a.x, toA), d.x, toD);
+		const cy = lerp(lerp(940, a.y, toA), d.y, toD);
+		css($("cursor"), win(t, 11.3, 14.0, 0.25), `translate(${cx - 6}px, ${cy - 4}px)`);
+		const c1 = seg(t, 12.3, 12.75), c2 = seg(t, 13.15, 13.6);
+		const ring = t < 12.9 ? c1 : c2;
+		$("click").style.left = `${cx}px`;
+		$("click").style.top = `${cy}px`;
+		css($("click"), ring > 0 && ring < 1 ? (1 - ring) * 0.9 : 0, `scale(${0.3 + ring * 1.4})`);
+
+	}
+	window.render = render;
+	window.DURATION = DURATION;
+
+	// Fit the 1600x1000 stage to the window, and play on a loop unless a recorder drives it.
+	const fit = () => {
+		$("stage").style.transform = `scale(${Math.min(innerWidth / 1600, innerHeight / 1000)})`;
+	};
+	addEventListener("resize", fit);
+	fit();
+	if (!new URLSearchParams(location.search).has("record")) {
+		const start = performance.now();
+		const tick = (now) => {
+			render(((now - start) / 1000) % DURATION);
+			requestAnimationFrame(tick);
+		};
+		document.fonts.ready.then(() => requestAnimationFrame(tick));
+	} else {
+		$("stage").style.transform = "none";
+		render(0);
+	}
+</script>
+</body>
+</html>
