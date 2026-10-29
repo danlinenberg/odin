@@ -9,8 +9,8 @@
  * video never drops or doubles a frame however slow the machine is. Frames go
  * to ffmpeg twice: FFMPEG (or Playwright's build, which has the VP9 encoder)
  * for the webm, and an ffmpeg with libx264 (FFMPEG_MP4, or `ffmpeg` on PATH)
- * for the H.264 mp4 Safari and QuickTime play. 1920x1200, scored by
- * site-demo-music.ts from the trailer's own moments.
+ * for the H.264 mp4 Safari and QuickTime play. 1920x1200, with the music and
+ * sound effects site-demo-music.ts mixes on the trailer's own moments.
  *
  *   STILLS=1.5,8.4 bun run site-demo     # just those moments, as PNGs in a temp folder
  *   RESCORE=1 bun run site-demo          # just the score, into the videos already there
@@ -28,7 +28,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import electronBinary from "electron";
-import { type Moments, musicWav } from "./site-demo-music";
+import { type Moments, trailerAudio } from "./site-demo-music";
 
 const SITE = join(import.meta.dir, "..", "..", "..", "site");
 const WIDTH = 1600;
@@ -248,7 +248,13 @@ try {
 	);
 	const duration = await page<number>("window.DURATION");
 	const music = join(work, "music.wav");
-	writeFileSync(music, musicWav(await page<Moments>("window.MOMENTS")));
+	writeFileSync(
+		music,
+		await trailerAudio(
+			await page<Moments>("window.MOMENTS"),
+			process.env.FFMPEG_MP4 ?? "ffmpeg",
+		),
+	);
 
 	// Just the sound: the score swapped into the videos already there, no frames rendered.
 	if (process.env.RESCORE) {

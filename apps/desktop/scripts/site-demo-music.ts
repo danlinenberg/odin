@@ -1,270 +1,193 @@
 /**
- * The trailer's score (site/trailer.html), synthesized here so there is no
- * track to license. 120 BPM in A minor: an impact on each word of the hook, a
- * riser into the groove, the groove under every scene, its drums dropped for
- * the night, and a held chord for the close. The hits sit on the trailer's own
- * moments - the clicks, the pings, the cuts - which it publishes as
- * window.MOMENTS, so the score follows any change to the timeline.
+ * The trailer's sound (site/trailer.html): a music track and sound effects from
+ * Mixkit, free for commercial use without attribution under the Mixkit Stock
+ * Music and Sound Effects Free Licenses (https://mixkit.co/license/). They're
+ * fetched when the trailer is rendered and mixed into the video; none of them
+ * are kept in the repo.
  *
- * musicWav(moments) is a 16-bit stereo WAV; site-demo.ts muxes it in.
+ * The track is "Ramp It Up" by Ahjay Stelino, 120 BPM. It starts where its
+ * hardest hit lands on the end of the hook, and its own ending falls on the
+ * close. Every effect sits on one of the trailer's moments (window.MOMENTS),
+ * at the effect's loudest point, so a change to the timeline moves them too.
+ *
+ * trailerAudio(moments, ffmpeg) is a 16-bit stereo WAV; site-demo.ts muxes it in.
  */
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const RATE = 44_100;
-const BEAT = 0.5;
 
 /** The trailer's moments, from window.MOMENTS in site/trailer.html. */
 export type Moments = {
 	duration: number;
 	hookWords: number[];
 	hookAnswer: number;
-	/** The groove starts here and runs to the close. */
+	/** Where the music's drop lands: the cut out of the hook. */
 	grooveFrom: number;
 	/** Scene cuts: a whoosh into each. */
 	cuts: number[];
-	/** No drums in here: the night. */
-	quiet: [number, number];
 	pings: number[];
+	/** Buttons pressed. */
 	clicks: number[];
 	/** Things flying across: sessions to the host. */
 	whooshes: number[];
-	/** Small ticks: typing, the night's clock. */
-	ticks: number[];
+	/** The draft typing itself out. */
+	typing: [number, number];
 	chips: number[];
 	close: number;
 };
 
-const hz = (midi: number) => 440 * 2 ** ((midi - 69) / 12);
-// Am, F, C, G - a bar each.
-const CHORDS = [
-	[57, 60, 64, 71],
-	[53, 57, 60, 67],
-	[48, 55, 64, 67],
-	[55, 59, 62, 69],
-];
+const MUSIC = "https://assets.mixkit.co/music/69/69.mp3";
+// The track's hardest hit: the drop, put on the end of the hook.
+const DROP_AT = 63.9;
+const sfx = (id: number) =>
+	`https://assets.mixkit.co/active_storage/sfx/${id}/${id}-preview.mp3`;
+const SFX = {
+	hookWord: sfx(2150), // Impact of a blow
+	hookAnswer: sfx(2908), // Movie trailer epic impact
+	cut: [sfx(1492), sfx(1490)], // Cinematic whoosh fast transition, Fast whoosh transition
+	fly: sfx(166), // Fast small sweep transition
+	click: sfx(2568), // Cool interface click tone
+	pings: [sfx(2354), sfx(951), sfx(2867)], // Message pop alert, Positive notification, Confirmation tone
+	typing: sfx(1396), // Soft typing on a digital keyboard
+	chip: sfx(3005), // Explainer video pops whoosh light pop
+	close: sfx(2900), // Movie logo intro impact
+};
 
-/** A deterministic noise source, so every render sounds the same. */
-function noise(seed: number) {
-	let s = seed >>> 0 || 1;
-	return () => {
-		s ^= s << 13;
-		s ^= s >>> 17;
-		s ^= s << 5;
-		return ((s >>> 0) / 4_294_967_296) * 2 - 1;
-	};
-}
+type Clip = { left: Float32Array; right: Float32Array; peak: number };
 
-export function musicWav(m: Moments): Buffer {
-	const { duration, grooveFrom, close } = m;
-	const n = Math.ceil(duration * RATE);
+/** A sound as stereo floats at RATE, fetched once into a temp cache. */
+async function load(url: string, ffmpeg: string): Promise<Clip> {
+	const cache = join(tmpdir(), "odin-trailer-audio");
+	mkdirSync(cache, { recursive: true });
+	const file = join(cache, url.replace(/[^A-Za-z0-9.]+/g, "_"));
+	if (!existsSync(file)) {
+		const res = await fetch(url, { headers: { "user-agent": "Mozilla/5.0" } });
+		if (!res.ok) throw new Error(`${url}: ${res.status}`);
+		writeFileSync(file, Buffer.from(await res.arrayBuffer()));
+	}
+	const pcm = Bun.spawnSync(
+		[
+			ffmpeg,
+			"-loglevel",
+			"error",
+			"-i",
+			file,
+			"-ac",
+			"2",
+			"-ar",
+			String(RATE),
+			"-f",
+			"f32le",
+			"-",
+		],
+		{ stderr: "inherit" },
+	).stdout;
+	const all = new Float32Array(
+		pcm.buffer,
+		pcm.byteOffset,
+		Math.floor(pcm.byteLength / 4),
+	);
+	const n = all.length / 2;
 	const left = new Float32Array(n);
 	const right = new Float32Array(n);
-	const add = (i: number, v: number, pan = 0) => {
-		if (i < 0 || i >= n) return;
-		left[i] = (left[i] ?? 0) + v * (1 - pan) * Math.SQRT1_2;
-		right[i] = (right[i] ?? 0) + v * (1 + pan) * Math.SQRT1_2;
-	};
-	const at = (t: number) => Math.round(t * RATE);
-	const quiet = (t: number) => t >= m.quiet[0] && t < m.quiet[1];
-	const chord = (t: number) =>
-		CHORDS[Math.floor(Math.max(0, t - grooveFrom) / (BEAT * 4)) % 4] ?? [];
-	const rnd = noise(7);
-
-	// Kick: a sine falling from 150 Hz, on every beat (every other one at night).
-	const kicks: number[] = [];
-	for (let t = grooveFrom; t < close; t += BEAT) {
-		const beat = Math.round((t - grooveFrom) / BEAT);
-		if (quiet(t) && beat % 2) continue;
-		kicks.push(t);
-		const gain = quiet(t) ? 0.35 : 0.8;
-		let phase = 0;
-		for (let k = 0; k < 0.4 * RATE; k++) {
-			const s = k / RATE;
-			phase += (2 * Math.PI * (45 + 105 * Math.exp(-s / 0.03))) / RATE;
-			add(at(t) + k, gain * Math.sin(phase) * Math.exp(-s / 0.12));
-		}
-	}
-	// Everything tonal ducks under the kick.
-	const duck = new Float32Array(n).fill(1);
-	for (const t of kicks)
-		for (let k = 0; k < 0.25 * RATE; k++) {
-			const i = at(t) + k;
-			if (i < n)
-				duck[i] = Math.min(duck[i] ?? 1, 1 - 0.6 * Math.exp(-k / RATE / 0.08));
-		}
-
-	// Hats on the off-beats, a clap on 2 and 4; none at night.
-	for (let t = grooveFrom + BEAT / 2; t < close; t += BEAT) {
-		if (quiet(t)) continue;
-		let last = 0;
-		for (let k = 0; k < 0.06 * RATE; k++) {
-			const x = rnd();
-			add(at(t) + k, 0.11 * (x - last) * Math.exp(-k / RATE / 0.02), 0.3);
-			last = x;
-		}
-	}
-	for (let t = grooveFrom + BEAT; t < close; t += 2 * BEAT) {
-		if (quiet(t)) continue;
-		let lp = 0;
-		for (let k = 0; k < 0.2 * RATE; k++) {
-			const x = rnd();
-			lp += 0.35 * (x - lp);
-			add(at(t) + k, 0.28 * (x - lp) * Math.exp(-k / RATE / 0.06), -0.1);
-		}
-	}
-
-	// Bass: a filtered saw on the chord's root, in eighths.
-	for (let t = grooveFrom; t < close; t += BEAT / 2) {
-		const f = hz((chord(t)[0] ?? 57) - 24);
-		const gain = quiet(t) ? 0.12 : 0.2;
-		let lp = 0;
-		for (let k = 0; k < (BEAT / 2) * RATE; k++) {
-			const saw = 2 * ((k * f) / RATE - Math.floor((k * f) / RATE + 0.5));
-			lp += 0.08 * (saw - lp);
-			const i = at(t) + k;
-			add(i, gain * lp * Math.exp(-k / RATE / 0.18) * (duck[i] ?? 1));
-		}
-	}
-
-	// Pads: three detuned saws per chord note, low-passed, slow in and out.
-	let padLp = 0;
-	for (let i = 0; i < n; i++) {
-		const t = i / RATE;
-		const notes =
-			t < grooveFrom
-				? [45, 52, 57, 64]
-				: t >= close
-					? [45, 57, 60, 64, 71]
-					: chord(t);
-		const swell = Math.min(1, t / 1.5) * Math.min(1, (duration - t) / 2.5);
-		const gain = (t >= close ? 0.06 : quiet(t) ? 0.05 : 0.035) * swell;
-		let v = 0;
-		for (const [j, note] of notes.entries())
-			for (const d of [-0.12, 0, 0.12]) {
-				const f = hz(note + d) * (1 + j * 1e-4);
-				v += 2 * ((t * f) % 1) - 1;
-			}
-		padLp += 0.12 * (v / 6 - padLp);
-		add(i, gain * padLp * (duck[i] ?? 1), Math.sin(t * 0.7) * 0.3);
-	}
-
-	// Arpeggio: chord tones an octave up, in sixteenths (eighths at night).
-	for (let t = grooveFrom; t < close; t += BEAT / 4) {
-		const step = Math.round((t - grooveFrom) / (BEAT / 4));
-		if (quiet(t) && step % 2) continue;
-		const notes = chord(t);
-		const f = hz((notes[step % notes.length] ?? 69) + 12);
-		for (let k = 0; k < 0.18 * RATE; k++) {
-			const s = k / RATE;
-			const tone =
-				Math.sin(2 * Math.PI * f * s) + 0.3 * Math.sin(4 * Math.PI * f * s);
-			add(
-				at(t) + k,
-				(quiet(t) ? 0.035 : 0.05) * tone * Math.exp(-s / 0.07),
-				step % 2 ? 0.4 : -0.4,
-			);
-		}
-	}
-
-	// Impacts: a sub boom and a dark burst. Small for each hook word, big for the close.
-	const impact = (t: number, gain: number, length: number) => {
-		let lp = 0;
-		for (let k = 0; k < length * RATE; k++) {
-			const s = k / RATE;
-			lp += 0.05 * (rnd() - lp);
-			const boom =
-				Math.sin(2 * Math.PI * (40 + 30 * Math.exp(-s / 0.05)) * s) *
-				Math.exp(-s / (length / 3));
-			add(at(t) + k, gain * (boom + 2.5 * lp * Math.exp(-s / 0.15)));
-		}
-	};
-	for (const t of m.hookWords) impact(t, 0.45, 0.8);
-	impact(m.hookAnswer, 0.6, 1.4);
-	impact(close, 0.9, 3.5);
-
-	// Risers into the groove and into the close, whooshes into the cuts and
-	// under whatever flies across.
-	const sweep = (from: number, to: number, gain: number) => {
-		let lp = 0;
-		for (let k = 0; k < (to - from) * RATE; k++) {
-			const p = k / ((to - from) * RATE);
-			lp += (0.02 + 0.5 * p * p) * (rnd() - lp);
-			add(at(from) + k, gain * p * p * lp, Math.sin(p * 6) * 0.5);
-		}
-	};
-	sweep(grooveFrom - 1.1, grooveFrom, 0.6);
-	sweep(close - 1.1, close, 0.7);
-
-	// A whoosh: noise through a resonant band-pass that sweeps up into `peak` and
-	// back down, panned across, so it reads over the drums instead of hiding as hiss.
-	const whoosh = (
-		peak: number,
-		before: number,
-		after: number,
-		gain: number,
-	) => {
-		let low = 0;
-		let band = 0;
-		const from = peak - before;
-		for (let k = 0; k < (before + after) * RATE; k++) {
-			const s = k / RATE;
-			const rise = s < before;
-			const p = rise ? s / before : 1 - (s - before) / after;
-			const f = 250 + 4800 * p ** 2;
-			// Chamberlin state-variable filter, Q around 2.
-			const c = 2 * Math.sin((Math.PI * f) / RATE);
-			const high = rnd() - low - 0.5 * band;
-			band += c * high;
-			low += c * band;
-			const env = rise ? p ** 1.5 : p ** 3;
-			add(at(from) + k, gain * env * band, -0.8 + 1.6 * (s / (before + after)));
-		}
-		// A soft low thump where it lands.
-		for (let k = 0; k < 0.25 * RATE; k++) {
-			const s = k / RATE;
-			add(
-				at(peak) + k,
-				gain * 0.5 * Math.sin(2 * Math.PI * 70 * s) * Math.exp(-s / 0.07),
-			);
-		}
-	};
-	for (const t of m.cuts) whoosh(t, 0.42, 0.25, 0.75);
-	for (const t of m.whooshes) whoosh(t + 0.3, 0.3, 0.2, 0.3);
-
-	// Pings: a bell each, stepping up. Clicks, ticks and the wall's chips: blips.
-	for (const [j, ping] of m.pings.entries()) {
-		const f = [1760, 1976, 2349][j % 3] ?? 1760;
-		for (let k = 0; k < 1.4 * RATE; k++) {
-			const s = k / RATE;
-			const bell =
-				Math.sin(2 * Math.PI * f * s) +
-				0.5 * Math.sin(2 * Math.PI * f * 1.5 * s) +
-				0.25 * Math.sin(2 * Math.PI * f * 2 * s);
-			add(at(ping) + k, 0.14 * bell * Math.exp(-s / 0.3), j % 2 ? -0.3 : 0.3);
-		}
-	}
-	const blip = (t: number, f: number, gain: number, pan = 0) => {
-		for (let k = 0; k < 0.03 * RATE; k++) {
-			const s = k / RATE;
-			add(
-				at(t) + k,
-				gain * Math.sin(2 * Math.PI * f * s) * Math.exp(-s / 0.008),
-				pan,
-			);
-		}
-	};
-	for (const t of m.clicks) blip(t, 1400, 0.3);
-	for (const t of m.ticks) blip(t, 2400, 0.05, 0.5);
-	for (const [i, t] of m.chips.entries())
-		blip(t, 900 + i * 60, 0.12, i % 2 ? 0.5 : -0.5);
-
-	// Fade out the last two seconds, then normalise to -1 dBFS.
+	// Its loudest moment, over 10 ms windows: what lines up with a cue.
 	let peak = 0;
+	let loudest = 0;
+	const win = Math.round(RATE / 100);
 	for (let i = 0; i < n; i++) {
-		const fade = Math.min(1, (duration - i / RATE) / 2);
-		left[i] = (left[i] ?? 0) * fade;
-		right[i] = (right[i] ?? 0) * fade;
-		peak = Math.max(peak, Math.abs(left[i] ?? 0), Math.abs(right[i] ?? 0));
+		left[i] = all[2 * i] ?? 0;
+		right[i] = all[2 * i + 1] ?? 0;
 	}
+	for (let w = 0; w + win <= n; w += win) {
+		let e = 0;
+		for (let i = w; i < w + win; i++)
+			e += (left[i] ?? 0) ** 2 + (right[i] ?? 0) ** 2;
+		if (e > loudest) {
+			loudest = e;
+			peak = w / RATE;
+		}
+	}
+	return { left, right, peak };
+}
+
+export async function trailerAudio(
+	m: Moments,
+	ffmpeg: string,
+): Promise<Buffer> {
+	const n = Math.ceil(m.duration * RATE);
+	const left = new Float32Array(n);
+	const right = new Float32Array(n);
+	/** Mixes `clip` in from its second `from` for `length` seconds, starting at `at`. */
+	const place = (
+		clip: Clip,
+		at: number,
+		gain: number,
+		from = 0,
+		length = Infinity,
+		fade = 0,
+	) => {
+		const start = Math.round(at * RATE);
+		const skip = Math.round(from * RATE);
+		const count = Math.min(clip.left.length - skip, Math.round(length * RATE));
+		const fadeN = Math.round(fade * RATE);
+		for (let k = 0; k < count; k++) {
+			const i = start + k;
+			if (i < 0) continue;
+			if (i >= n) break;
+			const g = gain * (fadeN && k > count - fadeN ? (count - k) / fadeN : 1);
+			left[i] = (left[i] ?? 0) + g * (clip.left[skip + k] ?? 0);
+			right[i] = (right[i] ?? 0) + g * (clip.right[skip + k] ?? 0);
+		}
+	};
+	/** The clip's loudest point on `t`. */
+	const hit = (clip: Clip, t: number, gain: number) =>
+		place(clip, t - clip.peak, gain);
+
+	const [music, hookWord, hookAnswer, fly, click, typing, chip, close] =
+		await Promise.all(
+			[
+				MUSIC,
+				SFX.hookWord,
+				SFX.hookAnswer,
+				SFX.fly,
+				SFX.click,
+				SFX.typing,
+				SFX.chip,
+				SFX.close,
+			].map((u) => load(u, ffmpeg)),
+		);
+	const cuts = await Promise.all(SFX.cut.map((u) => load(u, ffmpeg)));
+	const pings = await Promise.all(SFX.pings.map((u) => load(u, ffmpeg)));
+
+	// The track, its drop on the end of the hook, running out on its own ending.
+	place(music, 0, 0.75, DROP_AT - m.grooveFrom);
+
+	for (const t of m.hookWords) hit(hookWord, t, 0.55);
+	hit(hookAnswer, m.hookAnswer, 0.6);
+	for (const [i, t] of m.cuts.entries()) {
+		const whoosh = cuts[i % cuts.length];
+		if (whoosh) hit(whoosh, t, 0.75);
+	}
+	for (const t of m.whooshes) hit(fly, t + 0.3, 0.4);
+	for (const t of m.clicks) hit(click, t, 0.55);
+	for (const [i, t] of m.pings.entries()) {
+		const ping = pings[i % pings.length];
+		if (ping) hit(ping, t + 0.15, 0.6);
+	}
+	place(typing, m.typing[0], 0.5, 1, m.typing[1] - m.typing[0] + 0.15, 0.15);
+	for (const t of m.chips) hit(chip, t, 0.18);
+	hit(close, m.close, 0.85);
+
+	// A soft limiter, then -1 dBFS at the peak.
+	let peak = 0;
+	for (const ch of [left, right])
+		for (let i = 0; i < n; i++) {
+			const v = ch[i] ?? 0;
+			ch[i] = Math.tanh(v * 1.1) / Math.tanh(1.1);
+			peak = Math.max(peak, Math.abs(ch[i] ?? 0));
+		}
 	const scale = peak > 0 ? 0.89 / peak : 1;
 
 	const wav = Buffer.alloc(44 + n * 4);

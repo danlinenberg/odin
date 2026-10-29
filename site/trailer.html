@@ -302,7 +302,7 @@
 </div>
 
 <script>
-	// --- the timeline: when each scene runs, and the moments the score hits -----------
+	// --- the timeline: when each scene runs, and the moments the sound hits -----------
 	const S = {
 		hook: [0, 2.6],
 		src: [2.6, 7.2],
@@ -337,14 +337,10 @@
 		hookAnswer: 1.2,
 		grooveFrom: S.src[0],
 		cuts: [S.board[0], S.remote[0], S.ping[0], S.voice[0], S.items[0], S.night[0], S.more[0]],
-		quiet: [S.night[0], S.night[1]],
 		pings: PINGS,
 		clicks: [...Array.from({ length: 6 }, (_, i) => QUEUE_GO(i)), SEND, ...CLICKS, PICK(0), PICK(1), PICK(2), SWITCH],
 		whooshes: [...Array.from({ length: 6 }, (_, i) => TO_HOST(i)), BACK],
-		ticks: [
-			...Array.from({ length: Math.floor((TYPE[1] - TYPE[0]) / 0.07) }, (_, i) => TYPE[0] + i * 0.07),
-			...Array.from({ length: Math.floor((CLOCK[1] - CLOCK[0]) / 0.11) }, (_, i) => CLOCK[0] + i * 0.11),
-		],
+		typing: TYPE,
 		chips: Array.from({ length: 15 }, (_, i) => CHIP(i)),
 		close: S.end[0] + 0.15,
 	};
