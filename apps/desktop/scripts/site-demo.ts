@@ -9,7 +9,9 @@
  * across the board as their hooks arrive, a session's chat with its action
  * items, and Search All. A drawn cursor and a caption per step make it readable without
  * sound. CDP's screencast gives the frames; ffmpeg (FFMPEG, or Playwright's
- * build, which has the VP9 encoder) turns them into a 1600x1000 webm.
+ * build, which has the VP9 encoder) turns them into a 1600x1000 webm, and an
+ * ffmpeg with libx264 (FFMPEG_MP4, or `ffmpeg` on PATH) into the H.264 mp4
+ * Safari and QuickTime play.
  * Nothing here names a real person or company.
  */
 import { spawn } from "node:child_process";
@@ -662,6 +664,36 @@ try {
 	const code = await encode(from, to);
 	if (code !== 0) throw new Error(`ffmpeg exited ${code}`);
 	console.log("saved site/demo.webm");
+	const mp4 = Bun.spawnSync(
+		[
+			process.env.FFMPEG_MP4 ?? "ffmpeg",
+			"-loglevel",
+			"error",
+			"-y",
+			"-i",
+			join(OUT, "demo.webm"),
+			"-c:v",
+			"libx264",
+			"-profile:v",
+			"high",
+			"-pix_fmt",
+			"yuv420p",
+			"-crf",
+			"26",
+			"-preset",
+			"slow",
+			"-movflags",
+			"+faststart",
+			"-an",
+			join(OUT, "demo.mp4"),
+		],
+		{ stderr: "inherit" },
+	);
+	console.log(
+		mp4.exitCode === 0
+			? "saved site/demo.mp4"
+			: "skip site/demo.mp4: no ffmpeg with libx264 (set FFMPEG_MP4)",
+	);
 	const poster = frames.findLast((f) => f.at <= posterAt) ?? frames[0];
 	if (poster) writeFileSync(join(OUT, "demo.jpg"), poster.jpeg);
 	console.log("saved site/demo.jpg");
