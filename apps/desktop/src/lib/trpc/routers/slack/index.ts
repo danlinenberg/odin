@@ -25,6 +25,7 @@ import {
 	replaceMentions,
 	rowsToVerify,
 	type SlackAttachment,
+	type SlackFile,
 	type SlackReactionsListItem,
 	slackTextToPlain,
 	taskTitle,
@@ -343,14 +344,27 @@ async function syncReactions(token: string, reaction: string): Promise<void> {
 		stillEyed,
 		VERIFY_PER_SYNC,
 	)) {
-		const on = await reactionStillOn(row, me.userId, [reaction, launch], token);
+		const check = await reactionStillOn(
+			row,
+			me.userId,
+			[reaction, launch],
+			token,
+		);
 		// Couldn't ask - a deleted message, a channel I left, a rate limit.
 		// Leave the row exactly as it was rather than guessing at it.
-		if (on === null) continue;
+		if (check === null) continue;
+		const { on, body } = check;
+		// A row stored with no text - a screenshot saved before images were
+		// read - takes the message as Slack has it now.
+		const text =
+			!row.text.trim() && body
+				? await resolveMentions(slackTextToPlain(body), token)
+				: undefined;
 		localDb
 			.update(slackReactions)
 			.set({
 				lastSeenAt: now,
+				...(text && { text }),
 				// Already-retired rows keep the time they went, so re-checking one
 				// doesn't keep moving when it happened.
 				unreactedAt: on ? null : (row.unreactedAt ?? now),
@@ -446,21 +460,30 @@ async function reactionStillOn(
 	myUserId: string,
 	reactions: string[],
 	token: string,
-): Promise<boolean | null> {
+): Promise<{ on: boolean; body: string } | null> {
 	try {
 		const res = await slackApi<
 			SlackResponse & {
-				message?: { reactions?: { name?: string; users?: string[] }[] };
+				message?: {
+					text?: string;
+					attachments?: SlackAttachment[];
+					files?: SlackFile[];
+					reactions?: { name?: string; users?: string[] }[];
+				};
 			}
 		>(
 			"reactions.get",
 			{ channel: row.channelId, timestamp: row.messageTs, full: "true" },
 			token,
 		);
-		return (res.message?.reactions ?? []).some(
-			(r) =>
-				reactions.includes(r.name ?? "") && (r.users ?? []).includes(myUserId),
-		);
+		return {
+			on: (res.message?.reactions ?? []).some(
+				(r) =>
+					reactions.includes(r.name ?? "") &&
+					(r.users ?? []).includes(myUserId),
+			),
+			body: messageBody(res.message ?? {}),
+		};
 	} catch {
 		return null;
 	}
