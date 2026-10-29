@@ -72,6 +72,26 @@ export function slackThread(url: string): SlackThread | null {
 }
 
 /**
+ * What the browser's address bar loads for what you typed: a web address as
+ * is, a bare host (`github.com/x`, `localhost:3000`) over https (http for
+ * localhost), and anything else as a Google search. Null for blank input.
+ */
+export function addressToUrl(text: string): string | null {
+	const input = text.trim();
+	if (!input) return null;
+	if (/^https?:\/\//i.test(input)) return input;
+	if (!/\s/.test(input)) {
+		if (/^(localhost|127\.0\.0\.1)(:\d+)?([/?#]|$)/i.test(input)) {
+			return `http://${input}`;
+		}
+		if (/^[\w-]+(\.[\w-]+)+(:\d+)?([/?#]|$)/.test(input)) {
+			return `https://${input}`;
+		}
+	}
+	return `https://www.google.com/search?q=${encodeURIComponent(input)}`;
+}
+
+/**
  * Opens a task source's link (a Slack thread, a Jira ticket) inside Odin, in
  * the slide-over browser, so it doesn't throw you out to another app - unless
  * you chose your own browser, for all links or that site's. Any other link, and anything that isn't a web
