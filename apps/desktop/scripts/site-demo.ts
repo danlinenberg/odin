@@ -9,7 +9,8 @@
  * video never drops or doubles a frame however slow the machine is. Frames go
  * to ffmpeg twice: FFMPEG (or Playwright's build, which has the VP9 encoder)
  * for the webm, and an ffmpeg with libx264 (FFMPEG_MP4, or `ffmpeg` on PATH)
- * for the H.264 mp4 Safari and QuickTime play. 1920x1200.
+ * for the H.264 mp4 Safari and QuickTime play. 1920x1200, scored by
+ * site-demo-music.ts from the trailer's own moments.
  *
  *   STILLS=1.5,8.4 bun run site-demo     # just those moments, as PNGs in a temp folder
  */
@@ -26,6 +27,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import electronBinary from "electron";
+import { type Moments, musicWav } from "./site-demo-music";
 
 const SITE = join(import.meta.dir, "..", "..", "..", "site");
 const WIDTH = 1600;
@@ -33,8 +35,8 @@ const HEIGHT = 1000;
 // 1600x1000 CSS pixels, drawn at 1.2x: a 1920x1200 video.
 const SCALE = 1.2;
 const FPS = 30;
-// The poster: the board, full and tilted, before the ping.
-const POSTER_AT = 6.2;
+// The poster: the board, a dozen agents sorted.
+const POSTER_AT = 10.6;
 
 function findFfmpeg(): string {
 	if (process.env.FFMPEG) return process.env.FFMPEG;
@@ -157,7 +159,7 @@ async function page<T>(expression: string): Promise<T> {
 
 // --- the frames ----------------------------------------------------------------
 /** An ffmpeg reading JPEG frames on stdin, and its exit code once it closes. */
-function encoder(bin: string, args: string[], out: string) {
+function encoder(bin: string, args: string[], out: string, audio?: string) {
 	const proc = spawn(
 		bin,
 		[
@@ -172,8 +174,22 @@ function encoder(bin: string, args: string[], out: string) {
 			String(FPS),
 			"-i",
 			"pipe:0",
+			...(audio
+				? [
+						"-i",
+						audio,
+						"-map",
+						"0:v",
+						"-map",
+						"1:a",
+						"-c:a",
+						"aac",
+						"-b:a",
+						"160k",
+						"-shortest",
+					]
+				: ["-an"]),
 			...args,
-			"-an",
 			join(SITE, out),
 		],
 		{ stdio: ["pipe", "ignore", "inherit"] },
@@ -198,6 +214,8 @@ try {
 		`document.fonts.ready.then(() => Promise.all([...document.images].map((i) => i.decode().catch(() => {}))))`,
 	);
 	const duration = await page<number>("window.DURATION");
+	const music = join(work, "music.wav");
+	writeFileSync(music, musicWav(await page<Moments>("window.MOMENTS")));
 
 	if (process.env.STILLS) {
 		const dir = mkdtempSync(join(tmpdir(), "odin-trailer-stills-"));
@@ -245,6 +263,7 @@ try {
 			"+faststart",
 		],
 		"demo.mp4",
+		music,
 	);
 	// No ffmpeg with libx264: the webm alone.
 	let mp4Alive = true;
@@ -274,10 +293,43 @@ try {
 	webm.stdin?.end();
 	mp4.stdin?.end();
 	if ((await webm.closed) !== 0) throw new Error("the webm encode failed");
-	console.log("saved site/demo.webm");
+	const mp4Saved = (await mp4.closed) === 0;
+	// Playwright's ffmpeg has no audio encoder: the full ffmpeg adds the score to the webm.
+	const scored = join(work, "demo.webm");
+	const withAudio =
+		mp4Saved &&
+		Bun.spawnSync(
+			[
+				process.env.FFMPEG_MP4 ?? "ffmpeg",
+				"-loglevel",
+				"error",
+				"-y",
+				"-i",
+				join(SITE, "demo.webm"),
+				"-i",
+				music,
+				"-map",
+				"0:v",
+				"-map",
+				"1:a",
+				"-c:v",
+				"copy",
+				"-c:a",
+				"libopus",
+				"-b:a",
+				"128k",
+				"-shortest",
+				scored,
+			],
+			{ stderr: "inherit" },
+		).exitCode === 0;
+	if (withAudio) writeFileSync(join(SITE, "demo.webm"), readFileSync(scored));
 	console.log(
-		(await mp4.closed) === 0
-			? "saved site/demo.mp4"
+		`saved site/demo.webm${withAudio ? ", with the score" : ", silent"}`,
+	);
+	console.log(
+		mp4Saved
+			? "saved site/demo.mp4, with the score"
 			: "skip site/demo.mp4: no ffmpeg with libx264 (set FFMPEG_MP4)",
 	);
 	console.log("saved site/demo.jpg");

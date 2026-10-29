@@ -48,12 +48,16 @@
 		</div>
 
 		<div class="stage">
-			<div class="window">
-				<div class="chrome"><i></i><i></i><i></i><span>Odin · Dev Board</span></div>
-				<video class="shot" id="demo" poster="demo.jpg" width="1600" height="1000" autoplay muted loop playsinline preload="metadata" aria-label="A 25-second trailer for Odin: agents sorted on one board, a ping when one needs you, an action item approved, the Night Agent running overnight, and the rest of what Odin does">
+			<div class="window demo">
+				<div class="chrome"><i></i><i></i><i></i><span>Odin</span></div>
+				<video class="shot" id="demo" poster="demo.jpg" width="1600" height="1000" autoplay muted loop playsinline preload="metadata" aria-label="A 36-second trailer for Odin: Slack, Jira and GitHub in one queue, a dozen agents on one board, sessions moved to a cloud host, pings, replies drafted in your voice, action items, the Night Agent, and the rest of what Odin does">
 					<source src="demo.mp4" type="video/mp4">
 					<source src="demo.webm" type="video/webm">
 				</video>
+				<button type="button" class="btn small sound" id="sound" aria-pressed="false">
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path id="sound-wave" d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14" opacity=".35"/></svg>
+					<span>Sound on</span>
+				</button>
 			</div>
 		</div>
 
@@ -301,6 +305,18 @@
 		demo.pause();
 		demo.controls = true;
 	}
+	// Browsers only autoplay it muted; the score is a click away.
+	document.getElementById("sound").addEventListener("click", (event) => {
+		const button = event.currentTarget;
+		demo.muted = !demo.muted;
+		if (!demo.muted) {
+			demo.currentTime = 0;
+			demo.play();
+		}
+		button.setAttribute("aria-pressed", String(!demo.muted));
+		button.querySelector("span").textContent = demo.muted ? "Sound on" : "Sound off";
+		document.getElementById("sound-wave").setAttribute("opacity", demo.muted ? ".35" : "1");
+	});
 	document.getElementById("copy").addEventListener("click", async (event) => {
 		const button = event.currentTarget;
 		const code = document.getElementById("brew");
