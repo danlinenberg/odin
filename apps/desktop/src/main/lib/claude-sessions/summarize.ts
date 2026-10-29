@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { execWithShellEnv } from "lib/trpc/routers/workspaces/utils/shell-env";
 import { type BriefUrgency, latestReply } from "shared/latest-reply";
 import { TAG_VOCABULARY } from "shared/odin-tags";
+import { activePlanLimit } from "../remote-host/api-key-fallback";
 import {
 	parseTranscript,
 	summarizeTranscript,
@@ -367,7 +368,16 @@ export async function writeBrief({
 					"--mcp-config",
 					'{"mcpServers":{}}',
 				],
-				{ cwd: tmpdir(), timeout: timeoutMs, maxBuffer: 1_000_000 },
+				{
+					cwd: tmpdir(),
+					timeout: timeoutMs,
+					maxBuffer: 1_000_000,
+					// An ANTHROPIC_API_KEY exported from the shell wins over the Claude
+					// plan, and a stale one fails every brief with "Invalid API key".
+					// Sessions drop it the same way; keep it only while claude-auto has
+					// the plan out at its limit, when the key is all that can run this.
+					unsetEnv: activePlanLimit() ? [] : ["ANTHROPIC_API_KEY"],
+				},
 			));
 		} catch (error) {
 			throw briefError(error);

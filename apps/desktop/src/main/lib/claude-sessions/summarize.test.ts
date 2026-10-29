@@ -12,6 +12,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { activePlanLimit } from "../remote-host/api-key-fallback";
 import { digest, parseBrief, warmBriefs, writeBrief } from "./summarize";
 
 /**
@@ -87,6 +88,35 @@ function fixture(session: string = nextSession()) {
 }
 
 describe("writeBrief", () => {
+	test("runs claude without the shell's ANTHROPIC_API_KEY while the plan is in", async () => {
+		const { session, root, cachePath } = fixture();
+		const bin = join(root, "key-claude.sh");
+		writeFileSync(
+			bin,
+			[
+				"#!/bin/sh",
+				'[ -n "$ANTHROPIC_API_KEY" ] && echo "TITLE: key=$ANTHROPIC_API_KEY" || echo "TITLE: key=none"',
+				'echo "GOAL: g"',
+				"",
+			].join("\n"),
+		);
+		chmodSync(bin, 0o755);
+		const saved = process.env.ANTHROPIC_API_KEY;
+		process.env.ANTHROPIC_API_KEY = "stale";
+		try {
+			const brief = await writeBrief({
+				sessionId: session,
+				claudeBin: bin,
+				root,
+				cachePath,
+			});
+			expect(brief.title).toBe(activePlanLimit() ? "key=stale" : "key=none");
+		} finally {
+			if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
+			else process.env.ANTHROPIC_API_KEY = saved;
+		}
+	});
+
 	test("runs the model once, then serves the cached brief", async () => {
 		const { session, root, bin, cachePath, runCount } = fixture();
 		const first = await writeBrief({
