@@ -271,7 +271,20 @@ export function useCrow() {
 		workspaceId: string,
 		cwd: string,
 	): Promise<boolean> => {
-		const live = sessions.some((s) => s.sessionId === pane.id && s.isAlive);
+		const alive = sessions.some((s) => s.sessionId === pane.id && s.isAlive);
+		// His screen, not his status: a "working" a hook never cleared had the
+		// follow-up kill a Claude sitting at his prompt and start him over, and
+		// a PTY left at a bare shell took the question as a shell command.
+		// Unreadable counts as Claude there, as before.
+		const text = alive
+			? await utils.client.terminal.readScreen
+					.query({ paneId: pane.id })
+					.then((read) => read.text)
+					.catch(() => null)
+			: null;
+		const screen = text && stripAnsi(spacesForCursorForward(text));
+		const live = alive && (!screen || agentOnScreen(screen));
+		if (live && screen && odinScreenStatus(screen) !== "working") return true;
 		if (live && pane.status !== "working") return true;
 		const id = pane.claudeSessionId;
 		const transcript = id
