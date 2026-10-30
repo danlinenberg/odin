@@ -86,7 +86,9 @@ import {
 	actionItemList,
 	bangCommandNotes,
 	bangCommands,
+	commandItem,
 	commandLabel,
+	commandScore,
 	describeCommand,
 	isAnswerItem,
 	isApprovalItem,
@@ -2300,119 +2302,6 @@ export function itemsFoldLabel(folded: boolean, count: number): string {
 	return count === 1 ? "Show 1 item" : `Show ${count} items`;
 }
 
-// Words too common in commands or items to tell one item from another.
-const COMMON_WORDS = new Set([
-	"aws",
-	"sudo",
-	"bash",
-	"curl",
-	"echo",
-	"http",
-	"https",
-	"www",
-	"com",
-	"command",
-	"commands",
-	"then",
-	"with",
-	"this",
-	"that",
-	"from",
-	"your",
-	"only",
-	"true",
-	"false",
-	"json",
-	"text",
-	"output",
-	"region",
-	"profile",
-	"run",
-	"runs",
-	"install",
-	"apply",
-	"execute",
-]);
-
-/** A text's distinctive words: lowercased, link targets dropped, 4+ letters or a 3+ digit number. */
-function distinctWords(text: string): string[] {
-	return text
-		.replace(/\]\([^)]*\)/g, "]")
-		.toLowerCase()
-		.split(/[^a-z0-9-]+/)
-		.flatMap((word) => [word, ...(word.includes("-") ? word.split("-") : [])])
-		.filter(
-			(word) =>
-				(/^\d{3,}$/.test(word) || (word.length >= 4 && /[a-z]/.test(word))) &&
-				!COMMON_WORDS.has(word),
-		);
-}
-
-/**
- * How well an item names a command: its words the command shares, an acronym
- * it writes in capitals (IAM, AWS, SSO) that the command has as a word, plus
- * 2 per `quoted` piece of it. An item that tells you to run something gets 1
- * more once it names the command at all: "Run both IAM checks" beats
- * "Choose a path for prod credentials" for `aws iam ... --profile prod`.
- */
-function commandScore(command: string, item: string): number {
-	const words = distinctWords(command);
-	const shared = new Set(
-		distinctWords(item).filter((word) =>
-			words.some((other) => other.startsWith(word) || word.startsWith(other)),
-		),
-	);
-	const commandWords = new Set(command.toLowerCase().split(/[^a-z0-9]+/));
-	const acronyms = new Set(
-		[...item.matchAll(/\b[A-Z]{2,3}\b/g)]
-			.map(([word]) => word.toLowerCase())
-			.filter((word) => commandWords.has(word)),
-	);
-	const quoted = [...item.matchAll(/`([^`\n]+)`/g)].filter(([, code]) =>
-		command.includes((code ?? "").trim()),
-	);
-	const runs = /^(optional:\s*)?(run|execute|install)\b/i.test(item.trim());
-	// Loose shared words count only for an item that tells you to run
-	// something: "Free about 17 GB more [Claude app data]" shared "app" and
-	// "data" with a delete under `/System/Volumes/Data` and took the buttons
-	// from "Run the three commands above".
-	const score = (runs ? shared.size : 0) + acronyms.size + 2 * quoted.length;
-	return score > 0 && runs ? score + 1 : score;
-}
-
-/**
- * The item a reply's `!` command goes under, -1 for the card's foot: the item
- * it was written under (`under[i]` holds item i's own commands), else the item
- * that names it best, else the first item that opens with run, execute or
- * install, else the first that says one of them.
- */
-export function commandItem(
-	command: string,
-	items: string[],
-	under: string[][] = [],
-): number {
-	const own = under.findIndex((commands) => commands.includes(command));
-	if (own >= 0) return own;
-	let best = -1;
-	let bestScore = 0;
-	items.forEach((item, index) => {
-		const score = commandScore(command, item);
-		if (score > bestScore) {
-			best = index;
-			bestScore = score;
-		}
-	});
-	if (best >= 0) return best;
-	// An item that tells you to run something ("Run the reset command...")
-	// before one that only mentions it: "comment `terrateam apply`" on an
-	// approve item took the button from the run item below it.
-	const opens = items.findIndex((item) =>
-		/^(optional:\s*)?(run|execute|install)\b/i.test(item.trim()),
-	);
-	if (opens >= 0) return opens;
-	return items.findIndex((item) => /\b(run|execute|install)\b/i.test(item));
-}
-
 /**
  * The item an earlier reply's `!` command goes under, -1 for none. Only an item
  * that sends you back to an earlier message to run something takes one - the
@@ -2472,6 +2361,8 @@ function RunCommands({
 		<RunCommand key={command} command={command} onRun={onRun} />
 	));
 }
+
+export { commandItem };
 
 /** The reply's notes on its `! commands`, for the Run buttons wherever they sit. */
 const CommandNotes = createContext<Record<string, string>>({});

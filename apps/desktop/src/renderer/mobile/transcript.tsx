@@ -6,6 +6,7 @@ import {
 	bangCommands,
 	describeCommand,
 	localCommand,
+	placeCommands,
 	splitActionItems,
 } from "../routes/_authenticated/_odin/board/action-items";
 import {
@@ -367,7 +368,8 @@ export function Transcript({
 				)}
 				{/* The summary sits right above what it asks of you, as on the board. */}
 				{latest && <TldrCard tldr={latest.last} />}
-				{index === commandsAt && run && (
+				{/* With the reply's items, each command sits under its item, as on the board. */}
+				{index === commandsAt && run && !(index === actionsAt && actions) && (
 					<RunCard text={message.text} run={run} />
 				)}
 				{index === actionsAt && actions && (
@@ -377,6 +379,15 @@ export function Transcript({
 						send={send}
 						dismissed={dismissed}
 						onDismiss={onDismiss}
+						commands={
+							index === commandsAt && run
+								? {
+										...placeCommands(actions, bangCommands(message.text)),
+										notes: bangCommandNotes(message.text),
+										run,
+									}
+								: undefined
+						}
 					/>
 				)}
 			</div>

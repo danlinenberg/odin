@@ -1,9 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { execWithShellEnv } from "lib/trpc/routers/workspaces/utils/shell-env";
 import { transcriptOf } from "./claude-sessions/claude-sessions";
-import { briefError } from "./claude-sessions/summarize";
+import { briefError, claudePrint } from "./claude-sessions/summarize";
 
 /**
  * The board's Next in line column, ordered by a model: which unstarted task
@@ -115,7 +114,7 @@ export async function rankTasks(
 		// Named so its transcript can be deleted - see writeBrief.
 		const sessionId = randomUUID();
 		try {
-			const { stdout } = await execWithShellEnv(
+			const { stdout } = await claudePrint(
 				claudeBin,
 				[
 					"-p",
