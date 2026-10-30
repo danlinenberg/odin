@@ -38,6 +38,7 @@ import {
 	claimOpened,
 	credentialFacts,
 	emailLink,
+	fixConflictsMessage,
 	jiraIssue,
 	jiraKey,
 	type LinkKind,
@@ -56,6 +57,8 @@ import {
 	sessionBrief,
 	slackThread,
 } from "./brief";
+import { typeIntoClaude } from "./ChatView";
+import { phoneReply } from "./phone-resume";
 
 /**
  * Session brief - the drawer's side panel. Answers "what did I walk into?".
@@ -350,8 +353,25 @@ function Chip({
 function StateChip({
 	status,
 }: {
-	status: { state: string | null; isDraft?: boolean } | null | undefined;
+	status:
+		| {
+				state: string | null;
+				isDraft?: boolean;
+				conflicting?: boolean;
+				base?: string | null;
+		  }
+		| null
+		| undefined;
 }) {
+	// An open PR that can't merge says so on its own row: right-click fixes it.
+	if (status?.state === "OPEN" && status.conflicting)
+		return (
+			<Chip
+				title={`Conflicts with ${status.base ?? "its base"} - right-click to have the session fix them`}
+				label="conflicts"
+				className={PILL.danger}
+			/>
+		);
 	// No chip while the lookup is in flight, or when gh couldn't answer.
 	// isDraft is optional: a main process older than the renderer won't send it.
 	const state =
@@ -527,20 +547,44 @@ const shortPr = (url: string) =>
  * Right-click on a PR: close it. A PR a session opened that you've decided
  * against - a duplicate, a second take on the same change - is otherwise a
  * trip to the browser. A merged or closed one can't be, so the item says that
- * instead of vanishing and leaving the right-click dead.
+ * instead of vanishing and leaving the right-click dead. An open one that
+ * conflicts with its base also gets Fix merge conflicts, which asks the
+ * session to resolve them - resumed first when Claude has exited.
  */
 function PrMenu({
 	url,
-	state,
+	paneId,
+	status,
 	children,
 }: {
 	url: string;
-	/** OPEN / MERGED / CLOSED once GitHub has answered. */
-	state?: string | null;
+	paneId: string;
+	/** GitHub's answer once it came: OPEN / MERGED / CLOSED, and whether it conflicts. */
+	status?: {
+		state: string | null;
+		conflicting?: boolean;
+		base?: string | null;
+	} | null;
 	children: React.ReactNode;
 }) {
 	const utils = electronTrpc.useUtils();
+	const write = electronTrpc.terminal.write.useMutation();
 	const name = shortPr(url);
+	const state = status?.state;
+	const conflicting = state === "OPEN" && !!status?.conflicting;
+	const fixConflicts = async () => {
+		const text = fixConflictsMessage(url, status?.base ?? null);
+		try {
+			// An exited session resumes with it; a running one gets it typed in.
+			if (phoneReply(paneId, text) === "live")
+				await typeIntoClaude(write.mutateAsync, paneId, text);
+			toast.success(`Asked the session to fix ${name}'s conflicts`);
+		} catch (error) {
+			toast.error(`Couldn't ask the session about ${name}`, {
+				description: error instanceof Error ? error.message : String(error),
+			});
+		}
+	};
 	const close = electronTrpc.terminal.closePullRequest.useMutation({
 		onSuccess: (result) => {
 			if (!result.closed) {
@@ -574,6 +618,14 @@ function PrMenu({
 				{children}
 			</ContextMenuTrigger>
 			<ContextMenuContent className="w-[190px]">
+				{conflicting && (
+					<ContextMenuItem
+						onSelect={() => void fixConflicts()}
+						className="text-[12px]"
+					>
+						Fix merge conflicts
+					</ContextMenuItem>
+				)}
 				<ContextMenuItem
 					variant={final ? "default" : "destructive"}
 					disabled={final || close.isPending}
@@ -1015,7 +1067,7 @@ export function SessionBrief({
 			</div>
 		);
 		return linkKind(url) === "pr" ? (
-			<PrMenu key={url} url={url} state={prStates?.[url]?.state}>
+			<PrMenu key={url} url={url} paneId={paneId} status={prStates?.[url]}>
 				{row}
 			</PrMenu>
 		) : (
@@ -1104,7 +1156,8 @@ export function SessionBrief({
 									<PrMenu
 										key={pr.url}
 										url={pr.url}
-										state={prStates?.[pr.url]?.state}
+										paneId={paneId}
+										status={prStates?.[pr.url]}
 									>
 										<div className="group flex items-center gap-1.5">
 											<Hover text={hoverFor(pr.url)}>

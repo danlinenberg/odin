@@ -909,6 +909,16 @@ export function mergeConflicts(states: PrStates): string[] {
 	);
 }
 
+/**
+ * What the brief's Fix merge conflicts sends the session: bring the base in,
+ * resolve keeping both sides, check, push. A merge, not a rebase, so the
+ * push needs no force and the PR's review stays.
+ */
+export function fixConflictsMessage(url: string, base: string | null): string {
+	const branch = base ?? "the base branch";
+	return `${url} has merge conflicts with ${branch}. Fetch origin, merge origin/${base ?? "<base>"} into this PR's branch, and resolve each conflict keeping what both sides meant. Run the checks, commit the merge and push. Tell me which files conflicted and how you resolved them.`;
+}
+
 export function mergeReady(
 	messages: BriefMessage[],
 	states: PrStates,
