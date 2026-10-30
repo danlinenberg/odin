@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 /**
  * The EC2, IAM and SSM clients, recording: every command sent, by name and
@@ -62,6 +66,7 @@ const {
 	MAX_INSTANCES,
 	parseTools,
 	profileNames,
+	HIDE_OTHERS_PROCESSES_SCRIPT,
 	setUpScript,
 	tagChoices,
 	toInstances,
@@ -234,6 +239,36 @@ describe("aws-instances", () => {
 		);
 		expect(script).toContain("sudo -u 'odin-dan' -H bash -lc ");
 		expect(script).toContain("https://claude.ai/install.sh");
+	});
+
+	test("setup hides other users' processes, now and after a reboot, with one /proc line in fstab", () => {
+		const script = setUpScript("odin-dan");
+		expect(script).toContain(HIDE_OTHERS_PROCESSES_SCRIPT);
+		expect(script.indexOf(HIDE_OTHERS_PROCESSES_SCRIPT)).toBeLessThan(
+			script.indexOf("sudo -u 'odin-dan'"),
+		);
+		expect(HIDE_OTHERS_PROCESSES_SCRIPT).toContain(
+			'mount -o remount,hidepid=2,gid="$gid" /proc',
+		);
+		// Its fstab lines, run twice on a copy: one /proc line, hidden, the rest kept.
+		const dir = mkdtempSync(join(tmpdir(), "odin-fstab-"));
+		try {
+			const fstab = join(dir, "fstab");
+			writeFileSync(
+				fstab,
+				"LABEL=root / ext4 defaults 0 1\nproc /proc proc defaults 0 0\n",
+			);
+			const edit = HIDE_OTHERS_PROCESSES_SCRIPT.split("\n")
+				.filter((line) => line.includes("/etc/fstab"))
+				.join("\n")
+				.replaceAll("/etc/fstab", fstab);
+			execFileSync("bash", ["-c", `gid=999\n${edit}\n${edit}`]);
+			expect(readFileSync(fstab, "utf8")).toBe(
+				"LABEL=root / ext4 defaults 0 1\nproc /proc proc defaults,hidepid=2,gid=999 0 0\n",
+			);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 
 	test("the packages from Settings go in one at a time, quoted, as root, before the user's part", () => {

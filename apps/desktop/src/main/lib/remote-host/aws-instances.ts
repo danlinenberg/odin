@@ -449,13 +449,31 @@ export async function waitForHost(
 const sh = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
 
 /**
+ * Each user sees only their own processes (`hidepid=2`). A host session's
+ * prompt is Claude's last argument, so without it any user on a shared host
+ * reads anyone's prompts from the process list. Kept across reboots in
+ * /etc/fstab. Members of the `proc` group still see everything: the system's
+ * polkit, and a Datadog agent when the host has one (restarted once to pick
+ * the group up).
+ */
+export const HIDE_OTHERS_PROCESSES_SCRIPT = [
+	"getent group proc >/dev/null || groupadd --system proc",
+	'for u in polkitd dd-agent; do id "$u" >/dev/null 2>&1 && ! id -nG "$u" | grep -qw proc && usermod -aG proc "$u" && [ "$u" = dd-agent ] && systemctl try-restart datadog-agent >/dev/null 2>&1; done',
+	"gid=$(getent group proc | cut -d: -f3)",
+	"grep -v '^proc[[:space:]][[:space:]]*/proc[[:space:]]' /etc/fstab > /etc/fstab.odin; cat /etc/fstab.odin > /etc/fstab && rm -f /etc/fstab.odin",
+	'echo "proc /proc proc defaults,hidepid=2,gid=$gid 0 0" >> /etc/fstab',
+	'mount -o remount,hidepid=2,gid="$gid" /proc',
+].join("\n");
+
+/**
  * What a host needs for Odin's sessions, installed when missing - run by SSM
  * as root, so it needs no sudo: tmux, git, curl and python3 from the
  * system's package manager, then the packages from Settings (`packages`,
  * space-separated, see shared/host-setup - one install each, so one the
  * manager doesn't have costs only itself); the Odin user's own Linux user,
- * without sudo; Claude Code and the GitHub CLI into that user's own
- * ~/.local/bin. Safe to run again. Ends with what it found.
+ * without sudo; other users' processes hidden (HIDE_OTHERS_PROCESSES_SCRIPT);
+ * Claude Code and the GitHub CLI into that user's own ~/.local/bin. Safe to
+ * run again. Ends with what it found.
  */
 export function setUpScript(user: string, packages = ""): string {
 	const extra = packageNames(packages);
@@ -475,6 +493,7 @@ export function setUpScript(user: string, packages = ""): string {
 			? [`for p in ${extra.map(sh).join(" ")}; do pkg "$p"; done`]
 			: []),
 		`id ${sh(user)} >/dev/null 2>&1 || useradd --create-home --shell /bin/bash ${sh(user)}`,
+		HIDE_OTHERS_PROCESSES_SCRIPT,
 		hostServiceInstallScript(user),
 		// Not sudo -i: it escapes each newline into a line continuation, which
 		// glued the script's lines together (fifor ...).
