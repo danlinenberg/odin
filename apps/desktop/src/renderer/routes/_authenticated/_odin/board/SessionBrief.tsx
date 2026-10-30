@@ -57,7 +57,6 @@ import {
 	sessionBrief,
 	slackThread,
 } from "./brief";
-import { typeIntoClaude } from "./ChatView";
 import { phoneReply } from "./phone-resume";
 
 /**
@@ -576,8 +575,12 @@ function PrMenu({
 		const text = fixConflictsMessage(url, status?.base ?? null);
 		try {
 			// An exited session resumes with it; a running one gets it typed in.
-			if (phoneReply(paneId, text) === "live")
+			if (phoneReply(paneId, text) === "live") {
+				// Loaded on use: the chat view's module sets up stores the brief
+				// has no need of, and the brief is imported far more widely.
+				const { typeIntoClaude } = await import("./ChatView");
 				await typeIntoClaude(write.mutateAsync, paneId, text);
+			}
 			toast.success(`Asked the session to fix ${name}'s conflicts`);
 		} catch (error) {
 			toast.error(`Couldn't ask the session about ${name}`, {
