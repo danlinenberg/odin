@@ -1,4 +1,81 @@
 import type { NightLogEntry } from "renderer/stores/next-in-line-prompt";
+import type { AllItem } from "../all/all-items";
+
+/** Nights a plan covers, so the host goes on that long with this computer away. */
+export const PLAN_NIGHTS = 3;
+
+/**
+ * `count` windows from `first` on, each set by this computer's clock on its
+ * own day, so a clock change between them comes out right on the host.
+ * `windowAt(t)` is the window open at t, or the next one.
+ */
+export function nextWindows(
+	first: { from: number; to: number },
+	count: number,
+	windowAt: (at: Date) => { from: number; to: number },
+): { from: number; to: number }[] {
+	const out = [first];
+	while (out.length < count) {
+		const last = out[out.length - 1] as { from: number; to: number };
+		out.push(windowAt(new Date(last.to * 1000 + 1000)));
+	}
+	return out;
+}
+
+/** Keys the host must never start: done here, or started on any host already. */
+export function nightExclude(
+	doneKeys: string[],
+	log: NightLogEntry[],
+): string[] {
+	const started = log.flatMap((entry) =>
+		entry.started ? [entry.started.key] : [],
+	);
+	return [...new Set([...doneKeys, ...started])];
+}
+
+/**
+ * A board row for a Slack message the host picked itself while this
+ * computer was away, so its session lands on the board with no row of ours
+ * behind it. Null for anything else.
+ */
+export function hostPickedItem(run: {
+	key: string;
+	title: string;
+	url?: string;
+	at: number;
+}): AllItem | null {
+	if (!run.key.startsWith("slack:") || !run.url) return null;
+	const id = run.key.slice("slack:".length);
+	const at = run.at * 1000;
+	return {
+		key: run.key,
+		source: "Slack",
+		to: "/reactions",
+		title: run.title,
+		url: run.url,
+		person: null,
+		status: null,
+		context: null,
+		priority: "High",
+		urgency: "high",
+		at,
+		createdAt: at,
+		dueDate: null,
+		mention: null,
+		ask: { kind: "asked", at },
+		body: null,
+		details: [],
+		launch: {
+			key: id,
+			title: run.title,
+			description: run.url,
+			contact: null,
+			brief: run.title,
+			pageId: id,
+			source: "reactions",
+		},
+	};
+}
 
 /** A plan send that failed, and when the runner tries it again. */
 export interface SendFailure {
