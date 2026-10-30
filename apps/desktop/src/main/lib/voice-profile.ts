@@ -328,6 +328,25 @@ export async function addVoiceNote(
 	}));
 }
 
+/** Takes back a correction a session recorded by mistake. False when no such note was kept. */
+export async function removeVoiceNote(
+	note: string,
+	path = voicePath(),
+): Promise<boolean> {
+	const clean = note.replace(/\s+/g, " ").trim().slice(0, 300);
+	let removed = false;
+	await update(path, (now) => {
+		if (!now.notes.includes(clean)) return now;
+		removed = true;
+		return {
+			...now,
+			notes: now.notes.filter((n) => n !== clean),
+			updatedAt: new Date().toISOString(),
+		};
+	});
+	return removed;
+}
+
 export interface DraftAndSent {
 	draft: string;
 	/** What I actually posted there afterwards, oldest first. */
