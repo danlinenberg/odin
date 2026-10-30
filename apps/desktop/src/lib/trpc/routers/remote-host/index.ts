@@ -85,6 +85,11 @@ import {
 	pushHostTokens,
 } from "main/lib/remote-host/host-tokens";
 import {
+	clearNightPlan,
+	NIGHT_PANE_PLACEHOLDER,
+	NIGHT_PROMPT_B64_PLACEHOLDER,
+	NIGHT_TASK_PLACEHOLDER,
+	type NightFallback,
 	pushNightPlan,
 	readNightStarted,
 	SECRETS_DIR_PLACEHOLDER,
@@ -189,6 +194,8 @@ async function withAwsSignIn<T>(host: RemoteHost, call: () => Promise<T>) {
 
 /** The Night Agent's last alert, closed when the next one replaces it. */
 let nightNotification: Notification | null = null;
+/** Past hosts whose nights this run of Odin already stopped. */
+const nightCleared = new Set<string>();
 
 type RemoteHost = NonNullable<ReturnType<typeof readOdinConfig>["remoteHost"]>;
 
@@ -1279,7 +1286,9 @@ export const createRemoteHostRouter = () =>
 		/**
 		 * Tonight's Night Agent plan, sent to the host's runner: each task as a
 		 * ready session script (its prompt built here, as a launch would), the
-		 * window as epoch seconds, the cap. See main/lib/remote-host/night.
+		 * window as epoch seconds, the cap. With `nights`, `until`, `exclude` and
+		 * `fallback`, the host keeps going for nights with this computer away.
+		 * See main/lib/remote-host/night.
 		 */
 		nightPush: publicProcedure
 			.input(
@@ -1296,11 +1305,36 @@ export const createRemoteHostRouter = () =>
 							prompt: z.string(),
 						}),
 					),
+					nights: z
+						.array(z.object({ from: z.number(), to: z.number() }))
+						.optional(),
+					until: z.number().optional(),
+					exclude: z.array(z.string()).optional(),
+					/** The ranking words and the Night Agent instructions, for the night's own picks. */
+					fallback: z
+						.object({ rank: z.string(), instructions: z.string() })
+						.optional(),
 				}),
 			)
 			.mutation(async ({ input }) => {
 				const host = readOdinConfig().remoteHost;
 				if (!host?.on) throw new Error("The remote host is off.");
+				// A host this computer sent nights to before stops having them.
+				for (const past of readOdinConfig().pastRemoteHosts ?? []) {
+					if (
+						past.instanceId === host.instanceId ||
+						nightCleared.has(past.instanceId)
+					)
+						continue;
+					await clearNightPlan(past).then(
+						() => nightCleared.add(past.instanceId),
+						(error) =>
+							console.warn(
+								`[remote-host] clearing ${past.name || past.instanceId}'s nights:`,
+								error,
+							),
+					);
+				}
 				const files: { local: string; remote: string }[] = [];
 				const tasks = [];
 				for (const task of input.tasks) {
@@ -1318,6 +1352,28 @@ export const createRemoteHostRouter = () =>
 						script: runScript(spec, SECRETS_DIR_PLACEHOLDER),
 					});
 				}
+				let fallback: NightFallback | undefined;
+				if (input.fallback) {
+					// A session like the tasks', no repo, its id and message left blank for the host.
+					const spec = await buildSessionSpec(host, {
+						pane: NIGHT_PANE_PLACEHOLDER,
+						repoPath: null,
+						claudeArgs: `--session-id ${NIGHT_PANE_PLACEHOLDER}`,
+						prompt: [NIGHT_TASK_PLACEHOLDER, input.fallback.instructions]
+							.filter(Boolean)
+							.join("\n\n"),
+					});
+					files.push(...(spec.files ?? []));
+					const prompt = spec.prompt ?? NIGHT_TASK_PLACEHOLDER;
+					fallback = {
+						script: runScript(spec, SECRETS_DIR_PLACEHOLDER).replaceAll(
+							Buffer.from(prompt).toString("base64"),
+							NIGHT_PROMPT_B64_PLACEHOLDER,
+						),
+						prompt,
+						rank: input.fallback.rank,
+					};
+				}
 				await pushNightPlan(
 					host,
 					{
@@ -1326,6 +1382,10 @@ export const createRemoteHostRouter = () =>
 						to: input.to,
 						cap: input.cap,
 						tasks,
+						nights: input.nights,
+						until: input.until,
+						exclude: input.exclude,
+						fallback,
 					},
 					await sessionSecrets(),
 					files,

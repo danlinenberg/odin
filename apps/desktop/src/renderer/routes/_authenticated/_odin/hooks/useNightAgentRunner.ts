@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
+import { useDoneStore } from "renderer/stores/done";
 import {
 	inOffHours,
 	useNextInLinePrompt,
@@ -10,8 +11,12 @@ import type { AllItem } from "../all/all-items";
 import type { StartResult } from "../all/use-start-item";
 import { useNextInLineQueue } from "../board/NextInLine";
 import {
+	hostPickedItem,
 	missedLine,
 	missedLogged,
+	nextWindows,
+	nightExclude,
+	PLAN_NIGHTS,
 	retryDelayMs,
 	type SendFailure,
 	shouldAlert,
@@ -222,12 +227,24 @@ export function useNightAgentRunner() {
 					});
 				}
 				const panes = Object.values(useTabsStore.getState().panes);
+				// The host's ledger holds every night: a run adopted before, or
+				// older than a plan reaches, stays off the board once closed there.
+				const adoptedLog = useNextInLinePrompt.getState().nightLog;
+				const oldest = Date.now() / 1000 - (PLAN_NIGHTS + 1) * 86_400;
 				for (const run of started) {
-					if (panes.some((pane) => pane.claudeSessionId === run.sessionId))
+					if (
+						run.at < oldest ||
+						panes.some((pane) => pane.claudeSessionId === run.sessionId) ||
+						adoptedLog.some(
+							(entry) => entry.started?.sessionId === run.sessionId,
+						)
+					)
 						continue;
-					const item = latest.current.waiting.find(
-						(row) => row.key === run.key,
-					);
+					// A message the host picked itself while this computer was away
+					// has no row here yet: it gets one built from what the host kept.
+					const item =
+						latest.current.waiting.find((row) => row.key === run.key) ??
+						hostPickedItem(run);
 					if (!item) continue;
 					const adopted = await latest.current.start(item, {
 						instructions: offHours.instructions,
@@ -265,11 +282,24 @@ export function useNightAgentRunner() {
 				0,
 				offHours.maxSessions + 3,
 			);
+			// The next nights too, so a host this computer stops reaching goes on.
+			const nights = nextWindows(window, PLAN_NIGHTS, (at) =>
+				nightWindow(at, offHours.start, offHours.end),
+			);
+			const exclude = nightExclude(
+				Object.keys(useDoneStore.getState().done),
+				useNextInLinePrompt.getState().nightLog,
+			);
+			// A night of picks only stays that way on the host too.
+			const picksOnly =
+				offHours.picked.length > 0 && offHours.afterPicks === "stop";
 			const signature = JSON.stringify([
 				window,
 				offHours.maxSessions,
 				offHours.instructions,
 				order.map((row) => row.key),
+				exclude.length,
+				picksOnly,
 			]);
 			if (
 				sent.current?.signature === signature &&
@@ -294,6 +324,17 @@ export function useNightAgentRunner() {
 				...window,
 				cap: offHours.maxSessions,
 				tasks,
+				nights,
+				until: (nights[nights.length - 1] ?? window).to,
+				exclude,
+				...(picksOnly
+					? {}
+					: {
+							fallback: {
+								rank: instructions,
+								instructions: offHours.instructions,
+							},
+						}),
 			});
 			if (sent.current?.signature !== signature || failure.current)
 				logNight(

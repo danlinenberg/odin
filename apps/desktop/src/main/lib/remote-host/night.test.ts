@@ -11,7 +11,14 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MIN_HOST_FREE_MEMORY_SHARE } from "shared/launch-gate";
-import { NIGHT_RUNNER_PY, parseNightRead, READ_NIGHT_PY } from "./night";
+import {
+	NIGHT_PANE_PLACEHOLDER,
+	NIGHT_PROMPT_B64_PLACEHOLDER,
+	NIGHT_RUNNER_PY,
+	NIGHT_TASK_PLACEHOLDER,
+	parseNightRead,
+	READ_NIGHT_PY,
+} from "./night";
 
 const env = { PATH: process.env.PATH ?? "/usr/bin:/bin" };
 
@@ -230,8 +237,266 @@ describe("the Night Agent runner on the host", () => {
 				planFrom: 5,
 				missed: [{ night: 3, at: 4 }],
 			});
+			// Once there is a ledger, it is the record: every night, not just tonight.
+			writeFileSync(
+				join(night, "ran.jsonl"),
+				`${JSON.stringify({ key: "a", title: "A", sessionId: "s1", at: 1 })}\n${JSON.stringify({ key: "b", title: "B", sessionId: "s2", at: 2, url: "u", picked: true })}\n{"key": "c`,
+			);
+			expect(read().started.map((r) => r.key)).toEqual(["a", "b"]);
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+});
+
+describe("the Night Agent runner across nights", () => {
+	const N0 = 1_793_052_000;
+	const DAY = 86_400;
+
+	/** A host in a folder: the runner, a tmux that only records, and a quiet machine. */
+	function host() {
+		const dir = mkdtempSync(join(tmpdir(), "odin-night-"));
+		const night = join(dir, ".odin", "night");
+		mkdirSync(join(night, "stopped"), { recursive: true });
+		mkdirSync(join(dir, "bin"));
+		mkdirSync(join(dir, "alive"));
+		writeFileSync(join(dir, "night_runner.py"), NIGHT_RUNNER_PY);
+		writeFileSync(join(night, "env"), "");
+		writeFileSync(
+			join(dir, "bin", "tmux"),
+			`#!/bin/sh\ncase "$1" in\n  has-session) [ -e "${dir}/alive/$3" ] ;;\n  new-session) touch "${dir}/alive/$4" ;;\nesac\n`,
+			{ mode: 0o755 },
+		);
+		const plan = (
+			keys: string[],
+			extra: Record<string, unknown> = {},
+			nights = 3,
+		) =>
+			writeFileSync(
+				join(night, "plan.json"),
+				JSON.stringify({
+					id: "p1",
+					from: N0,
+					to: N0 + 6 * 3600,
+					cap: 2,
+					tasks: keys.map((key) => ({
+						key,
+						title: key,
+						sessionId: `s-${key.replaceAll(":", "_")}`,
+						script: "true",
+					})),
+					nights: Array.from({ length: nights }, (_, i) => ({
+						from: N0 + i * DAY,
+						to: N0 + i * DAY + 6 * 3600,
+					})),
+					until: N0 + 10 * DAY,
+					...extra,
+				}),
+			);
+		/** One tick at `now`; `setup` is Python run first, with the runner as `r`. */
+		const tick = (now: number, setup = "") =>
+			execFileSync(
+				"python3",
+				[
+					"-I",
+					"-c",
+					[
+						"import sys, types; sys.path.insert(0, sys.argv[1]); import night_runner as r",
+						`r.time = types.SimpleNamespace(time=lambda: ${now})`,
+						'r.read = lambda path: "MemTotal: 32000000 kB\\nMemAvailable: 30000000 kB\\n" if path.endswith("meminfo") else "0.1 0.1 0.1 1/1 1\\n"',
+						setup,
+						"r.main()",
+					].join("\n"),
+					dir,
+				],
+				{ env: { PATH: `${join(dir, "bin")}:${env.PATH}`, HOME: dir } },
+			).toString();
+		const finish = () => {
+			rmSync(join(dir, "alive"), { recursive: true });
+			mkdirSync(join(dir, "alive"));
+		};
+		const ledger = () =>
+			existsSync(join(night, "ran.jsonl"))
+				? readFileSync(join(night, "ran.jsonl"), "utf8")
+						.trim()
+						.split("\n")
+						.flatMap((line) => {
+							try {
+								return [(JSON.parse(line) as { key: string }).key];
+							} catch {
+								return [];
+							}
+						})
+				: [];
+		const done = () => rmSync(dir, { recursive: true, force: true });
+		return { dir, night, plan, tick, finish, ledger, done };
+	}
+
+	test("one plan runs three nights, the cap each night, and never a key twice", () => {
+		const h = host();
+		try {
+			h.plan(
+				["a", "b", "c", "d", "e", "f"].map(
+					(k) => `slack:C1:${k.charCodeAt(0)}.1`,
+				),
+			);
+			for (let night = 0; night < 3; night++) {
+				const base = N0 + night * DAY;
+				h.tick(base + 60);
+				h.finish();
+				h.tick(base + 120);
+				h.finish();
+				h.tick(base + 180);
+			}
+			expect(h.ledger()).toEqual(
+				["a", "b", "c", "d", "e", "f"].map(
+					(k) => `slack:C1:${k.charCodeAt(0)}.1`,
+				),
+			);
+		} finally {
+			h.done();
+		}
+	});
+
+	test("waits for the last session's turn to end", () => {
+		const h = host();
+		try {
+			h.plan(["slack:C1:1.1", "slack:C1:2.2"]);
+			h.tick(N0 + 60);
+			h.tick(N0 + 120);
+			expect(h.ledger()).toEqual(["slack:C1:1.1"]);
+			writeFileSync(join(h.night, "stopped", "s-slack_C1_1.1"), "");
+			h.tick(N0 + 180);
+			expect(h.ledger()).toEqual(["slack:C1:1.1", "slack:C1:2.2"]);
+		} finally {
+			h.done();
+		}
+	});
+
+	test("starts nothing outside the windows or after the plan's end", () => {
+		const h = host();
+		try {
+			h.plan(["slack:C1:1.1"], { until: N0 + DAY });
+			h.tick(N0 - 60);
+			h.tick(N0 + 7 * 3600);
+			h.tick(N0 + DAY + 60);
+			expect(h.ledger()).toEqual([]);
+		} finally {
+			h.done();
+		}
+	});
+
+	test("a new plan never restarts a key the ledger or the exclusions hold", () => {
+		const h = host();
+		try {
+			h.plan(["slack:C1:1.1", "slack:C1:2.2"], { exclude: ["slack:C1:1.1"] });
+			h.tick(N0 + 60);
+			h.finish();
+			h.plan(["slack:C1:2.2", "slack:C1:3.3"], { id: "p2" });
+			h.tick(N0 + 120);
+			expect(h.ledger()).toEqual(["slack:C1:2.2", "slack:C1:3.3"]);
+		} finally {
+			h.done();
+		}
+	});
+
+	test("a start is in the ledger before its session, and a torn line is skipped", () => {
+		const h = host();
+		try {
+			writeFileSync(
+				join(h.night, "ran.jsonl"),
+				'{"key": "slack:C1:1.1"}\n{"key": "sla',
+			);
+			h.plan(["slack:C1:1.1", "slack:C1:2.2"]);
+			writeFileSync(join(h.dir, "bin", "tmux"), "#!/bin/sh\nexit 1\n", {
+				mode: 0o755,
+			});
+			expect(() => h.tick(N0 + 60)).toThrow();
+			expect(h.ledger()).toContain("slack:C1:2.2");
+		} finally {
+			h.done();
+		}
+	});
+
+	test("a state file from before nights had their own is read as tonight's", () => {
+		const h = host();
+		try {
+			h.plan(["slack:C1:1.1", "slack:C1:2.2", "slack:C1:3.3"]);
+			writeFileSync(
+				join(h.night, "state.json"),
+				JSON.stringify({
+					plan: "old",
+					night: N0,
+					started: [
+						{ key: "slack:C1:1.1", sessionId: "x" },
+						{ key: "slack:C1:2.2", sessionId: "y" },
+					],
+				}),
+			);
+			h.tick(N0 + 60);
+			expect(h.ledger()).toEqual([]);
+		} finally {
+			h.done();
+		}
+	});
+
+	test("with the queue done, it picks marked messages once a night, in Claude's order, and only listed ones", () => {
+		const h = host();
+		try {
+			h.plan(["slack:C1:1.1"], {
+				cap: 5,
+				fallback: {
+					script: `echo ${NIGHT_PANE_PLACEHOLDER} ${NIGHT_PANE_PLACEHOLDER.slice(0, 8)} ${NIGHT_PROMPT_B64_PLACEHOLDER} > "${h.dir}/script-$$"`,
+					prompt: `${NIGHT_TASK_PLACEHOLDER} on odin/${NIGHT_PANE_PLACEHOLDER.slice(0, 8)}`,
+					rank: "",
+				},
+			});
+			const listed = JSON.stringify([
+				{ key: "slack:D9:1.1", title: "first", url: "u1" },
+				{ key: "slack:D9:2.2", title: "second", url: "u2" },
+				{ key: "rm -rf /", title: "x", url: "" },
+				{ key: "slack:C1:1.1", title: "ran", url: "" },
+			]);
+			const setup = [
+				`r.marked = lambda now: (open(sys.argv[1] + "/listed", "a").write("x"), __import__("json").loads(${JSON.stringify(listed)}))[1]`,
+				'r.rank = lambda cands, words: ["jira:EVIL-1", "slack:D9:2.2", "slack:D9:1.1"]',
+			].join("\n");
+			h.tick(N0 + 60, setup);
+			h.finish();
+			for (let i = 2; i <= 6; i++) {
+				h.tick(N0 + 60 * i, setup);
+				h.finish();
+			}
+			expect(h.ledger()).toEqual([
+				"slack:C1:1.1",
+				"slack:D9:2.2",
+				"slack:D9:1.1",
+			]);
+			expect(readFileSync(join(h.dir, "listed"), "utf8")).toBe("x");
+			const rows = readFileSync(join(h.night, "ran.jsonl"), "utf8")
+				.trim()
+				.split("\n")
+				.map((l) => JSON.parse(l));
+			expect(rows[1]).toMatchObject({
+				key: "slack:D9:2.2",
+				url: "u2",
+				picked: true,
+			});
+			const sid = rows[1].sessionId as string;
+			const plan = JSON.parse(readFileSync(join(h.night, "state.json"), "utf8"))
+				.nights[String(N0)].picked[0];
+			expect(plan.script).toContain(`${sid} ${sid.slice(0, 8)} `);
+			const prompt = Buffer.from(
+				plan.script.split(" ")[3],
+				"base64",
+			).toString();
+			expect(prompt).toContain("second");
+			expect(prompt).toContain(`odin/${sid.slice(0, 8)}`);
+			// The next night lists again.
+			h.tick(N0 + DAY + 60, setup);
+			expect(readFileSync(join(h.dir, "listed"), "utf8")).toBe("xx");
+		} finally {
+			h.done();
 		}
 	});
 });

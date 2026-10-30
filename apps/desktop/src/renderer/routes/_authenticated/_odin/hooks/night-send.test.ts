@@ -1,11 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import {
 	ALERT_BEFORE_MS,
+	hostPickedItem,
 	missedLine,
 	missedLogged,
+	nextWindows,
+	nightExclude,
 	retryDelayMs,
 	shouldAlert,
 } from "./night-send";
+import { nightWindow } from "./useNightAgentRunner";
 
 describe("retrying a failed plan send", () => {
 	test("waits a minute, then doubles, at most 15 minutes", () => {
@@ -62,5 +66,67 @@ describe("the missed-window line", () => {
 		expect(missedLogged(log, night + 3_600_000)).toBe(true);
 		expect(missedLogged(log, night + 86_400_000)).toBe(false);
 		expect(missedLogged([{ ...log[0], event: "Sent" }], night)).toBe(false);
+	});
+});
+
+describe("a plan for the next nights", () => {
+	test("each night is set on its own day, so a clock change moves it by the hour", () => {
+		const windowAt = (at: Date) => nightWindow(at, "22:00", "04:00");
+		const now = new Date(2026, 9, 23, 12, 0);
+		const nights = nextWindows(windowAt(now), 3, windowAt);
+		expect(nights).toHaveLength(3);
+		for (const night of nights) {
+			const from = new Date(night.from * 1000);
+			expect([from.getHours(), from.getMinutes()]).toEqual([22, 0]);
+			expect(night.to - night.from).toBeGreaterThanOrEqual(5 * 3600);
+		}
+		expect(new Date(nights[2].from * 1000).getDate()).toBe(25);
+	});
+
+	test("excludes what is done here and what started on any host", () => {
+		expect(
+			nightExclude(
+				["slack:C1:1.1", "jira:A-1"],
+				[
+					{
+						at: "",
+						event: "x",
+						started: { key: "slack:C1:2.2", title: "t", source: "Slack" },
+					},
+					{ at: "", event: "y" },
+					{
+						at: "",
+						event: "z",
+						started: { key: "jira:A-1", title: "t", source: "Jira" },
+					},
+				],
+			),
+		).toEqual(["slack:C1:1.1", "jira:A-1", "slack:C1:2.2"]);
+	});
+
+	test("a Slack message the host picked becomes a row the board can attach to", () => {
+		const item = hostPickedItem({
+			key: "slack:D9:1.5",
+			title: "Can you check",
+			url: "https://x/p1",
+			at: 100,
+		});
+		expect(item).toMatchObject({
+			key: "slack:D9:1.5",
+			source: "Slack",
+			url: "https://x/p1",
+			at: 100_000,
+		});
+		expect(item?.launch).toMatchObject({
+			key: "D9:1.5",
+			pageId: "D9:1.5",
+			source: "reactions",
+		});
+		expect(
+			hostPickedItem({ key: "jira:A-1", title: "t", url: "u", at: 1 }),
+		).toBeNull();
+		expect(
+			hostPickedItem({ key: "slack:D9:1.5", title: "t", at: 1 }),
+		).toBeNull();
 	});
 });
