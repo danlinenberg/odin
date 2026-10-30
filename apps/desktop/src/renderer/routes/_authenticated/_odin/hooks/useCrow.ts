@@ -23,12 +23,16 @@ import {
 } from "renderer/stores/next-in-line-prompt";
 import { useOneByOne } from "renderer/stores/one-by-one";
 import { useTabsStore } from "renderer/stores/tabs/store";
-import type { Pane } from "renderer/stores/tabs/types";
-import { runInSessionShell } from "renderer/stores/tabs/useAgentHookListener";
+import type { Pane, PaneStatus } from "renderer/stores/tabs/types";
+import {
+	lastAgentHookAt,
+	runInSessionShell,
+} from "renderer/stores/tabs/useAgentHookListener";
 import { crowRule, NOTIFICATION_EVENTS } from "shared/constants";
 import type { OdinActionRequest } from "shared/notification-types";
 import { odinGuide } from "shared/odin-guide";
 import {
+	agentOnScreen,
 	odinScreenStatus,
 	spacesForCursorForward,
 } from "shared/odin-screen-status";
@@ -93,6 +97,25 @@ const READY_TIMEOUT_MS = 90_000;
  * the conversation in a fresh process instead.
  */
 const STUCK_MS = 10 * 60_000;
+
+/**
+ * How long Huginn's "working" has to go without a hook before his screen is
+ * read to check it - the board's repair scan waits the same.
+ */
+const QUIET_MS = 120_000;
+
+/**
+ * What Huginn's screen says about a "working" the hooks went quiet on: the
+ * status to write, or undefined to leave it. A turn cut with Esc or Ctrl+C
+ * fires no Stop hook, and a restart can leave his PTY at a bare shell, so
+ * without this the raven nodded "working" for a day. The board's scan repairs
+ * its cards this way, but skips him: he has no task title.
+ */
+export function crowScreenRepair(screen: string): PaneStatus | undefined {
+	if (!agentOnScreen(screen)) return "idle";
+	const read = odinScreenStatus(screen);
+	return read === "working" ? undefined : read;
+}
 
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
@@ -504,6 +527,36 @@ export function useCrow() {
 			);
 		},
 	});
+
+	// Huginn stuck on "working" with no hook for a while: read his screen, and
+	// write what two reads in a row agree on - one caught mid-repaint can lie.
+	useEffect(() => {
+		let lastRead: PaneStatus | undefined;
+		const check = async () => {
+			const pane = crowPane(useTabsStore.getState().panes);
+			const since = Math.max(
+				pane?.odinStatusAt ?? 0,
+				(pane && lastAgentHookAt.get(pane.id)) || 0,
+			);
+			if (!pane || pane.status !== "working" || Date.now() - since < QUIET_MS) {
+				lastRead = undefined;
+				return;
+			}
+			const { text } = await utils.client.terminal.readScreen.query({
+				paneId: pane.id,
+			});
+			// No screen: his PTY is gone, so nothing is working.
+			const read = crowScreenRepair(
+				stripAnsi(spacesForCursorForward(text ?? "")),
+			);
+			if (read && read === lastRead) {
+				useTabsStore.getState().setPaneStatus(pane.id, read);
+				lastRead = undefined;
+			} else lastRead = read;
+		};
+		const timer = setInterval(() => void check().catch(() => {}), 15_000);
+		return () => clearInterval(timer);
+	}, [utils]);
 
 	// One by one: start the next task once the last one stops working.
 	useEffect(() => {
