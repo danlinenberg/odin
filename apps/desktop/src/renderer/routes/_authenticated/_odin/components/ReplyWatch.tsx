@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { LuBellRing } from "react-icons/lu";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { useTabsStore } from "renderer/stores/tabs/store";
+import { profileOf } from "shared/odin-profile";
 import type { PaneStatus } from "shared/tabs-types";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -28,9 +29,16 @@ export interface Watch {
 	since?: number;
 	/** What a fired condition watch says happened. */
 	event?: ConditionEvent;
+	/** The session's profile: the bar shows a ping only on that board. */
+	profile?: string;
 }
 
 export type ConditionEvent = "Happened" | "Gave up";
+
+/** The profile a session was started under (unset = the default one). */
+function profileOfPane(paneId: string): string | undefined {
+	return useTabsStore.getState().panes[paneId]?.odinProfile;
+}
 
 /** Watch keys for "Ping me when...": `when:<paneId>:<since>`. */
 export const WHEN = "when:";
@@ -86,7 +94,10 @@ export const useReplyWatch = create<{
 							: {
 									...rest,
 									...Object.fromEntries(
-										keys.map((k) => [k, { title, paneId }]),
+										keys.map((k) => [
+											k,
+											{ title, paneId, profile: profileOfPane(paneId) },
+										]),
 									),
 								},
 					};
@@ -109,7 +120,12 @@ export const useReplyWatch = create<{
 					return {
 						watches: {
 							...s.watches,
-							...Object.fromEntries(fresh.map((k) => [k, { title, paneId }])),
+							...Object.fromEntries(
+								fresh.map((k) => [
+									k,
+									{ title, paneId, profile: profileOfPane(paneId) },
+								]),
+							),
 						},
 					};
 				}),
@@ -145,6 +161,7 @@ export const useReplyWatch = create<{
 								paneId,
 								condition,
 								since,
+								profile: profileOfPane(paneId),
 							},
 						},
 					};
@@ -342,9 +359,15 @@ export function conditionOutcome(
  */
 export function unreadPings(
 	watches: Record<string, Watch>,
+	profileId: string,
 ): (Omit<Watch, "event"> & { key: string; event: string })[] {
 	return Object.entries(watches)
-		.filter(([, w]) => w.reply && w.paneId)
+		.filter(
+			([, w]) =>
+				w.reply &&
+				w.paneId &&
+				profileOf(w.profile ?? profileOfPane(w.paneId)) === profileId,
+		)
 		.map(([key, w]) => ({ ...w, key, event: watchEvent(key, w) }));
 }
 

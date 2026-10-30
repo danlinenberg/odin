@@ -53,9 +53,20 @@ test("an approval the watcher pings for raises the Reminders bar", () => {
 	const pinged = newReplies(watches, activity);
 	expect(pinged).toEqual([pr]);
 	setStamps({ [pr]: "approved" }, { [pr]: "Fix login" });
-	const pings = unreadPings(useReplyWatch.getState().watches);
+	const pings = unreadPings(useReplyWatch.getState().watches, "default");
 	expect(pings.map((p) => [p.key, p.event])).toEqual([[pr, "Approved"]]);
 	// No reminders at all: the unread approval alone shows the bar.
 	expect(showsBar({}, pings.length, Date.now())).toBe(true);
 	useReplyWatch.getState().toggle([], "", "pane-9");
+});
+
+test("a ping shows only on its own profile's bar", () => {
+	const watches = {
+		"jira:W-1": { title: "work", paneId: "p1", reply: "hi", profile: "work" },
+		"jira:P-1": { title: "mine", paneId: "p2", reply: "hi" },
+	};
+	expect(unreadPings(watches, "work").map((p) => p.key)).toEqual(["jira:W-1"]);
+	expect(unreadPings(watches, "default").map((p) => p.key)).toEqual([
+		"jira:P-1",
+	]);
 });
