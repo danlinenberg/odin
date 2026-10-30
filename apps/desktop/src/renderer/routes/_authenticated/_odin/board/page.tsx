@@ -1892,6 +1892,17 @@ function TagMenu({
 	// Tags fold to one row: the list is long and most right-clicks are for
 	// Done or Remind.
 	const [isTagsOpen, setIsTagsOpen] = useState(false);
+	// The rarer actions fold the same way, so the open menu is the few you
+	// reach for: Done, Idle, Remind and Ping.
+	const [isMoreOpen, setIsMoreOpen] = useState(false);
+	const hasMore =
+		!!onDocs ||
+		!!onRestart ||
+		!!onRunHere ||
+		!!onVsCodeOnHost ||
+		!!onRunOnHost ||
+		remote !== undefined ||
+		!!onSaveDoc;
 
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
@@ -1972,77 +1983,7 @@ function TagMenu({
 					Move to Idle
 				</button>
 			)}
-			{onDocs && (
-				<button
-					type="button"
-					title="Move to Docs - off the board like Done, kept under Docs to read or bring back"
-					onClick={() => {
-						onDocs();
-						onClose();
-					}}
-					className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
-				>
-					<LuBookOpen className="size-3" aria-hidden />
-					Move to Docs
-				</button>
-			)}
-			{onRestart && (
-				<button
-					type="button"
-					title="Quit Claude and reopen this conversation - picks up a new login or API key"
-					onClick={() => {
-						onRestart();
-						onClose();
-					}}
-					className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
-				>
-					<LuRotateCw className="size-3" aria-hidden />
-					Restart session
-				</button>
-			)}
-			{onRunHere && (
-				<button
-					type="button"
-					title="Copy this conversation from the remote host and continue it on this computer"
-					onClick={() => {
-						onRunHere();
-						onClose();
-					}}
-					className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
-				>
-					<LuLaptop className="size-3" aria-hidden />
-					Run on this computer
-				</button>
-			)}
-			{onVsCodeOnHost && (
-				<button
-					type="button"
-					title="Open this session's folder on the remote host in VS Code, over SSH"
-					onClick={() => {
-						onVsCodeOnHost();
-						onClose();
-					}}
-					className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
-				>
-					<LuCode className="size-3" aria-hidden />
-					Open in VS Code on the host
-				</button>
-			)}
-			{onRunOnHost && (
-				<button
-					type="button"
-					title="Push this session's branch and continue the conversation on the remote host"
-					onClick={() => {
-						onRunOnHost();
-						onClose();
-					}}
-					className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
-				>
-					<BsCloud className="size-3" aria-hidden />
-					Run on remote host
-				</button>
-			)}
-			<div className="mb-1.5 border-b border-border pb-1.5">
+			<div className="my-1.5 border-y border-border py-1.5">
 				<RemindButton
 					label="Remind me…"
 					onPick={(day) => {
@@ -2125,37 +2066,6 @@ function TagMenu({
 							</button>
 						</form>
 					))}
-				{remote !== undefined && (
-					<button
-						type="button"
-						title="Follow and answer this session from claude.ai/code or the Claude app"
-						onClick={() => {
-							onRemote();
-							onClose();
-						}}
-						className={cn(
-							"flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] transition-colors hover:text-primary",
-							remote ? "text-primary" : "text-muted-foreground",
-						)}
-					>
-						<LuRadioTower className="size-3" aria-hidden />
-						{remote ? "Turn off Remote Control" : "Turn on Remote Control"}
-					</button>
-				)}
-				{onSaveDoc && (
-					<button
-						type="button"
-						title="Ask the agent to save this session as a doc in ~/.odin/docs - pick it from Doc when you write a new task"
-						onClick={() => {
-							onSaveDoc();
-							onClose();
-						}}
-						className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-primary"
-					>
-						<LuFileText className="size-3" aria-hidden />
-						Save as doc
-					</button>
-				)}
 			</div>
 			{onKeep && (
 				<button
@@ -2170,6 +2080,122 @@ function TagMenu({
 					<span className="w-3 text-success">✓</span>
 					Keep
 				</button>
+			)}
+			{hasMore && (
+				<button
+					type="button"
+					aria-expanded={isMoreOpen}
+					onClick={() => setIsMoreOpen(!isMoreOpen)}
+					className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+				>
+					<span className="w-3">{isMoreOpen ? "▾" : "▸"}</span>
+					More
+				</button>
+			)}
+			{isMoreOpen && (
+				<div className="mb-1 ml-3 border-l border-border pl-1">
+					{onDocs && (
+						<button
+							type="button"
+							title="Move to Docs - off the board like Done, kept under Docs to read or bring back"
+							onClick={() => {
+								onDocs();
+								onClose();
+							}}
+							className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+						>
+							<LuBookOpen className="size-3" aria-hidden />
+							Move to Docs
+						</button>
+					)}
+					{onRestart && (
+						<button
+							type="button"
+							title="Quit Claude and reopen this conversation - picks up a new login or API key"
+							onClick={() => {
+								onRestart();
+								onClose();
+							}}
+							className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+						>
+							<LuRotateCw className="size-3" aria-hidden />
+							Restart session
+						</button>
+					)}
+					{onRunHere && (
+						<button
+							type="button"
+							title="Copy this conversation from the remote host and continue it on this computer"
+							onClick={() => {
+								onRunHere();
+								onClose();
+							}}
+							className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+						>
+							<LuLaptop className="size-3" aria-hidden />
+							Run on this computer
+						</button>
+					)}
+					{onVsCodeOnHost && (
+						<button
+							type="button"
+							title="Open this session's folder on the remote host in VS Code, over SSH"
+							onClick={() => {
+								onVsCodeOnHost();
+								onClose();
+							}}
+							className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+						>
+							<LuCode className="size-3" aria-hidden />
+							Open in VS Code on the host
+						</button>
+					)}
+					{onRunOnHost && (
+						<button
+							type="button"
+							title="Push this session's branch and continue the conversation on the remote host"
+							onClick={() => {
+								onRunOnHost();
+								onClose();
+							}}
+							className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+						>
+							<BsCloud className="size-3" aria-hidden />
+							Run on remote host
+						</button>
+					)}
+					{remote !== undefined && (
+						<button
+							type="button"
+							title="Follow and answer this session from claude.ai/code or the Claude app"
+							onClick={() => {
+								onRemote();
+								onClose();
+							}}
+							className={cn(
+								"flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] transition-colors hover:text-primary",
+								remote ? "text-primary" : "text-muted-foreground",
+							)}
+						>
+							<LuRadioTower className="size-3" aria-hidden />
+							{remote ? "Turn off Remote Control" : "Turn on Remote Control"}
+						</button>
+					)}
+					{onSaveDoc && (
+						<button
+							type="button"
+							title="Ask the agent to save this session as a doc in ~/.odin/docs - pick it from Doc when you write a new task"
+							onClick={() => {
+								onSaveDoc();
+								onClose();
+							}}
+							className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-primary"
+						>
+							<LuFileText className="size-3" aria-hidden />
+							Save as doc
+						</button>
+					)}
+				</div>
 			)}
 			<button
 				type="button"
