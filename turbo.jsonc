@@ -52,6 +52,13 @@
 		// mode dropped it, so every release minted a new cert and macOS re-asked
 		// for Desktop access after each update.
 		"ODIN_SIGNING_P12",
+		// The Developer ID cert and notarization key (release.yml). Without them
+		// electron-builder fell back to the self-signed cert and skipped notarizing.
+		"CSC_LINK",
+		"CSC_KEY_PASSWORD",
+		"APPLE_API_KEY",
+		"APPLE_API_KEY_ID",
+		"APPLE_API_ISSUER",
 		// Odin: My Jira / My PRs views (read in desktop main)
 		"CLAUDE_JIRA_BASE_URL",
 		"CLAUDE_JIRA_EMAIL",

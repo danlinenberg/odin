@@ -12,6 +12,7 @@ import {
 	myLines,
 	noteConversation,
 	readVoice,
+	removeVoiceNote,
 	setVoiceEnabled,
 	setVoiceNotes,
 	trainingState,
@@ -146,6 +147,15 @@ describe("noteConversation", () => {
 		await addVoiceNote("  no   emoji ", path);
 		await addVoiceNote("no emoji", path);
 		expect((await readVoice(path)).notes).toEqual(["no emoji"]);
+	});
+
+	test("a correction recorded by mistake can be taken back", async () => {
+		const path = join(mkdtempSync(join(tmpdir(), "voice-")), "voice.json");
+		await addVoiceNote("shorter", path);
+		await addVoiceNote("no emoji", path);
+		expect(await removeVoiceNote("  no   emoji ", path)).toBe(true);
+		expect(await removeVoiceNote("never said", path)).toBe(false);
+		expect((await readVoice(path)).notes).toEqual(["shorter"]);
 	});
 });
 

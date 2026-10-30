@@ -9,6 +9,15 @@
  * the host has room for one more (the rule the laptop applies before a launch
  * there, in launch-gate.ts). When the laptop wakes, Odin reads what the host
  * started and puts those sessions on the board.
+ *
+ * So a laptop closed for days still has nights: a plan covers the next few
+ * windows (`nights`), the runner keeps each night's starts apart, and every
+ * start goes in an append-only ledger (ran.jsonl) first, so no key ever runs
+ * twice. When the laptop's queue runs out, the host fills the night itself,
+ * once: it lists the Slack messages you marked :eyes: through its own service,
+ * a read-only Claude only orders them, and each runs from a template the
+ * laptop sent (`fallback`). A plan stops at `until`, so a host you switched
+ * away from goes quiet on its own.
  */
 import { MIN_HOST_FREE_MEMORY_SHARE } from "shared/launch-gate";
 import { sh } from "./session";
@@ -16,6 +25,12 @@ import { adminLogin, connectHost, type HostLogin, runOnHost } from "./ssh";
 
 /** The placeholder a task's run script names its secrets dir by. */
 export const SECRETS_DIR_PLACEHOLDER = "__ODIN_SECRETS_DIR__";
+/** The fallback template's session id; the runner puts a fresh one in its place. */
+export const NIGHT_PANE_PLACEHOLDER = "0dinpane-0000-4000-8000-000000000000";
+/** Where the fallback template's prompt, base64, goes in its script. */
+export const NIGHT_PROMPT_B64_PLACEHOLDER = "__ODIN_PROMPT_B64__";
+/** Where a picked message goes in the fallback template's prompt. */
+export const NIGHT_TASK_PLACEHOLDER = "__ODIN_NIGHT_TASK__";
 
 export interface NightTask {
 	key: string;
@@ -23,6 +38,16 @@ export interface NightTask {
 	sessionId: string;
 	/** runScript() output with the secrets dir as SECRETS_DIR_PLACEHOLDER. */
 	script: string;
+}
+
+/** What the host needs to fill a night with no laptop: a session template and the ranking words. */
+export interface NightFallback {
+	/** runScript() of a no-repo session, its id NIGHT_PANE_PLACEHOLDER and its prompt NIGHT_PROMPT_B64_PLACEHOLDER. */
+	script: string;
+	/** That session's prompt, with NIGHT_TASK_PLACEHOLDER where the message goes. */
+	prompt: string;
+	/** Your sort words and the Night Agent ones, which the ranking obeys. */
+	rank: string;
 }
 
 export interface NightPlan {
@@ -33,6 +58,13 @@ export interface NightPlan {
 	to: number;
 	cap: number;
 	tasks: NightTask[];
+	/** Tonight's window and the next ones, as this computer's clock puts them (so a clock change is right). */
+	nights?: { from: number; to: number }[];
+	/** Epoch seconds the plan stops at, so a host this computer stopped sending to goes quiet. */
+	until?: number;
+	/** Keys that never start: done, dismissed, started on any host. */
+	exclude?: string[];
+	fallback?: NightFallback;
 }
 
 /** A window that opened on the host with no plan for it, epoch seconds. */
@@ -46,14 +78,25 @@ export interface NightStarted {
 	title: string;
 	sessionId: string;
 	at: number;
+	/** The message's link, for a row the host picked itself. */
+	url?: string;
+	/** true: the host picked it, with no row of the laptop's behind it. */
+	picked?: boolean;
 }
 
-export const NIGHT_RUNNER_PY = `import json, os, shutil, subprocess, tempfile, time
+export const NIGHT_RUNNER_PY = `import base64, json, os, re, shutil, subprocess, tempfile, time, urllib.parse, urllib.request, uuid
 
 HOME = os.path.expanduser("~/.odin/night")
 PLAN, STATE = HOME + "/plan.json", HOME + "/state.json"
-MISSED = HOME + "/missed.json"
+MISSED, LEDGER = HOME + "/missed.json", HOME + "/ran.jsonl"
 DAY = 86400
+PANE = "${NIGHT_PANE_PLACEHOLDER}"
+PROMPT_B64 = "${NIGHT_PROMPT_B64_PLACEHOLDER}"
+TASK = "${NIGHT_TASK_PLACEHOLDER}"
+# Only these become a session the host picked itself: a Slack message's key.
+PICKED_KEY = re.compile(r"^slack:[CDG][A-Z0-9]+:[0-9]+[.][0-9]+$")
+# A message marked longer ago than this is left for the laptop's own list.
+PICK_DAYS = 14
 # The share of its memory this host must have free before one more session
 # starts here: the same share the laptop waits for before a launch to it.
 MIN_FREE_SHARE = ${MIN_HOST_FREE_MEMORY_SHARE}
@@ -133,27 +176,173 @@ def note_missed(plan, now):
     os.replace(MISSED + ".new", MISSED)
 
 
+def save(path, data):
+    with open(path + ".new", "w") as f:
+        json.dump(data, f)
+    os.replace(path + ".new", path)
+
+
+def nights_of(plan):
+    return plan.get("nights") or [{"from": plan["from"], "to": plan["to"]}]
+
+
+def night_now(plan, now):
+    """The plan's window open now, or None."""
+    return next((n for n in nights_of(plan) if n["from"] <= now < n["to"]), None)
+
+
+def ledger():
+    """Every start, across nights and plans. A torn last line (a crash mid-write) is skipped."""
+    rows = []
+    try:
+        with open(LEDGER) as f:
+            for line in f:
+                try:
+                    rows.append(json.loads(line))
+                except ValueError:
+                    pass
+    except OSError:
+        pass
+    return rows
+
+
+def record(row):
+    """Appends a start to the ledger, on disk before the session starts."""
+    os.makedirs(HOME, exist_ok=True)
+    with open(LEDGER, "ab+") as f:
+        # A line torn by a crash gets its own line ended, so this row stays whole.
+        f.seek(0, os.SEEK_END)
+        if f.tell():
+            f.seek(-1, os.SEEK_END)
+            if f.read(1) != b"\\n":
+                f.write(b"\\n")
+        f.write(json.dumps(row).encode() + b"\\n")
+        f.flush()
+        os.fsync(f.fileno())
+
+
+def night_state(state, plan, night):
+    """This night's starts, kept apart from other nights' so a plan rolls over to the next."""
+    if "started" in state:
+        # Kept by a runner from before nights had their own state.
+        state = {"nights": {str(int(state.get("night") or 0)): {"started": state["started"]}}}
+    nights = state.setdefault("nights", {})
+    for key in sorted(nights, key=float)[:-14]:
+        del nights[key]
+    state["plan"] = plan["id"]
+    return state, nights.setdefault(str(int(night["from"])), {"started": []})
+
+
+def service(path):
+    """A Slack API call through this user's own Odin service on the host, which holds the token."""
+    port = 40000 + (os.getuid() % 10000) * 2
+    body = urllib.parse.urlencode({"action": "service", "service": "slack", "path": path}).encode()
+    raw = urllib.request.urlopen("http://127.0.0.1:%d/odin" % port, body, timeout=30).read().decode("utf-8", "replace")
+    return json.loads(raw[raw.find("{"):])
+
+
+def marked(now):
+    """The Slack messages you marked :eyes: lately, as the board keys them."""
+    got = service("reactions.list?limit=100&full=true")
+    if not got.get("ok"):
+        raise RuntimeError("Slack said %s" % got.get("error"))
+    out = []
+    for item in got.get("items", []):
+        m = item.get("message") or {}
+        if item.get("type") != "message" or not any(r.get("name") == "eyes" for r in m.get("reactions", [])):
+            continue
+        if now - float(m.get("ts") or 0) > PICK_DAYS * DAY:
+            continue
+        out.append({"key": "slack:%s:%s" % (item.get("channel"), m.get("ts")),
+                    "title": " ".join((m.get("text") or "").split())[:120] or "A Slack message",
+                    "url": m.get("permalink") or ""})
+    return out
+
+
+def claude():
+    for path in (os.path.expanduser("~/.local/bin/claude"), shutil.which("claude")):
+        if path and os.path.exists(path):
+            return path
+    return None
+
+
+def rank(cands, words):
+    """The candidates' keys in the order a read-only Claude puts them; None when it can't."""
+    exe = claude()
+    if not exe or not cands:
+        return None
+    prompt = (json.dumps(cands) + chr(10) * 2 +
+              "These Slack messages wait for me. Order them for an agent that works on them one by one tonight while I'm away: "
+              "most actionable and urgent first, and leave out any that look already handled (you may read their threads). "
+              "Answer with only a JSON array of keys, each taken from the list." +
+              (chr(10) * 2 + "My instructions for the ranking:" + chr(10) + words if words else ""))
+    # Read-only: no shell, no files, and every tool not named here is refused, not asked about.
+    out = subprocess.run([exe, "-p", "--output-format", "json", "--permission-mode", "dontAsk", "--tools", "ToolSearch",
+                          "--allowedTools", "mcp__claude_ai_Slack__slack_read_thread"],
+                         input=prompt, capture_output=True, text=True, timeout=900,
+                         env={"HOME": os.path.expanduser("~"), "USER": os.environ.get("USER", ""), "PATH": "/usr/bin:/bin"})
+    found = re.search(r"[[].*[]]", json.loads(out.stdout).get("result") or "", re.S)
+    return json.loads(found.group(0)) if found else None
+
+
+def picked_tasks(plan, skip, now):
+    """The night's own picks when the laptop's queue ran out: listed here, ordered by Claude, never anything else."""
+    fb = plan.get("fallback")
+    if not fb:
+        return []
+    cands = [c for c in marked(now) if PICKED_KEY.match(c["key"]) and c["key"] not in skip]
+    by_key = {c["key"]: c for c in cands}
+    order = list(by_key)
+    try:
+        ranked = [k for k in (rank(cands, fb.get("rank") or "") or []) if k in by_key]
+        order = list(dict.fromkeys(ranked)) + [k for k in order if k not in ranked]
+    except Exception as e:
+        print("ranking failed, so the list's own order: %s" % e)
+    tasks = []
+    for key in order:
+        c, sid = by_key[key], str(uuid.uuid4())
+        text = c["title"] + chr(10) * 2 + c["url"] + chr(10) * 2 + (
+            "A Slack message I marked :eyes:, which the Night Agent on the host picked while my computer was away. "
+            "Read its thread with Odin's Slack connection, then do what it asks of me. If it is already handled, stop.")
+        prompt = fb["prompt"].replace(TASK, text).replace(PANE, sid).replace(PANE[:8], sid[:8])
+        script = (fb["script"].replace(PROMPT_B64, base64.b64encode(prompt.encode()).decode())
+                  .replace(PANE, sid).replace(PANE[:8], sid[:8]))
+        tasks.append({"key": key, "title": c["title"], "url": c["url"], "sessionId": sid, "script": script, "picked": True})
+    return tasks
+
+
 def main():
     plan = load(PLAN, None)
     now = time.time()
-    if not plan:
+    if not plan or now >= plan.get("until", float("inf")):
         return
-    if not plan["from"] <= now < plan["to"]:
-        note_missed(plan, now)
+    night = night_now(plan, now)
+    if not night:
+        if now >= max(n["to"] for n in nights_of(plan)):
+            note_missed(plan, now)
         return
-    state = load(STATE, {})
-    if state.get("plan") != plan["id"] and state.get("night") != plan["from"]:
-        state = {"plan": plan["id"], "night": plan["from"], "started": []}
-    state["plan"] = plan["id"]
-    started = state["started"]
+    state, tonight = night_state(load(STATE, {}), plan, night)
+    started = tonight["started"]
     if len(started) >= plan["cap"]:
         return
     if started:
         last = started[-1]["sessionId"]
         if alive(last) and not os.path.exists(HOME + "/stopped/" + last):
             return
-    done = {s["key"] for s in started}
-    task = next((t for t in plan["tasks"] if t["key"] not in done), None)
+    skip = {r.get("key") for r in ledger()} | set(plan.get("exclude") or []) | {s["key"] for s in started}
+    task = next((t for t in plan["tasks"] if t["key"] not in skip), None)
+    if not task:
+        if "picked" not in tonight:
+            # Once a night: a failed list is tried again next minute, a failed ranking is not.
+            try:
+                tonight["picked"] = picked_tasks(plan, skip, now)
+            except Exception as e:
+                print("couldn't list tonight's own picks: %s" % e)
+                return
+            save(STATE, state)
+            if tonight["picked"]:
+                print("the laptop's queue is done: picked %d marked Slack messages here" % len(tonight["picked"]))
+        task = next((t for t in tonight["picked"] if t["key"] not in skip), None)
     if not task:
         return
     # The sessions already on this host (panes that keep working while the
@@ -169,11 +358,14 @@ def main():
     os.chmod(secrets + "/env", 0o600)
     with open(secrets + "/run.sh", "w") as f:
         f.write(task["script"].replace("${SECRETS_DIR_PLACEHOLDER}", secrets))
+    row = {"key": task["key"], "title": task["title"], "sessionId": task["sessionId"], "at": now, "night": night["from"]}
+    if task.get("picked"):
+        row.update({"url": task.get("url", ""), "picked": True})
+    # In the ledger before the start: a crash between the two never starts it twice.
+    record(row)
+    started.append(row)
+    save(STATE, state)
     subprocess.run(["tmux", "new-session", "-d", "-s", session_name(task["sessionId"]), "bash " + secrets + "/run.sh"], check=True)
-    started.append({"key": task["key"], "title": task["title"], "sessionId": task["sessionId"], "at": now})
-    with open(STATE + ".new", "w") as f:
-        json.dump(state, f)
-    os.replace(STATE + ".new", STATE)
 
 
 if __name__ == "__main__":
@@ -298,9 +490,32 @@ def load(name, default):
             return json.load(f)
     except Exception:
         return default
+def ran():
+    rows = []
+    try:
+        with open(home + "/ran.jsonl") as f:
+            for line in f:
+                try:
+                    rows.append(json.loads(line))
+                except ValueError:
+                    pass
+    except OSError:
+        state = load("state.json", {})
+        rows = state.get("started") or [r for n in state.get("nights", {}).values() for r in n.get("started", [])]
+    return rows[-200:]
 plan = load("plan.json", None)
-print(json.dumps({"started": load("state.json", {}).get("started", []), "planFrom": plan.get("from") if isinstance(plan, dict) else None, "missed": load("missed.json", [])}))
+print(json.dumps({"started": ran(), "planFrom": plan.get("from") if isinstance(plan, dict) else None, "missed": load("missed.json", [])}))
 `;
+
+/** Stops a host's nights: the plan goes, the ledger stays. For a host this computer no longer sends plans to. */
+export async function clearNightPlan(host: HostLogin): Promise<void> {
+	const client = await connectHost(host);
+	try {
+		await runOnHost(client, "rm -f ~/.odin/night/plan.json");
+	} finally {
+		client.end();
+	}
+}
 
 export function parseNightRead(raw: string): {
 	started: NightStarted[];

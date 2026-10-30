@@ -73,6 +73,7 @@ test("the plan-limit note is gone once it lapsed, missing or unreadable", () => 
 	expect(activePlanLimit(1000, () => "null")).toBeNull();
 });
 
+// Three python3 starts in a row: past bun's 5s default on a busy CI Mac.
 test("a host session starts on the key while this computer's plan is out", () => {
 	const home = mkdtempSync(join(tmpdir(), "odin-limit-"));
 	mkdirSync(join(home, ".claude"));
@@ -93,4 +94,4 @@ test("a host session starts on the key while this computer's plan is out", () =>
 		JSON.parse(readFileSync(join(home, ".claude", "plan-limit.json"), "utf8"))
 			.until,
 	).toBe(until);
-});
+}, 30_000);

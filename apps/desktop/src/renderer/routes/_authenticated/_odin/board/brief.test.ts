@@ -10,6 +10,7 @@ import {
 	droppedReason,
 	elapsedLabel,
 	emailLink,
+	fixConflictsMessage,
 	jiraIssue,
 	jiraKey,
 	lastMessageAt,
@@ -1171,5 +1172,23 @@ describe("credentialFacts", () => {
 		});
 		expect(moved.label).toBe("on the API key");
 		expect(moved.title).toContain("On the key since");
+	});
+});
+
+describe("fixConflictsMessage", () => {
+	it("asks for a merge of the base, not a rebase, and a push", () => {
+		const text = fixConflictsMessage("https://github.com/o/r/pull/5", "main");
+		expect(text).toContain(
+			"https://github.com/o/r/pull/5 has merge conflicts with main",
+		);
+		expect(text).toContain("merge origin/main");
+		expect(text).not.toContain("rebase");
+		expect(text).toContain("push");
+	});
+
+	it("still reads when GitHub didn't name the base", () => {
+		expect(fixConflictsMessage("u", null)).toContain(
+			"conflicts with the base branch",
+		);
 	});
 });

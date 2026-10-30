@@ -342,6 +342,26 @@ app.post(
 	},
 );
 
+/** Takes back a correction POST /voice recorded by mistake: `note=<the exact correction>`. */
+app.delete(
+	"/voice",
+	express.urlencoded({ extended: false }),
+	async (req, res) => {
+		if (req.headers.origin) {
+			return res.status(403).send("Not from a browser.\n");
+		}
+		const note = req.body?.note ?? req.query.note;
+		if (typeof note !== "string" || !note.trim()) {
+			return res.status(400).send("Need note.\n");
+		}
+		const { removeVoiceNote } = await import("../voice-profile");
+		if (!(await removeVoiceNote(note))) {
+			return res.status(404).send("No such correction.\n");
+		}
+		res.send("Removed.\n");
+	},
+);
+
 /** A Slack file or Jira attachment a /read lists, downloaded with Odin's token. */
 app.get("/file", async (req, res) => {
 	if (req.headers.origin) {
