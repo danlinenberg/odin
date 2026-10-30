@@ -3,6 +3,7 @@ import {
 	describeCommand,
 	localRunMessage,
 	noActionItems,
+	placeCommands,
 	runnableCommands,
 } from "./action-items";
 
@@ -68,4 +69,35 @@ test("a command with no note above it still says what it does", () => {
 	expect(describeCommand("AWS_PROFILE=dev ./scripts/deploy.sh prod")).toBe(
 		"Run deploy.sh prod",
 	);
+});
+
+test("the phone puts each `!` command under the item it was written under", () => {
+	const actions = [
+		"1. Smoke-test the CLI on your Mac (you only)",
+		"   Download the CLI:",
+		"   ```",
+		"   !local gh api repos/x/y/contents/z --jq .content > /tmp/z.py",
+		"   ```",
+		"   Deploy your env:",
+		"   ```",
+		"   !local python3 -I /tmp/z.py up",
+		"   ```",
+		"2. Merge the PR: https://github.com/x/y/pull/1",
+		"3. Ask Alexander for a cost estimate (you only)",
+	].join("\n");
+	const commands = [
+		"local gh api repos/x/y/contents/z --jq .content > /tmp/z.py",
+		"local python3 -I /tmp/z.py up",
+	];
+	expect(placeCommands(actions, commands)).toEqual({
+		under: [commands, [], []],
+		foot: [],
+	});
+});
+
+test("a command no item claims goes to the card's foot", () => {
+	expect(placeCommands("1. Pick a name [A | B]", ["df -h"])).toEqual({
+		under: [[]],
+		foot: ["df -h"],
+	});
 });
