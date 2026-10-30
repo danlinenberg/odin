@@ -978,6 +978,8 @@ await step(
 		return !!card;
 	})()`);
 		if (!opened) throw new Error("no card for the resumed session");
+		// Move to Docs sits under More, folded until you open it.
+		await click("[data-session-menu] button", "▸More");
 		await click("[data-session-menu] button", "Move to Docs");
 		await waitForText(SESSION, false);
 		await rail("Tasks");
