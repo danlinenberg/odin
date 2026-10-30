@@ -805,19 +805,30 @@ export const createRemoteHostRouter = () =>
 				updateOdinConfig({ remoteHost: { ...host, apiKeyFallback: input } });
 			}),
 		/** An API key for the plan limit in place of ANTHROPIC_API_KEY; empty forgets it. */
-		setCustomApiKey: publicProcedure.input(z.string()).mutation(({ input }) => {
-			const key = input.trim();
-			if (!key) {
-				updateOdinConfig({ fallbackApiKey: undefined });
-				return;
-			}
-			if (!safeStorage.isEncryptionAvailable()) {
-				throw new Error("This computer can't encrypt the API key.");
-			}
-			updateOdinConfig({
-				fallbackApiKey: safeStorage.encryptString(key).toString("base64"),
-			});
-		}),
+		setCustomApiKey: publicProcedure
+			.input(z.string())
+			.mutation(async ({ input }) => {
+				const key = input.trim();
+				if (!key) {
+					updateOdinConfig({ fallbackApiKey: undefined });
+					return;
+				}
+				if (!safeStorage.isEncryptionAvailable()) {
+					throw new Error("This computer can't encrypt the API key.");
+				}
+				// A bad key only shows up at the plan limit, as every session failing
+				// with "Invalid API key". Ask Anthropic now; offline, save it anyway.
+				const res = await fetch("https://api.anthropic.com/v1/models", {
+					headers: { "x-api-key": key, "anthropic-version": "2023-06-01" },
+					signal: AbortSignal.timeout(10_000),
+				}).catch(() => null);
+				if (res?.status === 401 || res?.status === 403) {
+					throw new Error("Anthropic doesn't accept this API key.");
+				}
+				updateOdinConfig({
+					fallbackApiKey: safeStorage.encryptString(key).toString("base64"),
+				});
+			}),
 		/**
 		 * Which connected GitHub accounts may go to the host, by login. The
 		 * host's tokens follow at once: an account turned off loses its token
