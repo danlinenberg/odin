@@ -23,6 +23,7 @@ import {
 } from "../components/Reminders";
 import { unreadPings, useReplyWatch } from "../components/ReplyWatch";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
+import { useOdinProfile } from "../hooks/useOdinProfile";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { HoverBrief } from "./SessionBrief";
@@ -208,7 +209,8 @@ export function SessionReminders() {
 	const watches = useReplyWatch((s) => s.watches);
 	const seen = useReplyWatch((s) => s.seen);
 	const dismiss = useReplyWatch((s) => s.dismiss);
-	const replies = unreadPings(watches);
+	const { activeId } = useOdinProfile();
+	const replies = unreadPings(watches, activeId);
 	if (!showsBar(reminders, replies.length, now)) return null;
 
 	return (
