@@ -152,15 +152,32 @@ if [[ "$SILENT" == 1 ]]; then
 	exit 0
 fi
 
+# The cask pins a version and sha256, so a normal release moves the pin. A
+# silent one leaves it where it is: brew stays on the release you announced.
+echo "==> pointing the Homebrew cask at $TAG"
+CASK=repos/danlinenberg/homebrew-odin/contents/Casks/odin.rb
+TMP=$(mktemp -d)
+gh release download "$TAG" --repo "$SLUG" --pattern Odin-arm64.dmg --dir "$TMP"
+SHA=$(shasum -a 256 "$TMP/Odin-arm64.dmg" | cut -d' ' -f1)
+gh api "$CASK" -H "Accept: application/vnd.github.raw" |
+	sed -E "s/^(  version )\"[^\"]*\"/\1\"$NEW\"/; s/^(  sha256 )\"[^\"]*\"/\1\"$SHA\"/" >"$TMP/odin.rb"
+gh api -X PUT "$CASK" -f message="odin $NEW" -f content="$(base64 -i "$TMP/odin.rb")" \
+	-f sha="$(gh api "$CASK" -q .sha)" >/dev/null
+rm -rf "$TMP"
+
 if [[ "$INSTALL" == 0 ]]; then
 	echo "==> $TAG published; this machine stays on $(defaults read /Applications/Odin.app/Contents/Info.plist CFBundleShortVersionString 2>/dev/null || echo unknown)"
 	exit 0
 fi
 
 echo "==> installing"
+# brew's own auto-update skips a tap it refreshed in the last few minutes, and
+# the cask bump above is newer than that.
+brew update --quiet
 brew upgrade --cask --greedy odin
-# Releases are signed with a self-signed certificate, so macOS quarantines the
-# download and offers no way past the dialog. Clearing it is not optional.
+# Releases are signed with the Developer ID and notarized, so this is a no-op.
+# It matters only for a build cut without the Apple secrets, which falls back
+# to the self-signed certificate that macOS quarantines.
 xattr -dr com.apple.quarantine /Applications/Odin.app
 
 HAVE=$(defaults read /Applications/Odin.app/Contents/Info.plist CFBundleShortVersionString)
