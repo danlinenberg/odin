@@ -11,6 +11,7 @@ import {
 	itemOptions,
 } from "../routes/_authenticated/_odin/board/action-items";
 import { Markdown } from "./markdown";
+import { RunCommand } from "./run-command";
 
 /**
  * The latest reply's ACTION ITEMS as the board's chat shows them: one row per
@@ -24,8 +25,16 @@ export function ActionCard({
 	send,
 	dismissed = [],
 	onDismiss,
+	commands,
 }: {
 	actions: string;
+	/** The reply's `!` commands, each under the item it belongs to (placeCommands). */
+	commands?: {
+		under: string[][];
+		foot: string[];
+		notes: Record<string, string>;
+		run: (command: string) => Promise<unknown>;
+	};
 	/** The reply above the items: a tap on an item shows its paragraph. */
 	body: string;
 	send: (text: string) => void;
@@ -53,9 +62,28 @@ export function ActionCard({
 						detail={itemDetail(item, body, number)}
 						send={send}
 						onDismiss={onDismiss && (() => onDismiss(item))}
+						commands={
+							commands && {
+								list: commands.under[number - 1] ?? [],
+								notes: commands.notes,
+								run: commands.run,
+							}
+						}
 					/>
 				))}
 			</ol>
+			{commands && commands.foot.length > 0 && (
+				<div className="mt-2.5 flex flex-col gap-2">
+					{commands.foot.map((command) => (
+						<RunCommand
+							key={command}
+							command={command}
+							note={commands.notes[command]}
+							run={commands.run}
+						/>
+					))}
+				</div>
+			)}
 		</div>
 	);
 }
@@ -70,9 +98,16 @@ function ActionRow({
 	detail,
 	send,
 	onDismiss,
+	commands,
 }: {
 	item: string;
 	number: number;
+	/** This item's `!` commands, run from under it as on the board. */
+	commands?: {
+		list: string[];
+		notes: Record<string, string>;
+		run: (command: string) => Promise<unknown>;
+	};
 	/** The reply's paragraph about this item, shown on a tap. */
 	detail: string | null;
 	send: (text: string) => void;
@@ -123,6 +158,18 @@ function ActionRow({
 			{why && detail && (
 				<div className="mt-1 ml-5 border-l-2 border-attention/30 pl-2.5 text-[14px] text-muted-foreground">
 					<Markdown text={detail} />
+				</div>
+			)}
+			{commands && commands.list.length > 0 && (
+				<div className="mt-1.5 flex flex-col gap-2 pl-5">
+					{commands.list.map((command) => (
+						<RunCommand
+							key={command}
+							command={command}
+							note={commands.notes[command]}
+							run={commands.run}
+						/>
+					))}
 				</div>
 			)}
 			<div className="mt-1.5 flex flex-wrap gap-1.5 pl-5">
