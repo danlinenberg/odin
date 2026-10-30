@@ -220,6 +220,28 @@ export function briefError(error: unknown): Error {
 	);
 }
 
+/**
+ * `claude -p` on the Claude plan. An ANTHROPIC_API_KEY exported from the shell
+ * wins over the plan, and a stale one fails every call with "Invalid API key",
+ * so the first run leaves it out. Only when that run fails while claude-auto
+ * has the plan out at its limit does it go again with the key.
+ */
+export async function claudePrint(
+	claudeBin: string,
+	args: string[],
+	options: Omit<Parameters<typeof execWithShellEnv>[2], "unsetEnv">,
+): Promise<{ stdout: string; stderr: string }> {
+	try {
+		return await execWithShellEnv(claudeBin, args, {
+			...options,
+			unsetEnv: ["ANTHROPIC_API_KEY"],
+		});
+	} catch (error) {
+		if (!activePlanLimit()) throw error;
+		return execWithShellEnv(claudeBin, args, options);
+	}
+}
+
 interface CacheEntry {
 	mtimeMs: number;
 	writtenAt: number;
@@ -353,7 +375,7 @@ export async function writeBrief({
 		const briefSessionId = randomUUID();
 		let stdout: string;
 		try {
-			({ stdout } = await execWithShellEnv(
+			({ stdout } = await claudePrint(
 				claudeBin,
 				[
 					"-p",
@@ -368,16 +390,7 @@ export async function writeBrief({
 					"--mcp-config",
 					'{"mcpServers":{}}',
 				],
-				{
-					cwd: tmpdir(),
-					timeout: timeoutMs,
-					maxBuffer: 1_000_000,
-					// An ANTHROPIC_API_KEY exported from the shell wins over the Claude
-					// plan, and a stale one fails every brief with "Invalid API key".
-					// Sessions drop it the same way; keep it only while claude-auto has
-					// the plan out at its limit, when the key is all that can run this.
-					unsetEnv: activePlanLimit() ? [] : ["ANTHROPIC_API_KEY"],
-				},
+				{ cwd: tmpdir(), timeout: timeoutMs, maxBuffer: 1_000_000 },
 			));
 		} catch (error) {
 			throw briefError(error);

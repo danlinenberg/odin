@@ -1,9 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { execWithShellEnv } from "lib/trpc/routers/workspaces/utils/shell-env";
 import { transcriptOf } from "./claude-sessions/claude-sessions";
-import { briefError } from "./claude-sessions/summarize";
+import { briefError, claudePrint } from "./claude-sessions/summarize";
 
 /**
  * The backlog sweep's last rung: a model reads the conversations the rules
@@ -67,7 +66,7 @@ async function judgeBatch(
 	// Named so its transcript can be deleted - see writeBrief.
 	const sessionId = randomUUID();
 	try {
-		const { stdout } = await execWithShellEnv(
+		const { stdout } = await claudePrint(
 			claudeBin,
 			[
 				"-p",

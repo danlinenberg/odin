@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { execWithShellEnv } from "lib/trpc/routers/workspaces/utils/shell-env";
 import { ODIN_HOME_DIR } from "./app-environment";
 import { transcriptOf } from "./claude-sessions/claude-sessions";
+import { claudePrint } from "./claude-sessions/summarize";
 
 /**
  * How I write, learned from what I actually send, so a session's drafts (a
@@ -253,7 +253,7 @@ async function askModel(
 ): Promise<string> {
 	const sessionId = randomUUID();
 	try {
-		const { stdout } = await execWithShellEnv(
+		const { stdout } = await claudePrint(
 			claudeBin,
 			[
 				"-p",

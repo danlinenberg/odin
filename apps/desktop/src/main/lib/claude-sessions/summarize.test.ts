@@ -12,7 +12,6 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { activePlanLimit } from "../remote-host/api-key-fallback";
 import { digest, parseBrief, warmBriefs, writeBrief } from "./summarize";
 
 /**
@@ -88,7 +87,7 @@ function fixture(session: string = nextSession()) {
 }
 
 describe("writeBrief", () => {
-	test("runs claude without the shell's ANTHROPIC_API_KEY while the plan is in", async () => {
+	test("runs claude without the shell's ANTHROPIC_API_KEY", async () => {
 		const { session, root, cachePath } = fixture();
 		const bin = join(root, "key-claude.sh");
 		writeFileSync(
@@ -110,7 +109,7 @@ describe("writeBrief", () => {
 				root,
 				cachePath,
 			});
-			expect(brief.title).toBe(activePlanLimit() ? "key=stale" : "key=none");
+			expect(brief.title).toBe("key=none");
 		} finally {
 			if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
 			else process.env.ANTHROPIC_API_KEY = saved;
