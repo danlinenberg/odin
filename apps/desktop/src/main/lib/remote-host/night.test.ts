@@ -303,6 +303,8 @@ describe("the Night Agent runner across nights", () => {
 					[
 						"import sys, types; sys.path.insert(0, sys.argv[1]); import night_runner as r",
 						`r.time = types.SimpleNamespace(time=lambda: ${now})`,
+						// The secrets dir in the test's folder: macOS has no /dev/shm.
+						'r.tempfile = types.SimpleNamespace(mkdtemp=lambda prefix, dir: __import__("tempfile").mkdtemp(prefix=prefix, dir=sys.argv[1]))',
 						'r.read = lambda path: "MemTotal: 32000000 kB\\nMemAvailable: 30000000 kB\\n" if path.endswith("meminfo") else "0.1 0.1 0.1 1/1 1\\n"',
 						setup,
 						"r.main()",
