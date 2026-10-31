@@ -248,6 +248,15 @@ async function resolveMentions(raw: string, token: string): Promise<string> {
 }
 
 /**
+ * Slack markup as a person reads it: `<!here>` is @here, `<@U123>` the
+ * person's name when Slack is connected (else @U123), a link its label.
+ */
+export async function slackReadable(raw: string): Promise<string> {
+	const token = slackToken();
+	return token ? resolveMentions(raw, token) : slackTextToPlain(raw);
+}
+
+/**
  * Pull the current queue reactions into the local table.
  *
  *
