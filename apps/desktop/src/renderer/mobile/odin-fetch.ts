@@ -106,62 +106,6 @@ async function attempt(
 	}
 }
 
-let channel: Promise<Channel> | null = null;
-/** The path that worked last: tried first next time. */
-let lastUrl: string | null = null;
-
-/** The open channel, or a new one: the Wi-Fi first, then the relay. */
-function connect(pairing: Pairing): Promise<Channel> {
-	channel ??= (async () => {
-		const paths = [
-			pairing.lan,
-			pairing.relay &&
-				`${pairing.relay}/connect/${relayId(fromBase64url(pairing.host))}`,
-		]
-			.filter((url): url is string => !!url)
-			.sort((a, b) => Number(b === lastUrl) - Number(a === lastUrl));
-		let last: unknown = new Error("No address to reach Odin");
-		for (const url of paths) {
-			try {
-				const open = await attempt(
-					url,
-					pairing,
-					url === pairing.lan ? 1_500 : 8_000,
-				);
-				lastUrl = url;
-				void open.closed.then(() => {
-					channel = null;
-				});
-				return open;
-			} catch (error) {
-				if (error instanceof Unpaired) throw error;
-				last = error;
-			}
-		}
-		throw last;
-	})();
-	return channel.catch((error) => {
-		channel = null;
-		throw error;
-	});
-}
-
-/**
- * A socket can die without closing - the phone slept, the app went to the
- * background, the network changed - and every request on it then waits
- * forever. Drop it, so the next request opens a fresh one.
- */
-function drop() {
-	const old = channel;
-	channel = null;
-	void old?.then((open) => open.close()).catch(() => {});
-}
-
-// Coming back to the app: the socket from before is likely dead.
-document.addEventListener("visibilitychange", () => {
-	if (document.visibilityState === "visible") drop();
-});
-
 /** Longest a poll waits for Odin before it gives up on the answer. */
 const ANSWER_MS = 12_000;
 
@@ -173,17 +117,75 @@ const ANSWER_MS = 12_000;
 const SLOW_RE =
 	/^\/(upload|trpc\/(brief|links|screens|search|reply|run|keys|add|start|interrupt|done)\b)/;
 
-/** When the open channel last answered anything: a live one answers the polls. */
-let heardAt = 0;
-
 /** What the app calls Odin with: tRPC's link and the upload. */
 export type OdinFetch = (
 	input: RequestInfo | URL,
 	init?: RequestInit,
 ) => Promise<Response>;
 
-/** A `fetch` for "/trpc/..." and "/upload?...", through the channel. */
+/** Odin couldn't be reached at all: nothing was sent. */
+export class Unreachable extends TypeError {}
+
+/** A `fetch` for "/trpc/..." and "/upload?...", through one pairing's channel. */
 export function channelFetch(pairing: Pairing): OdinFetch {
+	let channel: Promise<Channel> | null = null;
+	/** The path that worked last: tried first next time. */
+	let lastUrl: string | null = null;
+	/** When the open channel last answered anything: a live one answers the polls. */
+	let heardAt = 0;
+
+	/** The open channel, or a new one: the Wi-Fi first, then the relay. */
+	function connect(): Promise<Channel> {
+		channel ??= (async () => {
+			const paths = [
+				pairing.lan,
+				pairing.relay &&
+					`${pairing.relay}/connect/${relayId(fromBase64url(pairing.host))}`,
+			]
+				.filter((url): url is string => !!url)
+				.sort((a, b) => Number(b === lastUrl) - Number(a === lastUrl));
+			let last: unknown = new Error("No address to reach Odin");
+			for (const url of paths) {
+				try {
+					const open = await attempt(
+						url,
+						pairing,
+						url === pairing.lan ? 1_500 : 8_000,
+					);
+					lastUrl = url;
+					void open.closed.then(() => {
+						channel = null;
+					});
+					return open;
+				} catch (error) {
+					if (error instanceof Unpaired) throw error;
+					last = error;
+				}
+			}
+			throw last;
+		})();
+		return channel.catch((error) => {
+			channel = null;
+			throw error;
+		});
+	}
+
+	/**
+	 * A socket can die without closing - the phone slept, the app went to the
+	 * background, the network changed - and every request on it then waits
+	 * forever. Drop it, so the next request opens a fresh one.
+	 */
+	function drop() {
+		const old = channel;
+		channel = null;
+		void old?.then((open) => open.close()).catch(() => {});
+	}
+
+	// Coming back to the app: the socket from before is likely dead.
+	document.addEventListener("visibilitychange", () => {
+		if (document.visibilityState === "visible") drop();
+	});
+
 	return async (input, init) => {
 		const url = new URL(
 			input instanceof Request ? input.url : input,
@@ -195,11 +197,11 @@ export function channelFetch(pairing: Pairing): OdinFetch {
 		);
 		let open: Channel;
 		try {
-			open = await connect(pairing);
+			open = await connect();
 		} catch (error) {
 			// tRPC and the upload read a 401 as "pair again".
 			if (error instanceof Unpaired) return new Response(null, { status: 401 });
-			throw new TypeError(
+			throw new Unreachable(
 				error instanceof Error ? error.message : "Couldn't reach Odin",
 			);
 		}
@@ -233,5 +235,54 @@ export function channelFetch(pairing: Pairing): OdinFetch {
 			status: answer.status,
 			headers: answer.headers,
 		});
+	};
+}
+
+/** What a remote host's phone server answers (main/lib/phone/host/router.ts). */
+const ON_HOST = new Set([
+	"board",
+	"session",
+	"reply",
+	"brief",
+	"links",
+	"dismissed",
+	"profiles",
+	"host",
+	"repos",
+	"screens",
+]);
+
+/** The procedures a "/trpc/a,b?batch=1" path calls, or null for anything else. */
+const procedures = (path: string) =>
+	path.match(/^\/trpc\/([^?]+)/)?.[1]?.split(",") ?? null;
+
+/** After the Mac was out of reach, how long the host answers without asking the Mac first. */
+const AWAY_MS = 15_000;
+
+/**
+ * Odin on the Mac first; when it can't be reached at all (asleep, closed,
+ * offline), the remote host's phone server for what it answers: the
+ * sessions there, their conversations and a reply. Only a Mac that never got
+ * the request falls back, so a reply is never typed in twice.
+ */
+export function routedFetch(mac: OdinFetch, host: OdinFetch | null): OdinFetch {
+	let awayUntil = 0;
+	return async (input, init) => {
+		const url = new URL(
+			input instanceof Request ? input.url : input,
+			"http://odin",
+		);
+		const names = procedures(url.pathname);
+		const hostCan = !!host && !!names?.every((name) => ON_HOST.has(name));
+		if (hostCan && host && Date.now() < awayUntil) return host(input, init);
+		try {
+			const answer = await mac(input, init);
+			awayUntil = 0;
+			return answer;
+		} catch (error) {
+			if (!(error instanceof Unreachable) || !hostCan || !host) throw error;
+			awayUntil = Date.now() + AWAY_MS;
+			return host(input, init);
+		}
 	};
 }

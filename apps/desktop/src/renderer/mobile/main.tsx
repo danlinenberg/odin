@@ -56,7 +56,7 @@ import {
 } from "./cards";
 import { demoAnswer } from "./demo";
 import { NightPage } from "./night";
-import { channelFetch, type OdinFetch } from "./odin-fetch";
+import { channelFetch, type OdinFetch, routedFetch } from "./odin-fetch";
 import { type Pairing, parsePairLink } from "./pair-link";
 import { MenuCard, PlanCard, QuestionCard } from "./prompt-cards";
 import { markStarted, useScreensUpdate } from "./screens-update";
@@ -93,6 +93,11 @@ const native = (window as { Capacitor?: { Plugins?: { App?: AppPlugin } } })
 	.Capacitor;
 
 const PAIRING_KEY = "odin-phone-pairing";
+/**
+ * The remote host's own pairing (main/lib/phone/host), beside the Mac's: it
+ * answers for the sessions on the host while the Mac is away.
+ */
+const HOST_PAIRING_KEY = "odin-phone-host-pairing";
 
 /**
  * Dev only: a token in the page's URL (`bun run dev`, or sim.sh --live) talks
@@ -104,10 +109,16 @@ const devToken = new URLSearchParams(location.search).get("t");
 const savedPairing = (): Pairing | null =>
 	parsePairLink(localStorage.getItem(PAIRING_KEY) ?? "");
 
+const savedHostPairing = (): Pairing | null =>
+	parsePairLink(localStorage.getItem(HOST_PAIRING_KEY) ?? "");
+
 function pairWith(link: string): boolean {
 	const pairing = parsePairLink(link);
 	if (!pairing) return false;
-	localStorage.setItem(PAIRING_KEY, pairing.link);
+	localStorage.setItem(
+		pairing.remoteHost ? HOST_PAIRING_KEY : PAIRING_KEY,
+		pairing.link,
+	);
 	location.reload();
 	return true;
 }
@@ -136,16 +147,25 @@ const demoFetch: OdinFetch = async (input, init) => {
 };
 
 const pairing = devToken || demo ? null : savedPairing();
-/** Odin's API: through the channel, the demo's samples, or fake-odin in dev. */
+const hostPairing = devToken || demo ? null : savedHostPairing();
+/**
+ * Odin's API: through the channel (the Mac's, with the remote host's for its
+ * sessions while the Mac is away), the demo's samples, or fake-odin in dev.
+ */
 const odinFetch: OdinFetch = pairing
-	? channelFetch(pairing)
-	: demo
-		? demoFetch
-		: (input, init) =>
-				fetch(input, {
-					...init,
-					headers: { ...init?.headers, authorization: `Bearer ${devToken}` },
-				});
+	? routedFetch(
+			channelFetch(pairing),
+			hostPairing ? channelFetch(hostPairing) : null,
+		)
+	: hostPairing
+		? channelFetch(hostPairing)
+		: demo
+			? demoFetch
+			: (input, init) =>
+					fetch(input, {
+						...init,
+						headers: { ...init?.headers, authorization: `Bearer ${devToken}` },
+					});
 /** The board sections you folded, kept on this phone. */
 const FOLDED_KEY = "odin.folded-sections";
 
@@ -218,7 +238,8 @@ if (native?.Plugins?.App) {
 		const link = launch?.url;
 		const next = link && parsePairLink(link);
 		// Opened by a pair link: save it unless it's the one already saved.
-		if (next && next.link !== pairing?.link) pairWith(link);
+		if (next && next.link !== pairing?.link && next.link !== hostPairing?.link)
+			pairWith(link);
 	});
 }
 
@@ -347,6 +368,13 @@ function ProfilePicker() {
 	);
 }
 
+/** The board's sessions as the Mac last answered: shown as unavailable while the host answers. */
+let lastMacSessions: {
+	paneId: string;
+	title: string;
+	remote?: string | null;
+}[] = [];
+
 function Home() {
 	const board = phone.board.useQuery(undefined, {
 		refetchInterval: POLL,
@@ -425,6 +453,15 @@ function Home() {
 		return () => removeEventListener(NEW_TASK_EVENT, open);
 	}, []);
 	const sessions = board.data?.sessions ?? [];
+	// Answered by the remote host: the Mac is away.
+	const away =
+		(board.data as { via?: { host: string } } | undefined)?.via ?? null;
+	if (board.data && !away) lastMacSessions = board.data.sessions;
+	const onMacOnly = away
+		? lastMacSessions.filter(
+				(row) => !row.remote && !sessions.some((s) => s.paneId === row.paneId),
+			)
+		: [];
 	// Every session's conversation, searched on the Mac as the desktop's ⌘F does.
 	const [query, setQuery] = useState("");
 	const [folded, fold] = useFolded();
@@ -473,6 +510,12 @@ function Home() {
 				</div>
 			)}
 			<ErrorLine error={board.error} />
+			{away && (
+				<div className="mx-3 mt-3 rounded-[10px] border border-border bg-secondary px-3 py-2 text-sm text-muted-foreground">
+					Your Mac is away. These are the sessions on {away.host}, answered by
+					the host itself.
+				</div>
+			)}
 			{board.isLoading && (
 				<div className="pointer-events-none fixed inset-0 flex flex-col items-center justify-center gap-4">
 					<LuLoaderCircle className="size-14 animate-spin text-primary" />
@@ -546,6 +589,21 @@ function Home() {
 						)}
 					</section>
 				),
+			)}
+			{onMacOnly.length > 0 && !searching && (
+				<section>
+					<h2 className="px-4 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-faint-foreground">
+						On your Mac, unavailable · {onMacOnly.length}
+					</h2>
+					{onMacOnly.map((row) => (
+						<div
+							key={row.paneId}
+							className="mx-3 my-1.5 truncate rounded-[10px] border border-dashed border-border px-3 py-2.5 text-[15px] text-muted-foreground"
+						>
+							{row.title}
+						</div>
+					))}
+				</section>
 			)}
 			{!!board.data?.backlog.length && (
 				<section>
@@ -774,7 +832,14 @@ function GrowingTextarea(
 }
 
 /** A reply sent from here that Claude hasn't put in its transcript yet. */
-type Sent = { text: string; files: number; at: number; previews?: string[] };
+type Sent = {
+	text: string;
+	files: number;
+	at: number;
+	previews?: string[];
+	/** The remote host typed it in, with the Mac away: its name. */
+	deliveredBy?: string;
+};
 
 /**
  * Claude writes a message to its transcript when it reads it, so a reply sent
@@ -844,10 +909,30 @@ function Session({ paneId }: { paneId: string }) {
 			(sentByPane.get(paneId) ?? []).filter((each) => each !== item),
 		);
 	};
+	/**
+	 * The remote host typed it into the session (the Mac is away): the bubble
+	 * says so, instead of waiting on the Mac, until the transcript has it.
+	 */
+	const delivered = (item: Sent, answer: unknown) => {
+		const host = (answer as { via?: { host?: string } } | undefined)?.via?.host;
+		if (!host) return;
+		const mark = (all: Sent[]) =>
+			all.map((each) =>
+				each === item ? { ...each, deliveredBy: host } : each,
+			);
+		setSent(mark);
+		sentByPane.set(paneId, mark(sentByPane.get(paneId) ?? []));
+	};
 	/** A reply with no files - what an action item's button sends. */
 	const sendText = (text: string) => {
 		const item = remember(text, 0);
-		reply.mutate({ paneId, text, paths: [] }, { onError: () => forget(item) });
+		reply.mutate(
+			{ paneId, text, paths: [] },
+			{
+				onError: () => forget(item),
+				onSuccess: (answer) => delivered(item, answer),
+			},
+		);
 	};
 	const key = phone.key.useMutation({ onSuccess: refetch });
 	const interrupt = phone.interrupt.useMutation({ onSuccess: refetch });
@@ -939,6 +1024,7 @@ function Session({ paneId }: { paneId: string }) {
 		reply.mutate(
 			{ paneId, text: full, paths, now },
 			{
+				onSuccess: (answer) => delivered(item, answer),
 				onError: () => {
 					forget(item);
 					setText(full);
@@ -1099,7 +1185,9 @@ function Session({ paneId }: { paneId: string }) {
 							</div>
 						)}
 						<div className="mt-1 text-right text-[11px] opacity-70">
-							Sent · Odin reads it when it's free
+							{item.deliveredBy
+								? `Delivered on ${item.deliveredBy}`
+								: "Sent · Odin reads it when it's free"}
 						</div>
 					</div>
 				))}
@@ -1314,7 +1402,7 @@ function App() {
 	const { paneId, night } = useScreenFromHash();
 	// Drawn: screens Odin sent this phone worked, so boot.ts keeps them.
 	useEffect(markStarted, []);
-	if (!pairing && !devToken && !demo)
+	if (!pairing && !hostPairing && !devToken && !demo)
 		return native ? (
 			<Pair />
 		) : (
