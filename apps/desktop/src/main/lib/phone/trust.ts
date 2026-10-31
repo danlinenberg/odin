@@ -1,5 +1,5 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
@@ -59,7 +59,10 @@ export function createTrust(files: TrustFiles) {
 			return;
 		}
 		if (next) writeFileSync(files.code, JSON.stringify(next), { mode: 0o600 });
-		else rmSync(files.code, { force: true });
+		else
+			try {
+				unlinkSync(files.code);
+			} catch {}
 	};
 
 	/** The host's long-term key: made once, the private half never leaves this file. */

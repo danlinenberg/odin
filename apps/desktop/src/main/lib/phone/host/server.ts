@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
 	type ChannelRequest,
@@ -128,7 +128,10 @@ export function startHostServer(
 		stop: () => {
 			serving = false;
 			stopRelay();
-			if (runningServer(files.pid) === null) rmSync(files.pid, { force: true });
+			if (runningServer(files.pid) === null)
+				try {
+					unlinkSync(files.pid);
+				} catch {}
 		},
 	};
 }
