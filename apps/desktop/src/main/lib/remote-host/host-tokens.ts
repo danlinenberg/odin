@@ -195,7 +195,7 @@ const adminHint = (host: HostLogin) =>
  * Returns the connectors the host now serves.
  */
 export async function pushHostTokens(
-	host: HostLogin & { awsProfiles?: string[] },
+	host: HostLogin & { awsProfiles?: string[]; name?: string },
 	connectors: readonly HostConnector[],
 ): Promise<string[]> {
 	const tokens = await hostTokens(connectors);
@@ -227,6 +227,9 @@ export async function pushHostTokens(
 			"bash",
 			`${HELPERS_AS_USER}${awsConfig}\n${identity}\n${prune}\ntrue\n`,
 		);
+		// The phone server there, for the phone with this computer asleep.
+		const { syncPhoneHost } = await import("./phone-host-sync");
+		await syncPhoneHost(host, client);
 	} catch (error) {
 		throw new Error(
 			`Couldn't send the tokens to the host: ${error instanceof Error ? error.message : String(error)}. ${adminHint(host)}`,

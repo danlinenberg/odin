@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, normalize, resolve } from "node:path";
 import type { Plugin } from "vite";
@@ -62,6 +63,38 @@ const RESOURCES_TO_COPY = [
  * In preview mode, __dirname resolves relative to dist/main, so resources
  * need to be copied there for the main process to access them.
  */
+/**
+ * The remote host's phone server (src/main/phone-host), as one file with
+ * nothing external: Odin sends it to the host, where bun runs it
+ * (main/lib/remote-host/phone-host). Built with the main process, beside it.
+ */
+export function phoneHostBundlePlugin(): Plugin {
+	return {
+		name: "odin-phone-host-bundle",
+		closeBundle: () =>
+			new Promise<void>((done, fail) =>
+				execFile(
+					"bun",
+					[
+						"build",
+						resolve("src/main/phone-host/index.ts"),
+						"--target=bun",
+						"--outfile",
+						resolve(devPath, "main", "phone-host.js"),
+					],
+					(error, _out, stderr) =>
+						error
+							? fail(
+									new Error(
+										`Bundling the remote host's phone server failed: ${stderr}`,
+									),
+								)
+							: done(),
+				),
+			),
+	};
+}
+
 export function copyResourcesPlugin(): Plugin {
 	return {
 		name: "copy-resources",

@@ -333,6 +333,12 @@ export async function unpairAllPhones(): Promise<PhoneStatus> {
 	return restart(readConfig());
 }
 
+/** Phone access is on in Settings. */
+export const phoneEnabled = () => readConfig().enabled;
+
+/** The relay phones reach this Odin through, which the remote host's server dials too. */
+export const phoneRelay = () => relayInUse(readConfig());
+
 export function startPhone(): void {
 	if (readConfig().enabled) void setPhoneEnabled(true);
 }

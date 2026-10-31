@@ -135,3 +135,14 @@ export function startHostServer(
 		},
 	};
 }
+
+/**
+ * Every phone unpaired from this host: a new key, an empty list. The running
+ * server stops; Odin on the laptop starts it again with the new key.
+ */
+export async function unpairHost(): Promise<void> {
+	const files = hostFiles();
+	await createTrust(files).resetTrust();
+	const pid = runningServer(files.pid);
+	if (pid) process.kill(pid, "SIGTERM");
+}
