@@ -1,5 +1,5 @@
 import { createPrivateKey, sign } from "node:crypto";
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { connect } from "node:http2";
 import { join } from "node:path";
 import { ODIN_HOME_DIR } from "../app-environment";
@@ -51,7 +51,9 @@ export function savePushKey(input: PushKey): void {
 }
 
 export const clearPushKey = () => {
-	rmSync(pushKeyFile.path, { force: true });
+	try {
+		unlinkSync(pushKeyFile.path);
+	} catch {}
 	cached = null;
 };
 
