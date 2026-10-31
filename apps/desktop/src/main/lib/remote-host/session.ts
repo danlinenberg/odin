@@ -526,6 +526,18 @@ export const MEMORY_LIMIT_SCRIPT = [
 ].join("\n");
 
 /**
+ * The host's /etc/environment, for each name the session lacks. PAM reads it
+ * only at a login, and a tmux server started without one (a Night Agent run,
+ * an SSM start) hands every later session its own environment instead. The
+ * host's AWS_CONFIG_FILE (where its `prod` profile is) and
+ * CLAUDE_CREDENTIALS_SECRET were then missing, so imagen-core's credentials
+ * hook found no profile and a new host user got no CLAUDE_* credentials.
+ * PATH is left alone: the session builds its own.
+ */
+export const hostEnvScript = (file = "/etc/environment") =>
+	`[ -r ${sh(file)} ] && while IFS= read -r l || [ -n "$l" ]; do k=\${l%%=*}; [ "$k" != "$l" ] || continue; case "$k" in PATH|""|[0-9]*|*[!A-Za-z0-9_]*) continue;; esac; v=\${l#*=}; v=\${v#[\\"\\']}; v=\${v%[\\"\\']}; [ -n "\${!k+x}" ] || export "$k=$v"; done < ${sh(file)}`;
+
+/**
  * An open session holds about 400 MB in its Claude process even when nothing
  * happens in it, and a host collects dozens. After this long with no output
  * in its tmux window, the run script stops Claude and waits for a key, then
@@ -596,6 +608,7 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 	];
 	return [
 		MEMORY_LIMIT_SCRIPT,
+		hostEnvScript(),
 		`if [ -f ${sh(secretsDir)}/env ]; then set -a; . ${sh(secretsDir)}/env; set +a; fi`,
 		`rm -rf ${sh(secretsDir)}`,
 		// Sessions starting together take turns at setup: clone, fetch and
