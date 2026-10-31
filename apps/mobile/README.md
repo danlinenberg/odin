@@ -15,8 +15,10 @@ Needs Xcode (Mac App Store) and the iPhone plugged in or on the same Wi-Fi.
    ID. Do the same for the OdinShareExtension target (Odin in the share
    sheet) and the OdinWidgetExtension target (the lock screen widget): Xcode
    makes their signing profiles, the App Group and the push capability the
-   first time. A free Apple ID works, but the app stops opening after 7 days; a paid
-   developer account (and TestFlight, for other people's phones) doesn't expire.
+   first time. This needs a paid developer account: a free Apple ID can't
+   sign push or an App Group, and its builds stop opening after 7 days. With
+   a free Apple ID, delete the OdinWidgetExtension target and
+   `App/App.entitlements` before you build; the rest of the app works.
 3. Pick your iPhone at the top, press Run. The first time, the iPhone asks
    you to trust the developer: Settings > General > VPN & Device Management.
 4. On the Mac, Odin > Settings > Remote > Phone > turn on Phone access.
