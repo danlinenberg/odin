@@ -1,4 +1,6 @@
 import { TRPCError } from "@trpc/server";
+import { clearPushKey, readPushKey, savePushKey } from "main/lib/phone/apns";
+import { pushSoon } from "main/lib/phone/push";
 import { sentFromPhone } from "main/lib/phone/sent";
 import {
 	phoneStatus,
@@ -57,6 +59,31 @@ export const createPhoneRouter = () =>
 			);
 			return phoneHostPairing(remoteHost());
 		}),
+		/** The APNs key the lock screen widget's pushes are signed with: its IDs, never the key. */
+		pushKey: publicProcedure.query(() => {
+			const key = readPushKey();
+			return key ? { keyId: key.keyId, teamId: key.teamId } : null;
+		}),
+		setPushKey: publicProcedure
+			.input(
+				z.object({
+					keyId: z.string(),
+					teamId: z.string(),
+					key: z.string().max(10_000),
+				}),
+			)
+			.mutation(({ input }) => {
+				try {
+					savePushKey(input);
+				} catch (error) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message: (error as Error).message,
+					});
+				}
+				pushSoon();
+			}),
+		clearPushKey: publicProcedure.mutation(() => clearPushKey()),
 		/** What this session got from the phone: the chat marks those messages. */
 		fromPhone: publicProcedure
 			.input(z.object({ paneId: z.string() }))

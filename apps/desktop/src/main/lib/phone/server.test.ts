@@ -109,6 +109,28 @@ test("an upload through the channel lands in the attachments folder", async () =
 	paired.close();
 });
 
+test("a phone's push token is kept on its own entry, and nothing else is", async () => {
+	const pair = await on();
+	const paired = await channel(lan(pair), pair);
+	const send = (body: object) =>
+		paired.request({
+			method: "POST",
+			path: "/push-token",
+			headers: { "content-type": "application/json" },
+			body: new TextEncoder().encode(JSON.stringify(body)),
+		});
+	expect((await send({ token: "not hex", topic: "a.b" })).status).toBe(400);
+	const token = "ab".repeat(32);
+	expect((await send({ token, topic: "com.example.odin" })).status).toBe(204);
+	const mine = Buffer.from(me.publicKey).toString("base64url");
+	const list = JSON.parse(readFileSync(trustFiles.devices, "utf8"));
+	expect(list.find((d: { key: string }) => d.key === mine)?.push).toEqual({
+		token,
+		topic: "com.example.odin",
+	});
+	paired.close();
+});
+
 test("the Wi-Fi port answers nothing but the channel", async () => {
 	const pair = await on();
 	const http = lan(pair).replace("ws://", "http://").replace("/channel", "");

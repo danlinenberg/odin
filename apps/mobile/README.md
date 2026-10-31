@@ -13,14 +13,29 @@ Needs Xcode (Mac App Store) and the iPhone plugged in or on the same Wi-Fi.
    project, and opens it in Xcode.
 2. In Xcode: the App target > Signing & Capabilities > Team: pick your Apple
    ID. Do the same for the OdinShareExtension target (Odin in the share
-   sheet): Xcode makes its signing profile the first time. A free Apple ID works, but the app stops opening after 7 days; a paid
-   developer account (and TestFlight, for other people's phones) doesn't expire.
+   sheet) and the OdinWidgetExtension target (the lock screen widget): Xcode
+   makes their signing profiles, the App Group and the push capability the
+   first time. This needs a paid developer account: a free Apple ID can't
+   sign push or an App Group, and its builds stop opening after 7 days. With
+   a free Apple ID, delete the OdinWidgetExtension target and
+   `App/App.entitlements` before you build; the rest of the app works.
 3. Pick your iPhone at the top, press Run. The first time, the iPhone asks
    you to trust the developer: Settings > General > VPN & Device Management.
 4. On the Mac, Odin > Settings > Remote > Phone > turn on Phone access.
    Scan the QR code with the iPhone Camera: it opens the app and pairs. Allow
    "find devices on your local network" when iOS asks. To reach Odin away
    from the Wi-Fi, set a relay in the same place before you scan.
+
+## The lock screen widget
+
+Long-press the lock screen > Customize > Lock Screen > add a widget > Odin.
+It counts the sessions whose turn ended in the last hour and still wait on
+you (Needs you or Final Review); a tap opens that list (`odin://ended`). The
+app writes the count to the App Group (`group.$(ODIN_BUNDLE_ID)`) each time
+the board loads. To update it with the phone locked, add an APNs key in
+Odin > Settings > Remote > Phone > Lock screen widget (developer.apple.com >
+Certificates, IDs & Profiles > Keys > Apple Push Notifications service). Odin
+then sends a silent push with the end times when a turn ends.
 
 ## Notes
 
@@ -34,5 +49,5 @@ Needs Xcode (Mac App Store) and the iPhone plugged in or on the same Wi-Fi.
 - `bun run fake-odin` prints a pair link for the Simulator: the same channel,
   with sample sessions.
 - The bundle ID is one setting, `ODIN_BUNDLE_ID` (the share extension is
-  `$(ODIN_BUNDLE_ID).share`). A build under another team overrides that, not
+  `$(ODIN_BUNDLE_ID).share`, the widget `$(ODIN_BUNDLE_ID).widget`). A build under another team overrides that, not
   `PRODUCT_BUNDLE_IDENTIFIER`, so the app and its extension move together.

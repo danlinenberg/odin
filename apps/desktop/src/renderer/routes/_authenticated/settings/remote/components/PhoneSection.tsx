@@ -1,7 +1,15 @@
 import { Button } from "@odin/ui/button";
+import { Input } from "@odin/ui/input";
 import { toast } from "@odin/ui/sonner";
 import { Switch } from "@odin/ui/switch";
-import { LuLock, LuServer, LuSmartphone, LuTrash2 } from "react-icons/lu";
+import { useState } from "react";
+import {
+	LuBellRing,
+	LuLock,
+	LuServer,
+	LuSmartphone,
+	LuTrash2,
+} from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { SettingRow, SettingsSection } from "../../components/SettingsPage";
 
@@ -73,6 +81,7 @@ export function PhoneSection() {
 				</div>
 			)}
 			{data?.state === "on" && <HostPairing />}
+			{data?.state === "on" && <LockScreenPush />}
 			{devices.length > 0 && (
 				<div className="px-4 py-3">
 					<div className="mb-1 flex items-center justify-between">
@@ -170,6 +179,105 @@ function HostPairing() {
 								: "Show code"}
 					</Button>
 				</div>
+			</div>
+		</div>
+	);
+}
+
+/**
+ * The lock screen widget's live count (main/lib/phone/push.ts): Odin sends
+ * the phone a silent push through Apple when a turn ends, signed with your
+ * own APNs key. Without one, the widget updates when the app opens.
+ */
+function LockScreenPush() {
+	const saved = electronTrpc.phone.pushKey.useQuery();
+	const [file, setFile] = useState<{ name: string; key: string } | null>(null);
+	const [keyId, setKeyId] = useState("");
+	const [teamId, setTeamId] = useState("");
+	const onSuccess = () => {
+		setFile(null);
+		void saved.refetch();
+	};
+	const save = electronTrpc.phone.setPushKey.useMutation({ onSuccess });
+	const clear = electronTrpc.phone.clearPushKey.useMutation({ onSuccess });
+	const pick = async (picked: File | undefined) => {
+		if (!picked) return;
+		setFile({ name: picked.name, key: await picked.text() });
+		// Apple names the download AuthKey_<Key ID>.p8.
+		const id = picked.name.match(/AuthKey_([A-Z0-9]{10})\.p8$/i)?.[1];
+		if (id) setKeyId(id.toUpperCase());
+	};
+	return (
+		<div className="flex gap-5 border-t px-4 py-4">
+			<span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary">
+				<LuBellRing className="size-4" />
+			</span>
+			<div className="flex min-w-0 flex-1 flex-col gap-2">
+				<div className="text-sm font-medium">Lock screen widget</div>
+				<p className="text-[13px] leading-relaxed text-muted-foreground">
+					The Odin widget on the iPhone lock screen counts the sessions that
+					ended in the last hour. With an APNs key from your Apple developer
+					account (Certificates, IDs & Profiles, Keys), Odin updates it the
+					moment a turn ends. Without one, it updates when you open the app. The
+					push carries only end times, never a title.
+				</p>
+				{saved.data ? (
+					<div className="flex items-center gap-3 text-[13px]">
+						<span className="text-muted-foreground">
+							Key {saved.data.keyId}, team {saved.data.teamId}
+						</span>
+						<Button
+							size="sm"
+							variant="ghost"
+							disabled={clear.isPending}
+							onClick={() => clear.mutate()}
+						>
+							Remove
+						</Button>
+					</div>
+				) : (
+					<div className="flex flex-wrap items-center gap-2">
+						<Button size="sm" variant="secondary" asChild>
+							<label className="cursor-pointer">
+								{file ? file.name : "Choose .p8 key"}
+								<input
+									type="file"
+									accept=".p8"
+									className="hidden"
+									onChange={(event) => void pick(event.target.files?.[0])}
+								/>
+							</label>
+						</Button>
+						<Input
+							value={keyId}
+							onChange={(event) => setKeyId(event.target.value)}
+							placeholder="Key ID"
+							aria-label="Key ID"
+							className="h-8 w-28"
+						/>
+						<Input
+							value={teamId}
+							onChange={(event) => setTeamId(event.target.value)}
+							placeholder="Team ID"
+							aria-label="Team ID"
+							className="h-8 w-28"
+						/>
+						<Button
+							size="sm"
+							disabled={!file || !keyId || !teamId || save.isPending}
+							onClick={() =>
+								file && save.mutate({ keyId, teamId, key: file.key })
+							}
+						>
+							Save
+						</Button>
+					</div>
+				)}
+				{save.error && (
+					<div className="text-xs text-danger select-text cursor-text">
+						{save.error.message}
+					</div>
+				)}
 			</div>
 		</div>
 	);

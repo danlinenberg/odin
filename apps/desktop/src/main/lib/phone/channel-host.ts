@@ -15,7 +15,11 @@ import type { Trust } from "./trust";
  * connection to the relay that announces each phone.
  */
 
-export type Handler = (request: ChannelRequest) => Promise<ChannelResponse>;
+/** `phone`: the key of the phone that sent it, from the handshake. */
+export type Handler = (
+	request: ChannelRequest,
+	phone: Uint8Array,
+) => Promise<ChannelResponse>;
 
 /** Open channels by phone key, so removing a phone cuts it off at once. */
 export type LiveChannels = Map<string, Set<Pipe>>;
