@@ -146,7 +146,9 @@ async function unzip(
  * one SSH handshake. EC2 Instance Connect first (Ubuntu and Amazon Linux
  * images have it). A sign-in AWS doesn't allow that for (its own IAM action,
  * which `ec2:*` doesn't cover) gets the key through SSM Run Command instead,
- * which `ssm:*` does - so nobody needs a new permission to use a host.
+ * which `ssm:*` does - so nobody needs a new permission to use a host. A
+ * key Instance Connect now and then calls invalid (keyInvalid) goes the same
+ * way, instead of failing the call that wanted the host.
  * `overSsm` goes straight to SSM, for a host that refused the Instance
  * Connect key (keyRefused).
  */
@@ -167,7 +169,10 @@ export async function pushOneTimeKey(
 			}),
 		)
 		.catch((error: unknown) => {
-			if ((error as { name?: string })?.name === "AccessDeniedException")
+			if (
+				(error as { name?: string })?.name === "AccessDeniedException" ||
+				keyInvalid(error)
+			)
 				return null;
 			throw error;
 		});
@@ -177,6 +182,15 @@ export async function pushOneTimeKey(
 			`AWS did not accept the login key for ${target.instanceId}.`,
 		);
 }
+
+/**
+ * Instance Connect turning a freshly made ed25519 key down: "Invalid argument
+ * exception: ED25519 - SSH Public key is invalid". Seen once in a while for a
+ * key the host's own sshd takes, so the same key goes over SSM.
+ */
+export const keyInvalid = (err: unknown) =>
+	(err as { name?: string })?.name === "InvalidArgsException" ||
+	/SSH Public key is invalid/i.test(String(err));
 
 /**
  * ssh2's error when the host took none of the keys offered. An Instance

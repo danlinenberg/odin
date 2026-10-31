@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	accessDenied,
+	keyInvalid,
 	keyRefused,
 	pluginArgs,
 	pluginBuild,
@@ -13,6 +14,24 @@ describe("ssm", () => {
 			keyRefused(new Error("All configured authentication methods failed")),
 		).toBe(true);
 		expect(keyRefused(new Error("Timed out while waiting for handshake"))).toBe(
+			false,
+		);
+	});
+
+	test("Instance Connect calling a login key invalid reads as an invalid key", () => {
+		expect(
+			keyInvalid(
+				new Error(
+					"Invalid input parameter received for Invalid argument exception: ED25519 - SSH Public key is invalid",
+				),
+			),
+		).toBe(true);
+		expect(
+			keyInvalid(
+				Object.assign(new Error("bad"), { name: "InvalidArgsException" }),
+			),
+		).toBe(true);
+		expect(keyInvalid(new Error("Timed out while waiting for handshake"))).toBe(
 			false,
 		);
 	});
