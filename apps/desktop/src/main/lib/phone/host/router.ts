@@ -194,6 +194,19 @@ export const hostPhoneRouter = t.router({
 		notion: null,
 	})),
 	dismissed: t.procedure.input(paneInput).query((): string[] => []),
+	/**
+	 * Asked beside the board and on New task, in one batch with what the host
+	 * answers: empty here, so the batch still gets its answer with the Mac away.
+	 */
+	profiles: t.procedure.query(() => ({
+		activeId: "",
+		profiles: [] as { id: string; name: string }[],
+	})),
+	host: t.procedure.query(() => null),
+	repos: t.procedure.query((): string[] => []),
+	screens: t.procedure
+		.input(z.object({ have: z.string().max(100), native: z.number().int() }))
+		.query(() => null),
 });
 
 export type HostPhoneRouter = typeof hostPhoneRouter;

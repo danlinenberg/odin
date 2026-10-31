@@ -30,3 +30,9 @@ test("anything else is not a pairing link", () => {
 	])
 		expect(parsePairLink(bad)).toBeNull();
 });
+
+test("a remote host's link names the host and needs the relay", () => {
+	const host = `odin://pair?k=${k}&c=code&r=${encodeURIComponent("wss://relay.example.com")}&h=dev-box`;
+	expect(parsePairLink(host)?.remoteHost).toBe("dev-box");
+	expect(parsePairLink(link)?.remoteHost).toBeUndefined();
+});

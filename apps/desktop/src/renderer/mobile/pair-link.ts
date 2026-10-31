@@ -2,6 +2,8 @@
  * What the QR code in Odin's Settings carries (docs/phone-encryption.md):
  * `odin://pair?k=<Odin's public key>&c=<one-time code>&l=<ws:// on the
  * Wi-Fi>&r=<wss:// relay>`. `link` is the whole link, to tell a new one apart.
+ * A remote host's phone server (main/lib/phone/host) adds `h=<its name>`:
+ * that pairing reaches the sessions on the host while the Mac is away.
  */
 export type Pairing = {
 	link: string;
@@ -9,6 +11,8 @@ export type Pairing = {
 	code?: string;
 	lan?: string;
 	relay?: string;
+	/** Set on a remote host's pairing: its name. */
+	remoteHost?: string;
 };
 
 /** The address, or undefined: ws:// only on a local network, wss:// anywhere. */
@@ -39,6 +43,7 @@ export function parsePairLink(input: string): Pairing | null {
 			code: params.get("c") ?? undefined,
 			lan: socketUrl(params.get("l"), true),
 			relay: socketUrl(params.get("r"), false),
+			remoteHost: params.get("h")?.slice(0, 80) || undefined,
 		};
 		return pairing.lan || pairing.relay ? pairing : null;
 	} catch {

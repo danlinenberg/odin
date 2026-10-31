@@ -185,6 +185,16 @@ test("a paired phone lists the host's sessions, reads one, and replies", async (
 	expect(files.status).toBe(412);
 	expect(typed.length).toBe(count);
 
+	// The board's batch beside the profile picker still gets its answer.
+	const batch = await channel.request({
+		method: "GET",
+		path: `/trpc/board,profiles?batch=1&input=${encodeURIComponent(JSON.stringify({ 0: { json: null }, 1: { json: null } }))}`,
+		headers: {},
+		body: new Uint8Array(0),
+	});
+	expect(batch.status).toBe(200);
+	expect(decode(batch.body)[1].result.data.json.profiles).toEqual([]);
+
 	// Only the API answers.
 	expect(
 		(await channel.request({ ...get("board", null), path: "/upload?ext=png" }))
