@@ -45,6 +45,7 @@ import { z } from "zod";
 import { typedText } from "../../../shared/typed-text";
 import { attachments } from "./attachments";
 import { forSession } from "./host-files";
+import { readableTitle, readableTitles } from "./readable-title";
 import { readScreens } from "./screens";
 import { rememberFromPhone } from "./sent";
 
@@ -256,9 +257,11 @@ export const phoneRouter = t.router({
 		).filter((task) => !task.started);
 		const flags = await cardFlags();
 		return {
-			sessions: sessions.map((s) => ({ ...s, ...flags[s.paneId] })),
-			backlog,
-			done: await doneShelf(),
+			sessions: await readableTitles(
+				sessions.map((s) => ({ ...s, ...flags[s.paneId] })),
+			),
+			backlog: await readableTitles(backlog),
+			done: await readableTitles(await doneShelf()),
 		};
 	}),
 
@@ -297,7 +300,7 @@ export const phoneRouter = t.router({
 			.slice(-14)
 			.join("\n");
 		return {
-			title: pane.odinTaskTitle ?? "Session",
+			title: await readableTitle(pane.odinTaskTitle ?? "Session"),
 			status: pane.status ?? "idle",
 			starred: !!pane.odinStarred,
 			// What the board card shows: who it's for, where it runs, its tags.
@@ -530,7 +533,7 @@ export const phoneRouter = t.router({
 					flags[row.paneId]?.column ?? row.column,
 				]),
 			);
-			return (
+			return readableTitles(
 				sessions
 					.map((session) => {
 						const paneId =
@@ -547,7 +550,7 @@ export const phoneRouter = t.router({
 						};
 					})
 					// Last activity first: the session you were just in is the one you want.
-					.sort((a, b) => b.updatedAt - a.updatedAt)
+					.sort((a, b) => b.updatedAt - a.updatedAt),
 			);
 		}),
 
@@ -764,9 +767,18 @@ export const phoneRouter = t.router({
 		),
 
 	/** The Night Agent page: its schedule, whether it runs now, and its nights. */
-	night: t.procedure.query(
-		async () => JSON.parse(await board("night-page")) as NightPage,
-	),
+	night: t.procedure.query(async () => {
+		const page = JSON.parse(await board("night-page")) as NightPage;
+		return {
+			...page,
+			nights: await Promise.all(
+				page.nights.map(async (night) => ({
+					...night,
+					started: await readableTitles(night.started),
+				})),
+			),
+		};
+	}),
 
 	/** The Night Agent's switch, as its page's on the Mac. */
 	setNight: t.procedure
