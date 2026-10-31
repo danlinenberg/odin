@@ -9,13 +9,20 @@ import {
 	keyPairFrom,
 } from "@odin/channel";
 import { ODIN_HOME_DIR } from "../app-environment";
+import type { PushTarget } from "./apns";
 
 /**
  * Who may talk to Odin from a phone (docs/phone-encryption.md): Odin's own
  * key, the phones it trusts, and the one-time code the QR code carries.
  */
 
-export type Device = { key: string; name: string; added: string };
+export type Device = {
+	key: string;
+	name: string;
+	added: string;
+	/** Where its lock screen widget's silent pushes go (apns.ts), once it sent one. */
+	push?: PushTarget;
+};
 
 /** A pairing code lasts 10 minutes and pairs one phone. */
 export const CODE_MS = 10 * 60 * 1000;
@@ -140,6 +147,15 @@ export function createTrust(files: TrustFiles) {
 		devices,
 		removeDevice: (key: string) =>
 			saveDevices(devices().filter((d) => d.key !== key)),
+		/** A paired phone's push target; null forgets it. Unknown phones are ignored. */
+		setPush: (key: string, push: PushTarget | null) =>
+			saveDevices(
+				devices().map((d) => {
+					if (d.key !== key) return d;
+					const { push: _, ...rest } = d;
+					return push ? { ...rest, push } : rest;
+				}),
+			),
 		pairingCode,
 		accept,
 		/** Unpair every phone: a new key for the host, an empty list. */
@@ -166,6 +182,7 @@ export const {
 	hostKey,
 	devices,
 	removeDevice,
+	setPush,
 	pairingCode,
 	accept,
 	resetTrust,

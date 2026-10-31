@@ -46,6 +46,8 @@
 	<string>Odin connects to Odin on your Mac over this Wi-Fi.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Odin turns what you say into a reply.</string>
+	<key>OdinAppGroup</key>
+	<string>group.$(ODIN_BUNDLE_ID)</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Odin turns what you say into a reply, using Apple's speech recognition.</string>
 	<key>UIApplicationSceneManifest</key>
@@ -67,6 +69,10 @@
 			</array>
 		</dict>
 	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

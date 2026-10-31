@@ -9,6 +9,7 @@ class OdinViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(OdinSpeechPlugin())
         bridge?.registerPluginInstance(OdinKeychainPlugin())
         bridge?.registerPluginInstance(OdinSharePlugin())
+        bridge?.registerPluginInstance(OdinWidgetPlugin())
     }
 }
 

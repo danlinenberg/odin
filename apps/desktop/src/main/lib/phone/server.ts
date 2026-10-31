@@ -23,6 +23,7 @@ import {
 	type RelayState,
 	serveChannel,
 } from "./channel-host";
+import { pushSoon, startPush, stopPush } from "./push";
 import { phoneRouter } from "./router";
 import {
 	accept,
@@ -33,6 +34,7 @@ import {
 	pairingCode,
 	removeDevice,
 	resetTrust,
+	setPush,
 } from "./trust";
 
 export type { RelayState };
@@ -181,9 +183,40 @@ const status = (code: number): ChannelResponse => ({
 	body: empty,
 });
 
-/** One request out of the channel, to the loopback app. Only its two routes. */
+/**
+ * The phone's push token for its lock screen widget (push.ts), kept on its
+ * entry in the trusted list: the channel knows which phone sent it, which
+ * the loopback app doesn't. An APNs token is hex; the topic is the app's
+ * bundle ID.
+ */
+export function savePushToken(phone: Uint8Array, body: Uint8Array): number {
+	let token: unknown;
+	let topic: unknown;
+	try {
+		({ token, topic } = JSON.parse(Buffer.from(body).toString("utf8")));
+	} catch {
+		return 400;
+	}
+	if (typeof token !== "string" || !/^[0-9a-f]{64,200}$/.test(token))
+		return 400;
+	if (typeof topic !== "string" || !/^[A-Za-z0-9.-]{1,155}$/.test(topic))
+		return 400;
+	const key = Buffer.from(phone).toString("base64url");
+	const before = devices().find((d) => d.key === key)?.push;
+	if (before?.token !== token || before.topic !== topic)
+		setPush(key, { token, topic });
+	pushSoon();
+	return 204;
+}
+
+/** One request out of the channel, to the loopback app. Only its two routes, and the push token. */
 function forward(loopbackPort: number, token: string) {
-	return async (request: ChannelRequest): Promise<ChannelResponse> => {
+	return async (
+		request: ChannelRequest,
+		phone: Uint8Array,
+	): Promise<ChannelResponse> => {
+		if (request.path === "/push-token" && request.method === "POST")
+			return status(savePushToken(phone, request.body));
 		if (!/^\/(trpc\/|upload\?)/.test(request.path)) return status(404);
 		const method = request.method.toUpperCase();
 		const asked = Date.now();
@@ -238,6 +271,7 @@ async function start(config: Config): Promise<void> {
 	await listenOn(lan, PREFERRED_PORT, "0.0.0.0").catch(() =>
 		listenOn(lan, 0, "0.0.0.0"),
 	);
+	startPush();
 	running = {
 		lan,
 		loopback,
@@ -259,6 +293,7 @@ async function stop(): Promise<void> {
 	const was = running;
 	running = null;
 	if (!was) return;
+	stopPush();
 	was.stopRelay();
 	for (const set of live.values()) for (const pipe of set) pipe.close();
 	live.clear();

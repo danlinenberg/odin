@@ -33,6 +33,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
     }
 
+    /// The token the lock screen widget's silent pushes go to (OdinWidgetPlugin.swift).
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        PushToken.finish(.success(deviceToken.map { String(format: "%02x", $0) }.joined()))
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        PushToken.finish(.failure(error))
+    }
+
+    /// Odin's silent push (main/lib/phone/push.ts): the new end times, for the widget.
+    func application(_ application: UIApplication,
+                     didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+                     fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+        guard let ended = userInfo["ended"] as? [NSNumber] else { return completionHandler(.noData) }
+        EndedStore.save(ended.map(\.doubleValue))
+        completionHandler(.newData)
+    }
+
     func application(_ application: UIApplication,
                      configurationForConnecting connectingSceneSession: UISceneSession,
                      options: UIScene.ConnectionOptions) -> UISceneConfiguration {

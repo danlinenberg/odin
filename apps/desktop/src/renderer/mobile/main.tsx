@@ -33,6 +33,7 @@ import {
 } from "react-icons/lu";
 import { LIMIT_HIT_RE } from "shared/limit-hit";
 import { odinActivity, odinScreenStatus } from "shared/odin-screen-status";
+import { recentlyEnded } from "shared/recently-ended";
 import type { PaneStatus } from "shared/tabs-types";
 import superjson from "superjson";
 import {
@@ -70,6 +71,7 @@ import {
 	useSpeech,
 } from "./speech";
 import { Thumbnails, Transcript } from "./transcript";
+import { registerPush, updateWidget } from "./widget";
 import { WorkingCard } from "./working";
 import "../globals.css";
 import "./mobile.css";
@@ -211,11 +213,21 @@ void (
 	isVisible: false,
 })?.catch(() => {});
 
+/** The lock screen widget's tap: its Recently ended list. */
+const ENDED_LINK = "odin://ended";
+
 if (native?.Plugins?.App) {
 	const app = native.Plugins.App;
-	app.addListener("appUrlOpen", ({ url }) => pairWith(url));
+	app.addListener("appUrlOpen", ({ url }) => {
+		if (url.startsWith(ENDED_LINK)) location.hash = "#/ended";
+		else pairWith(url);
+	});
 	void app.getLaunchUrl().then((launch) => {
 		const link = launch?.url;
+		if (link?.startsWith(ENDED_LINK)) {
+			location.hash = "#/ended";
+			return;
+		}
 		const next = link && parsePairLink(link);
 		// Opened by a pair link: save it unless it's the one already saved.
 		if (next && next.link !== pairing?.link) pairWith(link);
@@ -224,10 +236,14 @@ if (native?.Plugins?.App) {
 
 const POLL = 3_000;
 
-/** The screen the hash names: a session (#/s/<paneId>), the Night Agent, or the board. */
+/** The screen the hash names: a session (#/s/<paneId>), the Night Agent, Recently ended, or the board. */
 const screenInHash = () => {
 	const paneId = location.hash.match(/^#\/s\/(.+)$/)?.[1] ?? null;
-	return { paneId, night: location.hash === "#/night" };
+	return {
+		paneId,
+		night: location.hash === "#/night",
+		ended: location.hash === "#/ended",
+	};
 };
 
 const useScreenFromHash = () => {
@@ -1310,8 +1326,71 @@ function NightAgent() {
 	);
 }
 
+/**
+ * The lock screen widget's tap: the sessions whose turn ended in the last
+ * hour and still wait on you, newest first - what the widget counts.
+ */
+function RecentlyEnded() {
+	const board = phone.board.useQuery(undefined, { refetchInterval: POLL });
+	const utils = phone.useUtils();
+	const star = phone.star.useMutation({
+		onSuccess: () => void utils.board.invalidate(),
+	});
+	const doneCard = phone.done.useMutation({
+		onSuccess: () => void board.refetch(),
+	});
+	const rows = recentlyEnded(board.data?.sessions ?? []);
+	return (
+		<div className="min-h-dvh pb-12">
+			<header className="sticky top-0 z-10 border-b border-border bg-background/95 px-3.5 pt-[calc(env(safe-area-inset-top)+10px)] pb-2 backdrop-blur">
+				<a
+					href="#/"
+					className="-ml-1.5 flex w-fit items-center px-1 py-1.5 text-[15px] text-primary"
+				>
+					<LuChevronLeft className="size-5" />
+					Board
+				</a>
+				<h1 className="mt-1 text-2xl font-bold">Recently ended</h1>
+				<div className="text-[13px] text-muted-foreground">
+					Ended in the last hour, waiting on you
+				</div>
+			</header>
+			<ErrorLine error={board.error ?? star.error ?? doneCard.error} />
+			{board.isLoading && (
+				<div className="flex justify-center py-10">
+					<LuLoaderCircle className="size-8 animate-spin text-primary" />
+				</div>
+			)}
+			{board.data && rows.length === 0 && (
+				<div className="mx-3 my-3 rounded-[10px] border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">
+					No session ended in the last hour.
+				</div>
+			)}
+			{rows.map((session) => (
+				<SessionCard
+					key={session.paneId}
+					session={session}
+					onStar={(starred) => star.mutate({ paneId: session.paneId, starred })}
+					onDone={() => doneCard.mutate({ paneId: session.paneId })}
+				/>
+			))}
+		</div>
+	);
+}
+
+/** Keeps the lock screen widget's count in step with the board, and gives Odin the push token. */
+function WidgetSync() {
+	const board = phone.board.useQuery();
+	useEffect(() => void registerPush(odinFetch), []);
+	useEffect(() => {
+		if (board.data)
+			updateWidget(recentlyEnded(board.data.sessions).map((s) => s.statusAt));
+	}, [board.data]);
+	return null;
+}
+
 function App() {
-	const { paneId, night } = useScreenFromHash();
+	const { paneId, night, ended } = useScreenFromHash();
 	// Drawn: screens Odin sent this phone worked, so boot.ts keeps them.
 	useEffect(markStarted, []);
 	if (!pairing && !devToken && !demo)
@@ -1328,10 +1407,13 @@ function App() {
 				<Session key={paneId} paneId={paneId} />
 			) : night ? (
 				<NightAgent />
+			) : ended ? (
+				<RecentlyEnded />
 			) : (
 				<Home />
 			)}
 			<ShareTargets />
+			{native && pairing && <WidgetSync />}
 			{native && pairing && <ScreensUpdate />}
 		</>
 	);
