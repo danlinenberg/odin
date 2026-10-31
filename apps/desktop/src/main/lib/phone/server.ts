@@ -5,10 +5,8 @@ import { createServer, type Server } from "node:http";
 import { hostname } from "node:os";
 import { join } from "node:path";
 import {
-	acceptChannel,
 	type ChannelRequest,
 	type ChannelResponse,
-	connectSocket,
 	type Pipe,
 	relayId,
 	websocketPipe,
@@ -19,6 +17,12 @@ import QRCode from "qrcode";
 import { WebSocketServer } from "ws";
 import { ODIN_HOME_DIR } from "../app-environment";
 import { attachments } from "./attachments";
+import {
+	dialRelay,
+	type Handler,
+	type RelayState,
+	serveChannel,
+} from "./channel-host";
 import { phoneRouter } from "./router";
 import {
 	accept,
@@ -30,6 +34,8 @@ import {
 	removeDevice,
 	resetTrust,
 } from "./trust";
+
+export type { RelayState };
 
 /**
  * Settings → Remote → Phone: the iPhone app talks to Odin over an
@@ -54,8 +60,6 @@ type Config = { enabled: boolean; relay?: string };
 export const relayDefaults = { url: "wss://3-76-62-130.sslip.io" };
 
 const relayInUse = (config: Config) => config.relay || relayDefaults.url;
-
-export type RelayState = "connecting" | "connected";
 
 export type PhoneStatus =
 	| { state: "off"; relay?: string; devices: Device[] }
@@ -87,6 +91,9 @@ let failure: string | null = null;
 let relayState: RelayState = "connecting";
 /** Open channels by phone key, so removing a phone cuts it off at once. */
 const live = new Map<string, Set<Pipe>>();
+
+const serve = (pipe: Pipe, handle: Handler) =>
+	serveChannel(pipe, { identity, accept }, handle, live);
 
 function readConfig(): Config {
 	try {
@@ -212,72 +219,6 @@ function forward(loopbackPort: number, token: string) {
 	};
 }
 
-function serve(
-	pipe: Pipe,
-	handle: (r: ChannelRequest) => Promise<ChannelResponse>,
-) {
-	acceptChannel(pipe, {
-		me: identity(),
-		accept: (phone, hello) => {
-			if (!accept(phone, hello)) return false;
-			const key = Buffer.from(phone).toString("base64url");
-			const set = live.get(key) ?? new Set();
-			set.add(pipe);
-			live.set(key, set);
-			pipe.onClose(() => set.delete(pipe));
-			return true;
-		},
-		handle,
-	});
-}
-
-/** Keeps a control connection open to the relay and answers each phone it announces. */
-function dialRelay(
-	url: string,
-	handle: (r: ChannelRequest) => Promise<ChannelResponse>,
-): () => void {
-	let stopped = false;
-	let control: WebSocket | null = null;
-	let delay = 1000;
-	const id = relayId(identity().publicKey);
-	const connect = () => {
-		if (stopped) return;
-		relayState = "connecting";
-		const socket = new WebSocket(`${url}/host/${id}`);
-		control = socket;
-		socket.addEventListener("open", () => {
-			relayState = "connected";
-			delay = 1000;
-		});
-		socket.addEventListener("message", async (event) => {
-			let incoming: unknown;
-			try {
-				incoming = JSON.parse(String(event.data)).incoming;
-			} catch {
-				return;
-			}
-			if (typeof incoming !== "string" || !/^[0-9a-f]{32}$/.test(incoming))
-				return;
-			const session = await connectSocket(`${url}/accept/${incoming}`).catch(
-				() => null,
-			);
-			if (session) serve(websocketPipe(session), handle);
-		});
-		socket.addEventListener("close", () => {
-			relayState = "connecting";
-			if (stopped) return;
-			// After sleep or a dropped network: back off, then dial again.
-			setTimeout(connect, delay);
-			delay = Math.min(delay * 2, 60_000);
-		});
-	};
-	connect();
-	return () => {
-		stopped = true;
-		control?.close();
-	};
-}
-
 async function start(config: Config): Promise<void> {
 	const token = randomBytes(24).toString("base64url");
 	const loopback = createServer(createApp(token));
@@ -302,7 +243,14 @@ async function start(config: Config): Promise<void> {
 		loopback,
 		lanUrl: `ws://${localName()}:${portOf(lan)}/channel`,
 		stopRelay: relayInUse(config)
-			? dialRelay(relayInUse(config), handle)
+			? dialRelay(
+					relayInUse(config),
+					relayId(identity().publicKey),
+					(pipe) => serve(pipe, handle),
+					(state) => {
+						relayState = state;
+					},
+				)
 			: () => {},
 	};
 }

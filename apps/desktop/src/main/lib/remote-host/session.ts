@@ -621,6 +621,11 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		// Both ports are this Linux user's own (hostPorts).
 		`p=${HOST_PORT_SH}; curl -sf -m 2 http://127.0.0.1:$p/health >/dev/null && ODIN_PORT=$p || ODIN_PORT=$((p + 1))`,
 		`export ODIN_PORT${spec.odinPane ? ` ODIN_PANE_ID=${sh(spec.odinPane)}` : ""}`,
+		// Which of the laptop's cards this session is: the phone server on the
+		// host (phone-host) answers the phone by that card's id.
+		spec.odinPane
+			? `mkdir -p "$HOME/.odin/panes" && printf %s ${sh(spec.odinPane)} > "$HOME/.odin/panes/"${sh(tmuxSession(spec.pane))}`
+			: "",
 		// GitHub: the account's login, not its token. git and gh get the
 		// current token from the host service at each use (GITHUB_HELPERS_SCRIPT).
 		spec.githubLogin ? `export ODIN_GITHUB_LOGIN=${sh(spec.githubLogin)}` : "",
@@ -676,6 +681,30 @@ const promptIn = (spec: RemoteSessionSpec) =>
 const promptTaken = (spec: RemoteSessionSpec) =>
 	`python3 -c ${sh(PROMPT_TAKEN)} ${sh(spec.pane)} ${promptB64(spec)} ${sh(String(spec.since ?? 0))} 2>/dev/null`;
 
+/**
+ * Types text (`b64`, shell-quoted base64) into the Claude of a tmux session
+ * (`session`, shell-quoted): a bracketed paste, so its lines stay one
+ * message, then Enter - or `keys`, as Ctrl+X Ctrl+S for the board's Send now.
+ */
+const pasteIntoTmux = (session: string, b64: string, keys = "Enter") =>
+	`printf %s ${b64} | base64 -d | tmux load-buffer -b odin-reply-$$ - && tmux paste-buffer -p -d -b odin-reply-$$ -t ${session} && sleep 0.5 && tmux send-keys -t ${session} ${keys}`;
+
+/**
+ * A reply to a session on this host, typed in on the host itself: the way a
+ * board reply that resumes a host session is (attachScript), for the phone
+ * when the laptop is away (phone-host). A Claude the idle watcher stopped
+ * takes it as the prompt it resumes with. Exits 3 when the session's tmux
+ * session is gone.
+ */
+export function hostReplyScript(pane: string, text: string, now = false) {
+	const session = sh(tmuxSession(pane));
+	const b64 = sh(Buffer.from(text).toString("base64"));
+	return [
+		`tmux has-session -t ${session} 2>/dev/null || exit 3`,
+		`if [ -e ${idleMarker(pane)} ]; then printf %s ${b64} | base64 -d > ${idlePrompt(pane)} && tmux send-keys -t ${session} Enter; else ${pasteIntoTmux(session, b64, now ? "C-x C-s" : "Enter")}; fi`,
+	].join("\n");
+}
+
 /** Reattach, or start the session in tmux. Runs as `bash -lc` in the terminal channel. */
 export function attachScript(
 	spec: RemoteSessionSpec,
@@ -688,7 +717,7 @@ export function attachScript(
 	// Claude is the pane's command: while the run script still sets up, keys
 	// land in its pty and come out in Claude as a second copy of the prompt
 	// the script hands it. A reconnect pastes only what Claude never took.
-	const paste = `printf %s ${promptB64(spec)} | base64 -d | tmux load-buffer -b odin-reply-$$ - && tmux paste-buffer -p -d -b odin-reply-$$ -t ${session} && sleep 0.5 && tmux send-keys -t ${session} Enter`;
+	const paste = pasteIntoTmux(session, promptB64(spec));
 	const reply =
 		spec.prompt && /--resume\b/.test(spec.claudeArgs)
 			? `( for _ in $(seq 1 120); do [ "$(tmux display -p -t ${session} '#{pane_current_command}' 2>/dev/null)" = claude ] && break; if [ -e ${idleMarker(spec.pane)} ]; then printf %s ${promptB64(spec)} | base64 -d > ${idlePrompt(spec.pane)} && tmux send-keys -t ${session} Enter; exit 0; fi; sleep 1; done; sleep 2; ${spec.since ? `${promptTaken(spec)} || ` : ""}{ ${paste}; }; ) >/dev/null 2>&1 & `

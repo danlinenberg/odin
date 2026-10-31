@@ -81,11 +81,17 @@ cannot pretend to be your Odin or your phone.
 
 ## Parts
 
-- **Host**: Odin's phone server (`apps/desktop/src/main/lib/phone`), and later
-  the same code in host-service on an EC2. Holds a long-term identity key and
-  the list of trusted phones. The EC2 case needs Odin's backend to run on the
-  server, which is set aside for now: until it lands, the phone reaches Odin
-  only while the Mac is on, even when Claude sessions run on an EC2.
+- **Host**: Odin's phone server (`apps/desktop/src/main/lib/phone`), and the
+  same code on a remote host (`apps/desktop/src/main/lib/phone/host`, run
+  from `apps/desktop/src/main/phone-host`). Each holds a long-term identity
+  key and the list of trusted phones. The remote host's server runs as the
+  Odin user's own Linux user there, keeps its key and phones in
+  `~/.odin/phone-host` (mode 0700, files 0600), dials the same relay, and
+  answers a small part of the phone's API: the sessions running on that host,
+  their conversations, and a reply typed into one. So the phone reaches
+  sessions on the host with the Mac shut; everything else still needs the
+  Mac. It is paired on its own, with its own QR code, and its link carries
+  `h=<host name>` and no `l`.
 - **Phone**: the iPhone app (`apps/desktop/src/renderer/mobile`, built by
   `apps/mobile`). Holds its own long-term key and the host's public key.
 - **Relay**: `packages/odin-relay` - a WebSocket forwarder of about 150 lines,
