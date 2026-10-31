@@ -16,6 +16,7 @@ import {
 	copyResourcesPlugin,
 	defineEnv,
 	devPath,
+	phoneHostBundlePlugin,
 	warmAllModulesPlugin,
 } from "./vite/helpers";
 
@@ -191,7 +192,7 @@ export default defineConfig({
 							.slice(0, 8)}.js`,
 				},
 				external: ["electron", ...mainExternalizedDependencies],
-				plugins: [sentryPlugin].filter(Boolean),
+				plugins: [sentryPlugin, phoneHostBundlePlugin()].filter(Boolean),
 			},
 		},
 		resolve: {

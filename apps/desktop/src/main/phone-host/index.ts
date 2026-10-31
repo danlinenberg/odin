@@ -1,14 +1,20 @@
-import { pairingLink, startHostServer } from "main/lib/phone/host/server";
+import {
+	pairingLink,
+	startHostServer,
+	unpairHost,
+} from "main/lib/phone/host/server";
 
 /**
  * The phone server on a remote host (main/lib/phone/host). Odin on the laptop
  * puts this file in the host user's ~/.odin/phone-host and runs it there:
  * `serve` keeps it answering phones; `link` prints the pairing link the laptop
- * shows as a QR code.
+ * shows as a QR code; `unpair` forgets every phone.
  */
 const command = process.argv[2] ?? "serve";
 if (command === "link") {
 	process.stdout.write(`${pairingLink()}\n`);
+} else if (command === "unpair") {
+	await unpairHost();
 } else if (command === "serve") {
 	const server = startHostServer();
 	if (!server) {
