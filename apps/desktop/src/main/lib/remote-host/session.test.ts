@@ -21,6 +21,7 @@ import {
 	GIT_CREDENTIAL_HELPER,
 	GITHUB_HELPERS_SCRIPT,
 	HOST_NOTIFY_HOOK,
+	hostEnvScript,
 	hostFiles,
 	hostNote,
 	hostSettings,
@@ -155,6 +156,48 @@ describe("remote session scripts", () => {
 				env: { PATH: "/usr/bin:/bin", HOME: dir },
 			}).toString();
 			expect(out).toBe("ran\n");
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test("the host's /etc/environment fills in what the session lacks, never PATH or a name it has", () => {
+		expect(runScript(spec, "/d")).toContain(
+			`${MEMORY_LIMIT_SCRIPT}\n${hostEnvScript()}\n`,
+		);
+		const dir = mkdtempSync(join(tmpdir(), "odin-env-"));
+		try {
+			const file = join(dir, "environment");
+			writeFileSync(
+				file,
+				[
+					'PATH="/sbin"',
+					"# a comment",
+					"CLAUDE_CREDENTIALS_SECRET=/prod/services/odin-host-claude",
+					'AWS_CONFIG_FILE="/etc/aws/config"',
+					"KEPT=host",
+					"bad-name=x",
+					"NO_NEWLINE='last'",
+				].join("\n"),
+			);
+			const out = execFileSync(
+				"/bin/bash",
+				[
+					"-c",
+					`${hostEnvScript(file)}\nprintf '%s|' "$PATH" "$CLAUDE_CREDENTIALS_SECRET" "$AWS_CONFIG_FILE" "$KEPT" "$NO_NEWLINE"`,
+				],
+				{ env: { PATH: "/usr/bin:/bin", KEPT: "session" } },
+			).toString();
+			expect(out).toBe(
+				"/usr/bin:/bin|/prod/services/odin-host-claude|/etc/aws/config|session|last|",
+			);
+			// No file: nothing happens and the script goes on.
+			expect(
+				spawnSync("/bin/bash", [
+					"-c",
+					`${hostEnvScript(join(dir, "none"))}\necho on`,
+				]).stdout.toString(),
+			).toBe("on\n");
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
 		}
