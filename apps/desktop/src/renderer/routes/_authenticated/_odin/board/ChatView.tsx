@@ -2584,6 +2584,22 @@ export function shownTldr(
 }
 
 /**
+ * The view size a reply folded at, or null when it shows whole. Folding
+ * changes the reply's own layout - the scrollbar goes, the clamped box wraps
+ * its text differently, the card gains a TL;DR - so a folded reply can measure
+ * as fitting, unfold, measure as too tall and fold again, every frame. Once
+ * folded, only a different view size can unfold it.
+ */
+export function keepFolded(
+	foldedAt: string | null,
+	tooTall: boolean,
+	view: string,
+): string | null {
+	if (tooTall) return view;
+	return foldedAt === view ? foldedAt : null;
+}
+
+/**
  * The reply and its action items card together are taller than the chat's
  * visible area, so its start would scroll out of sight. Measured, not counted:
  * the same reply fits a tall window and overflows a short one.
@@ -2599,12 +2615,17 @@ function useTallerThanView(
 		const body = bodyRef.current;
 		const view = root?.closest<HTMLElement>("[data-chat-scroll]");
 		if (!watch || !root || !body || !view) return setTaller(false);
+		let foldedAt: string | null = null;
 		const measure = () => {
 			// The body's own height is its full height even while the fold clips it.
 			const card = root.querySelector<HTMLElement>("[data-action-items]");
-			setTaller(
+			const size = `${view.clientWidth}x${view.clientHeight}`;
+			foldedAt = keepFolded(
+				foldedAt,
 				body.offsetHeight + (card?.offsetHeight ?? 0) > view.clientHeight,
+				size,
 			);
+			setTaller(foldedAt !== null);
 		};
 		measure();
 		const observer = new ResizeObserver(measure);
