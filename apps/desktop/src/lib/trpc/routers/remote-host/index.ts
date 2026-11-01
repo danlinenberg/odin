@@ -1409,7 +1409,8 @@ export const createRemoteHostRouter = () =>
 		 */
 		nightStarted: publicProcedure.query(async () => {
 			const host = readOdinConfig().remoteHost;
-			if (!host?.on) return { started: [], planFrom: null, planUntil: null, missed: [] };
+			if (!host?.on)
+				return { started: [], planFrom: null, planUntil: null, missed: [] };
 			return readNightStarted(host);
 		}),
 		/**
