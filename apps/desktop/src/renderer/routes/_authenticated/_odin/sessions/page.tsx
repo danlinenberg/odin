@@ -7,6 +7,7 @@ import { ROW_PRIMARY_BUTTON, useSearchHotkey } from "../components/FeedChrome";
 import { PersonChip } from "../components/PersonChip";
 import { BUTTON, PILL } from "../components/pill";
 import { Highlight, TranscriptView } from "../components/TranscriptView";
+import { useOdinProfile } from "../hooks/useOdinProfile";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { useResumeSession } from "../hooks/useResumeSession";
 import { boardConversationIds } from "./live-sessions";
@@ -60,6 +61,7 @@ function SessionsPage() {
 	const [query, setQuery] = useState(handoff.q?.trim() ?? "");
 	const [openRow, setOpenRow] = useState<SessionRow | null>(null);
 	const { resume, isLaunching } = useResumeSession();
+	const { activeId, activeName, isLoading: profileLoading } = useOdinProfile();
 	const { ref: inputRef, hint } = useSearchHotkey();
 
 	// Search all again while already here: take its query over.
@@ -116,8 +118,9 @@ function SessionsPage() {
 	// ranked page (the server never hands it a next cursor).
 	const { data, isFetching, error, hasNextPage, fetchNextPage } =
 		electronTrpc.terminal.searchClaudeSessions.useInfiniteQuery(
-			{ query, limit: 40 },
+			{ query, limit: 40, profileId: activeId },
 			{
+				enabled: !profileLoading,
 				getNextPageParam: (page) => page.nextCursor ?? undefined,
 				placeholderData: (previous) => previous,
 			},
@@ -165,7 +168,8 @@ function SessionsPage() {
 			<div className="flex items-center gap-3 px-[18px] pb-2.5 pt-3.5">
 				<h1 className="text-[15px] font-semibold">Session History</h1>
 				<span className="text-xs text-muted-foreground">
-					every session Odin launched · search what was said, read it, resume it
+					every session Odin launched in {activeName} · search what was said,
+					read it, resume it
 				</span>
 			</div>
 

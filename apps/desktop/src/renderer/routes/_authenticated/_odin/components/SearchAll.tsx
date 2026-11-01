@@ -194,9 +194,9 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 	// Session History's own query, input and all, so the two share a cache.
 	const transcriptQuery = useDebounced(query.trim(), 250);
 	const history = electronTrpc.terminal.searchClaudeSessions.useInfiniteQuery(
-		{ query: transcriptQuery, limit: 40 },
+		{ query: transcriptQuery, limit: 40, profileId: activeId },
 		{
-			enabled: transcriptQuery.length >= 2,
+			enabled: transcriptQuery.length >= 2 && !isLoading,
 			getNextPageParam: (page) => page.nextCursor ?? undefined,
 		},
 	);
