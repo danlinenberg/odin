@@ -80,7 +80,14 @@ export function itemOptions(item: string): { text: string; options: string[] } {
 		text: item.slice(0, match.index) + (link ? ` ${link}` : ""),
 		options: (match[1] ?? "")
 			.split("|")
-			.map((option) => option.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").trim())
+			.map((option) =>
+				option
+					.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+					.trim()
+					// The prompt asks for "Odin builds it", but Claude still slips in its own
+					// name as the actor. Only a leading "Claude <verb>s" - "Claude app data" stays.
+					.replace(/^Claude(?=\s+[a-z]+s\b)/, "Odin"),
+			)
 			.filter(Boolean),
 	};
 }

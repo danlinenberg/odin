@@ -481,6 +481,17 @@ describe("ChatView transcript", () => {
 		expect(isDoneItem("Tell me when to ship [today | tomorrow]")).toBe(false);
 	});
 
+	test("a choice names Odin as the actor, never Claude", () => {
+		expect(
+			itemOptions(
+				"The comment reply: [Claude posts it on the Notion comment | Dan posts it]",
+			).options,
+		).toEqual(["Odin posts it on the Notion comment", "Dan posts it"]);
+		expect(
+			itemOptions("Free 17 GB [Claude app data | caches]").options,
+		).toEqual(["Claude app data", "caches"]);
+	});
+
 	test("trailing [A | B] choices become buttons", () => {
 		expect(itemOptions("Tell me the format [CSV | shareable page].")).toEqual({
 			text: "Tell me the format",
