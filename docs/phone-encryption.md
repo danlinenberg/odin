@@ -80,12 +80,16 @@ A relay can refuse to forward: that is denial of service, not a leak. It
 cannot pretend to be your Odin or your phone.
 
 One thing leaves the channel: the lock screen widget's silent push
-(`main/lib/phone/push.ts`). Odin sends it to Apple's push service, signed with
-the user's own APNs key, when a turn ends. It carries only the end times of
-the sessions that ended in the last hour - no title, no text, no session ID.
-Apple sees those times and the phone's push token. The phone sends Odin that
-token over the channel (`POST /push-token`), and Odin keeps it on the phone's
-entry in `phone-devices.json`, so removing the phone forgets it too.
+(`main/lib/phone/push.ts`). When a turn ends, Odin sends Odin's own relay the
+phone's push token and the end times of the sessions that ended in the last
+hour - no title, no text, no session ID. The relay signs the push with the
+App Store app's APNs key and hands it to Apple (`packages/odin-relay/src/push.ts`).
+It stores nothing, and its topic is fixed to the Odin app. So Odin's relay and
+Apple see those times and the token. The phone sends Odin that token over the
+channel (`POST /push-token`), and Odin keeps it on the phone's entry in
+`phone-devices.json`, so removing the phone forgets it too. Pushes always go
+through Odin's relay, also for someone who runs their own relay: only it holds
+the app's key.
 
 ## Parts
 
@@ -226,8 +230,9 @@ reach one, since a host dials the relay outbound on 443.
 
 - **Host**: `~/.odin/phone-identity` (the private key) and
   `~/.odin/phone-devices.json` (the trusted phones' public keys and push
-  tokens), both mode 0600. The APNs key for the widget's pushes, when set, is
-  `~/.odin/phone-push.json`, mode 0600.
+  tokens), both mode 0600.
+- **Odin's relay**: the App Store app's APNs key, from `APNS_KEY_FILE`, for the
+  widget's pushes. No user holds one.
 - **Phone**: the iOS Keychain, through a small native plugin in `apps/mobile`,
   stored "this device only": protected by iOS data protection and never copied
   into a backup.

@@ -147,3 +147,11 @@ test("anything but the three routes is a 404", async () => {
 		await (await fetch(`http://127.0.0.1:${relay.port}/healthz`)).text(),
 	).toBe("ok");
 });
+
+test("/push answers on the relay's own port; this one has no APNs key", async () => {
+	const answer = await fetch(`http://127.0.0.1:${relay.port}/push`, {
+		method: "POST",
+		body: "{}",
+	});
+	expect(answer.status).toBe(503);
+});

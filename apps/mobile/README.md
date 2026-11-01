@@ -32,10 +32,9 @@ Long-press the lock screen > Customize > Lock Screen > add a widget > Odin.
 It counts the sessions whose turn ended in the last hour and still wait on
 you (Needs you or Final Review); a tap opens that list (`odin://ended`). The
 app writes the count to the App Group (`group.$(ODIN_BUNDLE_ID)`) each time
-the board loads. To update it with the phone locked, add an APNs key in
-Odin > Settings > Remote > Phone > Lock screen widget (developer.apple.com >
-Certificates, IDs & Profiles > Keys > Apple Push Notifications service). Odin
-then sends a silent push with the end times when a turn ends.
+the board loads. With the phone locked, Odin sends a silent push with the end
+times when a turn ends, through Odin's relay, which signs it with the app's
+APNs key (`packages/odin-relay`, `APNS_*`). Nobody sets up a key.
 
 ## Notes
 

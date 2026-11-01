@@ -9,18 +9,20 @@ import {
 	keyPairFrom,
 } from "@odin/channel";
 import { ODIN_HOME_DIR } from "../app-environment";
-import type { PushTarget } from "./apns";
 
 /**
  * Who may talk to Odin from a phone (docs/phone-encryption.md): Odin's own
  * key, the phones it trusts, and the one-time code the QR code carries.
  */
 
+/** Where a phone's widget pushes go: its APNs token, its app, and which APNs took it. */
+export type PushTarget = { token: string; topic: string; sandbox?: boolean };
+
 export type Device = {
 	key: string;
 	name: string;
 	added: string;
-	/** Where its lock screen widget's silent pushes go (apns.ts), once it sent one. */
+	/** Where its lock screen widget's silent pushes go (push.ts), once it sent one. */
 	push?: PushTarget;
 };
 
