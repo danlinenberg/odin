@@ -23,7 +23,8 @@ test("transcriptUsage counts each message once and prices it", () => {
 	const usage = transcriptUsage(jsonl);
 	// 4 + 20 + 0.2 read + 8 (1h write at 2x)
 	expect(usage?.usd).toBeCloseTo(32.2);
-	expect(usage?.tokens).toBe(4_000_000);
+	// Cache reads are not new tokens.
+	expect(usage?.tokens).toBe(3_000_000);
 	expect(usage?.context).toBe(2_000_000);
 	expect(transcriptUsage("")).toBeNull();
 	// An error row at the end is not the context size.
