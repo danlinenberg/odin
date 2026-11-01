@@ -30,6 +30,7 @@ import {
 	itemOptions,
 	itemReply,
 	itemsFoldLabel,
+	keepFolded,
 	LIMIT_HIT_RE,
 	lastActionsId,
 	launchAttachments,
@@ -1339,5 +1340,23 @@ describe("withoutDraftCopies", () => {
 		const out = withoutDraftCopies(items);
 		expect(out[1]).toBe(other);
 		expect(out[3]).toBe(items[3]);
+	});
+});
+
+describe("keepFolded", () => {
+	test("folds a reply too tall for the view", () => {
+		expect(keepFolded(null, true, "800x600")).toBe("800x600");
+		expect(keepFolded(null, false, "800x600")).toBeNull();
+	});
+
+	test("stays folded when the fold itself makes the reply fit", () => {
+		// Folded at 800x600, then measured as fitting at the same size:
+		// unfolding here is what flickered.
+		expect(keepFolded("800x600", false, "800x600")).toBe("800x600");
+	});
+
+	test("unfolds once a different view size fits the reply", () => {
+		expect(keepFolded("800x600", false, "800x900")).toBeNull();
+		expect(keepFolded("800x600", true, "800x500")).toBe("800x500");
 	});
 });
