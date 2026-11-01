@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
 	addSamples,
 	addVoiceNote,
+	correctionsFromDrafts,
 	draftCorrections,
 	LEARN_EVERY,
 	learnFromDrafts,
@@ -234,6 +235,37 @@ describe("learnFromDrafts", () => {
 		const store = await readVoice(path);
 		expect(store.notes).toEqual([]);
 		expect(store.samples).toEqual([]);
+	});
+
+	test("a rewrite answers with the corrections it saved", async () => {
+		const path = join(mkdtempSync(join(tmpdir(), "voice-")), "voice.json");
+		const notes = await correctionsFromDrafts(pairs, {
+			path,
+			claudeBin: fakeClaude,
+		});
+		expect(notes).toEqual(["shorter, no greeting", "no sign-off"]);
+		expect((await readVoice(path)).notes).toEqual(notes);
+	});
+
+	test("a failed model call is an error, not silence", async () => {
+		const path = join(mkdtempSync(join(tmpdir(), "voice-")), "voice.json");
+		const broken = join(tmpdir(), `broken-claude-${process.pid}.sh`);
+		writeFileSync(broken, "#!/bin/sh\necho 'Not logged in' >&2\nexit 1\n", {
+			mode: 0o755,
+		});
+		await expect(
+			correctionsFromDrafts(pairs, { path, claudeBin: broken }),
+		).rejects.toThrow();
+		expect((await readVoice(path)).notes).toEqual([]);
+	});
+
+	test("an empty model answer is an error", async () => {
+		const path = join(mkdtempSync(join(tmpdir(), "voice-")), "voice.json");
+		const silent = join(tmpdir(), `silent-claude-${process.pid}.sh`);
+		writeFileSync(silent, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+		await expect(
+			correctionsFromDrafts(pairs, { path, claudeBin: silent }),
+		).rejects.toThrow("Claude gave no answer");
 	});
 
 	test("NONE adds no correction", () => {
