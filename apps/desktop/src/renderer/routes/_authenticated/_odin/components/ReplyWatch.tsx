@@ -474,12 +474,46 @@ export function useReplyWatcher(openSession: (paneId: string) => void): void {
 		() =>
 			useTabsStore.subscribe((now, before) => {
 				for (const paneId of startedWorking(before.panes, now.panes))
-					useReplyWatch.getState().seen(paneId);
+					void seenIfYouWrote(paneId);
 				if (stoppedWorking(before.panes, now.panes).length)
 					void checkConditions((paneId) => open.current(paneId));
 			}),
 		[],
 	);
+}
+
+function sessionIdOf(paneId: string): string | undefined {
+	return (
+		useTabsStore.getState().panes[paneId]?.claudeSessionId ??
+		usePaneMeta.getState().sessionIdByPane[paneId]
+	);
+}
+
+/**
+ * A turn you started answers the session's pings. A turn a scheduled check
+ * (CronCreate, /loop) or a background agent started doesn't: the watch's own
+ * next check used to clear "Happened" from the bar before you saw it.
+ */
+async function seenIfYouWrote(paneId: string) {
+	const { watches, seen } = useReplyWatch.getState();
+	if (!Object.values(watches).some((w) => w.paneId === paneId && w.reply))
+		return;
+	const sessionId = sessionIdOf(paneId);
+	if (sessionId) {
+		const transcript = await electronTrpcClient.terminal.readClaudeTranscript
+			.query({ sessionId })
+			.catch(() => null);
+		if (!startedByYou(transcript?.messages ?? [])) return;
+	}
+	seen(paneId);
+}
+
+/**
+ * Whether the turn just started is yours: the transcript keeps only typed
+ * prompts, so a scheduled turn leaves Claude's last reply at the end.
+ */
+export function startedByYou(messages: Pick<TranscriptMessage, "role">[]) {
+	return messages.at(-1)?.role === "user";
 }
 
 /**
@@ -493,9 +527,7 @@ async function checkConditions(open: (paneId: string) => void) {
 	);
 	for (const [key, watch] of pending) {
 		const paneId = watch.paneId ?? "";
-		const sessionId =
-			useTabsStore.getState().panes[paneId]?.claudeSessionId ??
-			usePaneMeta.getState().sessionIdByPane[paneId];
+		const sessionId = sessionIdOf(paneId);
 		if (!sessionId) continue;
 		const transcript = await electronTrpcClient.terminal.readClaudeTranscript
 			.query({ sessionId })
