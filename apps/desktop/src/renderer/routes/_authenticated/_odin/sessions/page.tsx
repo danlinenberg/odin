@@ -122,7 +122,13 @@ function SessionsPage() {
 			{
 				enabled: !profileLoading,
 				getNextPageParam: (page) => page.nextCursor ?? undefined,
-				placeholderData: (previous) => previous,
+				// Keep the rows while the query is retyped, not across a profile
+				// switch: the old profile's sessions must not show under the new one.
+				placeholderData: (previous, previousQuery) =>
+					(previousQuery?.queryKey[1] as { input?: { profileId?: string } })
+						?.input?.profileId === activeId
+						? previous
+						: undefined,
 			},
 		);
 	const pages = data?.pages ?? [];
