@@ -1,6 +1,10 @@
 /** What a conversation has used, from the `usage` Claude Code logs per API message. */
 export interface SessionUsage {
-	/** Every token in and out, cache reads and writes included. */
+	/**
+	 * New tokens in and out: input, cache writes and output. Cache reads are
+	 * left out - each API call re-reads the whole context, so counting them
+	 * adds the context once per call (a 2-turn session read 1M+ from cache).
+	 */
 	tokens: number;
 	/** The latest message's prompt size - what the context holds right now. */
 	context: number;
@@ -84,7 +88,7 @@ export function transcriptUsage(jsonl: string): SessionUsage | null {
 		const read = usage.cache_read_input_tokens ?? 0;
 		const written = usage.cache_creation_input_tokens ?? 0;
 		const hour = usage.cache_creation?.ephemeral_1h_input_tokens ?? 0;
-		tokens += input + output + read + written;
+		tokens += input + output + written;
 		last = usage;
 		lastModel = model;
 		const price = priceOf(model);
