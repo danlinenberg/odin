@@ -220,8 +220,16 @@ describe("the Night Agent runner on the host", () => {
 						env: { ...env, HOME: dir },
 					}).toString(),
 				);
-			expect(read()).toEqual({ started: [], planFrom: null, missed: [] });
-			writeFileSync(join(night, "plan.json"), JSON.stringify({ from: 5 }));
+			expect(read()).toEqual({
+				started: [],
+				planFrom: null,
+				planUntil: null,
+				missed: [],
+			});
+			writeFileSync(
+				join(night, "plan.json"),
+				JSON.stringify({ from: 5, to: 7, until: 9 }),
+			);
 			writeFileSync(
 				join(night, "state.json"),
 				JSON.stringify({
@@ -235,6 +243,7 @@ describe("the Night Agent runner on the host", () => {
 			expect(read()).toEqual({
 				started: [{ key: "k", title: "t", sessionId: "s", at: 6 }],
 				planFrom: 5,
+				planUntil: 9,
 				missed: [{ night: 3, at: 4 }],
 			});
 			// Once there is a ledger, it is the record: every night, not just tonight.

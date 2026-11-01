@@ -134,7 +134,7 @@ export async function rankTasks(
 			cache.set(body, ranked);
 			return ranked;
 		} catch (error) {
-			throw briefError(error);
+			throw briefError(error, "ranking the queue");
 		} finally {
 			const litter = await transcriptOf(sessionId);
 			if (litter) await rm(litter.path, { force: true });
