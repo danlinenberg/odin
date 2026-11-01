@@ -7,6 +7,7 @@ import {
 	restartedWatches,
 	resumeWatchPrompt,
 	sessionThread,
+	startedByYou,
 	startedWorking,
 	unreadPing,
 	useReplyWatch,
@@ -374,4 +375,11 @@ test("isNewer compares Slack ts as numbers and Jira stamps as dates", () => {
 	).toBe(true);
 	expect(isNewer("approved", "")).toBe(true);
 	expect(isNewer("", "approved")).toBe(false);
+});
+
+test("only a turn you typed reads the ping, not a scheduled check", () => {
+	const ping = { role: "assistant" as const };
+	expect(startedByYou([{ role: "user" }, ping])).toBe(false);
+	expect(startedByYou([ping, { role: "user" }])).toBe(true);
+	expect(startedByYou([])).toBe(false);
 });
