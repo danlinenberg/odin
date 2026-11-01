@@ -8,7 +8,10 @@
  *   /connect/<id>    a phone, for the host with that relay ID
  *   /accept/<sid>    the host's side of one phone's session
  *   /healthz         "ok"
+ *   /push            the lock screen widget's silent push (push.ts)
  */
+
+import { type PushConfig, pushRoute } from "./push";
 
 export type RelayOptions = {
 	port?: number;
@@ -24,6 +27,10 @@ export type RelayOptions = {
 	trustProxy?: boolean;
 	/** Bytes a session may forward in a minute, each way together. */
 	bytesPerMinute?: number;
+	/** The APNs key /push signs with; without it, /push answers 503. */
+	push?: PushConfig | null;
+	/** Tests stand in for Apple here. */
+	pushTransport?: Parameters<typeof pushRoute>[1];
 	/** Tests watch every forwarded message here - what any relay could log. */
 	onForward?: (data: Uint8Array) => void;
 };
@@ -63,6 +70,7 @@ export function startRelay(
 		}
 	>();
 	const perIpCount = new Map<string, number>();
+	const push = pushRoute(options.push ?? null, options.pushTransport);
 
 	const join = (a: Socket, b: Socket) => {
 		a.data.peer = b;
@@ -92,6 +100,13 @@ export function startRelay(
 		fetch(req, server) {
 			const url = new URL(req.url);
 			if (url.pathname === "/healthz") return new Response("ok");
+			const clientIp = () =>
+				(options.trustProxy
+					? req.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim()
+					: undefined) ||
+				server.requestIP(req)?.address ||
+				"?";
+			if (url.pathname === "/push") return push(req, clientIp());
 			const [, role, key = ""] = url.pathname.split("/");
 			const valid =
 				(role === "host" || role === "connect"
@@ -99,10 +114,7 @@ export function startRelay(
 					: role === "accept" && SID.test(key)) &&
 				req.headers.get("upgrade")?.toLowerCase() === "websocket";
 			if (!valid) return new Response("Not found", { status: 404 });
-			const forwarded = options.trustProxy
-				? req.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim()
-				: undefined;
-			const ip = forwarded || server.requestIP(req)?.address || "?";
+			const ip = clientIp();
 			if ((perIpCount.get(ip) ?? 0) >= perIp)
 				return new Response("Too many connections", { status: 429 });
 			const upgraded = server.upgrade(req, {

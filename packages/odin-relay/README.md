@@ -38,6 +38,24 @@ Then give Odin the relay's address: `"relay": "wss://relay.example.com"` in
 `~/.odin/phone.json`, and restart Odin. Without one, Odin uses the default relay
 (`DEFAULT_RELAY` in `apps/desktop/src/main/lib/phone/server.ts`).
 
+## The widget's push
+
+Odin's own relay also signs the lock screen widget's silent pushes
+(`src/push.ts`, `POST /push`) with the App Store app's APNs key, so no Odin
+user needs one. Give it the key with these, and mount the `.p8` read-only:
+
+```sh
+docker run -d --restart=always -p 127.0.0.1:8443:8443 -e TRUST_PROXY=1 \
+  -v /etc/odin/AuthKey_XXXXXXXXXX.p8:/keys/apns.p8:ro \
+  -e APNS_KEY_FILE=/keys/apns.p8 -e APNS_KEY_ID=XXXXXXXXXX \
+  -e APNS_TEAM_ID=YYYYYYYYYY -e APNS_TOPIC=com.danlinenberg.odin \
+  odin-relay
+```
+
+Without them, `/push` answers 503 and the rest works as before. A push holds
+only end times; the relay stores no token, and pushes to one phone at most
+every 20 seconds, 60 a minute per IP address.
+
 ## Limits
 
 For a relay that strangers can use: 32 sockets per IP address, one Noise
