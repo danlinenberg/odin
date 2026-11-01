@@ -7,6 +7,7 @@ import {
 	nextWindows,
 	nightExclude,
 	retryDelayMs,
+	sendFailedLine,
 	shouldAlert,
 } from "./night-send";
 import { nightWindow } from "./useNightAgentRunner";
@@ -128,5 +129,22 @@ describe("a plan for the next nights", () => {
 		expect(
 			hostPickedItem({ key: "slack:D9:1.5", title: "t", at: 1 }),
 		).toBeNull();
+	});
+});
+
+describe("sendFailedLine", () => {
+	test("a host still covered by its last plan is told apart from one with none", () => {
+		expect(
+			sendFailedLine(
+				"odin-prod",
+				"claude -p timed out ranking the queue",
+				true,
+			),
+		).toBe(
+			"Couldn't update odin-prod's plan: claude -p timed out ranking the queue. Tonight is still covered by the plan it already has. Odin retries, a minute later and then less often, at most every 15 minutes.",
+		);
+		expect(sendFailedLine("odin-prod", "Token is expired.", false)).toBe(
+			"Tonight's plan for odin-prod failed: Token is expired. Odin retries it, a minute later and then less often, at most every 15 minutes.",
+		);
 	});
 });

@@ -19,6 +19,7 @@ import {
 	PLAN_NIGHTS,
 	retryDelayMs,
 	type SendFailure,
+	sendFailedLine,
 	shouldAlert,
 } from "./night-send";
 
@@ -117,6 +118,8 @@ export function useNightAgentRunner() {
 	const failure = useRef<SendFailure | null>(null);
 	// The night the host's plan is for, as it last said; null: none, or not read yet.
 	const hostPlanFrom = useRef<number | null>(null);
+	// When the host's plan ends (epoch seconds): sent from here or read from the host.
+	const hostPlanUntil = useRef<number | null>(null);
 	// The night (window start, ms) already alerted about a missing plan.
 	const alerted = useRef<number | null>(null);
 
@@ -212,9 +215,10 @@ export function useNightAgentRunner() {
 		const runOnHost = async (name: string, now: Date, span: string) => {
 			const { offHours, logNight } = useNextInLinePrompt.getState();
 			if (ticks++ % ADOPT_EVERY_TICKS === 0) {
-				const { started, planFrom, missed } =
+				const { started, planFrom, planUntil, missed } =
 					await electronTrpcClient.remoteHost.nightStarted.query();
 				hostPlanFrom.current = planFrom;
+				hostPlanUntil.current = planUntil;
 				// Windows that opened there with no plan, while this computer was away.
 				const span = `${offHours.start}-${offHours.end}`;
 				for (const miss of missed) {
@@ -320,12 +324,13 @@ export function useNightAgentRunner() {
 					prompt: plan.prompt,
 				});
 			}
+			const until = (nights[nights.length - 1] ?? window).to;
 			await electronTrpcClient.remoteHost.nightPush.mutate({
 				...window,
 				cap: offHours.maxSessions,
 				tasks,
 				nights,
-				until: (nights[nights.length - 1] ?? window).to,
+				until,
 				exclude,
 				...(picksOnly
 					? {}
@@ -343,6 +348,7 @@ export function useNightAgentRunner() {
 				);
 			sent.current = { signature, at: Date.now(), night: window.from };
 			hostPlanFrom.current = window.from;
+			hostPlanUntil.current = until;
 		};
 
 		const tick = async () => {
@@ -417,7 +423,11 @@ export function useNightAgentRunner() {
 						// A new error gets a line; the same one again only retries.
 						if (failure.current?.error !== message)
 							logNight(
-								`Tonight's plan for ${name} failed: ${message} Odin retries it, a minute later and then less often, at most every 15 minutes.`,
+								sendFailedLine(
+									name,
+									message,
+									(hostPlanUntil.current ?? 0) >= window.to,
+								),
 								{ night: forNight },
 							);
 						failure.current = {
@@ -429,9 +439,11 @@ export function useNightAgentRunner() {
 						running = false;
 					}
 				}
+				// A plan sent on an earlier night covers this one too, until its last night ends.
 				const hasPlan =
 					sent.current?.night === window.from ||
-					hostPlanFrom.current === window.from;
+					hostPlanFrom.current === window.from ||
+					(hostPlanUntil.current ?? 0) >= window.to;
 				const failing = failure.current;
 				if (
 					failing &&

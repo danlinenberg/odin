@@ -91,6 +91,22 @@ export function retryDelayMs(attempts: number): number {
 	return Math.min(MINUTE_MS * 2 ** Math.max(0, attempts - 1), 15 * MINUTE_MS);
 }
 
+/**
+ * The log line for a send that failed. When the host's last plan still covers
+ * the coming window, nothing is lost tonight: the host runs that plan, only
+ * without what changed here since.
+ */
+export function sendFailedLine(
+	name: string,
+	error: string,
+	covered: boolean,
+): string {
+	const said = /[.!?]$/.test(error.trim()) ? error.trim() : `${error.trim()}.`;
+	return covered
+		? `Couldn't update ${name}'s plan: ${said} Tonight is still covered by the plan it already has. Odin retries, a minute later and then less often, at most every 15 minutes.`
+		: `Tonight's plan for ${name} failed: ${said} Odin retries it, a minute later and then less often, at most every 15 minutes.`;
+}
+
 /** How long before the window an unsent plan raises a notification. */
 export const ALERT_BEFORE_MS = 60 * MINUTE_MS;
 

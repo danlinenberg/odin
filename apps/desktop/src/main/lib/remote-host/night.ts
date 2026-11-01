@@ -470,6 +470,7 @@ export async function pushNightPlan(
 export async function readNightStarted(host: HostLogin): Promise<{
 	started: NightStarted[];
 	planFrom: number | null;
+	planUntil: number | null;
 	missed: NightMissed[];
 }> {
 	const client = await connectHost(host);
@@ -504,7 +505,8 @@ def ran():
         rows = state.get("started") or [r for n in state.get("nights", {}).values() for r in n.get("started", [])]
     return rows[-200:]
 plan = load("plan.json", None)
-print(json.dumps({"started": ran(), "planFrom": plan.get("from") if isinstance(plan, dict) else None, "missed": load("missed.json", [])}))
+plan = plan if isinstance(plan, dict) else {}
+print(json.dumps({"started": ran(), "planFrom": plan.get("from"), "planUntil": plan.get("until", plan.get("to")), "missed": load("missed.json", [])}))
 `;
 
 /** Stops a host's nights: the plan goes, the ledger stays. For a host this computer no longer sends plans to. */
@@ -520,16 +522,20 @@ export async function clearNightPlan(host: HostLogin): Promise<void> {
 export function parseNightRead(raw: string): {
 	started: NightStarted[];
 	planFrom: number | null;
+	/** When the host's plan ends: its last night's end. */
+	planUntil: number | null;
 	missed: NightMissed[];
 } {
 	const read = JSON.parse(raw || "{}") as {
 		started?: NightStarted[];
 		planFrom?: number | null;
+		planUntil?: number | null;
 		missed?: NightMissed[];
 	};
 	return {
 		started: read.started ?? [],
 		planFrom: read.planFrom ?? null,
+		planUntil: read.planUntil ?? null,
 		missed: read.missed ?? [],
 	};
 }

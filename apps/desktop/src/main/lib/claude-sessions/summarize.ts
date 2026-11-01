@@ -202,7 +202,7 @@ function urgencyOf(value: string | null): BriefUrgency | null {
  * this whole prompt, transcript included, so the panel showed a page of our own
  * instructions with the actual reason cut off at the bottom. Say why instead.
  */
-export function briefError(error: unknown): Error {
+export function briefError(error: unknown, doing = "writing the brief"): Error {
 	const e = error as {
 		code?: unknown;
 		killed?: boolean;
@@ -212,7 +212,7 @@ export function briefError(error: unknown): Error {
 	};
 	if (e?.code === "ENOENT") return new Error("claude CLI not found on PATH");
 	if (e?.killed || e?.signal === "SIGTERM")
-		return new Error("claude -p timed out writing the brief");
+		return new Error(`claude -p timed out ${doing}`);
 	const said = (e?.stderr || e?.stdout || "").trim().split("\n").pop()?.trim();
 	const exit = typeof e?.code === "number" ? ` (exit ${e.code})` : "";
 	return new Error(
