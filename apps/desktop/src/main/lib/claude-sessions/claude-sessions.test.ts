@@ -353,6 +353,18 @@ describe("searchSessions", () => {
 		expect(sessions.filter((s) => s.sessionId === id)).toHaveLength(1);
 	});
 
+	test("a session another profile owns is left out", async () => {
+		const root = fixtureRoot();
+		const all = (await searchSessions({ root })).sessions;
+		const [kept] = all;
+		const { sessions } = await searchSessions({
+			root,
+			includes: (id) => id === kept?.sessionId,
+		});
+		expect(all.length).toBeGreaterThan(1);
+		expect(sessions.map((s) => s.sessionId)).toEqual([kept?.sessionId]);
+	});
+
 	test("browsing lists every top-level session, newest first, never subagents", async () => {
 		const root = fixtureRoot();
 		const { sessions, total, terms } = await searchSessions({ root });

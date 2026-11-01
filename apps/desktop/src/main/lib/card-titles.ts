@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { profileOf } from "shared/odin-profile";
 import { ODIN_HOME_DIR } from "./app-environment";
 
 /**
@@ -7,10 +8,22 @@ import { ODIN_HOME_DIR } from "./app-environment";
  * lives on its pane, and the pane goes when the card closes - so a finished
  * task lost the name the board knew it by. Every board save records the
  * titles here; a closed card keeps its last one.
+ *
+ * The card's profile is kept the same way, beside it: Session History shows
+ * only the active profile's sessions, and a plain session (not launched off a
+ * feed, so not in the work log) has no other record of its profile once the
+ * card closes.
  */
 const titlesPath = () => join(ODIN_HOME_DIR, "card-titles.json");
+const profilesPath = () => join(ODIN_HOME_DIR, "card-profiles.json");
 
-export function cardTitles(path = titlesPath()): Record<string, string> {
+type CardPane = {
+	claudeSessionId?: string;
+	odinTaskTitle?: string;
+	odinProfile?: string;
+};
+
+function readMap(path: string): Record<string, string> {
 	try {
 		return JSON.parse(readFileSync(path, "utf8"));
 	} catch {
@@ -18,16 +31,19 @@ export function cardTitles(path = titlesPath()): Record<string, string> {
 	}
 }
 
-export function rememberCardTitles(
-	panes: Record<string, { claudeSessionId?: string; odinTaskTitle?: string }>,
-	path = titlesPath(),
+/** Adds the panes' values to the file at `path`; a closed card keeps its last. */
+function remember(
+	panes: Record<string, CardPane>,
+	path: string,
+	pick: (pane: CardPane) => string | undefined,
 ): void {
-	const saved = cardTitles(path);
+	const saved = readMap(path);
 	let changed = false;
-	for (const { claudeSessionId, odinTaskTitle } of Object.values(panes)) {
-		if (!claudeSessionId || !odinTaskTitle) continue;
-		if (saved[claudeSessionId] === odinTaskTitle) continue;
-		saved[claudeSessionId] = odinTaskTitle;
+	for (const pane of Object.values(panes)) {
+		const value = pick(pane);
+		if (!pane.claudeSessionId || !value) continue;
+		if (saved[pane.claudeSessionId] === value) continue;
+		saved[pane.claudeSessionId] = value;
 		changed = true;
 	}
 	if (!changed) return;
@@ -37,4 +53,21 @@ export function rememberCardTitles(
 	} catch (error) {
 		console.warn("[card-titles] not saved:", error);
 	}
+}
+
+export function cardTitles(path = titlesPath()): Record<string, string> {
+	return readMap(path);
+}
+
+export function cardProfiles(path = profilesPath()): Record<string, string> {
+	return readMap(path);
+}
+
+export function rememberCardTitles(
+	panes: Record<string, CardPane>,
+	path = titlesPath(),
+	profilePath = profilesPath(),
+): void {
+	remember(panes, path, (pane) => pane.odinTaskTitle);
+	remember(panes, profilePath, (pane) => profileOf(pane.odinProfile));
 }

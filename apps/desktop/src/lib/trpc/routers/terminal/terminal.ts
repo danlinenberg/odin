@@ -15,6 +15,7 @@ import { getTerminalHostClient } from "main/lib/terminal-host/client";
 import { getWorkspaceRuntimeRegistry } from "main/lib/workspace-runtime";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
+import { activeProfileId } from "../odin-config";
 import { assertWorkspaceUsable } from "../workspaces/utils/usability";
 import { awsSsoLogin } from "./aws-sso";
 import { readLocalRun, startLocalRun } from "./local-run";
@@ -448,7 +449,8 @@ export const createTerminalRouter = () => {
 		 *
 		 * Who asked is joined in from Odin's own records (see sessionPeople), so
 		 * a name finds the sessions that came from that person's Slack message,
-		 * ticket or PR - the name is in none of those transcripts.
+		 * ticket or PR - the name is in none of those transcripts. Only one
+		 * profile's sessions are listed, so work and personal history stay apart.
 		 */
 		searchClaudeSessions: publicProcedure
 			.input(
@@ -456,6 +458,9 @@ export const createTerminalRouter = () => {
 					query: z.string().default(""),
 					limit: z.number().int().positive().max(100).default(40),
 					cursor: z.number().int().nonnegative().nullish(),
+					/** The profile whose sessions to list; the active one if unset. In
+					 *  the input so a profile switch is a new query, not a cached one. */
+					profileId: z.string().optional(),
 				}),
 			)
 			.query(async ({ input }) => {
@@ -463,7 +468,7 @@ export const createTerminalRouter = () => {
 					"main/lib/claude-sessions"
 				);
 				const { cardTitles } = await import("main/lib/card-titles");
-				const { sessionPeople } = await import("./session-people");
+				const { profileHistory } = await import("./session-people");
 				// The name the board knew it by (a rename, kept after the card
 				// closes), else the brief's title - same order as Insights.
 				const titles: Record<string, string> = {};
@@ -471,10 +476,11 @@ export const createTerminalRouter = () => {
 					if (brief.title) titles[id] = brief.title;
 				Object.assign(titles, cardTitles());
 				return searchSessions({
-					...input,
+					query: input.query,
+					limit: input.limit,
 					cursor: input.cursor ?? 0,
-					people: sessionPeople(),
 					titles,
+					...profileHistory(input.profileId ?? activeProfileId()),
 				});
 			}),
 

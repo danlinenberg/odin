@@ -460,6 +460,7 @@ export async function searchSessions({
 	people = new Map(),
 	titles = {},
 	cursor = 0,
+	includes = () => true,
 }: {
 	query?: string;
 	limit?: number;
@@ -472,6 +473,8 @@ export async function searchSessions({
 	/** session id → the name the board gave it (a rename, the brief's title),
 	 *  which outranks anything the transcript says. */
 	titles?: Record<string, string>;
+	/** Which sessions to list at all - the active profile's, from the router. */
+	includes?: (sessionId: string) => boolean;
 } = {}): Promise<{
 	sessions: SessionSummary[];
 	scanned: number;
@@ -497,6 +500,7 @@ export async function searchSessions({
 		const file = files[index];
 		if (seen.has(file.sessionId)) continue;
 		seen.add(file.sessionId);
+		if (!includes(file.sessionId)) continue;
 		// Browsing wants the newest `limit`; searching has to see everything it
 		// can before ranking, or the best hit may never be read.
 		if (terms.length === 0 && scored.length >= limit) break;

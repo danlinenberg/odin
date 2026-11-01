@@ -507,7 +507,7 @@ export const phoneRouter = t.router({
 		.query(async ({ input }) => {
 			const { searchSessions } = await import("main/lib/claude-sessions");
 			const { cardTitles } = await import("main/lib/card-titles");
-			const { sessionPeople } = await import(
+			const { profileHistory } = await import(
 				"lib/trpc/routers/terminal/session-people"
 			);
 			const panes = Object.values(appState.data.tabsState.panes ?? {});
@@ -522,8 +522,8 @@ export const phoneRouter = t.router({
 			const { sessions } = await searchSessions({
 				query: input.query,
 				limit: 30,
-				people: sessionPeople(),
 				titles,
+				...profileHistory(activeProfileId()),
 			});
 			// The board's column for a session on it, as its card shows it.
 			const flags = await cardFlags();

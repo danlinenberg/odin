@@ -1,6 +1,7 @@
 import { workLog } from "@odin/local-db";
 import { desc } from "drizzle-orm";
 import { appState } from "main/lib/app-state";
+import { cardProfiles } from "main/lib/card-titles";
 import type { SessionPerson } from "main/lib/claude-sessions";
 import { localDb } from "main/lib/local-db";
 import { profileOf } from "shared/odin-profile";
@@ -58,12 +59,13 @@ export function sessionPeople(): Map<string, SessionPerson> {
 
 /**
  * The profile each session was launched under, from the same two records as
- * `sessionPeople` (the ledger wins). A transcript neither knows about - one
- * run outside Odin, or before profiles - reads as the default profile, the
- * same rule `profileOf` applies to an unstamped pane.
+ * `sessionPeople` (the ledger wins), over what closed cards left behind (see
+ * card-titles). A transcript none of them knows about - one run outside Odin,
+ * or before profiles - reads as the default profile, the same rule
+ * `profileOf` applies to an unstamped pane.
  */
 export function sessionProfileOf(): (sessionId: string) => string {
-	const profiles = new Map<string, string>();
+	const profiles = new Map(Object.entries(cardProfiles()));
 	for (const row of Object.values(appState.data.tabsState.panes ?? {}))
 		if (row.claudeSessionId)
 			profiles.set(row.claudeSessionId, profileOf(row.odinProfile));
@@ -74,4 +76,22 @@ export function sessionProfileOf(): (sessionId: string) => string {
 		console.warn("[session-people] work log unreadable:", error);
 	}
 	return (sessionId) => profiles.get(sessionId) ?? profileOf(null);
+}
+
+/**
+ * What Session History searches for one profile: which sessions it lists, and
+ * the people who asked for those (the chips) - another profile's sessions and
+ * askers stay on that profile.
+ */
+export function profileHistory(profileId: string): {
+	includes: (sessionId: string) => boolean;
+	people: Map<string, SessionPerson>;
+} {
+	const profileOfSession = sessionProfileOf();
+	const includes = (sessionId: string) =>
+		profileOfSession(sessionId) === profileId;
+	const people = new Map(
+		[...sessionPeople()].filter(([sessionId]) => includes(sessionId)),
+	);
+	return { includes, people };
 }
