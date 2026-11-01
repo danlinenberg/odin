@@ -227,12 +227,21 @@ function TuneVoice({ draft }: { draft: () => string }) {
 		onError: saveFailed,
 	});
 	const learn = electronTrpc.voice.learnFromRewrite.useMutation({
-		onSuccess: (learning, input) => {
+		onSuccess: (notes, input) => {
+			if (notes === null) {
+				close("Turn on Your voice in Settings to learn from it");
+				return;
+			}
 			setChange({ rewrite: input.rewrite });
+			if (notes.length === 0) {
+				close("No style change found in your version");
+				return;
+			}
+			toast.success("Saved to Your voice", {
+				description: notes.map((note) => `- ${note}`).join("\n"),
+			});
 			close(
-				learning
-					? "Learning from your version"
-					: "Turn on Your voice in Settings to learn from it",
+				`Learned ${notes.length} ${notes.length === 1 ? "rule" : "rules"} from your version`,
 			);
 		},
 		onError: saveFailed,
@@ -301,7 +310,7 @@ function TuneVoice({ draft }: { draft: () => string }) {
 						className="h-7 px-2 text-xs"
 						disabled={!rewrite.trim() || learn.isPending}
 					>
-						Save
+						{learn.isPending ? "Learning..." : "Save"}
 					</Button>
 					<button
 						type="button"

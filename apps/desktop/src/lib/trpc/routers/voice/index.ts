@@ -5,6 +5,7 @@ import {
 } from "main/lib/claude-sessions/claude-sessions";
 import {
 	addVoiceNote,
+	correctionsFromDrafts,
 	learnFromDrafts,
 	readVoice,
 	setVoiceEnabled,
@@ -45,17 +46,17 @@ export const createVoiceRouter = () =>
 			.mutation(({ input }) => addVoiceNote(input.note)),
 		/**
 		 * "Rewrite it" under a draft: what I would have written instead. Learned
-		 * like a draft I rewrote before sending. Answers at once; false while
-		 * Your voice is off, so nothing is learned.
+		 * like a draft I rewrote before sending, and waits for it: answers with
+		 * the corrections it saved (none when it found no style change), null
+		 * while Your voice is off. A failed model call is an error, not silence.
 		 */
 		learnFromRewrite: publicProcedure
 			.input(z.object({ draft: z.string(), rewrite: z.string() }))
 			.mutation(async ({ input }) => {
-				if (!(await readVoice()).enabled) return false;
-				void learnFromDrafts([
+				if (!(await readVoice()).enabled) return null;
+				return correctionsFromDrafts([
 					{ draft: input.draft, sent: [input.rewrite.trim()] },
 				]);
-				return true;
 			}),
 		/** Starts training and answers at once; `get` says when it's done. */
 		train: publicProcedure.mutation(() => {

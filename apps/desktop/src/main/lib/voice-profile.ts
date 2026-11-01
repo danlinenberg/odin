@@ -395,26 +395,42 @@ export async function learnFromDrafts(
 	{ path = voicePath(), claudeBin = "claude" } = {},
 ): Promise<void> {
 	try {
-		const sentPairs = pairs.filter((pair) => pair.draft && pair.sent.length);
-		if (sentPairs.length === 0) return;
-		const store = await update(path, (now) =>
-			now.enabled
-				? addSamples(
-						now,
-						sentPairs.flatMap((pair) => pair.sent).filter(isSample),
-					)
-				: now,
-		);
-		if (!store.enabled) return;
-		const answer = await askModel(
-			draftCorrectionsPrompt(sentPairs, store.notes),
-			claudeBin,
-		);
-		for (const note of draftCorrections(answer)) await addVoiceNote(note, path);
-		if (store.unlearned >= LEARN_EVERY) await learnOnce(path, claudeBin);
+		await correctionsFromDrafts(pairs, { path, claudeBin });
+		const store = await readVoice(path);
+		if (store.enabled && store.unlearned >= LEARN_EVERY)
+			await learnOnce(path, claudeBin);
 	} catch (error) {
 		console.warn("[voice] learning from drafts failed", error);
 	}
+}
+
+/**
+ * The corrections step of learnFromDrafts, for "Rewrite it" under a draft:
+ * keeps what I sent as samples, saves how I rewrote the drafts as corrections
+ * and returns them, so the card can say what it learned. Throws when the model
+ * call fails or answers nothing, so the card can say that too. Nothing while
+ * Your voice is off.
+ */
+export async function correctionsFromDrafts(
+	pairs: DraftAndSent[],
+	{ path = voicePath(), claudeBin = "claude" } = {},
+): Promise<string[]> {
+	const sentPairs = pairs.filter((pair) => pair.draft && pair.sent.length);
+	if (sentPairs.length === 0) return [];
+	const store = await update(path, (now) =>
+		now.enabled
+			? addSamples(now, sentPairs.flatMap((pair) => pair.sent).filter(isSample))
+			: now,
+	);
+	if (!store.enabled) return [];
+	const answer = await askModel(
+		draftCorrectionsPrompt(sentPairs, store.notes),
+		claudeBin,
+	);
+	if (!answer) throw new Error("Claude gave no answer");
+	const notes = draftCorrections(answer);
+	for (const note of notes) await addVoiceNote(note, path);
+	return notes;
 }
 
 /** Settings' switch: off stops keeping samples and hides the guide from sessions. */
