@@ -87,11 +87,13 @@ const isFind = (event: KeyboardEvent) => {
  * A page in the panel is its own document, so its keys never reach Odin's
  * window. It reports an Esc it didn't use itself (a Jira modal closing takes
  * it) through its console instead. Slack's web client prevents every Esc,
- * open menu or not, so an Esc the page took still counts when nothing was
- * open for it to close. Checked in the capture phase, before the page's own
- * handlers close whatever was open. A Slack preview that opened without
- * taking focus (focus stays on <body>) never sees the Esc, so it gets the Esc
- * passed on and closes, instead of the panel closing under it. It reports
+ * open menu or not, and keeps some dialogs on screen for good (a banner), so
+ * an Esc only counts as the page's when one of the menus or dialogs open as
+ * it was pressed is gone once its closing animation is done. Checked in the
+ * capture phase, before the page's own handlers close whatever was open. A
+ * Slack preview that opened without taking focus (focus stays on <body>)
+ * never sees the Esc, so it gets the Esc passed on and closes, instead of
+ * the panel closing under it. It reports
  * every modifier chord too, and Odin matches it against the Copy Link and
  * Search shortcuts, so a rebind applies to a page that's already open.
  */
@@ -101,16 +103,18 @@ const REPORT_KEYS = `addEventListener("keydown", (event) => {
 		console.debug(${JSON.stringify(KEY_SIGNAL)} + JSON.stringify({ code, metaKey, ctrlKey, altKey, shiftKey }));
 	}
 	if (event.key !== "Escape") return;
-	const open = [...document.querySelectorAll("[role=dialog],[role=menu],[role=listbox],[aria-modal=true]")]
-		.filter((el) => el.getClientRects().length > 0);
+	const shown = (el) => el.isConnected && el.getClientRects().length > 0;
+	const open = [...document.querySelectorAll("[role=dialog],[role=menu],[role=listbox],[aria-modal=true]")].filter(shown);
+	const signal = () => console.debug(${JSON.stringify(ESCAPE_SIGNAL)});
 	setTimeout(() => {
-		if (event.defaultPrevented && open.length) return;
+		if (!open.length) return signal();
 		const modal = open.findLast((el) => el.matches(".ReactModal__Content"));
 		if (modal && !modal.contains(event.target)) {
 			modal.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", keyCode: 27, bubbles: true, cancelable: true }));
-			return;
 		}
-		console.debug(${JSON.stringify(ESCAPE_SIGNAL)});
+		setTimeout(() => {
+			if (!open.some((el) => !shown(el))) signal();
+		}, 400);
 	});
 }, true);`;
 
