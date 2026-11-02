@@ -251,7 +251,13 @@ function AllFeedPage() {
 	const needle = search.trim().toLowerCase();
 	const reminders = useReminders((s) => s.reminders);
 	const rows = useTaskRows(() => void reactions.refetch());
-	const { start: handleStart, livePaneFor, isLaunching, launchingKey } = rows;
+	const {
+		start: handleStart,
+		startMany,
+		livePaneFor,
+		isLaunching,
+		launchingKey,
+	} = rows;
 	const sessions = useActiveSessions();
 	const needsYou = sessions.filter(
 		(session) => session.column === "permission",
@@ -978,6 +984,18 @@ function AllFeedPage() {
 								className={ROW_LINK_BUTTON}
 							>
 								Up next
+							</button>
+							<button
+								type="button"
+								disabled={isLaunching}
+								onClick={() => {
+									const rows = items.filter((item) => selected.has(item.key));
+									void startMany(rows).then((went) => went && clearPicked());
+								}}
+								title="Start a session on each selected row - pick here or remote once for all"
+								className={ROW_LINK_BUTTON}
+							>
+								Start {picked.length}
 							</button>
 							<DoneButton onClick={finishPicked} />
 							<button
