@@ -717,6 +717,15 @@ export const phoneRouter = t.router({
 			return { ...screens, native: NATIVE_API };
 		}),
 
+	/**
+	 * The installed app is older than the screens this Odin has: they need
+	 * native code it lacks, so `screens` sends none, and the phone shows a
+	 * banner to update the app itself.
+	 */
+	appOutdated: t.procedure
+		.input(z.object({ native: z.number().int() }))
+		.query(({ input }) => input.native < NATIVE_API),
+
 	/** One raw key for a prompt Claude draws as a menu: Enter, Esc, a digit. */
 	key: t.procedure
 		.input(paneInput.extend({ key: z.enum(["enter", "esc", "1", "2", "3"]) }))

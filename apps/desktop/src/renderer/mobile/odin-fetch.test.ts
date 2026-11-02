@@ -48,3 +48,20 @@ test("a Mac that got the request and was slow to answer is not retried on the ho
 	await Bun.sleep(0);
 	expect(calls).toEqual(["mac /trpc/reply"]);
 });
+
+test("a host that refuses the phone forgets its link, and never reads as the Mac unpairing it", async () => {
+	let forgot = 0;
+	const fetch = routedFetch(
+		async () => {
+			throw new Unreachable("asleep");
+		},
+		async () => new Response(null, { status: 401 }),
+		() => {
+			forgot++;
+		},
+	);
+	const error = await fetch("/trpc/board").catch((e) => e);
+	expect(error).toBeInstanceOf(Unreachable);
+	expect(error.message).toContain("Your Mac is away");
+	expect(forgot).toBe(1);
+});
