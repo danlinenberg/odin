@@ -1,3 +1,4 @@
+import { slackTextToPlain } from "lib/trpc/routers/slack/reactions";
 import { emojify } from "renderer/lib/emoji";
 
 /**
@@ -17,13 +18,33 @@ export function tidyTitle(text: string): string {
 }
 
 /**
- * A session title for the phone: Slack's raw markup (`<@U08EJ28KM0V>`,
- * `<!here>`, `:rotating_light:`) as names, @here and emoji.
+ * Longest a title waits on Slack for names. The board answers a poll every
+ * few seconds, so it never sits behind Slack: a lookup still out lands in the
+ * cache, and the next poll has the name.
  */
-export async function readableTitle(raw: string): Promise<string> {
+const SLACK_WAIT_MS = 300;
+
+/**
+ * A session title for the phone: Slack's raw markup (`<@U08EJ28KM0V>`,
+ * `<!here>`, `:rotating_light:`) as names, @here and emoji. Names Slack
+ * doesn't give in time read as @id, as with Slack not connected.
+ */
+export async function readableTitle(
+	raw: string,
+	names: (raw: string) => Promise<string> = async (text) =>
+		(await import("lib/trpc/routers/slack")).slackReadable(text),
+	waitMs = SLACK_WAIT_MS,
+): Promise<string> {
 	if (!raw) return raw;
-	const { slackReadable } = await import("lib/trpc/routers/slack");
-	return tidyTitle(await slackReadable(raw));
+	const plain = slackTextToPlain(raw);
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const text = await Promise.race([
+		names(raw).catch(() => plain),
+		new Promise<string>((done) => {
+			timer = setTimeout(() => done(plain), waitMs);
+		}),
+	]).finally(() => clearTimeout(timer));
+	return tidyTitle(text);
 }
 
 /** Rows with their titles made readable, as `readableTitle` does one. */
