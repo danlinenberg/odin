@@ -27,4 +27,19 @@ describe("odinGuide", () => {
 		expect(all).toContain("## All");
 		expect(all).toContain("Show what's Done");
 	});
+
+	it("answers a question about integrations with every connection", () => {
+		const hits = odinGuide("integrations");
+		expect(hits).toContain("## Connections");
+		for (const name of [
+			"Slack",
+			"GitHub",
+			"Jira",
+			"Notion",
+			"Gmail",
+			"ClickUp",
+			"Calendar",
+		])
+			expect(hits).toContain(name);
+	});
 });
