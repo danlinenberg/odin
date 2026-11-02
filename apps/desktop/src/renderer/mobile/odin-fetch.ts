@@ -7,6 +7,7 @@ import {
 	relayId,
 	websocketPipe,
 } from "@odin/channel";
+import { setConnectStep } from "./connect-step";
 import type { Pairing } from "./pair-link";
 
 /**
@@ -62,6 +63,9 @@ function myKey(): Promise<KeyPair> {
 	return phoneKey;
 }
 
+/** Who a pairing reaches, for the spinner's steps: the Mac, or the remote host by name. */
+const who = (pairing: Pairing) => pairing.remoteHost ?? "Your Mac";
+
 /** Odin closed the handshake: this phone isn't on its list (any more). */
 export class Unpaired extends Error {}
 
@@ -90,6 +94,7 @@ async function attempt(
 	try {
 		await opened(socket);
 		wasOpen = true;
+		setConnectStep(`${who(pairing)} is checking this phone`);
 		return await connectChannel(websocketPipe(socket), {
 			me,
 			host: fromBase64url(pairing.host),
@@ -146,6 +151,11 @@ export function channelFetch(pairing: Pairing): OdinFetch {
 				.sort((a, b) => Number(b === lastUrl) - Number(a === lastUrl));
 			let last: unknown = new Error("No address to reach Odin");
 			for (const url of paths) {
+				setConnectStep(
+					url === pairing.lan
+						? `Reaching ${who(pairing)} on this Wi-Fi`
+						: `Reaching ${who(pairing)} through the relay`,
+				);
 				try {
 					const open = await attempt(
 						url,
@@ -199,14 +209,18 @@ export function channelFetch(pairing: Pairing): OdinFetch {
 		try {
 			open = await connect();
 		} catch (error) {
+			setConnectStep(null);
 			// tRPC and the upload read a 401 as "pair again".
 			if (error instanceof Unpaired) return new Response(null, { status: 401 });
 			throw new Unreachable(
 				error instanceof Error ? error.message : "Couldn't reach Odin",
 			);
 		}
+		const slow = SLOW_RE.test(url.pathname);
+		// A slow call says nothing: the board's spinner is about the board.
+		if (!slow) setConnectStep(`Waiting for ${who(pairing)} to answer`);
 		let timer: ReturnType<typeof setTimeout> | undefined;
-		const limit = SLOW_RE.test(url.pathname) ? 120_000 : ANSWER_MS;
+		const limit = slow ? 120_000 : ANSWER_MS;
 		const asked = Date.now();
 		const answer = await Promise.race([
 			open.request({
@@ -229,8 +243,14 @@ export function channelFetch(pairing: Pairing): OdinFetch {
 					reject(new TypeError("Odin didn't answer. Reconnecting."));
 				}, limit);
 			}),
-		]).finally(() => clearTimeout(timer));
+		])
+			.catch((error) => {
+				setConnectStep(null);
+				throw error;
+			})
+			.finally(() => clearTimeout(timer));
 		heardAt = Date.now();
+		setConnectStep(null);
 		return new Response(answer.status === 204 ? null : answer.body.slice(), {
 			status: answer.status,
 			headers: answer.headers,
