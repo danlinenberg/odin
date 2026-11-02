@@ -14,3 +14,13 @@ describe("typedText", () => {
 		expect(typedText("?")).toBe("\x1b[200~?\x1b[201~");
 	});
 });
+
+describe("typedText with a trailing backslash", () => {
+	test("adds a space so the Enter after it sends instead of adding a line", () => {
+		expect(typedText("I think.\\")).toBe("I think.\\ ");
+	});
+
+	test("does the same inside a paste", () => {
+		expect(typedText("a\nb\\")).toBe("\x1b[200~a\nb\\ \x1b[201~");
+	});
+});
