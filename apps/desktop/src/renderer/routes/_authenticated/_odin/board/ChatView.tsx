@@ -97,6 +97,7 @@ import {
 	itemDetail,
 	itemOptions,
 	itemReply,
+	itemSnippets,
 	localCommand,
 	localRunMessage,
 	noActionItems,
@@ -2012,9 +2013,12 @@ function ActionItemRow({
 	onDismiss,
 	buttonColumn,
 	commands = [],
+	snippets = [],
 	onRun,
 }: {
 	item: string;
+	/** The item's own code blocks (a ```sql query), shown under its text. */
+	snippets?: string[];
 	/** The reply's paragraph about this item, shown on hover. */
 	detail: string | null;
 	number: number;
@@ -2087,6 +2091,14 @@ function ActionItemRow({
 						/>
 					</div>
 				</ItemDetail>
+				{snippets.length > 0 && (
+					<MarkdownRenderer
+						content={snippets.join("\n\n")}
+						style="default"
+						allowHtml={false}
+						className={cn(COMPACT_MARKDOWN, "mt-1 select-text cursor-text")}
+					/>
+				)}
 				{asks && !sent && (
 					<div className="mt-1.5 flex flex-wrap items-center gap-1.5">
 						{options.map((option) => (
@@ -2210,6 +2222,7 @@ function ActionItems({
 			item,
 			number: index + 1,
 			under: fences.flatMap(bangCommands),
+			snippets: itemSnippets(fences),
 		}),
 	);
 	const items = entries.filter(
@@ -2267,10 +2280,11 @@ function ActionItems({
 				<div className="text-[13px] text-muted-foreground">None left.</div>
 			) : onDo && items.length > 0 ? (
 				<ol className="flex flex-col gap-1">
-					{items.map(({ item, number }) => (
+					{items.map(({ item, number, snippets }) => (
 						<ActionItemRow
 							key={number}
 							item={item}
+							snippets={snippets}
 							detail={itemDetail(item, body, number)}
 							number={number}
 							onDo={onDo}

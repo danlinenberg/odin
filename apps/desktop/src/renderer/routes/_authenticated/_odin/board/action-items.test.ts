@@ -1,11 +1,13 @@
 import { expect, test } from "bun:test";
 import {
 	describeCommand,
+	itemSnippets,
 	localRunMessage,
 	noActionItems,
 	placeCommands,
 	runnableCommands,
 } from "./action-items";
+import { actionItemEntries } from "./brief";
 
 const reply = (text: string) => ({ role: "assistant", text });
 const block = (command: string) => `\`\`\`\n! ${command}\n\`\`\``;
@@ -100,4 +102,24 @@ test("a command no item claims goes to the card's foot", () => {
 		under: [[]],
 		foot: ["df -h"],
 	});
+});
+
+test("an item keeps its ```sql block as code; its `!` block stays a Run button", () => {
+	const [first, second] = actionItemEntries(
+		[
+			"1. Run this lookup in your DB client (you only)",
+			"    ```sql",
+			"    SELECT id",
+			"    FROM users;",
+			"    ```",
+			"2. Check the disk",
+			"   ```",
+			"   ! df -h",
+			"   ```",
+		].join("\n"),
+	);
+	expect(itemSnippets(first?.fences ?? [])).toEqual([
+		"```sql\nSELECT id\nFROM users;\n```",
+	]);
+	expect(itemSnippets(second?.fences ?? [])).toEqual([]);
 });
