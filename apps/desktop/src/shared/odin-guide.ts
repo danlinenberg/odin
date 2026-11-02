@@ -1,7 +1,9 @@
 /**
  * What every Odin feature does, in the user's terms: the raven's map of Odin,
  * served by `/odin` action=guide. He answers from this and the live state,
- * never from Odin's source. A feature you add or change belongs here too.
+ * never from Odin's source. A feature you add or change belongs here too:
+ * odin-guide-coverage.test.ts and CI's guide job (scripts/guide-check.ts)
+ * fail a PR that leaves one out.
  */
 export const ODIN_GUIDE = `# Odin
 
@@ -162,6 +164,7 @@ A session's life on this computer, top to bottom. Besides the launch gate limits
 ## Advanced (Settings → Advanced)
 What a session runs, rarely changed:
 - **Claude command**: what starts Claude, e.g. an alias for another account. One per line; with two or more, pick one in the top bar. Empty: claude. Store: claudeCommand.
+- **Update plugins**: refreshes every plugin marketplace and moves each enabled plugin to its newest version, so a team runs the same skills. New sessions get the new versions; open ones keep theirs until they restart.
 - **Default prompt**: added to the end of every task prompt (how to work, the Shell, ACTION ITEMS), with Reset to default. The board reads ACTION ITEMS from each reply. Store: sessionInstructions.
 
 ## Remote (Settings → Remote)
@@ -180,10 +183,10 @@ Your sessions when you're not at this computer.
 Desktop banners (macOS controls them; the button opens System Settings), Sound on or off and Volume, and Reminders → Notify at: the time "Remind me" sessions and due dates notify on their day, one notification per day.
 
 ## Appearance (Settings → Appearance)
-Theme: pick one, or follow the system with a Light theme and a Dark theme; custom theme files can be imported (256 KB at most). Text size (90% to 150%) makes Odin's own text bigger or smaller; the in-app browser keeps its size, while ⌘+/⌘- zoom everything. Sessions → Show sessions as a chat (default on), and Fold long replies (default on): a latest reply too long for the window folds under its TL;DR card; off shows the reply whole and the TL;DR card still shows. Links → Open links inside Odin: links from the listed sites open in a panel over the page; each site has a switch; other links go to your default browser. Stores: theme (fn setTheme), inAppBrowser.
+Theme: pick one, or follow the system with a Light theme and a Dark theme; Custom themes: theme files can be imported (256 KB at most). Text size (90% to 150%) makes Odin's own text bigger or smaller; the in-app browser keeps its size, while ⌘+/⌘- zoom everything. Sessions → Show sessions as a chat (default on), and Fold long replies (default on): a latest reply too long for the window folds under its TL;DR card; off shows the reply whole and the TL;DR card still shows. Links → Open links inside Odin: links from the listed sites open in a panel over the page; each site has a switch; other links go to your default browser. Stores: theme (fn setTheme), inAppBrowser.
 
 ## Keyboard (Settings → Keyboard)
-Search and re-record any shortcut; a key already in use offers Reassign; Reset all. From any app → "Double-tap to show or hide Odin": Record, then tap a modifier twice.
+Shortcuts: search and re-record any shortcut; a key already in use offers Reassign; Reset all. From any app → "Double-tap to show or hide Odin": Record, then tap a modifier twice.
 
 ## Top bar and updates
 The top bar has one status pill for Claude usage (5-hour and week), this computer (sessions, memory, CPU, free disk) and each remote host (sessions, memory, free disk). It shows only what is yellow or red, worst first, and a green dot when all is fine; hover lists everything. Click it when the disk is full to delete unused worktrees. Odin checks for a release every hour; a violet strip says "Odin X is available". Update and restart downloads it, quits and swaps in the new app; open terminal sessions survive the restart. Later hides it until the next check. Nothing installs on its own.
@@ -212,7 +215,7 @@ Three tabs: Schedules, Rules, Reminders.
 Huginn can line up backlog tasks to run one after another: each starts when the last stops working. Odin drives the line. Store: oneByOne (ids left; set ids to [] to stop).
 
 ## Personalization settings (Settings → Personalization)
-- **Your voice**: on by default. Every session starts with the guide Odin learns from your Slack messages written into its instructions, so drafts you send as yourself sound like you. Odin retrains on its own - daily from your sent messages, after every 15 new ones it sees, and from how you rewrote a session's drafts before sending - using counted numbers (length, capitals, periods, Hebrew, emoji) and where each message went. A switch turns it off; Train now retrains at once; the guide is shown, and Corrections (one per line) always win over it.
+- **Your voice** ("Write drafts in my voice"): on by default. Every session starts with the guide Odin learns from your Slack messages written into its instructions, so drafts you send as yourself sound like you. Odin retrains on its own - daily from your sent messages, after every 15 new ones it sees, and from how you rewrote a session's drafts before sending - using counted numbers (length, capitals, periods, Hebrew, emoji) and where each message went. A switch turns it off; Train now retrains at once; the guide is shown, and Corrections (one per line) always win over it.
 
 ## Launch gate and Queued (Settings → Sessions → When they start)
 A started session waits in Idle under "Queued", with a reason, until all limits allow it. Nothing is refused - the card exists from the start. Changes apply within 5 seconds.

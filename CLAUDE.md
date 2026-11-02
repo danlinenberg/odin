@@ -70,6 +70,17 @@ No ponytail comments (the "ponytail" prefix on a note about a shortcut) in
 anything committed. Say what the code does in a plain comment, or leave it out.
 `scripts/lint.sh` fails on one.
 
+## Keep the guide true
+
+Huginn, Odin's raven, answers every question about Odin from
+`apps/desktop/src/shared/odin-guide.ts`, so what the guide leaves out he says
+Odin doesn't have. A change users can see - a screen, tab, button, setting,
+connection, default, label or automation - updates the guide in the same PR, in
+the words the user sees. Two checks hold this: `odin-guide-coverage.test.ts`
+fails when a rail entry, Tasks tab, connection or setting is missing from it,
+and CI's `guide` job has Claude read the diff and fails the PR with the
+sentences to add.
+
 ## Committing
 
 - Cut branches from `origin/main`, never from the branch the repo happens to be
