@@ -8,7 +8,7 @@ import {
 } from "main/lib/phone/server";
 import { z } from "zod";
 import { publicProcedure, router } from "..";
-import { readOdinConfig } from "./odin-config";
+import { readOdinConfig, updateOdinConfig } from "./odin-config";
 
 /** The remote host set up in Settings, or a clear error. */
 function remoteHost() {
@@ -57,6 +57,16 @@ export const createPhoneRouter = () =>
 			);
 			return phoneHostPairing(remoteHost());
 		}),
+		/** The board's hand-added tags, so the phone's cards show them too. */
+		setCustomTags: publicProcedure
+			.input(z.object({ tags: z.array(z.string()).max(200) }))
+			.mutation(({ input }) => {
+				const current = readOdinConfig().customTags ?? [];
+				if (current.join("\n") !== input.tags.join("\n"))
+					updateOdinConfig({
+						customTags: input.tags.length ? input.tags : undefined,
+					});
+			}),
 		/** What this session got from the phone: the chat marks those messages. */
 		fromPhone: publicProcedure
 			.input(z.object({ paneId: z.string() }))

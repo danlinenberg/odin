@@ -193,7 +193,21 @@ const SOURCES: Partial<Record<string, { icon: IconType; label: string }>> = {
 	notion: { icon: LuFileText, label: "Notion" },
 };
 
-type Chip = { icon: IconType; label: string; on?: boolean; off?: boolean };
+type Chip = {
+	icon?: IconType;
+	/** Drawn in place of the icon: the Auto-started pill's emoji. */
+	emoji?: string;
+	label: string;
+	on?: boolean;
+	off?: boolean;
+};
+
+/** A tag as the desktop card shows it: Auto-started wears its emoji, the rest a tag icon. */
+function tagChip(tag: string, launchEmoji: string | undefined): Chip {
+	return tag === "auto-started"
+		? { emoji: launchEmoji ?? "\u{1F916}", label: "Auto-started" }
+		: { icon: LuTag, label: tag };
+}
 
 export type Details = {
 	contact?: string | null;
@@ -202,6 +216,8 @@ export type Details = {
 	connected?: boolean;
 	tags?: string[];
 	repo?: string | null;
+	/** The Auto-started pill's emoji: the launch reaction. An older Odin sends none. */
+	launchEmoji?: string;
 };
 
 /**
@@ -220,17 +236,21 @@ export function Chips({ details }: { details: Details }) {
 		details.contact && { icon: LuUser, label: details.contact },
 		source,
 		details.repo && { icon: LuFolderGit2, label: details.repo },
-		...(details.tags ?? []).map((tag) => ({ icon: LuTag, label: tag })),
+		...(details.tags ?? []).map((tag) => tagChip(tag, details.launchEmoji)),
 	].filter((chip): chip is Chip => !!chip);
 	if (!chips.length) return null;
 	return (
 		<span className="flex min-w-0 flex-wrap items-center gap-1">
-			{chips.map(({ icon: Icon, label, on, off }) => (
+			{chips.map(({ icon: Icon, emoji, label, on, off }) => (
 				<span
 					key={label}
 					className={`flex max-w-[12rem] items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${off ? "bg-danger/15 text-danger-ink" : "bg-secondary text-soft-foreground"}`}
 				>
-					<Icon className="size-3 shrink-0" />
+					{Icon ? (
+						<Icon className="size-3 shrink-0" />
+					) : (
+						<span className="shrink-0 leading-none">{emoji}</span>
+					)}
 					<span className="truncate">{label}</span>
 					{on && (
 						<span

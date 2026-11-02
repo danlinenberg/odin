@@ -4103,6 +4103,14 @@ function DevBoardPage() {
 	// Tags you typed into the tag menu. Per machine, like the column above -
 	// Odin is local-only, so there's no other machine to sync them to.
 	const [customTags, setCustomTags] = useState<string[]>(readCustomTags);
+	// The phone can't read this window's storage: Odin's config keeps a copy,
+	// so its cards show the same tags. On every change, and once at start for
+	// tags added before the phone read them.
+	const syncCustomTags = electronTrpc.phone.setCustomTags.useMutation();
+	const syncTags = syncCustomTags.mutate;
+	useEffect(() => {
+		syncTags({ tags: customTags });
+	}, [customTags, syncTags]);
 	const saveCustomTags = (next: string[]) => {
 		setCustomTags(next);
 		try {

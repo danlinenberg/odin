@@ -204,6 +204,12 @@ export interface OdinFileConfig {
 	/** Reaction that queues a message and starts its session. Default `robot_face`. */
 	slackLaunchReaction?: string;
 	/**
+	 * The tags you added by hand from the board's tag menu. The renderer owns
+	 * the list (localStorage); this copy is what the phone reads, so its cards
+	 * show them too.
+	 */
+	customTags?: string[];
+	/**
 	 * When auto-launch first synced, ms - set once, and its presence means the
 	 * baseline below was taken.
 	 */
@@ -271,6 +277,8 @@ const SHARED_KEYS = [
 	"doubleTapModifier",
 	"pruneMergedWorktrees",
 	"textSize",
+	// Tags you added on the board, as the renderer keeps them - one list per machine.
+	"customTags",
 	// The OAuth apps: which Slack/Jira/Notion app Odin *is*, and
 	// GitHub's device-flow client id. They describe the build, not an account,
 	// so every profile signs in through the same one - a profile that didn't

@@ -84,4 +84,19 @@ describe("activeSessions", () => {
 		expect(columns(false)).toEqual(["live:working"]);
 		expect(columns(true)).toEqual(["live:working", "ended:idle"]);
 	});
+	it("shows the tags you added by hand, and the Auto-started pill's emoji", () => {
+		const panes = {
+			mine: pane({
+				id: "mine",
+				odinTags: ["auto-started", "billing", "ui"],
+			}),
+		};
+		const [session] = activeSessions(panes, new Set(["mine"]), "default", false, {
+			customTags: ["billing"],
+			launchEmoji: "\u{1F680}",
+		});
+		// "ui" is from the old vocabulary and was never added by hand: still hidden.
+		expect(session.tags).toEqual(["auto-started", "billing"]);
+		expect(session.launchEmoji).toBe("\u{1F680}");
+	});
 });
