@@ -24,7 +24,7 @@ export const SCREENS = [
 	{
 		to: "/settings/connections",
 		label: "Connections",
-		hint: "Profiles, Claude, Slack, GitHub, Jira, Notion, Gmail",
+		hint: "Profiles, Claude, Slack, GitHub, Jira, Notion, Gmail, ClickUp, Calendar",
 		icon: LuPlug,
 	},
 	{
