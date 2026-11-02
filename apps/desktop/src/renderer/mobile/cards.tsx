@@ -200,6 +200,8 @@ type Chip = {
 	label: string;
 	on?: boolean;
 	off?: boolean;
+	/** Drawn bold and outlined, to be seen at a glance: the Remote chip. */
+	strong?: boolean;
 };
 
 /** A tag as the desktop card shows it: Auto-started wears its emoji, the rest a tag icon. */
@@ -231,7 +233,12 @@ export function Chips({ details }: { details: Details }) {
 		details.remote
 			? details.connected === false
 				? { icon: BsCloudSlash, label: "Remote · offline", off: true }
-				: { icon: BsCloud, label: "Remote", on: details.connected === true }
+				: {
+						icon: BsCloud,
+						label: "Remote",
+						on: details.connected === true,
+						strong: true,
+					}
 			: { icon: LuLaptop, label: "Local" },
 		details.contact && { icon: LuUser, label: details.contact },
 		source,
@@ -241,10 +248,10 @@ export function Chips({ details }: { details: Details }) {
 	if (!chips.length) return null;
 	return (
 		<span className="flex min-w-0 flex-wrap items-center gap-1">
-			{chips.map(({ icon: Icon, emoji, label, on, off }) => (
+			{chips.map(({ icon: Icon, emoji, label, on, off, strong }) => (
 				<span
 					key={label}
-					className={`flex max-w-[12rem] items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${off ? "bg-danger/15 text-danger-ink" : "bg-secondary text-soft-foreground"}`}
+					className={`flex max-w-[12rem] items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${off ? "bg-danger/15 font-semibold text-danger-ink ring-1 ring-danger/40 ring-inset" : strong ? "bg-foreground/10 font-semibold text-foreground ring-1 ring-foreground/30 ring-inset" : "bg-secondary text-soft-foreground"}`}
 				>
 					{Icon ? (
 						<Icon className="size-3 shrink-0" />
@@ -370,7 +377,8 @@ function RemindAction({ onPick }: { onPick: (day: string) => void }) {
 }
 
 /**
- * One session on the board: its column's dot, the title (two lines), where
+ * One session on the board: its column's dot, a cloud for a remote one, the
+ * title (two lines), where
  * it runs and how long since its status changed, a Just done pill for a turn
  * that ended in the last 10 minutes, a moon for the Night Agent's, and its star.
  * Under that, as on the desktop card: "Dropped: PR merged" and the unread ping.
@@ -447,6 +455,13 @@ export function SessionCard({
 						<span className="mt-[7px]">
 							<Dot status={column} />
 						</span>
+						{session.remote && (
+							<BsCloud
+								role="img"
+								aria-label="Remote"
+								className={`mt-[3px] size-4 shrink-0 ${session.connected === false ? "text-danger" : "text-foreground"}`}
+							/>
+						)}
 						<span className="line-clamp-2">{session.title}</span>
 					</div>
 					<div className="mt-1 flex items-center gap-2 pl-4 text-xs text-muted-foreground">
