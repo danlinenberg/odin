@@ -3,7 +3,10 @@ import { useNavigate } from "@tanstack/react-router";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTabsStore } from "renderer/stores/tabs/store";
-import { askSessionContext } from "../components/SessionContextDialog";
+import {
+	askSessionContext,
+	type SessionContext,
+} from "../components/SessionContextDialog";
 import { useMyTasks } from "../hooks/useOdinTasks";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
@@ -68,9 +71,11 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 	const start = async (
 		item: AllItem,
 		offHours?: { instructions: string; hostSession?: string },
+		picked?: SessionContext,
 	): Promise<StartResult> => {
-		// Nobody is there to answer at night.
-		const context = offHours ? {} : await askSessionContext(item.launch.title);
+		// Nobody is there to answer at night. A bulk start asked once already.
+		const context =
+			picked ?? (offHours ? {} : await askSessionContext(item.launch.title));
 		if (!context) return { ok: false, error: "Cancelled" };
 		const ensured = await ensureWorkspace();
 		if (!ensured.ok) {
@@ -107,10 +112,55 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 			paneId: result.paneId,
 			sessionId: result.sessionId,
 		};
-		if (offHours) return started;
+		if (offHours || picked) return started;
 		usePendingFocus.getState().focus(result.paneId);
 		navigate({ to: "/board" });
 		return started;
+	};
+
+	/**
+	 * Start every row at once: one ask - context, and here or on the remote
+	 * host - for the lot, then a session per row. Rows that already have a
+	 * live session are skipped. Launches run one after another; the launch
+	 * gates hold the extras in Idle until the Mac or host has room. False
+	 * when the ask was cancelled.
+	 */
+	const startMany = async (items: AllItem[]): Promise<boolean> => {
+		const todo = items.filter((item) => !livePaneFor(item));
+		if (todo.length === 0) {
+			toast.info("Each of these already has a session");
+			return true;
+		}
+		const context = await askSessionContext(
+			todo.length === 1
+				? todo[0].launch.title
+				: `${todo.length} tasks, one session each`,
+		);
+		if (!context) return false;
+		let ok = 0;
+		let first: string | null = null;
+		for (const item of todo) {
+			const result = await start(item, undefined, context);
+			if (!result.ok) continue;
+			ok += 1;
+			first ??= result.paneId;
+		}
+		const skipped = items.length - todo.length;
+		const failed = todo.length - ok;
+		toast.success(
+			[
+				`Started ${ok} ${ok === 1 ? "session" : "sessions"}`,
+				skipped ? `${skipped} already running` : "",
+				failed ? `${failed} failed` : "",
+			]
+				.filter(Boolean)
+				.join(" - "),
+		);
+		if (first) {
+			usePendingFocus.getState().focus(first);
+			navigate({ to: "/board" });
+		}
+		return true;
 	};
 
 	/** The Night Agent's launch of this row, built for the remote host and not started. */
@@ -129,5 +179,12 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 		return { ...plan, repoPath: null };
 	};
 
-	return { start, planOnHost, livePaneFor, isLaunching, launchingKey };
+	return {
+		start,
+		startMany,
+		planOnHost,
+		livePaneFor,
+		isLaunching,
+		launchingKey,
+	};
 }
