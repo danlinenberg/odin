@@ -56,6 +56,7 @@ import {
 	STATUS,
 } from "./cards";
 import { demoAnswer } from "./demo";
+import { NATIVE_API } from "./native-api";
 import { NightPage } from "./night";
 import { channelFetch, type OdinFetch, routedFetch } from "./odin-fetch";
 import { type Pairing, parsePairLink } from "./pair-link";
@@ -125,6 +126,20 @@ function pairWith(link: string): boolean {
 	return true;
 }
 
+/**
+ * Forgets both pairings, the Mac's and the remote host's, and goes back to
+ * the Pair screen: the way out of a pairing that no longer connects. The
+ * phone's key stays, so the next scan pairs the same phone again.
+ */
+function resetPairing() {
+	localStorage.removeItem(PAIRING_KEY);
+	localStorage.removeItem(HOST_PAIRING_KEY);
+	location.reload();
+}
+
+/** The remote host refused this phone: forget its link; the Mac sends it again once it's back. */
+const forgetHostPairing = () => localStorage.removeItem(HOST_PAIRING_KEY);
+
 /** "Try the demo": sample sessions inside the app, no Odin behind it. */
 const DEMO = "demo";
 const demo = !devToken && localStorage.getItem(PAIRING_KEY) === DEMO;
@@ -158,6 +173,7 @@ const odinFetch: OdinFetch = pairing
 	? routedFetch(
 			channelFetch(pairing),
 			hostPairing ? channelFetch(hostPairing) : null,
+			forgetHostPairing,
 		)
 	: hostPairing
 		? channelFetch(hostPairing)
@@ -295,10 +311,7 @@ function ErrorLine({ error }: { error: { message: string } | null }) {
 					{native && (
 						<button
 							type="button"
-							onClick={() => {
-								localStorage.removeItem(PAIRING_KEY);
-								location.reload();
-							}}
+							onClick={resetPairing}
 							className="ml-2 font-semibold text-primary"
 						>
 							Pair again
@@ -306,7 +319,25 @@ function ErrorLine({ error }: { error: { message: string } | null }) {
 					)}
 				</>
 			) : (
-				error.message
+				<>
+					{error.message}
+					{native && pairing && (
+						<button
+							type="button"
+							onClick={() => {
+								if (
+									confirm(
+										"Reset pairing? This phone forgets Odin, and you scan the QR code in Odin (Settings, Remote, Phone) again.",
+									)
+								)
+									resetPairing();
+							}}
+							className="ml-2 font-semibold text-primary"
+						>
+							Reset pairing
+						</button>
+					)}
+				</>
 			)}
 		</div>
 	);
@@ -1522,6 +1553,7 @@ function App() {
 			<ShareTargets />
 			{native && pairing && <WidgetSync />}
 			{native && pairing && <ScreensUpdate />}
+			{native && pairing && <AppUpdate />}
 			{pairing && <HostLinkSync />}
 		</>
 	);
@@ -1548,6 +1580,32 @@ function ScreensUpdate() {
 				className="pointer-events-auto rounded-full bg-(--brand) px-4 py-1.5 text-[13px] font-semibold text-primary-foreground shadow-lg"
 			>
 				Odin updated the app - tap to reload
+			</button>
+		</div>
+	);
+}
+
+/**
+ * The app itself is older than Odin's screens: they wait for a newer build
+ * (native-api.ts), which only Xcode or the store installs. Said once per
+ * launch, and a tap hides it.
+ */
+function AppUpdate() {
+	const [hidden, setHidden] = useState(false);
+	const outdated = phone.appOutdated.useQuery(
+		{ native: NATIVE_API },
+		{ retry: false, staleTime: Number.POSITIVE_INFINITY },
+	);
+	if (!outdated.data || hidden) return null;
+	return (
+		<div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-50 flex justify-center px-4">
+			<button
+				type="button"
+				onClick={() => setHidden(true)}
+				className="pointer-events-auto rounded-[10px] border border-border bg-card px-4 py-2.5 text-left text-[13px] shadow-lg"
+			>
+				<span className="font-semibold">Update the Odin app.</span> Your Odin on
+				the Mac is newer, and its latest screens need the new app. Tap to hide.
 			</button>
 		</div>
 	);

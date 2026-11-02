@@ -263,9 +263,23 @@ const AWAY_MS = 15_000;
  * Odin on the Mac first; when it can't be reached at all (asleep, closed,
  * offline), the remote host's phone server for what it answers: the
  * sessions there, their conversations and a reply. Only a Mac that never got
- * the request falls back, so a reply is never typed in twice.
+ * the request falls back, so a reply is never typed in twice. A host that
+ * refuses the phone (401) is not the Mac unpairing it: `onHostRefused`
+ * forgets the host's link, and the answer says the Mac is away.
  */
-export function routedFetch(mac: OdinFetch, host: OdinFetch | null): OdinFetch {
+export function routedFetch(
+	mac: OdinFetch,
+	host: OdinFetch | null,
+	onHostRefused?: () => void,
+): OdinFetch {
+	const viaHost = async (input: RequestInfo | URL, init?: RequestInit) => {
+		const answer = await (host as OdinFetch)(input, init);
+		if (answer.status !== 401) return answer;
+		onHostRefused?.();
+		throw new Unreachable(
+			"Your Mac is away, and the remote host doesn't know this phone yet. Open Odin on the Mac once.",
+		);
+	};
 	let awayUntil = 0;
 	return async (input, init) => {
 		const url = new URL(
@@ -274,7 +288,7 @@ export function routedFetch(mac: OdinFetch, host: OdinFetch | null): OdinFetch {
 		);
 		const names = procedures(url.pathname);
 		const hostCan = !!host && !!names?.every((name) => ON_HOST.has(name));
-		if (hostCan && host && Date.now() < awayUntil) return host(input, init);
+		if (hostCan && host && Date.now() < awayUntil) return viaHost(input, init);
 		try {
 			const answer = await mac(input, init);
 			awayUntil = 0;
@@ -282,7 +296,7 @@ export function routedFetch(mac: OdinFetch, host: OdinFetch | null): OdinFetch {
 		} catch (error) {
 			if (!(error instanceof Unreachable) || !hostCan || !host) throw error;
 			awayUntil = Date.now() + AWAY_MS;
-			return host(input, init);
+			return viaHost(input, init);
 		}
 	};
 }
