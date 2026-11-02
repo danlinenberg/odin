@@ -73,6 +73,9 @@ const {
 	waitForHost,
 } = await import("./aws-instances");
 const { hostNameProblem } = await import("shared/host-setup");
+const { ownerCheckScript } = await import("./owner");
+const { hostServiceInstallScript } = await import("./host-service");
+const { sh } = await import("./session");
 
 const SSM_POLICY = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore";
 const HOST_POLICY = "arn:aws:iam::123456789012:policy/odin-host";
@@ -241,11 +244,25 @@ describe("aws-instances", () => {
 		expect(script).toContain("https://claude.ai/install.sh");
 	});
 
+	test("setup checks the Linux user is this Odin user's before it installs anything for it", () => {
+		const script = setUpScript("odin-dan", "", ["github:dan"]);
+		const check = script.indexOf(
+			`sudo -u 'odin-dan' -H bash -c ${sh(ownerCheckScript(["github:dan"]))} || exit 1`,
+		);
+		expect(check).toBeGreaterThan(script.indexOf("useradd"));
+		expect(check).toBeLessThan(
+			script.indexOf(hostServiceInstallScript("odin-dan")),
+		);
+		expect(check).toBeLessThan(
+			script.indexOf("sudo -u 'odin-dan' -H bash -lc"),
+		);
+	});
+
 	test("setup hides other users' processes, now and after a reboot, with one /proc line in fstab", () => {
 		const script = setUpScript("odin-dan");
 		expect(script).toContain(HIDE_OTHERS_PROCESSES_SCRIPT);
 		expect(script.indexOf(HIDE_OTHERS_PROCESSES_SCRIPT)).toBeLessThan(
-			script.indexOf("sudo -u 'odin-dan'"),
+			script.indexOf("sudo -u 'odin-dan' -H bash -lc"),
 		);
 		expect(HIDE_OTHERS_PROCESSES_SCRIPT).toContain(
 			'mount -o remount,hidepid=2,gid="$gid" /proc',

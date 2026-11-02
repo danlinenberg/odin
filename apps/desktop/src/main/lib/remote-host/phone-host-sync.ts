@@ -9,6 +9,7 @@ import { devices } from "main/lib/phone/trust";
 import { loadSessions } from "main/lib/tray";
 import type { Client } from "ssh2";
 import { readOdinConfig } from "../../../lib/trpc/routers/odin-config";
+import { hostOwners } from "./owner";
 import {
 	phoneHostInfoScript,
 	phoneHostScript,
@@ -57,6 +58,7 @@ export async function sendPhoneHost(host: Host, client: Client): Promise<void> {
 			name: hostName(host),
 			board: await boardSnapshot(host),
 			phones: devices(),
+			owners: hostOwners(),
 		}),
 		bundle(),
 	);

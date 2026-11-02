@@ -32,6 +32,7 @@ import {
 	packageNames,
 } from "shared/host-setup";
 import { hostServiceInstallScript } from "./host-service";
+import { hostOwners, ownerCheckScript } from "./owner";
 import { GITHUB_HELPERS_SCRIPT, ghInstallScript } from "./session";
 import { awsClientConfig } from "./ssm";
 
@@ -471,11 +472,16 @@ export const HIDE_OTHERS_PROCESSES_SCRIPT = [
  * system's package manager, then the packages from Settings (`packages`,
  * space-separated, see shared/host-setup - one install each, so one the
  * manager doesn't have costs only itself); the Odin user's own Linux user,
- * without sudo; other users' processes hidden (HIDE_OTHERS_PROCESSES_SCRIPT);
+ * without sudo, and refused when it belongs to another Odin user
+ * (ownerCheckScript); other users' processes hidden (HIDE_OTHERS_PROCESSES_SCRIPT);
  * Claude Code and the GitHub CLI into that user's own ~/.local/bin. Safe to
  * run again. Ends with what it found.
  */
-export function setUpScript(user: string, packages = ""): string {
+export function setUpScript(
+	user: string,
+	packages = "",
+	owners: string[] = hostOwners(),
+): string {
 	const extra = packageNames(packages);
 	const asUser = [
 		'cd "$HOME"',
@@ -493,6 +499,8 @@ export function setUpScript(user: string, packages = ""): string {
 			? [`for p in ${extra.map(sh).join(" ")}; do pkg "$p"; done`]
 			: []),
 		`id ${sh(user)} >/dev/null 2>&1 || useradd --create-home --shell /bin/bash ${sh(user)}`,
+		// Another Odin user's Linux user is never set up for this one (owner.ts).
+		`sudo -u ${sh(user)} -H bash -c ${sh(ownerCheckScript(owners))} || exit 1`,
 		HIDE_OTHERS_PROCESSES_SCRIPT,
 		hostServiceInstallScript(user),
 		// Not sudo -i: it escapes each newline into a line continuation, which
