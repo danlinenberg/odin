@@ -793,6 +793,21 @@ function runOdinAction(
 		})();
 		return `Starting ${tasks.length} on the board: ${tasks.map((task) => task.title).join("; ")}`;
 	}
+	// The backlog row's Done: off every feed, back from All tasks' Done list.
+	if (action === "drop") {
+		const ids = (args.ids ?? "").split(",").map((id) => id.trim());
+		const tasks = backlogOf(deps).filter((task) => ids.includes(task.id));
+		if (tasks.length === 0)
+			return "No backlog task has those ids - list them with action=tasks.";
+		const { setDone } = useDoneStore.getState();
+		for (const task of tasks)
+			setDone(`task:${task.id}`, {
+				title: task.title,
+				source: "Tasks",
+				url: null,
+			});
+		return `Dropped ${tasks.length} from the backlog (All tasks' Done list brings them back): ${tasks.map((task) => task.title).join("; ")}`;
+	}
 	if (action === "night") {
 		const { setOffHours } = useNextInLinePrompt.getState();
 		const hhmm = /^([01]\d|2[0-3]):[0-5]\d$/;
