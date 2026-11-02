@@ -62,21 +62,13 @@ describe("settings index", () => {
 	});
 });
 
-describe("feature-flagged screens", () => {
-	it("a screen whose flag is off is hidden from the list and from search", () => {
-		const off = resolveFeatureFlags("stable");
-		expect(visibleScreens(off).map((s) => s.to)).not.toContain(
+describe("Settings > Remote", () => {
+	it("is shown and searchable in a stable build", () => {
+		const stable = resolveFeatureFlags("stable");
+		expect(visibleScreens(stable).map((s) => s.to)).toContain(
 			"/settings/remote",
 		);
-		expect(
-			searchSettings("remote control", off).map((e) => e.to),
-		).not.toContain("/settings/remote");
-	});
-
-	it("a screen whose flag is on is shown and searchable", () => {
-		const on = resolveFeatureFlags("dev");
-		expect(visibleScreens(on).map((s) => s.to)).toContain("/settings/remote");
-		expect(searchSettings("remote control", on).map((e) => e.to)).toContain(
+		expect(searchSettings("remote control", stable).map((e) => e.to)).toContain(
 			"/settings/remote",
 		);
 	});
