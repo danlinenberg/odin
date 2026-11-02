@@ -1210,6 +1210,40 @@ export const createRemoteHostRouter = () =>
 			}),
 
 		/**
+		 * Where a session whose host is down can go instead: the remote host
+		 * new sessions run on, when that is another instance and it is up.
+		 * Null while the session's own host is up, when there is no other
+		 * host, or when AWS didn't answer.
+		 */
+		fallbackHost: publicProcedure
+			.input(z.object({ host: z.string().min(1) }))
+			.query(async ({ input }) => {
+				const current = readOdinConfig().remoteHost;
+				if (!current) return null;
+				const name = current.name || current.instanceId;
+				if (name === input.host) return null;
+				const target = (host: RemoteHost) => ({
+					profile: host.profile ?? undefined,
+					region: host.region ?? undefined,
+				});
+				try {
+					const found = hostNamed(input.host);
+					const own =
+						found && (found.name || found.instanceId) === input.host
+							? found
+							: null;
+					if (own?.instanceId === current.instanceId) return null;
+					if (own && (await hostUp(target(own), own.instanceId))) return null;
+					return (await hostUp(target(current), current.instanceId))
+						? name
+						: null;
+				} catch (error) {
+					console.warn("[remote-host] fallback host:", error);
+					return null;
+				}
+			}),
+
+		/**
 		 * A session's folder on the host, in VS Code over Remote-SSH (see
 		 * vscode-bridge). The folder is the session's last cwd, from its
 		 * transcript mirror here; without one, the login's home. Remote-SSH is
