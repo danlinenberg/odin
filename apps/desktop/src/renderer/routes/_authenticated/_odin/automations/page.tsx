@@ -907,9 +907,14 @@ function SchedulesPanel() {
 		remove,
 		setCron,
 		setPaused,
+		setHere,
 		setPane,
 		setTags,
 	} = useMyTasks();
+	const { data: hostConfig } = electronTrpc.remoteHost.get.useQuery();
+	const hostName = hostConfig?.host?.on
+		? hostConfig.host.name || hostConfig.host.instanceId
+		: null;
 	const [draft, setDraft] = useState("");
 	const [draftCron, setDraftCron] = useState("0 9 * * 1-5");
 	const [editingId, setEditingId] = useState<string | null>(null);
@@ -944,6 +949,8 @@ function SchedulesPanel() {
 			...run,
 			tags: ["automation"],
 			skill: task.skill,
+			repoPath: task.repo,
+			...(task.here ? { onHost: false } : {}),
 		});
 		if (!result.ok) return toast.error(result.error);
 		setPane(task.id, result.paneId);
@@ -1145,6 +1152,20 @@ function SchedulesPanel() {
 									>
 										{task.paused ? "Resume" : "Pause"}
 									</button>
+									{hostName && (
+										<button
+											type="button"
+											title={
+												task.here
+													? `Runs on this Mac - click to let it run on ${hostName}`
+													: `Runs on ${hostName} - click to keep it on this Mac`
+											}
+											onClick={() => setHere(task.id, !task.here)}
+											className="shrink-0 rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
+										>
+											{task.here ? "On this Mac" : `On ${hostName}`}
+										</button>
+									)}
 									<RowActions>
 										<button
 											type="button"
