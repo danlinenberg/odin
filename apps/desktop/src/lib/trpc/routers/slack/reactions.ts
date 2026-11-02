@@ -368,3 +368,23 @@ export function channelLabel(name: string | null): string | null {
 	if (mpdm) return mpdm[1].split("--").join(", ");
 	return `#${name}`;
 }
+
+/**
+ * Rows an auto-start already took, for as long as the main process runs. The
+ * renderer's own memory of what it tried is lost when the window remounts or
+ * reloads, and the row reads "Not started" until the launch finishes - a slow
+ * one (a remote host) left a window that came back mid-launch to start the same
+ * message again. The main process outlives both, so the claim lives here.
+ */
+const launchClaimed = new Set<string>();
+
+/** True the first time a row is claimed, false every time after. */
+export function claimLaunch(id: string): boolean {
+	if (launchClaimed.has(id)) return false;
+	launchClaimed.add(id);
+	return true;
+}
+
+export function isLaunchClaimed(id: string): boolean {
+	return launchClaimed.has(id);
+}

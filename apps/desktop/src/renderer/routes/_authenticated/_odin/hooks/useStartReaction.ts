@@ -75,6 +75,7 @@ export function useStartReaction() {
 export function useSlackAutoLaunch(): void {
 	const { reactions } = useOdinFeeds();
 	const { start } = useStartReaction();
+	const claim = electronTrpc.slack.claimLaunch.useMutation();
 	// Once per row per app run: a failed launch toasts once instead of every poll.
 	const tried = useRef(new Set<string>());
 	const rows = reactions.data?.rows;
@@ -86,6 +87,16 @@ export function useSlackAutoLaunch(): void {
 				// Older main process (pre-restart) doesn't send the flag at all.
 				if (!row.autoLaunch || tried.current.has(row.id)) continue;
 				tried.current.add(row.id);
+				// The main process hands each row out once. This window's memory
+				// above is gone after a remount or reload, and a remote launch is
+				// slow enough for one to land before the row reads as started.
+				const claimed = await claim
+					.mutateAsync({ id: row.id })
+					.then((r) => r.claimed)
+					.catch(() => false);
+				if (!claimed) continue;
+				// Started before the main process restarted: its card is still up.
+				if (paneOnPage(row.id)) continue;
 				const twin = sessionOnSameIssue(row.text);
 				if (twin) {
 					toast.info(
@@ -98,6 +109,13 @@ export function useSlackAutoLaunch(): void {
 			}
 		})();
 	}, [rows]);
+}
+
+/** A live card already started from this Slack row. */
+function paneOnPage(pageId: string): boolean {
+	return Object.values(useTabsStore.getState().panes).some(
+		(p) => !p.completed && p.odinPageId === pageId,
+	);
 }
 
 /**

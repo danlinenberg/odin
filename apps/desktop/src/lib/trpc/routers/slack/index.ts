@@ -13,6 +13,8 @@ import {
 import {
 	buildPermalink,
 	channelLabel,
+	claimLaunch,
+	isLaunchClaimed,
 	LAUNCH_REACTION,
 	mentionedUserIds,
 	messageBody,
@@ -1099,7 +1101,9 @@ function readRows(): ReactionRow[] {
 			done: row.doneAt !== null,
 			status: reactionStatus(row),
 			autoLaunch:
-				launchRequested.has(row.id) && reactionStatus(row) === "Not started",
+				launchRequested.has(row.id) &&
+				!isLaunchClaimed(row.id) &&
+				reactionStatus(row) === "Not started",
 			image: onlyImage(row.text),
 		}));
 }
@@ -1240,6 +1244,14 @@ export const createSlackRouter = () => {
 					.run();
 				return { ok: true };
 			}),
+
+		/**
+		 * Take a row for an auto-start. Only the first call gets true, so a
+		 * window that remounted or reloaded mid-launch can't start it twice.
+		 */
+		claimLaunch: publicProcedure
+			.input(z.object({ id: z.string() }))
+			.mutation(({ input }) => ({ claimed: claimLaunch(input.id) })),
 
 		/** Local-only handled marker - Slack is never written to. */
 		setDone: publicProcedure

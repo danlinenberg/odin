@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 import {
 	buildPermalink,
 	channelLabel,
+	claimLaunch,
 	isGreeting,
+	isLaunchClaimed,
 	mentionedUserIds,
 	messageBody,
 	normalizeReaction,
@@ -379,5 +381,15 @@ describe("untilNextQueued", () => {
 			queue,
 		);
 		expect(kept.map((m) => m.ts)).toEqual(["100.1", "200.1"]);
+	});
+});
+
+describe("claimLaunch", () => {
+	test("hands a row out once", () => {
+		expect(isLaunchClaimed("C1:1.0")).toBe(false);
+		expect(claimLaunch("C1:1.0")).toBe(true);
+		expect(claimLaunch("C1:1.0")).toBe(false);
+		expect(isLaunchClaimed("C1:1.0")).toBe(true);
+		expect(claimLaunch("C1:2.0")).toBe(true);
 	});
 });
