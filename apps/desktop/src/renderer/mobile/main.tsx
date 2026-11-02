@@ -55,6 +55,7 @@ import {
 	SessionCard,
 	STATUS,
 } from "./cards";
+import { useConnectStep } from "./connect-step";
 import { demoAnswer } from "./demo";
 import { NATIVE_API } from "./native-api";
 import { NightPage } from "./night";
@@ -415,6 +416,13 @@ function ProfilePicker() {
 	);
 }
 
+/** Under the board's spinner: the step it waits on, and for how long so far. */
+function BoardStep() {
+	const step = useConnectStep();
+	if (!step) return null;
+	return <span className="text-xs text-muted-foreground/80">{step}</span>;
+}
+
 /** The board's sessions as the Mac last answered: shown as unavailable while the host answers. */
 let lastMacSessions: {
 	paneId: string;
@@ -569,6 +577,7 @@ function Home() {
 					<span className="text-sm text-muted-foreground">
 						Loading your board
 					</span>
+					<BoardStep />
 				</div>
 			)}
 			{searching && (
