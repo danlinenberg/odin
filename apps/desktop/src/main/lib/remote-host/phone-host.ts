@@ -1,4 +1,5 @@
 import type { BoardSnapshot } from "main/lib/phone/host/sessions";
+import type { Device } from "main/lib/phone/trust";
 import { sh } from "./session";
 
 /**
@@ -8,8 +9,8 @@ import { sh } from "./session";
  * (dist/main/phone-host.js), run by bun, which Odin downloads into
  * ~/.odin/bin when the host has none, pinned by SHA-256 as the GitHub CLI is
  * (session.ts). Odin sends it at each token push while phone access is on
- * (host-tokens), with the board's remote cards, and asks it for the pairing
- * link Settings shows as a second QR code.
+ * (host-tokens), with the board's remote cards and the phones paired with
+ * this computer, which the server lets in with no code of their own.
  */
 
 const BUN_VERSION = "1.3.14";
@@ -44,15 +45,23 @@ const writeIfChanged = (path: string, data: string) =>
 
 /**
  * Run as the host user, with the server's JavaScript on stdin: installs bun
- * and the script, writes the relay and the laptop's board, and starts the
- * server, or restarts it when the script or the relay changed. The board
- * alone needs no restart: the server reads it at each request.
+ * and the script, writes the relay, the laptop's board and its paired phones,
+ * and starts the server, or restarts it when the script or the relay changed.
+ * The board and the phones need no restart: the server reads the board at
+ * each request and the phones at each handshake.
  */
 export function phoneHostScript(config: {
 	relay: string;
 	name: string;
 	board: BoardSnapshot;
+	phones: Device[];
 }): string {
+	// Keys and names only: a phone's push token stays on this computer.
+	const phones = config.phones.map(({ key, name, added }) => ({
+		key,
+		name,
+		added,
+	}));
 	return [
 		"umask 077",
 		`mkdir -p ${DIR} && chmod 700 ${DIR}`,
@@ -64,6 +73,7 @@ export function phoneHostScript(config: {
 			JSON.stringify({ relay: config.relay, name: config.name }),
 		),
 		`printf %s ${sh(Buffer.from(JSON.stringify(config.board)).toString("base64"))} | base64 -d > ${DIR}/board.json.new && mv -f ${DIR}/board.json.new ${DIR}/board.json`,
+		`printf %s ${sh(Buffer.from(JSON.stringify(phones)).toString("base64"))} | base64 -d > ${DIR}/laptop-devices.json.new && mv -f ${DIR}/laptop-devices.json.new ${DIR}/laptop-devices.json`,
 		`pid=$(cat ${DIR}/server.pid 2>/dev/null)`,
 		'if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then [ -z "$changed" ] && exit 0; kill "$pid"; sleep 1; fi',
 		`setsid nohup ${PHONE_HOST_BUN} ${SCRIPT} serve > ${DIR}/log 2>&1 < /dev/null &`,
@@ -71,8 +81,8 @@ export function phoneHostScript(config: {
 	].join("\n");
 }
 
-/** The pairing link the server makes: its key, a live one-time code, the relay. */
-export const phoneHostLinkScript = `${PHONE_HOST_BUN} ${SCRIPT} link`;
+/** The server's link with no code: its key, the relay, its name. This computer hands it to its phones. */
+export const phoneHostInfoScript = `${PHONE_HOST_BUN} ${SCRIPT} info`;
 
 /** Unpairs every phone from the host: a new key there, an empty list. */
 export const phoneHostUnpairScript = `[ ! -f ${SCRIPT} ] || ${PHONE_HOST_BUN} ${SCRIPT} unpair`;

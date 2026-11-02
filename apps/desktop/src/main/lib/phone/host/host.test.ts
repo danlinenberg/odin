@@ -11,7 +11,7 @@ import {
 } from "@odin/channel";
 import { startRelay } from "@odin/relay";
 import { shell } from "./router";
-import { hostFiles, pairingLink, startHostServer } from "./server";
+import { hostFiles, hostLink, pairingLink, startHostServer } from "./server";
 import { hostPaths, hostStatus, tmux } from "./sessions";
 
 const home = mkdtempSync(join(tmpdir(), "odin-phone-host-"));
@@ -110,6 +110,15 @@ test("the pairing link names the host and its relay, and has no Wi-Fi address", 
 	expect(link.searchParams.get("h")).toBe("dev-box");
 	expect(link.searchParams.get("l")).toBeNull();
 	expect(statSync(hostFiles().code).mode & 0o777).toBe(0o600);
+});
+
+test("the link for the laptop's phones is the same host and relay, with no code", () => {
+	const link = new URL(hostLink());
+	const paired = new URL(pairingLink());
+	expect(link.searchParams.get("k")).toBe(paired.searchParams.get("k"));
+	expect(link.searchParams.get("r")).toBe(base);
+	expect(link.searchParams.get("h")).toBe("dev-box");
+	expect(link.searchParams.get("c")).toBeNull();
 });
 
 /** Refused: the handshake fails, or the relay never joins a phone the host hung up on. */

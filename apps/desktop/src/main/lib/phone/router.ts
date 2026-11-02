@@ -45,6 +45,7 @@ import { z } from "zod";
 import { typedText } from "../../../shared/typed-text";
 import { attachments } from "./attachments";
 import { forSession } from "./host-files";
+import { hostLinkFor } from "./host-link";
 import { readableTitle, readableTitles } from "./readable-title";
 import { readScreens } from "./screens";
 import { rememberFromPhone } from "./sent";
@@ -243,6 +244,16 @@ const taskWithFiles = (text: string, paths: string[]) =>
 	].join("\n\n");
 
 export const phoneRouter = t.router({
+	/**
+	 * The remote host's phone server, for this phone to reach its sessions with
+	 * the Mac asleep: a link with no code, as the host lets in every phone
+	 * paired here (host-link.ts). Null with no remote host, or before Odin
+	 * read the link from it.
+	 */
+	hostLink: t.procedure.query(() =>
+		hostLinkFor(readOdinConfig().remoteHost?.instanceId),
+	),
+
 	/** Running sessions (Needs you first) and the backlog not started yet. */
 	board: t.procedure.query(async () => {
 		// The window's three answers and the session list don't wait on each
