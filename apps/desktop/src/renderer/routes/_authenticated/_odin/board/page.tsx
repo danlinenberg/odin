@@ -127,6 +127,7 @@ import {
 import { isQueuedResume } from "shared/queued-resume";
 import { remoteCardsToReconnect, tmuxSession } from "shared/remote-reconnect";
 import { setPhoneReply } from "./phone-resume";
+import { useReadableSlackTitles } from "./slack-titles";
 
 /** Tags the card shows as their own pill instead of in the #tag line. */
 const PILL_TAGS = ["automation", "auto-started", "off-hours"];
@@ -4848,6 +4849,7 @@ function DevBoardPage() {
 	};
 	const { data: autoRename } =
 		electronTrpc.settings.getOdinAutoRenameSessions.useQuery();
+	useReadableSlackTitles();
 	// Each id carries whether its card stopped working, so a session finishing
 	// re-fires the warm at once and its final brief is ready before you open
 	// Catch up - not on the next tick, and not throttled as if still busy.

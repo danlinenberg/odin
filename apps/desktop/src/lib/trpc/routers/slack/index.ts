@@ -253,7 +253,19 @@ async function resolveMentions(raw: string, token: string): Promise<string> {
  */
 export async function slackReadable(raw: string): Promise<string> {
 	const token = slackToken();
-	return token ? resolveMentions(raw, token) : slackTextToPlain(raw);
+	if (!token) return slackTextToPlain(raw);
+	// A bare <#C123> carries no label: its name, before it flattens to #C123.
+	const channels = new Map<string, string>();
+	await Promise.all(
+		Array.from(raw.matchAll(/<#([CG][A-Z0-9]+)>/g), async ([, id]) => {
+			const name = await lookupChannelName(id, token);
+			if (name) channels.set(id, name);
+		}),
+	);
+	const labelled = raw.replace(/<#([CG][A-Z0-9]+)>/g, (whole, id: string) =>
+		channels.has(id) ? `<#${id}|${channels.get(id)}>` : whole,
+	);
+	return resolveMentions(labelled, token);
 }
 
 /**
@@ -1173,6 +1185,11 @@ export const createSlackRouter = () => {
 					pairs.filter((pair): pair is readonly [string, string] => !!pair[1]),
 				);
 			}),
+
+		/** Each text with Slack's raw markup as names: `<@U123>` is "@Name". */
+		readable: publicProcedure
+			.input(z.object({ texts: z.array(z.string()) }))
+			.mutation(({ input }) => Promise.all(input.texts.map(slackReadable))),
 
 		/** Channel, author and opening line for each Slack link, keyed by url. */
 		previews: publicProcedure
