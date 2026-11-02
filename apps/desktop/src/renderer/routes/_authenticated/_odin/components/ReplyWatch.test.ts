@@ -9,8 +9,10 @@ import {
 	sessionThread,
 	startedByYou,
 	startedWorking,
+	stopWatchPrompt,
 	unreadPing,
 	useReplyWatch,
+	watchConditions,
 	watchEvent,
 	watchingFor,
 } from "./ReplyWatch";
@@ -383,4 +385,40 @@ test("only a turn you typed reads the ping, not a scheduled check", () => {
 	expect(startedByYou([{ role: "user" }, ping])).toBe(false);
 	expect(startedByYou([ping, { role: "user" }])).toBe(true);
 	expect(startedByYou([])).toBe(false);
+});
+
+test("Stop watching drops a running Ping me when..., keeps the rest", () => {
+	const s = () => useReplyWatch.getState();
+	s().toggle(["jira:S-1"], "Stop", "pane-s");
+	s().watchFor("the mail arrives", "Stop", "pane-s");
+	s().watchFor("the deploy is done", "Other", "pane-o");
+	expect(watchConditions(s().watches, "pane-s")).toEqual(["the mail arrives"]);
+	s().stopWatchFor("pane-s");
+	expect(watchingFor(s().watches, "pane-s")).toBe(false);
+	expect(watchConditions(s().watches, "pane-s")).toEqual([]);
+	// Ping me on the thread, and another session's watch, are left alone.
+	expect(s().watches["jira:S-1"]?.paneId).toBe("pane-s");
+	expect(watchingFor(s().watches, "pane-o")).toBe(true);
+	s().stop("pane-s");
+	s().stop("pane-o");
+});
+
+test("Stop watching keeps a ping that fired and is not read yet", () => {
+	const s = () => useReplyWatch.getState();
+	s().watchFor("the edit is done", "Edit", "pane-f");
+	const key = Object.keys(s().watches).find(
+		(k) => s().watches[k]?.paneId === "pane-f",
+	);
+	s().fire(key ?? "", "Happened");
+	expect(watchConditions(s().watches, "pane-f")).toEqual([]);
+	s().stopWatchFor("pane-f");
+	expect(s().watches[key ?? ""]?.event).toBe("Happened");
+	s().stop("pane-f");
+});
+
+test("the stop prompt names the watch and asks Claude to cancel its checks", () => {
+	const prompt = stopWatchPrompt(["the mail arrives"]);
+	expect(prompt).toContain("- the mail arrives");
+	expect(prompt).toContain("CronDelete");
+	expect(prompt).toContain("Don't reply ODIN PING");
 });
