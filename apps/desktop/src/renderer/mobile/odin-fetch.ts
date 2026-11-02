@@ -288,13 +288,13 @@ export function routedFetch(
 		);
 		const names = procedures(url.pathname);
 		const hostCan = !!host && !!names?.every((name) => ON_HOST.has(name));
-		if (hostCan && host && Date.now() < awayUntil) return viaHost(input, init);
+		if (hostCan && Date.now() < awayUntil) return viaHost(input, init);
 		try {
 			const answer = await mac(input, init);
 			awayUntil = 0;
 			return answer;
 		} catch (error) {
-			if (!(error instanceof Unreachable) || !hostCan || !host) throw error;
+			if (!(error instanceof Unreachable) || !hostCan) throw error;
 			awayUntil = Date.now() + AWAY_MS;
 			return viaHost(input, init);
 		}
