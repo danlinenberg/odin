@@ -19,3 +19,24 @@ export function hostByName<T extends NamedHost>(
 	if (current && named(current)) return current;
 	return past?.find(named) ?? current;
 }
+
+/**
+ * The host as a session that ran there before reaches it: as the Linux user
+ * it ran as. Profiles each have their own user on a shared instance, so a
+ * session started under one profile and reconnected under another looked for
+ * its tmux and transcript in the wrong home - the chat showed no reply while
+ * Claude answered in the other one. A session that never ran, or ran on
+ * another instance: the host as is.
+ */
+export function asLastRun<T extends { instanceId: string; user: string }>(
+	host: T,
+	last: { instanceId?: unknown; user?: unknown } | null | undefined,
+): T {
+	if (
+		last?.instanceId !== host.instanceId ||
+		typeof last.user !== "string" ||
+		!last.user
+	)
+		return host;
+	return { ...host, user: last.user };
+}
