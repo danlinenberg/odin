@@ -59,6 +59,12 @@ With them, Use and the first session set up that user's own Linux user on the
 host. Nobody else has to do anything. A role without them gets a session that
 stops and says to ask an administrator for them.
 
+Each Linux user belongs to the Odin user who set it up first: Odin writes its
+ids (the GitHub login and the computer) to `~/.odin/owners` there. Another
+Odin user whose name maps to the same Linux user is refused at setup and at
+each phone server sync, so they never share a home, sessions or the phone's
+board. The same person on a new Mac gets in through their GitHub login.
+
 ## VS Code on the host
 
 A session on the host has **Open in VS Code on the host** in its card menu

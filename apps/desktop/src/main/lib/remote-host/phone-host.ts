@@ -1,5 +1,6 @@
 import type { BoardSnapshot } from "main/lib/phone/host/sessions";
 import type { Device } from "main/lib/phone/trust";
+import { ownerCheckScript } from "./owner";
 import { sh } from "./session";
 
 /**
@@ -55,6 +56,8 @@ export function phoneHostScript(config: {
 	name: string;
 	board: BoardSnapshot;
 	phones: Device[];
+	/** This Odin's ids (owner.ts): another Odin user's Linux user never gets its board or phones. */
+	owners: string[];
 }): string {
 	// Keys and names only: a phone's push token stays on this computer.
 	const phones = config.phones.map(({ key, name, added }) => ({
@@ -64,6 +67,7 @@ export function phoneHostScript(config: {
 	}));
 	return [
 		"umask 077",
+		ownerCheckScript(config.owners),
 		`mkdir -p ${DIR} && chmod 700 ${DIR}`,
 		bunInstallScript,
 		"changed=",

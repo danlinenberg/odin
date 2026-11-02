@@ -42,6 +42,7 @@ const config = {
 	relay: "wss://relay.example",
 	name: "dev-box",
 	board: { host: "dev-box", sessions: [] },
+	owners: ["github:dan", "machine:mac-1"],
 	phones: [
 		{
 			key: "phone-key",
@@ -106,5 +107,23 @@ test.skipIf(!hasSetsid)(
 		expect(readFileSync(join(dir, "server.pid"), "utf8").trim()).not.toBe(
 			before,
 		);
+	},
+);
+
+test.skipIf(!hasSetsid)(
+	"another Odin user's laptop gets no board or phones into this Linux user",
+	() => {
+		const before = readFileSync(join(dir, "laptop-devices.json"), "utf8");
+		const other = run(
+			phoneHostScript({
+				...config,
+				owners: ["github:someone-else", "machine:mac-2"],
+				phones: [{ key: "their-phone", name: "iPhone", added: "2026-11-02" }],
+			}),
+			"// v2",
+		);
+		expect(other.status).toBe(4);
+		expect(other.stderr).toContain("belongs to another Odin user");
+		expect(readFileSync(join(dir, "laptop-devices.json"), "utf8")).toBe(before);
 	},
 );
