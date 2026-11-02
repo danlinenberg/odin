@@ -10,6 +10,7 @@ import {
 	resolveSlackToken,
 	updateOdinConfig,
 } from "../odin-config";
+import { createNameLookup } from "./name-lookup";
 import {
 	buildPermalink,
 	channelLabel,
@@ -134,8 +135,8 @@ interface Identity {
 
 // Per-token caches. Cleared when the token changes; a restart clears the rest.
 let identityCache: { token: string; identity: Identity } | null = null;
-const channelNames = new Map<string, string>();
-const userNames = new Map<string, string>();
+const channelNames = createNameLookup();
+const userNames = createNameLookup();
 
 export function clearSlackCaches(): void {
 	identityCache = null;
@@ -190,24 +191,18 @@ async function getIdentity(token: string): Promise<Identity> {
 }
 
 /** Best-effort lookups: a missing name is cosmetic, never a sync failure. */
-async function lookupChannelName(
+function lookupChannelName(
 	channelId: string,
 	token: string,
 ): Promise<string | null> {
-	const cached = channelNames.get(channelId);
-	if (cached) return cached;
-	try {
+	return channelNames.get(channelId, async () => {
 		const res = await slackApi<SlackResponse & { channel?: { name?: string } }>(
 			"conversations.info",
 			{ channel: channelId },
 			token,
 		);
-		const name = res.channel?.name ?? null;
-		if (name) channelNames.set(channelId, name);
-		return name;
-	} catch {
-		return null;
-	}
+		return res.channel?.name ?? null;
+	});
 }
 
 async function lookupUserName(
@@ -215,20 +210,14 @@ async function lookupUserName(
 	token: string,
 ): Promise<string | null> {
 	if (!userId) return null;
-	const cached = userNames.get(userId);
-	if (cached) return cached;
-	try {
+	return userNames.get(userId, async () => {
 		const res = await slackApi<
 			SlackResponse & {
 				user?: { real_name?: string; name?: string };
 			}
 		>("users.info", { user: userId }, token);
-		const name = res.user?.real_name ?? res.user?.name ?? null;
-		if (name) userNames.set(userId, name);
-		return name;
-	} catch {
-		return null;
-	}
+		return res.user?.real_name ?? res.user?.name ?? null;
+	});
 }
 
 /**

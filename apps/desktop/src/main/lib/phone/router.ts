@@ -245,24 +245,29 @@ const taskWithFiles = (text: string, paths: string[]) =>
 export const phoneRouter = t.router({
 	/** Running sessions (Needs you first) and the backlog not started yet. */
 	board: t.procedure.query(async () => {
-		// The profile Odin is in, as the desktop board shows it.
-		const sessions = await loadSessions(true, activeProfileId());
+		// The window's three answers and the session list don't wait on each
+		// other: the phone gives up on a board that takes 12s.
+		const [sessions, tasks, flags, done] = await Promise.all([
+			// The profile Odin is in, as the desktop board shows it.
+			loadSessions(true, activeProfileId()),
+			board("tasks").catch(() => "[]"),
+			cardFlags(),
+			doneShelf(),
+		]);
 		const backlog = (
-			JSON.parse(await board("tasks").catch(() => "[]")) as {
+			JSON.parse(tasks) as {
 				id: string;
 				title: string;
 				started: boolean;
 				repo?: string;
 			}[]
 		).filter((task) => !task.started);
-		const flags = await cardFlags();
-		return {
-			sessions: await readableTitles(
-				sessions.map((s) => ({ ...s, ...flags[s.paneId] })),
-			),
-			backlog: await readableTitles(backlog),
-			done: await readableTitles(await doneShelf()),
-		};
+		const [sessionRows, backlogRows, doneRows] = await Promise.all([
+			readableTitles(sessions.map((s) => ({ ...s, ...flags[s.paneId] }))),
+			readableTitles(backlog),
+			readableTitles(done),
+		]);
+		return { sessions: sessionRows, backlog: backlogRows, done: doneRows };
 	}),
 
 	/** The conversation, prose only, plus the brief's TL;DR when one is cached or quick. */
