@@ -2402,9 +2402,18 @@ const SwitchRow = memo(function SwitchRow({
 	leaving: boolean;
 	open: boolean;
 }) {
+	// The open session's row follows it: a state change (a question, a turn
+	// ending) moves it to another group, often out of the list's view, so it
+	// scrolls back in. "nearest" leaves a row already in view where it is.
+	const rowRef = useRef<HTMLDivElement>(null);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: card.status is the trigger - the row moved
+	useEffect(() => {
+		if (open) rowRef.current?.scrollIntoView({ block: "nearest" });
+	}, [open, card.status]);
 	return (
 		// biome-ignore lint/a11y/useSemanticElements: a real <button> can't nest the tick box <input>
 		<div
+			ref={rowRef}
 			role="button"
 			tabIndex={0}
 			onClick={(event) => {
