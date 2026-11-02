@@ -993,7 +993,7 @@ function AllFeedPage() {
 									void startMany(rows).then((went) => went && clearPicked());
 								}}
 								title="Start a session on each selected row - pick here or remote once for all"
-								className={ROW_LINK_BUTTON}
+								className={ROW_START_BUTTON}
 							>
 								Start {picked.length}
 							</button>
