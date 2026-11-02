@@ -1,4 +1,3 @@
-import { TRPCError } from "@trpc/server";
 import { sentFromPhone } from "main/lib/phone/sent";
 import {
 	phoneStatus,
@@ -9,17 +8,6 @@ import {
 import { z } from "zod";
 import { publicProcedure, router } from "..";
 import { readOdinConfig, updateOdinConfig } from "./odin-config";
-
-/** The remote host set up in Settings, or a clear error. */
-function remoteHost() {
-	const host = readOdinConfig().remoteHost;
-	if (!host)
-		throw new TRPCError({
-			code: "PRECONDITION_FAILED",
-			message: "Set up a remote host first.",
-		});
-	return host;
-}
 
 /** Settings → Remote → Phone: Odin on your iPhone, end to end encrypted. */
 export const createPhoneRouter = () =>
@@ -41,21 +29,10 @@ export const createPhoneRouter = () =>
 					.catch((error) => console.warn("[phone-host] unpair:", error));
 			return status;
 		}),
-		/** The remote host Pair phone with remote host pairs with; null while none is set up. */
+		/** The remote host paired phones reach too; null while none is set up. */
 		remoteHost: publicProcedure.query(() => {
 			const host = readOdinConfig().remoteHost;
 			return host ? { name: host.name || host.instanceId } : null;
-		}),
-		/**
-		 * The remote host's own pairing QR code: its phone server installed and
-		 * started there first, so the phone reaches its sessions with this
-		 * computer asleep.
-		 */
-		hostPairing: publicProcedure.mutation(async () => {
-			const { phoneHostPairing } = await import(
-				"main/lib/remote-host/phone-host-sync"
-			);
-			return phoneHostPairing(remoteHost());
 		}),
 		/** The board's hand-added tags, so the phone's cards show them too. */
 		setCustomTags: publicProcedure

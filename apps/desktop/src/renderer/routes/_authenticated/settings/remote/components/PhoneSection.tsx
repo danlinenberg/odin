@@ -72,7 +72,7 @@ export function PhoneSection() {
 					</div>
 				</div>
 			)}
-			{data?.state === "on" && <HostPairing />}
+			{data?.state === "on" && <HostNote />}
 			{devices.length > 0 && (
 				<div className="px-4 py-3">
 					<div className="mb-1 flex items-center justify-between">
@@ -122,55 +122,20 @@ export function PhoneSection() {
 }
 
 /**
- * The remote host's own QR code: its phone server (main/lib/phone/host) is
- * set up there on the first click, and the phone pairs with it as with this
- * Mac. Then the phone reaches the sessions on the host with this Mac asleep.
+ * The remote host needs no code of its own: Odin tells its phone server
+ * which phones are paired here, and tells those phones how to reach it
+ * (main/lib/remote-host/phone-host-sync).
  */
-function HostPairing() {
+function HostNote() {
 	const host = electronTrpc.phone.remoteHost.useQuery();
-	const pairing = electronTrpc.phone.hostPairing.useMutation();
 	if (!host.data) return null;
-	const name = host.data.name;
 	return (
-		<div className="flex gap-5 border-t px-4 py-4">
-			{pairing.data ? (
-				<img
-					src={pairing.data.qr}
-					alt={`QR code that pairs the Odin iPhone app with ${name}`}
-					className="size-32 shrink-0 rounded-lg bg-white p-1.5"
-				/>
-			) : (
-				<span className="flex size-32 shrink-0 items-center justify-center rounded-lg bg-secondary">
-					<LuServer className="size-8 text-muted-foreground" />
-				</span>
-			)}
-			<div className="flex min-w-0 flex-col gap-2">
-				<div className="text-sm font-medium">Pair phone with {name}</div>
-				<p className="text-[13px] leading-relaxed text-muted-foreground">
-					Pair the phone with this Mac first, then scan this second code. With
-					this Mac closed or asleep, the phone still lists the sessions on{" "}
-					{name}, reads them and answers them.
-				</p>
-				{pairing.error && (
-					<div className="text-xs text-danger select-text cursor-text">
-						{pairing.error.message}
-					</div>
-				)}
-				<div className="mt-auto">
-					<Button
-						size="sm"
-						variant="secondary"
-						disabled={pairing.isPending}
-						onClick={() => pairing.mutate()}
-					>
-						{pairing.isPending
-							? `Setting up ${name}...`
-							: pairing.data
-								? "New code"
-								: "Show code"}
-					</Button>
-				</div>
-			</div>
+		<div className="flex items-center gap-3 border-t px-4 py-3 text-[13px] leading-relaxed text-muted-foreground">
+			<LuServer className="size-4 shrink-0" />
+			<span>
+				Phones paired here also reach the sessions on {host.data.name}, even
+				with this Mac closed or asleep.
+			</span>
 		</div>
 	);
 }

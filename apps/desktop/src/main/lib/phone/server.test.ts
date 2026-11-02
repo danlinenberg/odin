@@ -19,6 +19,7 @@ mock.module("./router", () => ({
 	phoneRouter: t.router({ board: t.procedure.query(() => "ok") }),
 }));
 const {
+	hostSync,
 	phoneConfig,
 	phoneStatus,
 	relayDefaults,
@@ -26,8 +27,12 @@ const {
 	setPhoneEnabled,
 	setPhoneRelay,
 } = await import("./server");
-// No dialing the public relay from a test.
+// No dialing the public relay from a test, and no remote host either.
 relayDefaults.url = "";
+let hostSyncs = 0;
+hostSync.soon = () => {
+	hostSyncs++;
+};
 const { attachments } = await import("./attachments");
 const { trustFiles } = await import("./trust");
 // Not ~/.odin, and not by mocking app-environment: a module mock leaks into
@@ -71,7 +76,10 @@ test("a phone without the pairing code gets no channel", async () => {
 
 test("the QR code's code pairs the phone; then its requests reach the API", async () => {
 	const pair = await on();
+	const syncsBefore = hostSyncs;
 	const paired = await channel(lan(pair), pair, pair.get("c") ?? "");
+	// A new phone: the remote host hears of it.
+	expect(hostSyncs).toBe(syncsBefore + 1);
 	const board = await paired.request({
 		method: "GET",
 		path: "/trpc/board",
@@ -84,6 +92,7 @@ test("the QR code's code pairs the phone; then its requests reach the API", asyn
 
 	// Paired now: no code needed, and only the API's routes answer.
 	const again = await channel(lan(pair), pair);
+	expect(hostSyncs).toBe(syncsBefore + 1);
 	const other = await again.request({
 		method: "GET",
 		path: "/anything",
@@ -159,8 +168,11 @@ test("from anywhere: the same channel through a relay", async () => {
 	});
 	expect(board.status).toBe(200);
 
-	// Removing the phone cuts it off at once, and it can't come back.
+	// Removing the phone cuts it off at once, and it can't come back; the
+	// remote host hears of it too.
+	const syncsBefore = hostSyncs;
 	await removePhone(Buffer.from(me.publicKey).toString("base64url"));
+	expect(hostSyncs).toBe(syncsBefore + 1);
 	await paired.closed;
 	expect(channel(lan(pair), pair)).rejects.toThrow();
 	await setPhoneRelay("");

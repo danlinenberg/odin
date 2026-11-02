@@ -35,7 +35,17 @@ export const CODE_MS = 10 * 60 * 1000;
  * pairing link a separate `link` run prints): the code then lives in that
  * file, mode 0600, instead of in memory.
  */
-export type TrustFiles = { identity: string; devices: string; code?: string };
+export type TrustFiles = {
+	identity: string;
+	devices: string;
+	code?: string;
+	/**
+	 * The phones another Odin vouches for: on a remote host, the list the
+	 * laptop's Odin writes there (phone-host.ts), so a phone paired with the
+	 * laptop is in here too, with no second code.
+	 */
+	shared?: string;
+};
 
 const b64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64url");
 
@@ -105,6 +115,21 @@ export function createTrust(files: TrustFiles) {
 		}
 	}
 
+	/** The keys in `shared`; none when there is no such file. */
+	function sharedKeys(): string[] {
+		if (!files.shared) return [];
+		try {
+			const list = JSON.parse(readFileSync(files.shared, "utf8"));
+			return Array.isArray(list)
+				? list
+						.map((d: { key?: unknown }) => d?.key)
+						.filter((key): key is string => typeof key === "string")
+				: [];
+		} catch {
+			return [];
+		}
+	}
+
 	const saveDevices = (list: Device[]) =>
 		writeFileSync(files.devices, JSON.stringify(list, null, 2), {
 			mode: 0o600,
@@ -123,12 +148,14 @@ export function createTrust(files: TrustFiles) {
 	}
 
 	/**
-	 * The handshake's question: a phone on the list is in. A new phone is in once,
-	 * with the live pairing code, and is added to the list.
+	 * The handshake's question: a phone on the list, or on the shared list, is
+	 * in. A new phone is in once, with the live pairing code, and is added to
+	 * the list.
 	 */
 	function accept(phone: Uint8Array, hello: Hello, now = Date.now()): boolean {
 		const key = b64(phone);
 		if (devices().some((d) => d.key === key)) return true;
+		if (sharedKeys().includes(key)) return true;
 		const code = readCode();
 		if (!hello.code || !code || code.expires <= now) return false;
 		if (!sameCode(hello.code, code.value)) return false;
@@ -164,6 +191,7 @@ export function createTrust(files: TrustFiles) {
 		async resetTrust(): Promise<void> {
 			await rm(files.identity, { force: true });
 			await rm(files.devices, { force: true });
+			if (files.shared) await rm(files.shared, { force: true });
 			me = null;
 			writeCode(null);
 		},

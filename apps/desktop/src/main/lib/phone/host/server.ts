@@ -29,6 +29,8 @@ export function hostFiles() {
 	return {
 		identity: join(dir, "identity"),
 		devices: join(dir, "devices.json"),
+		/** The phones paired with the laptop's Odin, which it writes here at each sync. */
+		shared: join(dir, "laptop-devices.json"),
 		code: join(dir, "code.json"),
 		config: join(dir, "config.json"),
 		pid: join(dir, "server.pid"),
@@ -52,13 +54,28 @@ export function readHostConfig(): HostConfig {
  * network with an EC2.
  */
 export function pairingLink(trust = hostTrust(), config = readHostConfig()) {
+	return link(trust, config, trust.pairingCode());
+}
+
+/**
+ * The same link without a code: what the laptop's Odin hands a phone already
+ * paired with it. The phone is in through the laptop's list (`shared`), so it
+ * needs no code here.
+ */
+export function hostLink(trust = hostTrust(), config = readHostConfig()) {
+	return link(trust, config);
+}
+
+function link(
+	trust: ReturnType<typeof hostTrust>,
+	config: HostConfig,
+	code?: string,
+) {
 	if (!config.relay) throw new Error("No relay set for the phone server");
-	const params = new URLSearchParams({
-		k: trust.hostKey(),
-		c: trust.pairingCode(),
-		r: config.relay,
-		h: config.name || "Remote host",
-	});
+	const params = new URLSearchParams({ k: trust.hostKey() });
+	if (code) params.set("c", code);
+	params.set("r", config.relay);
+	params.set("h", config.name || "Remote host");
 	return `odin://pair?${params}`;
 }
 

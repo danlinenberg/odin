@@ -3,12 +3,14 @@ import { join } from "node:path";
 import { app } from "electron";
 import { appState } from "main/lib/app-state";
 import type { BoardSnapshot, SnapshotCard } from "main/lib/phone/host/sessions";
+import { saveHostLink } from "main/lib/phone/host-link";
 import { phoneEnabled, phoneRelay } from "main/lib/phone/server";
+import { devices } from "main/lib/phone/trust";
 import { loadSessions } from "main/lib/tray";
-import QRCode from "qrcode";
 import type { Client } from "ssh2";
+import { readOdinConfig } from "../../../lib/trpc/routers/odin-config";
 import {
-	phoneHostLinkScript,
+	phoneHostInfoScript,
 	phoneHostScript,
 	phoneHostUnpairScript,
 } from "./phone-host";
@@ -16,7 +18,9 @@ import { connectHost, type HostLogin, runOnHost } from "./ssh";
 
 /**
  * Keeps the phone server on the remote host (phone-host.ts) installed,
- * running and told the board, from this computer's Odin.
+ * running and told the board and this computer's paired phones, from this
+ * computer's Odin. Its code-less link comes back here (host-link.ts), for
+ * the phones to reach it with no second QR code.
  */
 
 type Host = HostLogin & { name?: string };
@@ -39,8 +43,9 @@ async function boardSnapshot(host: Host): Promise<BoardSnapshot> {
 }
 
 /**
- * Installs or updates the server, sends the board, and starts it. Throws
- * when phone access is off: there is nothing to pair a phone with.
+ * Installs or updates the server, sends the board and the paired phones,
+ * starts it, and keeps its link for the phones. Throws when phone access is
+ * off: there are no phones to send.
  */
 export async function sendPhoneHost(host: Host, client: Client): Promise<void> {
 	const relay = phoneRelay();
@@ -51,9 +56,14 @@ export async function sendPhoneHost(host: Host, client: Client): Promise<void> {
 			relay,
 			name: hostName(host),
 			board: await boardSnapshot(host),
+			phones: devices(),
 		}),
 		bundle(),
 	);
+	const link = (await runOnHost(client, phoneHostInfoScript)).trim();
+	if (!link.startsWith("odin://pair?"))
+		throw new Error("The remote host gave no link for the phone.");
+	saveHostLink(host.instanceId, link);
 }
 
 /** At each token push: the server kept current while phone access is on. */
@@ -64,24 +74,27 @@ export async function syncPhoneHost(host: Host, client: Client): Promise<void> {
 	);
 }
 
-/** Settings' second QR code: the host's pairing link, with the server running. */
-export async function phoneHostPairing(
-	host: Host,
-): Promise<{ link: string; qr: string; name: string }> {
-	const client = await connectHost(host);
-	try {
-		await sendPhoneHost(host, client);
-		const link = (await runOnHost(client, phoneHostLinkScript)).trim();
-		if (!link.startsWith("odin://pair?"))
-			throw new Error("The remote host gave no pairing link.");
-		return {
-			link,
-			qr: await QRCode.toDataURL(link, { margin: 1, width: 220 }),
-			name: hostName(host),
-		};
-	} finally {
-		client.end();
-	}
+let soon: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * A phone paired with or removed from this computer: the host hears it now,
+ * not at the next token push. A few changes in a row make one trip.
+ */
+export function syncPhoneHostSoon(): void {
+	if (soon) clearTimeout(soon);
+	soon = setTimeout(() => {
+		soon = null;
+		const host = readOdinConfig().remoteHost;
+		if (!host || !phoneEnabled()) return;
+		void (async () => {
+			const client = await connectHost(host);
+			try {
+				await sendPhoneHost(host, client);
+			} finally {
+				client.end();
+			}
+		})().catch((error) => console.warn("[phone-host] sync:", error));
+	}, 2_000);
 }
 
 /** Unpair all reaches the host's phones too. */

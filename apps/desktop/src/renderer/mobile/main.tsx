@@ -1477,6 +1477,25 @@ function WidgetSync() {
 	return null;
 }
 
+/**
+ * The remote host's link, from the Mac (phone router's hostLink): saved as
+ * the host pairing when it's new, so pairing with the Mac covers the host
+ * too, with no second QR code. The reload puts it to use.
+ */
+function HostLinkSync() {
+	const link = phone.hostLink.useQuery(undefined, {
+		retry: false,
+		refetchInterval: 5 * 60_000,
+	});
+	useEffect(() => {
+		const next = link.data ? parsePairLink(link.data) : null;
+		if (!next?.remoteHost || next.link === hostPairing?.link) return;
+		localStorage.setItem(HOST_PAIRING_KEY, next.link);
+		location.reload();
+	}, [link.data]);
+	return null;
+}
+
 function App() {
 	const { paneId, night, ended } = useScreenFromHash();
 	// Drawn: screens Odin sent this phone worked, so boot.ts keeps them.
@@ -1503,6 +1522,7 @@ function App() {
 			<ShareTargets />
 			{native && pairing && <WidgetSync />}
 			{native && pairing && <ScreensUpdate />}
+			{pairing && <HostLinkSync />}
 		</>
 	);
 }

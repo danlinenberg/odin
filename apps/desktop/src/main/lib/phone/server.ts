@@ -94,8 +94,30 @@ let relayState: RelayState = "connecting";
 /** Open channels by phone key, so removing a phone cuts it off at once. */
 const live = new Map<string, Set<Pipe>>();
 
+/**
+ * The remote host's phone server lets in the phones paired here
+ * (remote-host/phone-host-sync): a change to the list goes there too.
+ * Imported late, as that module reads this one. A test swaps it out, so a
+ * test run never reaches a real host.
+ */
+export const hostSync = {
+	soon: () =>
+		void import("main/lib/remote-host/phone-host-sync")
+			.then(({ syncPhoneHostSoon }) => syncPhoneHostSoon())
+			.catch((error) => console.warn("[phone-host] sync:", error)),
+};
+const syncHostSoon = () => hostSync.soon();
+
+/** Odin's handshake check; a phone new to the list reaches the remote host too. */
+function acceptPhone(phone: Uint8Array, hello: Parameters<typeof accept>[1]) {
+	const before = devices().length;
+	const ok = accept(phone, hello);
+	if (ok && devices().length > before) syncHostSoon();
+	return ok;
+}
+
 const serve = (pipe: Pipe, handle: Handler) =>
-	serveChannel(pipe, { identity, accept }, handle, live);
+	serveChannel(pipe, { identity, accept: acceptPhone }, handle, live);
 
 function readConfig(): Config {
 	try {
@@ -342,8 +364,12 @@ async function restart(config: Config): Promise<PhoneStatus> {
 	return phoneStatus();
 }
 
-export const setPhoneEnabled = (enabled: boolean) =>
-	restart({ ...readConfig(), enabled });
+/** On: the remote host's phone server is set up or brought up to date too. */
+export async function setPhoneEnabled(enabled: boolean): Promise<PhoneStatus> {
+	const status = await restart({ ...readConfig(), enabled });
+	if (enabled) syncHostSoon();
+	return status;
+}
 
 /** The user's own relay, or "" for Odin's default. Throws on one that isn't wss://. */
 export async function setPhoneRelay(input: string): Promise<PhoneStatus> {
@@ -358,6 +384,7 @@ export async function removePhone(key: string): Promise<PhoneStatus> {
 	removeDevice(key);
 	for (const pipe of live.get(key) ?? []) pipe.close();
 	live.delete(key);
+	syncHostSoon();
 	return phoneStatus();
 }
 

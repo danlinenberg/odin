@@ -42,6 +42,14 @@ const config = {
 	relay: "wss://relay.example",
 	name: "dev-box",
 	board: { host: "dev-box", sessions: [] },
+	phones: [
+		{
+			key: "phone-key",
+			name: "iPhone",
+			added: "2026-11-02",
+			push: { token: "apns-token", topic: "app" },
+		},
+	],
 };
 const hasSetsid = spawnSync("sh", ["-c", "command -v setsid"]).status === 0;
 
@@ -69,6 +77,11 @@ test.skipIf(!hasSetsid)(
 		expect(JSON.parse(readFileSync(join(dir, "board.json"), "utf8")).host).toBe(
 			"dev-box",
 		);
+		// The laptop's phones, without their push tokens.
+		expect(
+			JSON.parse(readFileSync(join(dir, "laptop-devices.json"), "utf8")),
+		).toEqual([{ key: "phone-key", name: "iPhone", added: "2026-11-02" }]);
+		expect(statSync(join(dir, "laptop-devices.json")).mode & 0o777).toBe(0o600);
 		expect(statSync(dir).mode & 0o777).toBe(0o700);
 		expect(statSync(join(dir, "config.json")).mode & 0o777).toBe(0o600);
 		expect(starts()).toBe(1);

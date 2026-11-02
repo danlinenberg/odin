@@ -1,11 +1,12 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { generateKeyPair } from "@odin/channel";
 import {
 	accept,
 	CODE_MS,
+	createTrust,
 	devices,
 	hostKey,
 	pairingCode,
@@ -56,4 +57,34 @@ test("a removed phone is out, and unpairing all changes Odin's key", async () =>
 	await resetTrust();
 	expect(hostKey()).not.toBe(before);
 	expect(devices()).toEqual([]);
+});
+
+test("a phone the laptop vouches for is in on a host, with no code, until it leaves the list", async () => {
+	const hostDir = mkdtempSync(join(tmpdir(), "odin-trust-host-"));
+	const files = {
+		identity: join(hostDir, "identity"),
+		devices: join(hostDir, "devices.json"),
+		code: join(hostDir, "code.json"),
+		shared: join(hostDir, "laptop-devices.json"),
+	};
+	const host = createTrust(files);
+	const phone = key();
+	expect(host.accept(phone, { v: 1 })).toBe(false);
+
+	const entry = { key: b64(phone), name: "iPhone", added: "2026-11-02" };
+	writeFileSync(files.shared, JSON.stringify([entry]));
+	expect(host.accept(phone, { v: 1 })).toBe(true);
+	// Let in, not copied: the laptop's list stays the one that decides.
+	expect(host.devices()).toEqual([]);
+	expect(host.accept(key(), { v: 1 })).toBe(false);
+
+	writeFileSync(files.shared, "[]");
+	expect(host.accept(phone, { v: 1 })).toBe(false);
+
+	writeFileSync(files.shared, "not json");
+	expect(host.accept(phone, { v: 1 })).toBe(false);
+
+	writeFileSync(files.shared, JSON.stringify([entry]));
+	await host.resetTrust();
+	expect(existsSync(files.shared)).toBe(false);
 });
