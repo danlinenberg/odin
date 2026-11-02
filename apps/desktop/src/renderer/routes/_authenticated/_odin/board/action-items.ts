@@ -125,9 +125,7 @@ export function bangCommands(text: string): string[] {
  * buttons instead.
  */
 export function itemSnippets(fences: string[]): string[] {
-	return fences
-		.filter((fence) => bangCommands(fence).length === 0)
-		.map(dedent);
+	return fences.filter((fence) => bangCommands(fence).length === 0).map(dedent);
 }
 
 /** Drops the indent a block takes from sitting under a list item: four spaces would turn its fence into plain text. */
