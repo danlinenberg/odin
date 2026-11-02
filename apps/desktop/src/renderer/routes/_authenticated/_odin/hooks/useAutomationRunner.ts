@@ -150,6 +150,7 @@ export function useAutomationRunner() {
 						tags: ["automation"],
 						skill: task.skill,
 						repoPath: task.repo,
+						...(task.here ? { onHost: false } : {}),
 					});
 					if (result.ok) latest.current.setPane(task.id, result.paneId);
 				}

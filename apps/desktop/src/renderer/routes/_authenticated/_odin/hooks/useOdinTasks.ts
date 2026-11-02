@@ -55,6 +55,8 @@ export interface OdinTask {
 	builtin?: string;
 	/** Set = a due run is skipped unless an open session carries one of these. */
 	tags?: string[];
+	/** Runs on this computer even while the remote host takes new sessions. */
+	here?: boolean;
 }
 
 /** Scheduled, so it runs itself - the one thing automations don't share. */
@@ -163,6 +165,7 @@ export const useOdinTasks = create<{
 	/** Put a task on a schedule, or take it off one (null). */
 	setCron: (id: string, cron: string | null) => void;
 	setPaused: (id: string, paused: boolean) => void;
+	setHere: (id: string, here: boolean) => void;
 	/** The board tags an automation watches; empty clears them. */
 	setTags: (id: string, tags: string[]) => void;
 	/** Stamp the minute an automation fired. */
@@ -253,6 +256,12 @@ export const useOdinTasks = create<{
 			setPaused: (id, paused) =>
 				set((s) => ({
 					tasks: s.tasks.map((t) => (t.id === id ? { ...t, paused } : t)),
+				})),
+			setHere: (id, here) =>
+				set((s) => ({
+					tasks: s.tasks.map((t) =>
+						t.id === id ? { ...t, here: here || undefined } : t,
+					),
 				})),
 			setTags: (id, tags) =>
 				set((s) => ({
