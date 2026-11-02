@@ -3,6 +3,7 @@ import {
 	existsSync,
 	mkdirSync,
 	readdirSync,
+	readFileSync,
 	statSync,
 	writeFileSync,
 } from "node:fs";
@@ -68,7 +69,7 @@ import {
 	hostGithubLogin,
 	repoStaysLocal,
 } from "main/lib/remote-host/github-on-host";
-import { hostByName } from "main/lib/remote-host/host-by-name";
+import { asLastRun, hostByName } from "main/lib/remote-host/host-by-name";
 import { hostHasConversation } from "main/lib/remote-host/host-conversations";
 import {
 	hostFileSources,
@@ -1115,9 +1116,8 @@ export const createRemoteHostRouter = () =>
 			.mutation(async ({ input }) => {
 				// Not gated on `on`: that switch picks where new sessions start,
 				// and a session already on the host resumes there either way.
-				const host = hostNamed(input.host);
-				if (!host) throw new Error("No remote host is set up.");
-				const session = await buildSessionSpec(host, input);
+				const named = hostNamed(input.host);
+				if (!named) throw new Error("No remote host is set up.");
 				// The spec goes in a file, not on the command line: Git Bash on
 				// Windows cuts a long command line short, and the prompt alone
 				// runs to several KB. One file per pane, rewritten each launch.
@@ -1126,6 +1126,17 @@ export const createRemoteHostRouter = () =>
 					"remote-specs",
 					`${input.pane.replace(/[^\w-]/g, "_")}.json`,
 				);
+				// The pane's last spec names the Linux user it ran as; the active
+				// profile may name another one now.
+				const last = (() => {
+					try {
+						return JSON.parse(readFileSync(spec, "utf8"));
+					} catch {
+						return null;
+					}
+				})();
+				const host = asLastRun(named, last);
+				const session = await buildSessionSpec(host, input);
 				mkdirSync(join(ODIN_HOME_DIR, "remote-specs"), {
 					recursive: true,
 					mode: 0o700,
