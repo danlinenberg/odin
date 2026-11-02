@@ -6,10 +6,7 @@
  */
 export type FlagStage = "dev" | "internal" | "everyone";
 
-export const FEATURE_FLAGS = {
-	/** Settings > Remote: EC2 host, iPhone app, Remote Control. */
-	remoteSettings: "internal",
-} as const satisfies Record<string, FlagStage>;
+export const FEATURE_FLAGS = {} as const satisfies Record<string, FlagStage>;
 
 export type FeatureFlag = keyof typeof FEATURE_FLAGS;
 
@@ -27,9 +24,8 @@ const STAGES_FOR: Record<BuildKind, FlagStage[]> = {
 export function resolveFeatureFlags(build: BuildKind): FeatureFlags {
 	const stages = STAGES_FOR[build];
 	return Object.fromEntries(
-		Object.entries(FEATURE_FLAGS).map(([flag, stage]) => [
-			flag,
-			stages.includes(stage),
-		]),
+		(Object.entries(FEATURE_FLAGS) as [FeatureFlag, FlagStage][]).map(
+			([flag, stage]) => [flag, stages.includes(stage)],
+		),
 	) as FeatureFlags;
 }

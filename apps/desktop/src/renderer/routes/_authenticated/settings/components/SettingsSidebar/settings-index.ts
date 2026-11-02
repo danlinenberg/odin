@@ -44,7 +44,6 @@ export const SCREENS = [
 		label: "Remote",
 		hint: "EC2 host, iPhone app, Remote Control",
 		icon: BsCloud,
-		flag: "remoteSettings",
 	},
 	{
 		to: "/settings/storage",
@@ -436,7 +435,8 @@ export function screenLabel(to: ScreenRoute): string {
 /** The screens this build shows: those without a flag, or whose flag is on. */
 export function visibleScreens(flags: FeatureFlags | undefined) {
 	return SCREENS.filter(
-		(screen) => !("flag" in screen) || flags?.[screen.flag] === true,
+		(screen: { to: string; flag?: FeatureFlag }) =>
+			!screen.flag || flags?.[screen.flag] === true,
 	);
 }
 
