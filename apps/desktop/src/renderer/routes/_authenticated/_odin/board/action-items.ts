@@ -120,6 +120,26 @@ export function bangCommands(text: string): string[] {
 }
 
 /**
+ * The fenced blocks under an item that are not `!` commands - a ```sql query,
+ * a config snippet - shown under the item as code. The `!` ones become Run
+ * buttons instead.
+ */
+export function itemSnippets(fences: string[]): string[] {
+	return fences.filter((fence) => bangCommands(fence).length === 0).map(dedent);
+}
+
+/** Drops the indent a block takes from sitting under a list item: four spaces would turn its fence into plain text. */
+function dedent(block: string): string {
+	const lines = block.split("\n");
+	const indent = Math.min(
+		...lines
+			.filter((line) => line.trim())
+			.map((line) => line.match(/^[ \t]*/)?.[0].length ?? 0),
+	);
+	return lines.map((line) => line.slice(indent)).join("\n");
+}
+
+/**
  * The command of a `!local command` block: one Claude hands you for your own
  * computer rather than its session (a remote session runs on its host). Null
  * for an ordinary `!` command.
