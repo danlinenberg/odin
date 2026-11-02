@@ -234,7 +234,13 @@ import { deliverOnHost } from "./host-delivery";
 import { hostStartDelay } from "./host-start-gap";
 import { onIdleArrival, restoreAfterCompact } from "./idle-compact";
 import { menuTop } from "./menu-fit";
-import { endMove, holdForMove, startMove, withHeld } from "./moving-home";
+import {
+	endMove,
+	type HeldMessage,
+	holdForMove,
+	startMove,
+	withHeld,
+} from "./moving-home";
 import { BOARD_COLUMN_MIN_W, NextInLine, TonightCount } from "./NextInLine";
 import { NightAgentLive } from "./NightAgentLive";
 import {
@@ -5624,6 +5630,8 @@ function DevBoardPage() {
 		const loading = toast.loading("Moving the session to this computer...");
 		// What you send until it lands here waits for its resume (moving-home.ts).
 		startMove(card.pane.id);
+		// Taken off the move before the resume: if that fails, they are lost here.
+		let held: HeldMessage[] = [];
 		try {
 			const { cwd, note, offline } =
 				await utils.client.remoteHost.bringHome.mutate({
@@ -5648,7 +5656,7 @@ function DevBoardPage() {
 				toast.warning(
 					"The host did not answer, so the conversation moved without its code. The session may still run on the host.",
 				);
-			const held = endMove(card.pane.id);
+			held = endMove(card.pane.id);
 			await resumeCard(
 				{ ...card, pane },
 				false,
@@ -5659,7 +5667,7 @@ function DevBoardPage() {
 			if (!offline)
 				toast.success("Moved to this computer", { description: cwd });
 		} catch (error) {
-			for (const message of endMove(card.pane.id)) message.lost();
+			for (const message of [...held, ...endMove(card.pane.id)]) message.lost();
 			toast.dismiss(loading);
 			toast.error(error instanceof Error ? error.message : String(error));
 		}

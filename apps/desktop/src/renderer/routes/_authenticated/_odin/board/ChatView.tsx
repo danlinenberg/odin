@@ -4403,7 +4403,9 @@ function Composer({
 		if (!bash) setAttached([]);
 		const paths = await Promise.all(sending.map((item) => item.path));
 		// On its way here: its files stay here, and it goes with the resume.
-		if (!onResume && !onSend && isMoving(paneId)) {
+		// Even when the box offers a resume: the move kills the host's Claude
+		// before it lands, and a resume of its own would run on the host it left.
+		if (isMoving(paneId)) {
 			onSent(
 				text,
 				sending.map((item) => item.preview),
