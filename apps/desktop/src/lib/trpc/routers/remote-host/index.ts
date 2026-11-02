@@ -1411,7 +1411,17 @@ export const createRemoteHostRouter = () =>
 			const host = readOdinConfig().remoteHost;
 			if (!host?.on)
 				return { started: [], planFrom: null, planUntil: null, missed: [] };
-			return readNightStarted(host);
+			const read = await readNightStarted(host);
+			// A message the host picked keeps Slack's raw text (<@U123>): names here,
+			// since the card is titled from it.
+			const { slackReadable } = await import("lib/trpc/routers/slack");
+			const started = await Promise.all(
+				read.started.map(async (run) => ({
+					...run,
+					title: await slackReadable(run.title),
+				})),
+			);
+			return { ...read, started };
 		}),
 		/**
 		 * The window opens soon and the host still has no plan for it: a
