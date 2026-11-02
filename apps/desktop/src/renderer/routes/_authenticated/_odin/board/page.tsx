@@ -31,6 +31,7 @@ import { createPortal } from "react-dom";
 import type { IconType } from "react-icons";
 import { BsCloud, BsCloudSlash } from "react-icons/bs";
 import {
+	LuBellOff,
 	LuBellPlus,
 	LuBellRing,
 	LuBookOpen,
@@ -154,12 +155,14 @@ import {
 	restartedWatches,
 	resumeWatchPrompt,
 	sessionThread,
+	stopWatchPrompt,
 	useReplyWatch,
 	WatchMark,
 	WatchPill,
 	WatchReply,
 	WatchRowLine,
 	WHEN,
+	watchConditions,
 	watchingFor,
 } from "../components/ReplyWatch";
 import { TranscriptView } from "../components/TranscriptView";
@@ -1843,6 +1846,8 @@ function TagMenu({
 	watchWhat,
 	onWatch,
 	onWatchFor,
+	watchingForWhat,
+	onStopWatchFor,
 	remote,
 	onRemote,
 	onSaveDoc,
@@ -1880,6 +1885,10 @@ function TagMenu({
 	onWatch: () => void;
 	/** "Ping me when...": set while an agent runs in the session to watch for it. */
 	onWatchFor?: (condition: string) => void;
+	/** The conditions a running "Ping me when..." watches for; empty when none. */
+	watchingForWhat?: string[];
+	/** Stops the session's running "Ping me when..." watches. */
+	onStopWatchFor?: () => void;
 	/** Remote Control for this one session; unset unless Settings says "Selected sessions". */
 	remote?: boolean;
 	onRemote: () => void;
@@ -2014,6 +2023,20 @@ function TagMenu({
 					>
 						<LuBellRing className="size-3" aria-hidden />
 						{watching ? "Stop pinging me" : `Ping me on ${watchWhat}`}
+					</button>
+				)}
+				{onStopWatchFor && !!watchingForWhat?.length && (
+					<button
+						type="button"
+						title={`Odin stops pinging you and asks the agent to cancel its checks. Watching for: ${watchingForWhat.join("; ")}`}
+						onClick={() => {
+							onStopWatchFor();
+							onClose();
+						}}
+						className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-primary transition-colors hover:text-attention"
+					>
+						<LuBellOff className="size-3" aria-hidden />
+						Stop watching
 					</button>
 				)}
 				{onWatchFor &&
@@ -7149,6 +7172,21 @@ function DevBoardPage() {
 								}
 							: undefined
 					}
+					watchingForWhat={watchConditions(watches, tagMenu.paneId)}
+					onStopWatchFor={() => {
+						const paneId = tagMenu.paneId;
+						const conditions = watchConditions(watches, paneId);
+						useReplyWatch.getState().stopWatchFor(paneId);
+						// A running Claude still has checks scheduled; a stopped one
+						// has none left, and its re-arm only fires for a live watch.
+						if (agentPaneIds.has(paneId))
+							void typeIntoClaude(
+								terminalWrite.mutateAsync,
+								paneId,
+								stopWatchPrompt(conditions),
+							).then(() => toast.success("Stopped watching"));
+						else toast.success("Stopped watching");
+					}}
 					remote={
 						remoteMode === "selected"
 							? remotePanes.includes(tagMenu.paneId)

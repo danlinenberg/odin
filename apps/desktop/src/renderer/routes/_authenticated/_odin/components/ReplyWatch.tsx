@@ -70,6 +70,11 @@ export const useReplyWatch = create<{
 	) => void;
 	/** "Ping me when...": the session's Claude watches for `condition`. */
 	watchFor: (condition: string, title: string, paneId: string) => void;
+	/**
+	 * Stop watching: drop the session's "Ping me when..." watches that have
+	 * not fired. Its thread and PR watches, and a ping not read yet, stay.
+	 */
+	stopWatchFor: (paneId: string) => void;
 	/** Claude said the condition happened, or gave up on it. */
 	fire: (key: string, event: ConditionEvent) => void;
 	/** You wrote in the session: its reply is answered. */
@@ -166,6 +171,17 @@ export const useReplyWatch = create<{
 						},
 					};
 				}),
+			stopWatchFor: (paneId) =>
+				set((s) => ({
+					watches: Object.fromEntries(
+						Object.entries(s.watches).filter(
+							([key, w]) =>
+								!key.startsWith(WHEN) ||
+								w.paneId !== paneId ||
+								w.stamp === FIRED,
+						),
+					),
+				})),
 			fire: (key, event) =>
 				set((s) => {
 					const watch = s.watches[key];
@@ -272,6 +288,36 @@ export function watchingFor(
 		([key, w]) =>
 			key.startsWith(WHEN) && w.paneId === paneId && w.stamp !== FIRED,
 	);
+}
+
+/** The conditions the session's Claude is still watching for, oldest first. */
+export function watchConditions(
+	watches: Record<string, Watch>,
+	paneId: string,
+): string[] {
+	return Object.entries(watches)
+		.filter(
+			([key, w]) =>
+				key.startsWith(WHEN) &&
+				w.paneId === paneId &&
+				w.stamp !== FIRED &&
+				!!w.condition,
+		)
+		.sort(([, a], [, b]) => (a.since ?? 0) - (b.since ?? 0))
+		.map(([, w]) => w.condition as string);
+}
+
+/**
+ * What Odin types into the session for "Stop watching": Claude cancels the
+ * checks it scheduled for the watch, so nothing keeps checking for a ping
+ * Odin no longer shows.
+ */
+export function stopWatchPrompt(conditions: string[]): string {
+	return [
+		"Stop watching. I no longer want a ping for:",
+		...conditions.map((c) => `- ${c}`),
+		"Cancel every check you scheduled for it (CronDelete each CronCreate job, end any /loop) and don't check it again. Don't reply ODIN PING for it. Then say in one line that you stopped.",
+	].join("\n");
 }
 
 /**
