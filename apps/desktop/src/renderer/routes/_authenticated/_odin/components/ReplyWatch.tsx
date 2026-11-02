@@ -71,8 +71,8 @@ export const useReplyWatch = create<{
 	/** "Ping me when...": the session's Claude watches for `condition`. */
 	watchFor: (condition: string, title: string, paneId: string) => void;
 	/**
-	 * Stop watching: drop the session's "Ping me when..." watches that have
-	 * not fired. Its thread and PR watches, and a ping not read yet, stay.
+	 * Stop watching: drop the session's "Ping me when..." watches, running or
+	 * fired, so its "Happened" ping clears too. Its thread and PR watches stay.
 	 */
 	stopWatchFor: (paneId: string) => void;
 	/** Claude said the condition happened, or gave up on it. */
@@ -175,10 +175,7 @@ export const useReplyWatch = create<{
 				set((s) => ({
 					watches: Object.fromEntries(
 						Object.entries(s.watches).filter(
-							([key, w]) =>
-								!key.startsWith(WHEN) ||
-								w.paneId !== paneId ||
-								w.stamp === FIRED,
+							([key, w]) => !key.startsWith(WHEN) || w.paneId !== paneId,
 						),
 					),
 				})),
@@ -287,6 +284,16 @@ export function watchingFor(
 	return Object.entries(watches).some(
 		([key, w]) =>
 			key.startsWith(WHEN) && w.paneId === paneId && w.stamp !== FIRED,
+	);
+}
+
+/** Whether the session has a "Ping me when..." watch, running or fired. */
+export function hasWatchFor(
+	watches: Record<string, Watch>,
+	paneId: string,
+): boolean {
+	return Object.entries(watches).some(
+		([key, w]) => key.startsWith(WHEN) && w.paneId === paneId,
 	);
 }
 

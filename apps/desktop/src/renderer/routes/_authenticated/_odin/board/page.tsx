@@ -152,6 +152,7 @@ import { BUTTON, PILL } from "../components/pill";
 import { DueChip, OverdueMark, useReminders } from "../components/Reminders";
 import {
 	conditionPrompt,
+	hasWatchFor,
 	restartedWatches,
 	resumeWatchPrompt,
 	sessionThread,
@@ -1887,7 +1888,7 @@ function TagMenu({
 	onWatchFor?: (condition: string) => void;
 	/** The conditions a running "Ping me when..." watches for; empty when none. */
 	watchingForWhat?: string[];
-	/** Stops the session's running "Ping me when..." watches. */
+	/** Stops the session's "Ping me when..." watches; unset when it has none. */
 	onStopWatchFor?: () => void;
 	/** Remote Control for this one session; unset unless Settings says "Selected sessions". */
 	remote?: boolean;
@@ -2025,10 +2026,14 @@ function TagMenu({
 						{watching ? "Stop pinging me" : `Ping me on ${watchWhat}`}
 					</button>
 				)}
-				{onStopWatchFor && !!watchingForWhat?.length && (
+				{onStopWatchFor && (
 					<button
 						type="button"
-						title={`Odin stops pinging you and asks the agent to cancel its checks. Watching for: ${watchingForWhat.join("; ")}`}
+						title={
+							watchingForWhat?.length
+								? `Odin stops pinging you and asks the agent to cancel its checks. Watching for: ${watchingForWhat.join("; ")}`
+								: "Clears the Happened ping and ends the watch"
+						}
 						onClick={() => {
 							onStopWatchFor();
 							onClose();
@@ -7173,20 +7178,25 @@ function DevBoardPage() {
 							: undefined
 					}
 					watchingForWhat={watchConditions(watches, tagMenu.paneId)}
-					onStopWatchFor={() => {
-						const paneId = tagMenu.paneId;
-						const conditions = watchConditions(watches, paneId);
-						useReplyWatch.getState().stopWatchFor(paneId);
-						// A running Claude still has checks scheduled; a stopped one
-						// has none left, and its re-arm only fires for a live watch.
-						if (agentPaneIds.has(paneId))
-							void typeIntoClaude(
-								terminalWrite.mutateAsync,
-								paneId,
-								stopWatchPrompt(conditions),
-							).then(() => toast.success("Stopped watching"));
-						else toast.success("Stopped watching");
-					}}
+					onStopWatchFor={
+						hasWatchFor(watches, tagMenu.paneId)
+							? () => {
+									const paneId = tagMenu.paneId;
+									const conditions = watchConditions(watches, paneId);
+									useReplyWatch.getState().stopWatchFor(paneId);
+									// A running Claude still has checks scheduled; a stopped one
+									// has none left, and its re-arm only fires for a live watch.
+									// A watch that already fired has nothing left to cancel.
+									if (conditions.length && agentPaneIds.has(paneId))
+										void typeIntoClaude(
+											terminalWrite.mutateAsync,
+											paneId,
+											stopWatchPrompt(conditions),
+										).then(() => toast.success("Stopped watching"));
+									else toast.success("Stopped watching");
+								}
+							: undefined
+					}
 					remote={
 						remoteMode === "selected"
 							? remotePanes.includes(tagMenu.paneId)

@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
 	conditionOutcome,
 	conditionPrompt,
+	hasWatchFor,
 	isNewer,
 	newReplies,
 	restartedWatches,
@@ -403,7 +404,7 @@ test("Stop watching drops a running Ping me when..., keeps the rest", () => {
 	s().stop("pane-o");
 });
 
-test("Stop watching keeps a ping that fired and is not read yet", () => {
+test("Stop watching clears a Happened ping that was never read", () => {
 	const s = () => useReplyWatch.getState();
 	s().watchFor("the edit is done", "Edit", "pane-f");
 	const key = Object.keys(s().watches).find(
@@ -411,9 +412,12 @@ test("Stop watching keeps a ping that fired and is not read yet", () => {
 	);
 	s().fire(key ?? "", "Happened");
 	expect(watchConditions(s().watches, "pane-f")).toEqual([]);
+	expect(hasWatchFor(s().watches, "pane-f")).toBe(true);
+	expect(unreadPing(s().watches, "pane-f")).toContain("Happened");
 	s().stopWatchFor("pane-f");
-	expect(s().watches[key ?? ""]?.event).toBe("Happened");
-	s().stop("pane-f");
+	expect(s().watches[key ?? ""]).toBeUndefined();
+	expect(hasWatchFor(s().watches, "pane-f")).toBe(false);
+	expect(unreadPing(s().watches, "pane-f")).toBeNull();
 });
 
 test("the stop prompt names the watch and asks Claude to cancel its checks", () => {
