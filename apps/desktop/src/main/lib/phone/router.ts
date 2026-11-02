@@ -17,7 +17,7 @@ import {
 } from "main/lib/claude-sessions";
 import { askRenderer } from "main/lib/notifications/server";
 import { appCaller } from "main/lib/odin-api";
-import { loadSessions } from "main/lib/tray";
+import { boardLook, loadSessions } from "main/lib/tray";
 import { getWorkspaceRuntimeRegistry } from "main/lib/workspace-runtime";
 import { NATIVE_API } from "renderer/mobile/native-api";
 import {
@@ -315,7 +315,10 @@ export const phoneRouter = t.router({
 						sessions.some((s) => s.sessionId === input.paneId && s.isAlive),
 					)
 					.catch(() => undefined),
-				tags: boardTags(pane.odinTags),
+				tags: boardTags(pane.odinTags, boardLook().customTags),
+				launchEmoji: pane.odinTags?.includes("auto-started")
+					? boardLook().launchEmoji
+					: undefined,
 				repo:
 					(pane.cwd ?? pane.initialCwd)?.split("/").filter(Boolean).pop() ??
 					null,

@@ -7,6 +7,11 @@ import {
 	nativeImage,
 	Tray,
 } from "electron";
+import { readOdinConfig } from "lib/trpc/routers/odin-config";
+import {
+	LAUNCH_REACTION,
+	normalizeReaction,
+} from "lib/trpc/routers/slack/reactions";
 import { focusMainWindow, quitApp } from "main/index";
 import { appState } from "main/lib/app-state";
 import {
@@ -17,6 +22,7 @@ import { menuEmitter } from "main/lib/menu-events";
 import { notificationsEmitter } from "main/lib/notifications/server";
 import { confirmAndQuitCompletely } from "main/lib/quit-completely";
 import { getWorkspaceRuntimeRegistry } from "main/lib/workspace-runtime";
+import { emojify } from "renderer/lib/emoji";
 import { type ActiveSession, activeSessions } from "shared/active-sessions";
 import { LOCAL_ORG_ID, NOTIFICATION_EVENTS } from "shared/constants";
 import type { PaneStatus } from "shared/tabs-types";
@@ -132,6 +138,20 @@ const SECTIONS: { column: PaneStatus; label: string }[] = [
 	{ column: "idle", label: "Idle" },
 ];
 
+/**
+ * What the board shows that lives outside the panes: the tags you added by
+ * hand, and the emoji the Auto-started pill wears (your launch reaction).
+ */
+export function boardLook(): { customTags?: string[]; launchEmoji: string } {
+	const config = readOdinConfig();
+	return {
+		customTags: config.customTags,
+		launchEmoji: emojify(
+			`:${normalizeReaction(config.slackLaunchReaction ?? LAUNCH_REACTION)}:`,
+		),
+	};
+}
+
 /** Same rule as the All page: the daemon says who's alive, the pane says where it sits. */
 /** `withEnded`: the phone's board, which lists ended sessions in Idle too. */
 export async function loadSessions(
@@ -151,6 +171,7 @@ export async function loadSessions(
 			alive,
 			profileId,
 			withEnded,
+			boardLook(),
 		);
 	} catch (error) {
 		console.warn("[Tray] Failed to list sessions:", error);

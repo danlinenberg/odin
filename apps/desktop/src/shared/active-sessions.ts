@@ -35,6 +35,8 @@ export interface ActiveSession {
 	statusAt: number | null;
 	/** Started overnight by the Night Agent - the board's moon pill. */
 	night?: boolean;
+	/** The emoji the Auto-started pill wears: your launch reaction. Set only on an auto-started session. */
+	launchEmoji?: string;
 }
 
 /** Needs-you first - the whole point of looking. */
@@ -50,6 +52,11 @@ export function activeSessions(
 	 * Done), in Idle where the desktop board keeps them to resume.
 	 */
 	withEnded = false,
+	/**
+	 * The board's hand-added tags, which it shows beside the stock ones, and
+	 * the emoji its Auto-started pill wears.
+	 */
+	board: { customTags?: readonly string[]; launchEmoji?: string } = {},
 ): ActiveSession[] {
 	return Object.values(panes)
 		.filter(
@@ -71,7 +78,7 @@ export function activeSessions(
 				pane.odinParked ?? false,
 			),
 			contact: pane.odinContact ?? null,
-			tags: boardTags(pane.odinTags),
+			tags: boardTags(pane.odinTags, board.customTags),
 			remote: pane.odinRemote ?? null,
 			connected: alive.has(pane.id),
 			// initialCwd too: a session whose terminal was never opened has no
@@ -81,6 +88,9 @@ export function activeSessions(
 			starred: !!pane.odinStarred,
 			statusAt: pane.odinStatusAt ?? null,
 			night: !!pane.odinTags?.includes("off-hours"),
+			...(board.launchEmoji && pane.odinTags?.includes("auto-started")
+				? { launchEmoji: board.launchEmoji }
+				: {}),
 		}))
 		.sort(
 			(a, b) =>
