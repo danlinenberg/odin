@@ -1915,6 +1915,35 @@ function OpenAwsSignInButton() {
 	);
 }
 
+/**
+ * On a remote session that can't reach its host: when that host is down and
+ * the remote host new sessions go to is another one that is up, moves the
+ * session there. Shows nothing otherwise.
+ */
+function MoveToHostButton({
+	host,
+	onMove,
+}: {
+	host: string;
+	onMove: (to: string) => void;
+}) {
+	const { data: to } = electronTrpc.remoteHost.fallbackHost.useQuery(
+		{ host },
+		{ refetchInterval: 30_000 },
+	);
+	if (!to) return null;
+	return (
+		<button
+			type="button"
+			title={`${host} is down. Copy this conversation to ${to} and continue it there`}
+			onClick={() => onMove(to)}
+			className={AWS_SIGN_IN_BUTTON}
+		>
+			Move to {to}
+		</button>
+	);
+}
+
 function ReplyMark({ className }: { className?: string }) {
 	return (
 		<span
@@ -2978,6 +3007,7 @@ export function ChatView({
 	onResumeWith,
 	onSend,
 	onRestart,
+	onMoveToHost,
 	noTerminal = false,
 	placeholder,
 	onOpenSession,
@@ -3006,6 +3036,8 @@ export function ChatView({
 	onSend?: (text: string) => void;
 	/** Quits Claude and reopens this conversation (the board's Restart session), opening with `prompt` when given. */
 	onRestart?: (prompt?: string) => void;
+	/** Moves a remote session whose host is down to the remote host `to`. */
+	onMoveToHost?: (to: string) => void;
 	/** Hide the links to the terminal view (the crow's panel has none). */
 	noTerminal?: boolean;
 	/** The reply box's prompt, in place of "Reply to Claude". */
@@ -3892,6 +3924,11 @@ export function ChatView({
 								<AwsSignInButton onClick={() => void sendKeys(["\r"])} />
 							)}
 							{blockedOnAwsSignIn(connecting) && <OpenAwsSignInButton />}
+							{host &&
+								onMoveToHost &&
+								/^Could not (re)?connect/.test(connecting) && (
+									<MoveToHostButton host={host} onMove={onMoveToHost} />
+								)}
 							{!noTerminal && (
 								<button
 									type="button"

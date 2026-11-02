@@ -5741,6 +5741,56 @@ function DevBoardPage() {
 		}
 	};
 
+	/**
+	 * A remote session whose host is down, moved to the remote host `to`:
+	 * its conversation (and code, if the old host still answers) comes here
+	 * first, as Run here does, then goes on to `to` and resumes there.
+	 */
+	const moveToHost = async (card: BoardCard, to: string) => {
+		const sessionId =
+			card.pane.claudeSessionId ??
+			usePaneMeta.getState().sessionIdByPane[card.pane.id];
+		if (!sessionId) {
+			toast.error("This session has no conversation to move.");
+			return;
+		}
+		const wanted =
+			card.pane.odinCwd || card.pane.initialCwd || card.repoPath || "";
+		const loading = toast.loading(`Moving the session to ${to}...`);
+		startMove(card.pane.id);
+		let held: HeldMessage[] = [];
+		try {
+			const { cwd } = await utils.client.remoteHost.bringHome.mutate({
+				sessionId,
+				cwd: wanted,
+				host: card.pane.odinRemote,
+			});
+			const { note } = await utils.client.remoteHost.sendToHost.mutate({
+				sessionId,
+				cwd,
+			});
+			const pane = {
+				...card.pane,
+				odinRemote: to,
+				cwd: undefined,
+				initialCwd: cwd,
+				odinCwd: cwd,
+			};
+			useTabsStore.setState((state) => ({
+				panes: { ...state.panes, [card.pane.id]: pane },
+			}));
+			toast.dismiss(loading);
+			held = endMove(card.pane.id);
+			await resumeCard({ ...card, pane }, false, withHeld(note, held), true);
+			for (const message of held) message.sent();
+			toast.success(`Moved to ${to}`);
+		} catch (error) {
+			for (const message of [...held, ...endMove(card.pane.id)]) message.lost();
+			toast.dismiss(loading);
+			toast.error(error instanceof Error ? error.message : String(error));
+		}
+	};
+
 	const resumeCardRef = useRef(resumeCard);
 	resumeCardRef.current = resumeCard;
 	const agentPaneIdsRef = useRef(agentPaneIds);
@@ -7942,6 +7992,11 @@ function DevBoardPage() {
 											onStop={() => void interruptPane(drawerCard.pane.id)}
 											onRestart={(prompt) =>
 												void resumeCard(drawerCard, false, prompt, true)
+											}
+											onMoveToHost={
+												drawerCard.pane.odinQueued
+													? undefined
+													: (to) => void moveToHost(drawerCard, to)
 											}
 										/>
 									) : agentPaneIds.has(drawerCard.pane.id) ? (
