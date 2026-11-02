@@ -7,6 +7,11 @@ import {
 	nativeImage,
 	Tray,
 } from "electron";
+import { readOdinConfig } from "lib/trpc/routers/odin-config";
+import {
+	LAUNCH_REACTION,
+	normalizeReaction,
+} from "lib/trpc/routers/slack/reactions";
 import { focusMainWindow, quitApp } from "main/index";
 import { appState } from "main/lib/app-state";
 import {
@@ -21,11 +26,6 @@ import { emojify } from "renderer/lib/emoji";
 import { type ActiveSession, activeSessions } from "shared/active-sessions";
 import { LOCAL_ORG_ID, NOTIFICATION_EVENTS } from "shared/constants";
 import type { PaneStatus } from "shared/tabs-types";
-import { readOdinConfig } from "lib/trpc/routers/odin-config";
-import {
-	LAUNCH_REACTION,
-	normalizeReaction,
-} from "lib/trpc/routers/slack/reactions";
 
 /** Must have "Template" suffix for macOS dark/light mode support */
 const TRAY_ICON_FILENAME = "iconTemplate.png";

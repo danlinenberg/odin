@@ -91,10 +91,16 @@ describe("activeSessions", () => {
 				odinTags: ["auto-started", "billing", "ui"],
 			}),
 		};
-		const [session] = activeSessions(panes, new Set(["mine"]), "default", false, {
-			customTags: ["billing"],
-			launchEmoji: "\u{1F680}",
-		});
+		const [session] = activeSessions(
+			panes,
+			new Set(["mine"]),
+			"default",
+			false,
+			{
+				customTags: ["billing"],
+				launchEmoji: "\u{1F680}",
+			},
+		);
 		// "ui" is from the old vocabulary and was never added by hand: still hidden.
 		expect(session.tags).toEqual(["auto-started", "billing"]);
 		expect(session.launchEmoji).toBe("\u{1F680}");
