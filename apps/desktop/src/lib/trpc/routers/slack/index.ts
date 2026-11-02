@@ -10,6 +10,7 @@ import {
 	resolveSlackToken,
 	updateOdinConfig,
 } from "../odin-config";
+import { createNameLookup } from "./name-lookup";
 import {
 	buildPermalink,
 	channelLabel,
@@ -35,7 +36,6 @@ import {
 	toTitle,
 	untilNextQueued,
 } from "./reactions";
-import { createNameLookup } from "./name-lookup";
 import {
 	createSlackClient,
 	type SlackCallOptions,

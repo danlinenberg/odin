@@ -45,6 +45,8 @@ describe("readableTitle", () => {
 
 	it("falls back to plain text when Slack fails", async () => {
 		const failed = () => Promise.reject(new Error("rate limited"));
-		expect(await readableTitle("<!here> :pray: hi", failed)).toBe("@here 🙏 hi");
+		expect(await readableTitle("<!here> :pray: hi", failed)).toBe(
+			"@here 🙏 hi",
+		);
 	});
 });
