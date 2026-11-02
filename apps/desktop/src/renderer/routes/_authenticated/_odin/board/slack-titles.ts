@@ -1,7 +1,8 @@
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
+import { create } from "zustand";
 
 /** Slack's raw markup: `<@U123>`, `<#C123>`, `<!here>`. */
 const RAW_SLACK = /<[@#!][A-Za-z0-9]/;
@@ -50,4 +51,56 @@ export function useReadableSlackTitles(): void {
 			)
 			.catch(() => {});
 	}, [titles]);
+}
+
+/** Raw Slack text to its readable form, once each has come back. */
+const useReadableText = create<{ byRaw: Record<string, string> }>(() => ({
+	byRaw: {},
+}));
+const asked = new Set<string>();
+let pending: string[] = [];
+
+function ask(raw: string): void {
+	if (asked.has(raw)) return;
+	asked.add(raw);
+	pending.push(raw);
+	if (pending.length > 1) return;
+	queueMicrotask(() => {
+		const texts = pending;
+		pending = [];
+		void electronTrpcClient.slack.readable
+			.mutate({ texts })
+			.then((readable) =>
+				useReadableText.setState((state) => {
+					const byRaw = { ...state.byRaw };
+					texts.forEach((text, i) => {
+						byRaw[text] = readable[i] || text;
+					});
+					return { byRaw };
+				}),
+			)
+			// Asked again on a later render.
+			.catch(() => {
+				for (const text of texts) asked.delete(text);
+			});
+	});
+}
+
+/**
+ * A title shown in Slack's raw markup, wherever it came from (the launch
+ * title, an auto-rename, the Slack message a cut title is filled back from):
+ * `<@U0B16MXKZRT> Users who...` reads `@Name Users who...`. The raw text shows
+ * until the names come back.
+ */
+export function useSlackReadable(): (text: string) => string {
+	const byRaw = useReadableText((s) => s.byRaw);
+	return useCallback(
+		(text: string) => {
+			if (!RAW_SLACK.test(text)) return text;
+			const readable = byRaw[text];
+			if (readable === undefined) ask(text);
+			return readable ?? text;
+		},
+		[byRaw],
+	);
 }

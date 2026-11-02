@@ -127,7 +127,7 @@ import {
 import { isQueuedResume } from "shared/queued-resume";
 import { remoteCardsToReconnect, tmuxSession } from "shared/remote-reconnect";
 import { setPhoneReply } from "./phone-resume";
-import { useReadableSlackTitles } from "./slack-titles";
+import { useReadableSlackTitles, useSlackReadable } from "./slack-titles";
 
 /** Tags the card shows as their own pill instead of in the #tag line. */
 const PILL_TAGS = ["automation", "auto-started", "off-hours"];
@@ -2929,16 +2929,19 @@ function DevBoardPage() {
 	const cardSource = (card: BoardCard) =>
 		(card.pane.odinPageId && slackTextById.get(card.pane.odinPageId)) ||
 		(card.pane.odinBrief ?? briefByPane[card.pane.id] ?? null);
+	const slackReadable = useSlackReadable();
 	const cardTitle = (card: BoardCard) =>
 		emojify(
-			untruncatedTitle(
-				panes[card.pane.id]?.odinTaskTitle ??
-					card.pane.odinTaskTitle ??
-					titleByPane[card.pane.id] ??
-					card.pane.userTitle ??
-					card.pane.name ??
-					card.tabName,
-				cardSource(card),
+			slackReadable(
+				untruncatedTitle(
+					panes[card.pane.id]?.odinTaskTitle ??
+						card.pane.odinTaskTitle ??
+						titleByPane[card.pane.id] ??
+						card.pane.userTitle ??
+						card.pane.name ??
+						card.tabName,
+					cardSource(card),
+				),
 			),
 		);
 	// The full message behind an auto-renamed (or first-line) title - hover only.
