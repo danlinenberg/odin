@@ -413,6 +413,46 @@ app.get("/frames", async (req, res) => {
 	}
 });
 
+/**
+ * Runs `code` in an Odin browser tab open on `origin`, as that page - for a
+ * call that needs my login there, such as an admin API whose token the page
+ * keeps. Answers `{ result }` with what the code returns (awaited).
+ */
+app.post(
+	"/browser/eval",
+	express.urlencoded({ extended: false }),
+	async (req, res) => {
+		if (req.headers.origin) {
+			return res.status(403).send("Not from a browser.\n");
+		}
+		const { origin, code } = req.body ?? {};
+		if (
+			typeof origin !== "string" ||
+			!origin ||
+			typeof code !== "string" ||
+			!code
+		) {
+			return res.status(400).send("Need origin and code.\n");
+		}
+		const { browserManager } = await import("../browser/browser-manager");
+		const page = browserManager.findByOrigin(origin);
+		if (!page) {
+			return res
+				.status(404)
+				.send(
+					`No Odin browser tab is open on ${origin}. Open it in Odin's browser, log in, then retry.\n`,
+				);
+		}
+		try {
+			res.json({ result: await page.executeJavaScript(code, true) });
+		} catch (error) {
+			res
+				.status(502)
+				.send(`${error instanceof Error ? error.message : String(error)}\n`);
+		}
+	},
+);
+
 /** A remote session's tokens, for its pane's helper. Single use; never to a browser. */
 app.get("/remote-host/env", (req, res) => {
 	const secrets =

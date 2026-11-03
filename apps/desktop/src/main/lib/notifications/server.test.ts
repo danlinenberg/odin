@@ -161,6 +161,42 @@ describe("notifications/server", () => {
 		});
 	});
 
+	// It acts as me on a site I'm logged in to, so a browser is refused.
+	describe("POST /browser/eval", () => {
+		const post = async (headers: Record<string, string>, body: string) => {
+			const server = notificationsApp.listen(0, "127.0.0.1");
+			await new Promise((resolve) => server.once("listening", resolve));
+			try {
+				const { port } = server.address() as AddressInfo;
+				const response = await fetch(`http://127.0.0.1:${port}/browser/eval`, {
+					method: "POST",
+					headers: {
+						"content-type": "application/x-www-form-urlencoded",
+						...headers,
+					},
+					body,
+				});
+				return response.status;
+			} finally {
+				server.close();
+			}
+		};
+
+		it("refuses anything a browser sent", async () => {
+			expect(
+				await post(
+					{ origin: "https://evil.example" },
+					"origin=https%3A%2F%2Fa.example&code=1",
+				),
+			).toBe(403);
+		});
+
+		it("needs both origin and code", async () => {
+			expect(await post({}, "origin=https%3A%2F%2Fa.example")).toBe(400);
+			expect(await post({}, "code=1")).toBe(400);
+		});
+	});
+
 	// The crow's Odin actions: the window answers, and that answer is the response.
 	describe("POST /odin", () => {
 		it("answers with the window's reply", async () => {

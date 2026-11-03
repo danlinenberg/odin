@@ -115,6 +115,16 @@ class BrowserManager extends EventEmitter {
 		return wc.executeJavaScript(code);
 	}
 
+	/** The browser pane showing a page on this origin (`https://host`), if one is open. */
+	findByOrigin(origin: string): Electron.WebContents | null {
+		for (const paneId of this.paneWebContentsIds.keys()) {
+			const wc = this.getWebContents(paneId);
+			const url = wc && URL.canParse(wc.getURL()) ? new URL(wc.getURL()) : null;
+			if (wc && url?.origin === origin) return wc;
+		}
+		return null;
+	}
+
 	getConsoleLogs(paneId: string): ConsoleEntry[] {
 		return this.consoleLogs.get(paneId) ?? [];
 	}
