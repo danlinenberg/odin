@@ -1,5 +1,9 @@
 import { voiceRuleWith } from "../../../shared/constants";
 import { tmuxSession } from "../../../shared/remote-reconnect";
+import {
+	SLACK_ALLOW_RULES,
+	SLACK_DENY_RULES,
+} from "../agent-setup/slack-tools";
 import { HOST_PORT_SH } from "./host-service";
 
 export { tmuxSession };
@@ -129,7 +133,8 @@ export const stashScript =
  * --dangerously-skip-permissions), with nobody watching: the chat view only
  * says Working. Mark them answered - the first two in ~/.claude.json, for
  * the folder the session starts in (argv[1]), the warning in
- * ~/.claude/settings.json, as Odin does on this computer.
+ * ~/.claude/settings.json, as Odin does on this computer. The same file gets
+ * this computer's Slack rules: sending as the user is denied, drafts allowed.
  */
 export const SKIP_FIRST_RUN = `import json, os, sys
 def load(p):
@@ -145,8 +150,14 @@ c.setdefault("projects", {}).setdefault(sys.argv[1], {})["hasTrustDialogAccepted
 json.dump(c, open(p, "w"), indent=2)
 p = os.path.expanduser("~/.claude/settings.json")
 s = load(p)
-if s.get("skipDangerousModePermissionPrompt") is not True:
-    s["skipDangerousModePermissionPrompt"] = True
+before = json.dumps(s, sort_keys=True)
+s["skipDangerousModePermissionPrompt"] = True
+perms = s.get("permissions") if isinstance(s.get("permissions"), dict) else {}
+for key, rules in (("deny", ${JSON.stringify(SLACK_DENY_RULES)}), ("allow", ${JSON.stringify(SLACK_ALLOW_RULES)})):
+    current = perms.get(key) if isinstance(perms.get(key), list) else []
+    perms[key] = current + [r for r in rules if r not in current]
+s["permissions"] = perms
+if json.dumps(s, sort_keys=True) != before:
     os.makedirs(os.path.dirname(p), exist_ok=True)
     json.dump(s, open(p, "w"), indent=2)`;
 

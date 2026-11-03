@@ -17,6 +17,7 @@ import {
 	SUBAGENT_CAP_SCRIPT_NAME,
 } from "./notify-hook";
 import { OPENCODE_CONFIG_DIR, OPENCODE_PLUGIN_DIR } from "./paths";
+import { SLACK_ALLOW_RULES, SLACK_DENY_RULES } from "./slack-tools";
 
 export const OPENCODE_PLUGIN_FILE = "odin-notify.js";
 
@@ -306,21 +307,12 @@ export function getClaudeGlobalSettingsJsonContent(
 	const merge = (current: unknown, rules: string[]) => [
 		...new Set([...(Array.isArray(current) ? current : []), ...rules]),
 	];
-	permissions.deny = merge(permissions.deny, SLACK_SEND_TOOLS);
-	permissions.allow = merge(
-		permissions.allow,
-		SLACK_SEND_TOOLS.map((tool) => `${tool}_draft`),
-	);
+	permissions.deny = merge(permissions.deny, SLACK_DENY_RULES);
+	permissions.allow = merge(permissions.allow, SLACK_ALLOW_RULES);
 	existing.permissions = permissions;
 
 	return JSON.stringify(existing, null, 2);
 }
-
-/** Every Slack server's send tool; each has a `_draft` twin. */
-export const SLACK_SEND_TOOLS = [
-	"mcp__plugin_slack_slack__slack_send_message",
-	"mcp__claude_ai_Slack__slack_send_message",
-];
 
 /**
  * Writes Odin hook definitions directly into ~/.claude/settings.json.
