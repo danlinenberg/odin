@@ -1011,6 +1011,25 @@ describe("agent-wrappers claude settings.json", () => {
 		);
 	});
 
+	it("blocks sending Slack messages and allows drafts", () => {
+		const content = getClaudeGlobalSettingsJsonContent(
+			"/tmp/.odin/hooks/notify.sh",
+		);
+		const { permissions } = JSON.parse(content ?? "{}");
+		expect(permissions.deny).toContain(
+			"mcp__plugin_slack_slack__slack_send_message",
+		);
+		expect(permissions.deny).toContain(
+			"mcp__claude_ai_Slack__slack_send_message",
+		);
+		expect(permissions.allow).toContain(
+			"mcp__plugin_slack_slack__slack_send_message_draft",
+		);
+		expect(permissions.deny).not.toContain(
+			"mcp__plugin_slack_slack__slack_send_message_draft",
+		);
+	});
+
 	it("creates Claude settings.json with hooks when no file exists", () => {
 		const notifyPath = "/tmp/.odin/hooks/notify.sh";
 		const content = getClaudeGlobalSettingsJsonContent(notifyPath);
@@ -1154,7 +1173,9 @@ describe("agent-wrappers claude settings.json", () => {
 		const parsed = JSON.parse(content);
 
 		// Preserves non-hook settings
-		expect(parsed.permissions).toEqual({ allow: ["Bash(*)", "Read"] });
+		expect(parsed.permissions.allow).toEqual(
+			expect.arrayContaining(["Bash(*)", "Read"]),
+		);
 
 		// Preserves user hook
 		expect(
