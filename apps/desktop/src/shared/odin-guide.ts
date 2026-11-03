@@ -217,7 +217,7 @@ Huginn can line up backlog tasks to run one after another: each starts when the 
 
 ## Personalization settings (Settings → Personalization)
 - **Your voice** ("Write drafts in my voice"): on by default. Every session starts with the guide Odin learns from your Slack messages written into its instructions, so drafts you send as yourself sound like you. Odin retrains on its own - daily from your sent messages, after every 15 new ones it sees, and from how you rewrote a session's drafts before sending - using counted numbers (length, capitals, periods, Hebrew, emoji) and where each message went. A switch turns it off; Train now retrains at once; the guide is shown, and Corrections (one per line) always win over it.
-- **Slack messages are drafts only**: sessions can't send a Slack message as you. Odin blocks the Slack send tool in Claude's settings and allows the draft tool, so every message waits in Slack for you to read and send.
+- **Slack messages are drafts only**: sessions can't send or schedule a Slack message as you, on this computer or on a remote host. Odin blocks the Slack send and schedule tools in Claude's settings and allows the draft tool, so every message waits in Slack for you to read and send.
 
 ## Launch gate and Queued (Settings → Sessions → When they start)
 A started session waits in Idle under "Queued", with a reason, until all limits allow it. Nothing is refused - the card exists from the start. Changes apply within 5 seconds.

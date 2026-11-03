@@ -13,6 +13,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { VOICE_RULE } from "../../../shared/constants";
 import {
+	SLACK_ALLOW_RULES,
+	SLACK_DENY_RULES,
+} from "../agent-setup/slack-tools";
+import {
 	attachScript,
 	CLAUDE_LOGIN_SCRIPT,
 	CONVERSATION_DIR,
@@ -825,7 +829,34 @@ test("a host's first Claude skips onboarding, folder trust and the bypass-permis
 	expect(settings).toEqual({
 		model: "opus",
 		skipDangerousModePermissionPrompt: true,
+		permissions: { deny: SLACK_DENY_RULES, allow: SLACK_ALLOW_RULES },
 	});
+});
+
+test("a host session can't send Slack as the user: the deny joins the host's own rules once", () => {
+	const home = mkdtempSync(`${tmpdir()}/odin-slack-deny-`);
+	mkdirSync(`${home}/.claude`);
+	writeFileSync(
+		`${home}/.claude/settings.json`,
+		JSON.stringify({ permissions: { deny: ["Bash(rm *)"], allow: ["Bash"] } }),
+	);
+	const run = () =>
+		execFileSync("python3", ["-c", SKIP_FIRST_RUN, "/home/u/repos/api"], {
+			env: { HOME: home, PATH: "/usr/bin:/bin:/opt/homebrew/bin" },
+		});
+	run();
+	run();
+	const { permissions } = JSON.parse(
+		readFileSync(`${home}/.claude/settings.json`, "utf8"),
+	);
+	expect(permissions.deny).toEqual(["Bash(rm *)", ...SLACK_DENY_RULES]);
+	expect(permissions.allow).toEqual(["Bash", ...SLACK_ALLOW_RULES]);
+	expect(permissions.deny).toContain(
+		"mcp__claude_ai_Slack__slack_send_message",
+	);
+	expect(permissions.deny).toContain(
+		"mcp__claude_ai_Slack__slack_schedule_message",
+	);
 });
 
 test("a Resume of a conversation stuck at the usage limit records the limit", () => {
