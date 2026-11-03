@@ -881,11 +881,22 @@ export function SessionBrief({
 	// changes again, and the panel is otherwise spawning subprocesses forever.
 	// Once a minute: every open panel polls every open PR, and the calls share
 	// one hourly GitHub quota per account with every other tool on it.
+	// Asked for every PR, hidden ones too: hiding one must not change the query
+	// key, or the states blank out and the list re-sorts under your cursor
+	// while you hide the next one.
+	const stateUrls = [
+		...allPrs.map((pr) => pr.url),
+		...allAdded
+			.filter((link) => linkKind(link.url) === "pr")
+			.map((link) => link.url),
+	];
 	const { data: prStates } = electronTrpc.terminal.pullRequestStates.useQuery(
-		{ urls: [...prs.map((pr) => pr.url), ...mine("pr").map((pr) => pr.url)] },
+		{ urls: stateUrls },
 		{
-			enabled: prs.length > 0 || mine("pr").length > 0,
+			enabled: stateUrls.length > 0,
 			retry: false,
+			// A PR the session just linked keeps the others' chips while it loads.
+			placeholderData: (previous) => previous,
 			staleTime: 30_000,
 			refetchInterval: (query) =>
 				Object.values(
@@ -925,8 +936,10 @@ export function SessionBrief({
 	// Every linked ticket's status in one search. A ticket moves slowly, so a
 	// minute between looks is plenty.
 	const jiraKeys = [
-		issue?.key,
-		...mine("jira").map((link) => jiraKey(link.url)),
+		foundIssue?.key,
+		...allAdded
+			.filter((link) => linkKind(link.url) === "jira")
+			.map((link) => jiraKey(link.url)),
 	].filter((key): key is string => !!key);
 	const { data: jiraStates } = electronTrpc.work.jiraIssueStates.useQuery(
 		{ keys: jiraKeys },
