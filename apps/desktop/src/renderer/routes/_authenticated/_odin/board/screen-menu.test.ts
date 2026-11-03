@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+	cursorReached,
 	menuKeys,
 	parseScreenAside,
 	parseScreenAuth,
@@ -250,5 +251,27 @@ describe("parseScreenDialog", () => {
 
 	it("ignores the input box", () => {
 		expect(parseScreenDialog(INPUT)).toBeNull();
+	});
+});
+
+describe("cursorReached", () => {
+	const trust = (cursorOnYes: boolean) =>
+		` Accessing workspace:\n\n /Users/dan/dev/x\n\n ${cursorOnYes ? " " : "❯"} No, exit\n ${cursorOnYes ? "❯" : " "} Yes, I trust this folder\n\n Enter to confirm · Esc to cancel\n`;
+	const menu = parseScreenMenu(trust(false));
+
+	it("true once the cursor sits on the picked row", () => {
+		expect(menu).not.toBeNull();
+		if (!menu) return;
+		expect(cursorReached(trust(true), menu, 1)).toBe(true);
+	});
+
+	it("false while the arrow hasn't landed, so Enter can't pick No, exit", () => {
+		if (!menu) return;
+		expect(cursorReached(trust(false), menu, 1)).toBe(false);
+	});
+
+	it("false once the menu is gone", () => {
+		if (!menu) return;
+		expect(cursorReached("❯ \n", menu, 1)).toBe(false);
 	});
 });

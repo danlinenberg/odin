@@ -216,6 +216,25 @@ export function menuKeys(menu: ScreenMenu, target: number): string[] {
 	];
 }
 
+/**
+ * Has the cursor reached `target` on the menu the screen draws now? Enter
+ * picks whatever row the cursor is on, so a lost arrow turns a click on
+ * "Yes, I trust this folder" into "No, exit": Claude quits and the card goes
+ * idle. False when the menu is gone or a different one is drawn.
+ */
+export function cursorReached(
+	screen: string,
+	menu: ScreenMenu,
+	target: number,
+): boolean {
+	const now = parseScreenMenu(screen);
+	return (
+		!!now &&
+		now.selected === target &&
+		now.options.join("\n") === menu.options.join("\n")
+	);
+}
+
 /** A `/btw` side answer: the TUI draws it over the prompt, never in the transcript. */
 export type ScreenAside = {
 	question: string;

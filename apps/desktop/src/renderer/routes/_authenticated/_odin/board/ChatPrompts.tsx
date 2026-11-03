@@ -245,9 +245,12 @@ export function PlanCard({
 export function ScreenMenuCard({
 	menu,
 	onKeys,
+	onPick,
 }: {
 	menu: ScreenMenu;
 	onKeys: (keys: string[]) => void;
+	/** Picks a row and says whether Enter went out; without it the keys go blind. */
+	onPick?: (index: number) => Promise<boolean>;
 }) {
 	const [sent, setSent] = useState(false);
 	return (
@@ -268,7 +271,11 @@ export function ScreenMenuCard({
 						disabled={sent}
 						onClick={() => {
 							setSent(true);
-							onKeys(menuKeys(menu, index));
+							if (onPick)
+								void onPick(index).then((picked) => {
+									if (!picked) setSent(false);
+								});
+							else onKeys(menuKeys(menu, index));
 						}}
 						className={cn(
 							"max-w-full rounded-lg border px-3 py-1.5 text-left text-[12.5px] font-medium disabled:opacity-60",
