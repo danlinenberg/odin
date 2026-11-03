@@ -22,6 +22,7 @@ import { BsCloud } from "react-icons/bs";
 import {
 	LuChevronRight,
 	LuFile,
+	LuLaptop,
 	LuLoaderCircle,
 	LuMic,
 	LuSmartphone,
@@ -93,6 +94,7 @@ import {
 	isAnswerItem,
 	isApprovalItem,
 	isDoneItem,
+	isMoveHereItem,
 	isYouOnly,
 	itemDetail,
 	itemOptions,
@@ -2073,6 +2075,8 @@ function ActionItemRow({
 		setSent(true);
 		onDo(text, number, approve, reply);
 	};
+	const moveHere = useContext(MoveHere);
+	const move = !!moveHere && isMoveHereItem(item);
 	return (
 		<li
 			className={cn(
@@ -2091,7 +2095,9 @@ function ActionItemRow({
 				<button
 					type="button"
 					title={
-						approve
+						move
+							? "Copy this conversation and its code from the remote host and continue it on this computer"
+							: approve
 							? "Tell Claude you approve and to go ahead"
 							: asks && answer.trim()
 								? "Send your answer to Claude"
@@ -2100,13 +2106,30 @@ function ActionItemRow({
 									: "Ask Claude to do this for you"
 					}
 					disabled={sent}
-					onClick={() => send(itemReply(item, answer))}
+					onClick={() => {
+						if (move) {
+							setSent(true);
+							moveHere?.();
+						} else send(itemReply(item, answer));
+					}}
 					className={cn(
 						ACTION_BUTTON,
 						"w-[64px] @max-md:col-start-2 @max-md:row-start-2",
+						move && "flex items-center justify-center gap-1",
 					)}
 				>
-					{sent ? "Sent" : approve ? "Approve" : done ? "Done" : "Do it"}
+					{move && !sent && <LuLaptop className="size-3" aria-hidden />}
+					{sent
+						? move
+							? "Moving"
+							: "Sent"
+						: move
+							? "Move"
+							: approve
+								? "Approve"
+								: done
+									? "Done"
+									: "Do it"}
 				</button>
 			)}
 			<span className="pt-px text-right text-[13px] tabular-nums text-muted-foreground">
@@ -2412,6 +2435,9 @@ export { commandItem };
 
 /** The reply's notes on its `! commands`, for the Run buttons wherever they sit. */
 const CommandNotes = createContext<Record<string, string>>({});
+
+/** Moves this remote session to this computer; unset when it already runs here. */
+const MoveHere = createContext<(() => void) | undefined>(undefined);
 
 /** Runs a `! command` in Claude's session, where its output comes back to Claude. */
 function RunCommand({
@@ -3011,6 +3037,7 @@ export function ChatView({
 	onSend,
 	onRestart,
 	onMoveToHost,
+	onMoveHere,
 	noTerminal = false,
 	placeholder,
 	onOpenSession,
@@ -3041,6 +3068,8 @@ export function ChatView({
 	onRestart?: (prompt?: string) => void;
 	/** Moves a remote session whose host is down to the remote host `to`. */
 	onMoveToHost?: (to: string) => void;
+	/** Moves this remote session to this computer: an action item asking for it gets a Move button. */
+	onMoveHere?: () => void;
 	/** Hide the links to the terminal view (the crow's panel has none). */
 	noTerminal?: boolean;
 	/** The reply box's prompt, in place of "Reply to Claude". */
@@ -3610,6 +3639,7 @@ export function ChatView({
 		yourQueued(queued).length === 0 &&
 		(!missing || missing.startsWith("Not on disk yet"));
 	return (
+		<MoveHere.Provider value={onMoveHere}>
 		// biome-ignore lint/a11y/noStaticElementInteractions: Page Up/Down from the composer jump the conversation to its top/bottom; a file dropped anywhere on it attaches
 		<div
 			className="flex min-h-0 flex-1 flex-col"
@@ -4140,6 +4170,7 @@ export function ChatView({
 				</div>
 			)}
 		</div>
+		</MoveHere.Provider>
 	);
 }
 

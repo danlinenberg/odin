@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
 	describeCommand,
+	isMoveHereItem,
 	itemSnippets,
 	localRunMessage,
 	noActionItems,
@@ -122,4 +123,17 @@ test("an item keeps its ```sql block as code; its `!` block stays a Run button",
 		"```sql\nSELECT id\nFROM users;\n```",
 	]);
 	expect(itemSnippets(second?.fences ?? [])).toEqual([]);
+});
+
+test("an item asking to move the session to my computer gets the Move button", () => {
+	expect(
+		isMoveHereItem("Move this session to my computer to use TaxJar there"),
+	).toBe(true);
+	expect(isMoveHereItem("**Move the session to this Mac**")).toBe(true);
+	expect(isMoveHereItem("Move the files to my computer's Downloads")).toBe(
+		false,
+	);
+	expect(isMoveHereItem("Merge the PR")).toBe(false);
+	expect(isMoveHereItem("Remove the cache on my computer")).toBe(false);
+	expect(isMoveHereItem("Move it to the remote host")).toBe(false);
 });
