@@ -632,6 +632,21 @@ export function RemoteHostSection() {
 							/>
 						)
 					)}
+					{loaded && (
+						<SettingRow
+							label="Hosts in this account"
+							description={`Instances tagged Odin = host in the ${profile || "default"} profile, ${region || DEFAULT_REGION}. A host made or tagged since the list loaded shows after Search again; one in another account shows after you change the profile under Advanced.`}
+						>
+							<Button
+								size="sm"
+								variant="outline"
+								disabled={instances.isFetching}
+								onClick={() => instances.refetch()}
+							>
+								{instances.isFetching ? "Searching..." : "Search again"}
+							</Button>
+						</SettingRow>
+					)}
 					{instances.data && !error && shownInstances.length === 0 && (
 						<SettingRow
 							label={search.trim() ? "No matching hosts" : "No hosts here yet"}
