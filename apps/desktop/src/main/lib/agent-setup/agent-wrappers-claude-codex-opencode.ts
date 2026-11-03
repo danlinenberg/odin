@@ -298,9 +298,29 @@ export function getClaudeGlobalSettingsJsonContent(
 	// key the CLI opens its one-time "Bypass Permissions mode" warning, which
 	// defaults to "No, exit" and leaves a task session stuck on it.
 	existing.skipDangerousModePermissionPrompt = true;
+	// Slack messages go out as drafts you send yourself: a sent one carries
+	// Odin's footer and can't be taken back. A deny rule holds even under
+	// --dangerously-skip-permissions; the allow keeps drafts prompt-free.
+	const permissions: { deny?: unknown; allow?: unknown } =
+		existing.permissions ?? {};
+	const merge = (current: unknown, rules: string[]) => [
+		...new Set([...(Array.isArray(current) ? current : []), ...rules]),
+	];
+	permissions.deny = merge(permissions.deny, SLACK_SEND_TOOLS);
+	permissions.allow = merge(
+		permissions.allow,
+		SLACK_SEND_TOOLS.map((tool) => `${tool}_draft`),
+	);
+	existing.permissions = permissions;
 
 	return JSON.stringify(existing, null, 2);
 }
+
+/** Every Slack server's send tool; each has a `_draft` twin. */
+export const SLACK_SEND_TOOLS = [
+	"mcp__plugin_slack_slack__slack_send_message",
+	"mcp__claude_ai_Slack__slack_send_message",
+];
 
 /**
  * Writes Odin hook definitions directly into ~/.claude/settings.json.
