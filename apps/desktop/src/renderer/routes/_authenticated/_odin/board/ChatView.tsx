@@ -2098,12 +2098,12 @@ function ActionItemRow({
 						move
 							? "Copy this conversation and its code from the remote host and continue it on this computer"
 							: approve
-							? "Tell Claude you approve and to go ahead"
-							: asks && answer.trim()
-								? "Send your answer to Claude"
-								: done
-									? "Tell Claude this is done"
-									: "Ask Claude to do this for you"
+								? "Tell Claude you approve and to go ahead"
+								: asks && answer.trim()
+									? "Send your answer to Claude"
+									: done
+										? "Tell Claude this is done"
+										: "Ask Claude to do this for you"
 					}
 					disabled={sent}
 					onClick={() => {
@@ -3640,536 +3640,540 @@ export function ChatView({
 		(!missing || missing.startsWith("Not on disk yet"));
 	return (
 		<MoveHere.Provider value={onMoveHere}>
-		// biome-ignore lint/a11y/noStaticElementInteractions: Page Up/Down from the composer jump the conversation to its top/bottom; a file dropped anywhere on it attaches
-		<div
-			className="flex min-h-0 flex-1 flex-col"
-			onDragOver={(event) => {
-				if (!dropRef.current || !event.dataTransfer.types.includes("Files"))
-					return;
-				event.preventDefault();
-				setDragging(true);
-			}}
-			onDragLeave={(event) => {
-				if (!event.currentTarget.contains(event.relatedTarget as Node))
-					setDragging(false);
-			}}
-			onDrop={(event) => {
-				if (!dropRef.current || !event.dataTransfer.types.includes("Files"))
-					return;
-				// Stop Electron from opening a dropped file in the window.
-				event.preventDefault();
-				setDragging(false);
-				dropRef.current([...event.dataTransfer.files]);
-			}}
-			onKeyDown={(event) => {
-				const el = scrollRef.current;
-				const top = isHotkey("CHAT_TO_TOP", event.nativeEvent);
-				if (!el || (!top && !isHotkey("CHAT_TO_BOTTOM", event.nativeEvent)))
-					return;
-				event.preventDefault();
-				el.scrollTop = top ? 0 : el.scrollHeight;
-			}}
-		>
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: Page Up/Down from the composer jump the conversation to its top/bottom; a file dropped anywhere on it attaches */}
 			<div
-				ref={scrollRef}
-				data-chat-scroll
-				onScroll={(event) => {
-					const el = event.currentTarget;
-					// Only scrolling up lets go of the bottom. Rows that grow, shrink
-					// or swap (your message's echo) move scrollTop too, and used to
-					// unpin it right after a send.
-					const up = el.scrollTop < lastScrollTopRef.current;
-					lastScrollTopRef.current = el.scrollTop;
-					const atBottom =
-						el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-					if (atBottom || up) pinnedRef.current = atBottom;
-					if (el.scrollTop < el.clientHeight) fetchEarlier();
+				className="flex min-h-0 flex-1 flex-col"
+				onDragOver={(event) => {
+					if (!dropRef.current || !event.dataTransfer.types.includes("Files"))
+						return;
+					event.preventDefault();
+					setDragging(true);
 				}}
-				// Links open in Odin's browser, like everywhere else on the board.
-				onClickCapture={(event) => {
-					const anchor = (event.target as HTMLElement).closest("a");
-					const session = anchor
-						?.getAttribute("href")
-						?.match(/^#session=(.+)$/)?.[1];
-					if (session && onOpenSession) {
-						event.preventDefault();
-						onOpenSession(decodeURIComponent(session));
-					} else if (anchor?.href.startsWith("http")) {
-						event.preventDefault();
-						openUrl(anchor.href);
-					}
+				onDragLeave={(event) => {
+					if (!event.currentTarget.contains(event.relatedTarget as Node))
+						setDragging(false);
 				}}
-				// The gutter stays when the scrollbar goes. Without it, a reply near
-				// the view's height folded, the chat stopped scrolling, the 12px
-				// scrollbar went, the wider reply fit and unfolded, the scrollbar
-				// came back - every frame, in a window of that size.
-				className="min-h-0 flex-1 overflow-y-auto px-8 py-6 [scrollbar-gutter:stable]"
+				onDrop={(event) => {
+					if (!dropRef.current || !event.dataTransfer.types.includes("Files"))
+						return;
+					// Stop Electron from opening a dropped file in the window.
+					event.preventDefault();
+					setDragging(false);
+					dropRef.current([...event.dataTransfer.files]);
+				}}
+				onKeyDown={(event) => {
+					const el = scrollRef.current;
+					const top = isHotkey("CHAT_TO_TOP", event.nativeEvent);
+					if (!el || (!top && !isHotkey("CHAT_TO_BOTTOM", event.nativeEvent)))
+						return;
+					event.preventDefault();
+					el.scrollTop = top ? 0 : el.scrollHeight;
+				}}
 			>
-				<div ref={contentRef} className="flex flex-col gap-2.5">
-					{starting ? (
-						<div className="flex items-center gap-3 text-[12.5px] text-working">
-							<WorkingMark />
-							{connecting ?? "Starting session…"}
-							{awaitsAwsSignIn(connecting) && (
-								<AwsSignInButton onClick={() => void sendKeys(["\r"])} />
-							)}
-							{blockedOnAwsSignIn(connecting) && <OpenAwsSignInButton />}
-							{/* Before its first turn the CLI can stop on a terminal-only
+				<div
+					ref={scrollRef}
+					data-chat-scroll
+					onScroll={(event) => {
+						const el = event.currentTarget;
+						// Only scrolling up lets go of the bottom. Rows that grow, shrink
+						// or swap (your message's echo) move scrollTop too, and used to
+						// unpin it right after a send.
+						const up = el.scrollTop < lastScrollTopRef.current;
+						lastScrollTopRef.current = el.scrollTop;
+						const atBottom =
+							el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+						if (atBottom || up) pinnedRef.current = atBottom;
+						if (el.scrollTop < el.clientHeight) fetchEarlier();
+					}}
+					// Links open in Odin's browser, like everywhere else on the board.
+					onClickCapture={(event) => {
+						const anchor = (event.target as HTMLElement).closest("a");
+						const session = anchor
+							?.getAttribute("href")
+							?.match(/^#session=(.+)$/)?.[1];
+						if (session && onOpenSession) {
+							event.preventDefault();
+							onOpenSession(decodeURIComponent(session));
+						} else if (anchor?.href.startsWith("http")) {
+							event.preventDefault();
+							openUrl(anchor.href);
+						}
+					}}
+					// The gutter stays when the scrollbar goes. Without it, a reply near
+					// the view's height folded, the chat stopped scrolling, the 12px
+					// scrollbar went, the wider reply fit and unfolded, the scrollbar
+					// came back - every frame, in a window of that size.
+					className="min-h-0 flex-1 overflow-y-auto px-8 py-6 [scrollbar-gutter:stable]"
+				>
+					<div ref={contentRef} className="flex flex-col gap-2.5">
+						{starting ? (
+							<div className="flex items-center gap-3 text-[12.5px] text-working">
+								<WorkingMark />
+								{connecting ?? "Starting session…"}
+								{awaitsAwsSignIn(connecting) && (
+									<AwsSignInButton onClick={() => void sendKeys(["\r"])} />
+								)}
+								{blockedOnAwsSignIn(connecting) && <OpenAwsSignInButton />}
+								{/* Before its first turn the CLI can stop on a terminal-only
 							    prompt (folder trust, bypass-permissions warning) that no
 							    transcript ever shows. */}
-							{!noTerminal && (
-								<button
-									type="button"
-									onClick={onShowTerminal}
-									className="text-[11.5px] text-muted-foreground hover:text-foreground"
-								>
-									Stuck? Show terminal
-								</button>
-							)}
-						</div>
-					) : (
-						missing &&
-						items.length === 0 && (
-							<div className="select-text cursor-text text-[12px] text-muted-foreground">
-								{missing}
+								{!noTerminal && (
+									<button
+										type="button"
+										onClick={onShowTerminal}
+										className="text-[11.5px] text-muted-foreground hover:text-foreground"
+									>
+										Stuck? Show terminal
+									</button>
+								)}
 							</div>
-						)
-					)}
-					{/* A tuned draft regenerates through the same send as the rest. */}
-					<SendToSession.Provider
-						value={onShowTerminal || onResumeWith ? sendToClaude : null}
-					>
-						{segments(shownItems).map((segment, index, all) => {
-							const previous = all[index - 1];
-							const following = all[index + 1];
-							// A run's toggle sits at the end of the line before it.
-							if (
-								Array.isArray(segment) &&
-								!Array.isArray(previous) &&
-								previous?.kind === "text"
+						) : (
+							missing &&
+							items.length === 0 && (
+								<div className="select-text cursor-text text-[12px] text-muted-foreground">
+									{missing}
+								</div>
 							)
-								return null;
-							// A reply starts after your message (or at the top); its first
-							// block carries Claude's mark, the rest line up beside it.
-							const opensReply =
-								!(!Array.isArray(segment) && segment.kind === "user") &&
-								(index === 0 ||
-									(!Array.isArray(previous) &&
-										(previous?.kind === "user" ||
-											previous?.kind === "compact")));
-							if (
-								!Array.isArray(segment) &&
-								(segment.kind === "user" || segment.kind === "compact")
-							)
-								return (
+						)}
+						{/* A tuned draft regenerates through the same send as the rest. */}
+						<SendToSession.Provider
+							value={onShowTerminal || onResumeWith ? sendToClaude : null}
+						>
+							{segments(shownItems).map((segment, index, all) => {
+								const previous = all[index - 1];
+								const following = all[index + 1];
+								// A run's toggle sits at the end of the line before it.
+								if (
+									Array.isArray(segment) &&
+									!Array.isArray(previous) &&
+									previous?.kind === "text"
+								)
+									return null;
+								// A reply starts after your message (or at the top); its first
+								// block carries Claude's mark, the rest line up beside it.
+								const opensReply =
+									!(!Array.isArray(segment) && segment.kind === "user") &&
+									(index === 0 ||
+										(!Array.isArray(previous) &&
+											(previous?.kind === "user" ||
+												previous?.kind === "compact")));
+								if (
+									!Array.isArray(segment) &&
+									(segment.kind === "user" || segment.kind === "compact")
+								)
+									return (
+										<ItemView
+											key={segment.id}
+											item={segment}
+											refs={refs}
+											refsKey={refsKey}
+											workspaceId={workspaceId}
+											paneId={paneId}
+										/>
+									);
+								const key = Array.isArray(segment)
+									? segment[0]?.id
+									: segment.id;
+								const itemView = !Array.isArray(segment) && (
 									<ItemView
-										key={segment.id}
 										item={segment}
 										refs={refs}
 										refsKey={refsKey}
 										workspaceId={workspaceId}
 										paneId={paneId}
+										onDo={onShowTerminal || onResumeWith ? doItem : undefined}
+										hideActions={segment.id !== actionsId}
+										earlierText={
+											segment.id === actionsId ? earlierText : undefined
+										}
+										tldr={segment.id === lastTextId ? tldr : null}
+										readAloud={segment.id === lastTextId ? readAloud : null}
+										onRun={
+											// Only a live PTY runs a ! command; a resume or the raven's send can't.
+											onShowTerminal && !onSend ? runCommand : undefined
+										}
+										onRestart={
+											segment.id === lastTextId ? onRestart : undefined
+										}
+										onSend={
+											// Only the latest reply: an old expired-token error is fixed.
+											(onShowTerminal || onResumeWith) &&
+											segment.id === lastTextId
+												? sendToClaude
+												: undefined
+										}
 									/>
 								);
-							const key = Array.isArray(segment) ? segment[0]?.id : segment.id;
-							const itemView = !Array.isArray(segment) && (
-								<ItemView
-									item={segment}
-									refs={refs}
-									refsKey={refsKey}
-									workspaceId={workspaceId}
-									paneId={paneId}
-									onDo={onShowTerminal || onResumeWith ? doItem : undefined}
-									hideActions={segment.id !== actionsId}
-									earlierText={
-										segment.id === actionsId ? earlierText : undefined
-									}
-									tldr={segment.id === lastTextId ? tldr : null}
-									readAloud={segment.id === lastTextId ? readAloud : null}
-									onRun={
-										// Only a live PTY runs a ! command; a resume or the raven's send can't.
-										onShowTerminal && !onSend ? runCommand : undefined
-									}
-									onRestart={segment.id === lastTextId ? onRestart : undefined}
-									onSend={
-										// Only the latest reply: an old expired-token error is fixed.
-										(onShowTerminal || onResumeWith) &&
-										segment.id === lastTextId
-											? sendToClaude
-											: undefined
-									}
-								/>
-							);
-							return (
-								<div
-									key={key}
-									className={cn(
-										"flex min-w-0 gap-3",
-										key && !firstIdsRef.current?.has(key) && ENTER,
-									)}
-								>
-									{opensReply ? (
-										<ReplyMark />
-									) : (
-										<span className="w-7 shrink-0" />
-									)}
-									<div className="min-w-0 flex-1">
-										{Array.isArray(segment) ? (
-											<ToolGroup group={segment} />
-										) : Array.isArray(following) ? (
-											<ToolGroup group={following} lead={itemView} />
-										) : (
-											itemView
-										)}
-									</div>
-								</div>
-							);
-						})}
-					</SendToSession.Provider>
-					{pending.map((sent) => {
-						const command = sent.lost
-							? null
-							: bashCommandOf(sent.text, sentAsBash);
-						return command ? (
-							<WaitingShell key={sent.id} command={command} />
-						) : (
-							<UserBubble
-								key={sent.id}
-								text={sent.text}
-								images={sent.previews}
-								pending
-								lost={sent.lost}
-								waitingFor={sent.waiting ? (host ?? "the host") : undefined}
-								movingHere={sent.moving}
-								onShowTerminal={onShowTerminal}
-								onDismiss={() =>
-									setPending((list) =>
-										list.filter((other) => other.id !== sent.id),
-									)
-								}
-							/>
-						);
-					})}
-					{yourQueued(queued)
-						.filter(
-							(text) =>
-								!pending.some(
-									(sent) =>
-										text.includes(sent.text) ||
-										text.trim() === sent.text.replace(/^!/, "").trim(),
-								),
-						)
-						.map((text, index) => {
-							const command = bashCommandOf(text, sentAsBash);
-							return command ? (
-								// biome-ignore lint/suspicious/noArrayIndexKey: the same text can be queued twice
-								<WaitingShell key={`queued-${index}`} command={command} />
-							) : (
-								<UserBubble
-									// biome-ignore lint/suspicious/noArrayIndexKey: the same text can be queued twice
-									key={`queued-${index}`}
-									text={text}
-									pending
-								/>
-							);
-						})}
-					{prompt && (
-						<div className={cn("flex min-w-0 gap-3", ENTER)}>
-							<ReplyMark />
-							<div className="min-w-0 flex-1">
-								{prompt.name === "AskUserQuestion" ? (
-									<QuestionCard
-										key={prompt.id}
-										input={prompt.input}
-										onKeys={sendKeys}
-									/>
-								) : (
-									<PlanCard
-										key={prompt.id}
-										input={prompt.input}
-										onKeys={sendKeys}
-									/>
-								)}
-								{!noTerminal && (
-									<button
-										type="button"
-										onClick={onShowTerminal}
-										className="mt-1.5 text-[11.5px] text-muted-foreground hover:text-foreground"
-									>
-										Answer in Terminal View instead
-									</button>
-								)}
-							</div>
-						</div>
-					)}
-					{screenMenu && (
-						<div className={cn("flex min-w-0 gap-3", ENTER)}>
-							<ReplyMark />
-							<div className="min-w-0 flex-1">
-								<ScreenMenuCard
-									key={`${screenMenu.title}\n${screenMenu.options.join("\n")}`}
-									menu={screenMenu}
-									onKeys={sendKeys}
-									onPick={(index) => pickScreenMenu(screenMenu, index)}
-								/>
-								{!noTerminal && (
-									<button
-										type="button"
-										onClick={onShowTerminal}
-										className="mt-1.5 text-[11.5px] text-muted-foreground hover:text-foreground"
-									>
-										Answer in Terminal View instead
-									</button>
-								)}
-							</div>
-						</div>
-					)}
-					{screenAuth && (
-						<div className={cn("flex min-w-0 gap-3", ENTER)}>
-							<ReplyMark />
-							<div className="min-w-0 flex-1">
-								<ScreenAuthCard
-									key={screenAuth.url}
-									auth={screenAuth}
-									onKeys={sendKeys}
-								/>
-							</div>
-						</div>
-					)}
-					{screenDialog && onShowTerminal && (
-						<div className={cn("flex min-w-0 gap-3", ENTER)}>
-							<ReplyMark />
-							<div className="min-w-0 flex-1">
-								<ScreenDialogCard
-									text={screenDialog}
-									onShowTerminal={onShowTerminal}
-								/>
-							</div>
-						</div>
-					)}
-					{screenAside && (
-						<div className={cn("flex min-w-0 gap-3", ENTER)}>
-							<ReplyMark />
-							<div className="min-w-0 flex-1">
-								<ScreenAsideCard
-									aside={screenAside}
-									onClose={() => void sendKeys(["\x1b"])}
-								/>
-							</div>
-						</div>
-					)}
-					{limitHit && (
-						<div className={cn("flex min-w-0 gap-3", ENTER)}>
-							<ReplyMark />
-							<button
-								type="button"
-								title={
-									onRestart
-										? "Restart this session and carry on - with the API key at the plan limit on, it runs on your API key"
-										: "Open the usage limit menu: wait for the reset, or keep going on extra usage"
-								}
-								onClick={() =>
-									onRestart
-										? onRestart(PLAN_LIMIT_OPENING)
-										: void sendKeys(["/rate-limit-options", "\r"])
-								}
-								className="h-7 rounded-lg border border-attention/35 bg-attention/[0.07] px-3 text-[12.5px] font-medium text-attention hover:bg-attention/15"
-							>
-								{onRestart
-									? "Restart and continue"
-									: "Show usage limit options"}
-							</button>
-						</div>
-					)}
-					{connecting && !starting && (
-						// A resumed remote session: its old turns are above, the host isn't reached yet.
-						<div className="flex h-7 items-center gap-3 text-[12.5px] text-working">
-							<WorkingMark />
-							<span className="select-text cursor-text">{connecting}</span>
-							{awaitsAwsSignIn(connecting) && (
-								<AwsSignInButton onClick={() => void sendKeys(["\r"])} />
-							)}
-							{blockedOnAwsSignIn(connecting) && <OpenAwsSignInButton />}
-							{host &&
-								onMoveToHost &&
-								/^Could not (re)?connect/.test(connecting) && (
-									<MoveToHostButton host={host} onMove={onMoveToHost} />
-								)}
-							{!noTerminal && (
-								<button
-									type="button"
-									onClick={onShowTerminal}
-									className="text-[11.5px] text-muted-foreground hover:text-foreground"
-								>
-									Show terminal
-								</button>
-							)}
-						</div>
-					)}
-					{host &&
-						!connecting &&
-						hostEvent &&
-						hostEvent.kind !== "connecting" &&
-						(hostEvent.kind !== "connected" ||
-							items.length <= hostEvent.items) && (
-							<div
-								className={cn(
-									"flex h-7 items-center gap-3 text-[12.5px]",
-									hostEvent.kind === "connected"
-										? "text-success"
-										: "text-danger",
-								)}
-							>
-								<BsCloud className="size-3.5 shrink-0" />
-								<span className="select-text cursor-text">
-									{hostEvent.kind === "connected"
-										? "Connected to"
-										: hostEvent.kind === "failed"
-											? "Could not connect to"
-											: "Disconnected from"}{" "}
-									{host}
-								</span>
-								<span className="text-muted-foreground">
-									{new Date(hostEvent.at).toLocaleTimeString([], {
-										hour: "2-digit",
-										minute: "2-digit",
-									})}
-								</span>
-							</div>
-						)}
-					{working &&
-						!connecting &&
-						!prompt &&
-						!screenMenu &&
-						!screenAside &&
-						!starting && (
-							<>
-								{/* Lines Claude wrote this turn, read off the screen until the
-								    transcript records them - then their own rows take over. Drawn
-								    like those rows: Claude's mark where they open the reply, the
-								    same Markdown, the time the line showed. */}
-								{liveText && (
+								return (
 									<div
-										className={cn("flex min-w-0 gap-3", ENTER)}
-										title="Read off the terminal: the transcript hasn't recorded it yet"
+										key={key}
+										className={cn(
+											"flex min-w-0 gap-3",
+											key && !firstIdsRef.current?.has(key) && ENTER,
+										)}
 									>
-										{lastItem?.kind === "user" ||
-										lastItem?.kind === "compact" ? (
+										{opensReply ? (
 											<ReplyMark />
 										) : (
 											<span className="w-7 shrink-0" />
 										)}
-										<div className="min-w-0 flex-1 select-text cursor-text">
-											{/* Screen line breaks stay: a line of code, a list item. */}
-											<MarkdownRenderer
-												content={liveText}
-												style="default"
-												allowHtml={false}
-												className={cn(
-													COMPACT_MARKDOWN,
-													"[&_li]:whitespace-pre-wrap [&_p]:whitespace-pre-wrap",
-												)}
-											/>
-											<MessageTime at={liveAt} className="mt-0.5" />
+										<div className="min-w-0 flex-1">
+											{Array.isArray(segment) ? (
+												<ToolGroup group={segment} />
+											) : Array.isArray(following) ? (
+												<ToolGroup group={following} lead={itemView} />
+											) : (
+												itemView
+											)}
 										</div>
 									</div>
-								)}
-								<div className="flex min-w-0 gap-3 text-[12.5px] text-working">
-									<WorkingMark />
-									{compacting === null ? (
-										<div className="flex min-w-0 flex-1 flex-col">
-											{liveCommand && !stepsShown && (
-												// The command running now, before the transcript has it: the
-												// last row of the steps when they show, alone here while they
-												// are folded.
-												<LiveCommandRow text={liveCommand.text} />
-											)}
-											<button
-												type="button"
-												title={
-													showSteps
-														? "Hide the steps"
-														: "Show what Claude did this turn"
-												}
-												disabled={!hasSteps}
-												onClick={() =>
-													setHiddenTurn(showSteps ? turn.id : null)
-												}
-												className="flex h-7 items-center gap-3 self-start rounded-md enabled:hover:text-foreground"
-											>
-												<span className="shrink-0">Working…</span>
-												{turn.start !== undefined && (
-													<Elapsed since={turn.start} />
-												)}
-												{turn.tokens > 0 && (
-													<span
-														title="Tokens Claude has written this turn"
-														className="shrink-0 tabular-nums text-muted-foreground"
-													>
-														↓ {tokenLabel(turn.tokens)} tokens
-													</span>
-												)}
-												{hasSteps && (
-													<LuChevronRight
-														className={cn(
-															"size-3.5 shrink-0 text-muted-foreground transition-transform",
-															showSteps && "rotate-90",
-														)}
-													/>
-												)}
-											</button>
-											{stepsShown && (
-												<TurnSteps tools={turn.tools} running={liveCommand} />
-											)}
-										</div>
+								);
+							})}
+						</SendToSession.Provider>
+						{pending.map((sent) => {
+							const command = sent.lost
+								? null
+								: bashCommandOf(sent.text, sentAsBash);
+							return command ? (
+								<WaitingShell key={sent.id} command={command} />
+							) : (
+								<UserBubble
+									key={sent.id}
+									text={sent.text}
+									images={sent.previews}
+									pending
+									lost={sent.lost}
+									waitingFor={sent.waiting ? (host ?? "the host") : undefined}
+									movingHere={sent.moving}
+									onShowTerminal={onShowTerminal}
+									onDismiss={() =>
+										setPending((list) =>
+											list.filter((other) => other.id !== sent.id),
+										)
+									}
+								/>
+							);
+						})}
+						{yourQueued(queued)
+							.filter(
+								(text) =>
+									!pending.some(
+										(sent) =>
+											text.includes(sent.text) ||
+											text.trim() === sent.text.replace(/^!/, "").trim(),
+									),
+							)
+							.map((text, index) => {
+								const command = bashCommandOf(text, sentAsBash);
+								return command ? (
+									// biome-ignore lint/suspicious/noArrayIndexKey: the same text can be queued twice
+									<WaitingShell key={`queued-${index}`} command={command} />
+								) : (
+									<UserBubble
+										// biome-ignore lint/suspicious/noArrayIndexKey: the same text can be queued twice
+										key={`queued-${index}`}
+										text={text}
+										pending
+									/>
+								);
+							})}
+						{prompt && (
+							<div className={cn("flex min-w-0 gap-3", ENTER)}>
+								<ReplyMark />
+								<div className="min-w-0 flex-1">
+									{prompt.name === "AskUserQuestion" ? (
+										<QuestionCard
+											key={prompt.id}
+											input={prompt.input}
+											onKeys={sendKeys}
+										/>
 									) : (
-										<div className="flex h-7 items-center gap-3">
-											Compacting conversation…
-											<Elapsed since={compacting} />
-										</div>
+										<PlanCard
+											key={prompt.id}
+											input={prompt.input}
+											onKeys={sendKeys}
+										/>
+									)}
+									{!noTerminal && (
+										<button
+											type="button"
+											onClick={onShowTerminal}
+											className="mt-1.5 text-[11.5px] text-muted-foreground hover:text-foreground"
+										>
+											Answer in Terminal View instead
+										</button>
 									)}
 								</div>
-							</>
+							</div>
 						)}
+						{screenMenu && (
+							<div className={cn("flex min-w-0 gap-3", ENTER)}>
+								<ReplyMark />
+								<div className="min-w-0 flex-1">
+									<ScreenMenuCard
+										key={`${screenMenu.title}\n${screenMenu.options.join("\n")}`}
+										menu={screenMenu}
+										onKeys={sendKeys}
+										onPick={(index) => pickScreenMenu(screenMenu, index)}
+									/>
+									{!noTerminal && (
+										<button
+											type="button"
+											onClick={onShowTerminal}
+											className="mt-1.5 text-[11.5px] text-muted-foreground hover:text-foreground"
+										>
+											Answer in Terminal View instead
+										</button>
+									)}
+								</div>
+							</div>
+						)}
+						{screenAuth && (
+							<div className={cn("flex min-w-0 gap-3", ENTER)}>
+								<ReplyMark />
+								<div className="min-w-0 flex-1">
+									<ScreenAuthCard
+										key={screenAuth.url}
+										auth={screenAuth}
+										onKeys={sendKeys}
+									/>
+								</div>
+							</div>
+						)}
+						{screenDialog && onShowTerminal && (
+							<div className={cn("flex min-w-0 gap-3", ENTER)}>
+								<ReplyMark />
+								<div className="min-w-0 flex-1">
+									<ScreenDialogCard
+										text={screenDialog}
+										onShowTerminal={onShowTerminal}
+									/>
+								</div>
+							</div>
+						)}
+						{screenAside && (
+							<div className={cn("flex min-w-0 gap-3", ENTER)}>
+								<ReplyMark />
+								<div className="min-w-0 flex-1">
+									<ScreenAsideCard
+										aside={screenAside}
+										onClose={() => void sendKeys(["\x1b"])}
+									/>
+								</div>
+							</div>
+						)}
+						{limitHit && (
+							<div className={cn("flex min-w-0 gap-3", ENTER)}>
+								<ReplyMark />
+								<button
+									type="button"
+									title={
+										onRestart
+											? "Restart this session and carry on - with the API key at the plan limit on, it runs on your API key"
+											: "Open the usage limit menu: wait for the reset, or keep going on extra usage"
+									}
+									onClick={() =>
+										onRestart
+											? onRestart(PLAN_LIMIT_OPENING)
+											: void sendKeys(["/rate-limit-options", "\r"])
+									}
+									className="h-7 rounded-lg border border-attention/35 bg-attention/[0.07] px-3 text-[12.5px] font-medium text-attention hover:bg-attention/15"
+								>
+									{onRestart
+										? "Restart and continue"
+										: "Show usage limit options"}
+								</button>
+							</div>
+						)}
+						{connecting && !starting && (
+							// A resumed remote session: its old turns are above, the host isn't reached yet.
+							<div className="flex h-7 items-center gap-3 text-[12.5px] text-working">
+								<WorkingMark />
+								<span className="select-text cursor-text">{connecting}</span>
+								{awaitsAwsSignIn(connecting) && (
+									<AwsSignInButton onClick={() => void sendKeys(["\r"])} />
+								)}
+								{blockedOnAwsSignIn(connecting) && <OpenAwsSignInButton />}
+								{host &&
+									onMoveToHost &&
+									/^Could not (re)?connect/.test(connecting) && (
+										<MoveToHostButton host={host} onMove={onMoveToHost} />
+									)}
+								{!noTerminal && (
+									<button
+										type="button"
+										onClick={onShowTerminal}
+										className="text-[11.5px] text-muted-foreground hover:text-foreground"
+									>
+										Show terminal
+									</button>
+								)}
+							</div>
+						)}
+						{host &&
+							!connecting &&
+							hostEvent &&
+							hostEvent.kind !== "connecting" &&
+							(hostEvent.kind !== "connected" ||
+								items.length <= hostEvent.items) && (
+								<div
+									className={cn(
+										"flex h-7 items-center gap-3 text-[12.5px]",
+										hostEvent.kind === "connected"
+											? "text-success"
+											: "text-danger",
+									)}
+								>
+									<BsCloud className="size-3.5 shrink-0" />
+									<span className="select-text cursor-text">
+										{hostEvent.kind === "connected"
+											? "Connected to"
+											: hostEvent.kind === "failed"
+												? "Could not connect to"
+												: "Disconnected from"}{" "}
+										{host}
+									</span>
+									<span className="text-muted-foreground">
+										{new Date(hostEvent.at).toLocaleTimeString([], {
+											hour: "2-digit",
+											minute: "2-digit",
+										})}
+									</span>
+								</div>
+							)}
+						{working &&
+							!connecting &&
+							!prompt &&
+							!screenMenu &&
+							!screenAside &&
+							!starting && (
+								<>
+									{/* Lines Claude wrote this turn, read off the screen until the
+								    transcript records them - then their own rows take over. Drawn
+								    like those rows: Claude's mark where they open the reply, the
+								    same Markdown, the time the line showed. */}
+									{liveText && (
+										<div
+											className={cn("flex min-w-0 gap-3", ENTER)}
+											title="Read off the terminal: the transcript hasn't recorded it yet"
+										>
+											{lastItem?.kind === "user" ||
+											lastItem?.kind === "compact" ? (
+												<ReplyMark />
+											) : (
+												<span className="w-7 shrink-0" />
+											)}
+											<div className="min-w-0 flex-1 select-text cursor-text">
+												{/* Screen line breaks stay: a line of code, a list item. */}
+												<MarkdownRenderer
+													content={liveText}
+													style="default"
+													allowHtml={false}
+													className={cn(
+														COMPACT_MARKDOWN,
+														"[&_li]:whitespace-pre-wrap [&_p]:whitespace-pre-wrap",
+													)}
+												/>
+												<MessageTime at={liveAt} className="mt-0.5" />
+											</div>
+										</div>
+									)}
+									<div className="flex min-w-0 gap-3 text-[12.5px] text-working">
+										<WorkingMark />
+										{compacting === null ? (
+											<div className="flex min-w-0 flex-1 flex-col">
+												{liveCommand && !stepsShown && (
+													// The command running now, before the transcript has it: the
+													// last row of the steps when they show, alone here while they
+													// are folded.
+													<LiveCommandRow text={liveCommand.text} />
+												)}
+												<button
+													type="button"
+													title={
+														showSteps
+															? "Hide the steps"
+															: "Show what Claude did this turn"
+													}
+													disabled={!hasSteps}
+													onClick={() =>
+														setHiddenTurn(showSteps ? turn.id : null)
+													}
+													className="flex h-7 items-center gap-3 self-start rounded-md enabled:hover:text-foreground"
+												>
+													<span className="shrink-0">Working…</span>
+													{turn.start !== undefined && (
+														<Elapsed since={turn.start} />
+													)}
+													{turn.tokens > 0 && (
+														<span
+															title="Tokens Claude has written this turn"
+															className="shrink-0 tabular-nums text-muted-foreground"
+														>
+															↓ {tokenLabel(turn.tokens)} tokens
+														</span>
+													)}
+													{hasSteps && (
+														<LuChevronRight
+															className={cn(
+																"size-3.5 shrink-0 text-muted-foreground transition-transform",
+																showSteps && "rotate-90",
+															)}
+														/>
+													)}
+												</button>
+												{stepsShown && (
+													<TurnSteps tools={turn.tools} running={liveCommand} />
+												)}
+											</div>
+										) : (
+											<div className="flex h-7 items-center gap-3">
+												Compacting conversation…
+												<Elapsed since={compacting} />
+											</div>
+										)}
+									</div>
+								</>
+							)}
+					</div>
 				</div>
+				{onShowTerminal ? (
+					<>
+						{/* While a menu, /btw or a sign-in waits, typed text would land in it - the card answers. */}
+						{!prompt && !screenMenu && !screenAside && !screenAuth && (
+							<Composer
+								paneId={paneId}
+								working={working}
+								onSent={onSent}
+								onStop={onStop}
+								onSend={onSend}
+								noTerminal={noTerminal}
+								placeholder={placeholder}
+								dropRef={dropRef}
+								dragging={dragging}
+								filesCwd={startCwd ?? cwd}
+							/>
+						)}
+					</>
+				) : onResumeWith ? (
+					// Ended session: the first message resumes it.
+					<Composer
+						paneId={paneId}
+						working={false}
+						onSent={onSent}
+						noTerminal={noTerminal}
+						onResume={onResumeWith}
+						placeholder="Reply to resume the session"
+						dropRef={dropRef}
+						dragging={dragging}
+						filesCwd={startCwd ?? cwd}
+					/>
+				) : (
+					<div className="border-t border-border px-5 py-2 text-center text-[11.5px] text-muted-foreground">
+						{resuming ? "Resuming session…" : "Session ended - Resume to reply"}
+					</div>
+				)}
 			</div>
-			{onShowTerminal ? (
-				<>
-					{/* While a menu, /btw or a sign-in waits, typed text would land in it - the card answers. */}
-					{!prompt && !screenMenu && !screenAside && !screenAuth && (
-						<Composer
-							paneId={paneId}
-							working={working}
-							onSent={onSent}
-							onStop={onStop}
-							onSend={onSend}
-							noTerminal={noTerminal}
-							placeholder={placeholder}
-							dropRef={dropRef}
-							dragging={dragging}
-							filesCwd={startCwd ?? cwd}
-						/>
-					)}
-				</>
-			) : onResumeWith ? (
-				// Ended session: the first message resumes it.
-				<Composer
-					paneId={paneId}
-					working={false}
-					onSent={onSent}
-					noTerminal={noTerminal}
-					onResume={onResumeWith}
-					placeholder="Reply to resume the session"
-					dropRef={dropRef}
-					dragging={dragging}
-					filesCwd={startCwd ?? cwd}
-				/>
-			) : (
-				<div className="border-t border-border px-5 py-2 text-center text-[11.5px] text-muted-foreground">
-					{resuming ? "Resuming session…" : "Session ended - Resume to reply"}
-				</div>
-			)}
-		</div>
 		</MoveHere.Provider>
 	);
 }
