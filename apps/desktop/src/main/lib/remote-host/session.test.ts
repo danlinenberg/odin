@@ -610,6 +610,16 @@ test("the host note tells the agent how to hand me a command for my computer", (
 	expect(note).toContain("first line starts with `!local `");
 });
 
+test("the host note tells a blocked agent to offer the move to my computer", () => {
+	const note = hostNote({
+		user: "ubuntu",
+		name: "odin-remote",
+		repoName: "odin",
+		pane: "0d202ff3aa",
+	});
+	expect(note).toContain('starts with "Move this session to my computer"');
+});
+
 test("the host note tells the agent to write in my voice and record corrections", () => {
 	const note = hostNote({
 		user: "ubuntu",

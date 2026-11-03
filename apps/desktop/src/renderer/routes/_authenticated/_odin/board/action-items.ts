@@ -31,6 +31,17 @@ export function isApprovalItem(item: string): boolean {
 	return /^\W*approve\b/i.test(item);
 }
 
+/**
+ * An item asking to move a remote session to your computer ("Move this
+ * session to my computer"): the agent on the host is blocked on something
+ * only the computer has. It gets a Move button that brings the session here.
+ */
+export function isMoveHereItem(item: string): boolean {
+	return /^\W*move\s+(?:this|the)\s+(?:session|conversation)\s+(?:to|onto)\s+(?:my|this|your)\s+(?:computer|mac|laptop)\b/i.test(
+		item,
+	);
+}
+
 /** The numbered or bulleted lines of an ACTION ITEMS block; [] for "none". */
 export const actionItemList = actionItemLines;
 

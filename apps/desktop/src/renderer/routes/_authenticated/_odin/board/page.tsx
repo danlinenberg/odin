@@ -7998,6 +7998,12 @@ function DevBoardPage() {
 													? undefined
 													: (to) => void moveToHost(drawerCard, to)
 											}
+											onMoveHere={
+												drawerCard.pane.odinRemote &&
+												!drawerCard.pane.odinQueued
+													? () => void runHere(drawerCard)
+													: undefined
+											}
 										/>
 									) : agentPaneIds.has(drawerCard.pane.id) ? (
 										// Claude running - the real PTY, attached read/write. xterm is the
