@@ -131,10 +131,13 @@ import {
 	useSpeaking,
 } from "./read-aloud";
 import {
+	cursorReached,
+	menuKeys,
 	parseScreenAside,
 	parseScreenAuth,
 	parseScreenDialog,
 	parseScreenMenu,
+	type ScreenMenu,
 } from "./screen-menu";
 import {
 	type ScreenStep,
@@ -3111,6 +3114,38 @@ export function ChatView({
 		for (const ms of [300, 1000, 2500]) setTimeout(poke, ms);
 		void screen.refetch();
 	};
+	// A screen menu pick: the arrows, then Enter only once the screen shows the
+	// cursor on the picked row. Enter on the wrong row of the folder-trust
+	// dialog is "No, exit", which ended the session.
+	const pickScreenMenu = async (menu: ScreenMenu, target: number) => {
+		const keys = menuKeys(menu, target);
+		const arrows = keys.slice(0, -1);
+		try {
+			for (const key of arrows) {
+				await write.mutateAsync({ paneId, data: key });
+				await new Promise((resolve) => setTimeout(resolve, 250));
+			}
+			let reached = arrows.length === 0;
+			for (let tries = 0; !reached && tries < 8; tries++) {
+				const { data } = await screen.refetch();
+				reached = !!data?.text && cursorReached(data.text, menu, target);
+				if (!reached) await new Promise((resolve) => setTimeout(resolve, 250));
+			}
+			if (!reached) {
+				toast.error(
+					`The terminal didn't move to "${menu.options[target]}", so Odin didn't press Enter. Pick it in Terminal View.`,
+				);
+				return false;
+			}
+			await write.mutateAsync({ paneId, data: "\r" });
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : String(error));
+			return false;
+		}
+		for (const ms of [300, 1000, 2500]) setTimeout(poke, ms);
+		void screen.refetch();
+		return true;
+	};
 	const prompt = onShowTerminal ? asking(items) : null;
 	// Menus the transcript never sees, read off the live screen.
 	const screen = electronTrpc.terminal.readScreen.useQuery(
@@ -3845,6 +3880,7 @@ export function ChatView({
 									key={`${screenMenu.title}\n${screenMenu.options.join("\n")}`}
 									menu={screenMenu}
 									onKeys={sendKeys}
+									onPick={(index) => pickScreenMenu(screenMenu, index)}
 								/>
 								{!noTerminal && (
 									<button
