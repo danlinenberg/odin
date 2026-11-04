@@ -37,41 +37,54 @@ export function parkedBundles(dump: string): string[] {
 }
 
 /**
- * usernoted snapshots an app's icon the first time it sees the bundle ID, and
- * NotificationCenter keeps its own in-memory copy, so banners kept an old Odin
- * icon through icon changes. Every install path (the in-app update, brew,
- * scripts/odin-update.sh, a DMG dragged in) ends in this launch, so it is done
- * here: when the bundle's icon.icns differs from the last one, unregister the
- * parked bundles, re-register this one and bounce both (launchd restarts them), the same as
- * patch-dev-protocol.ts does for the dev bundle.
+ * Two jobs, run on every packaged launch - every install path (the in-app
+ * update, brew, scripts/odin-update.sh, a DMG dragged in) ends in one:
+ *  - unregister bundles an update parked in stale/. The swap scripts unregister
+ *    the bundle they park, but Launch Services can pick a parked bundle up
+ *    again later (it is still a valid app on disk, and a daemon may still run
+ *    from it), and bundles swept by older releases were deleted while still
+ *    registered. Doing it only when the icon changed left them registered
+ *    through every ordinary update;
+ *  - usernoted snapshots an app's icon the first time it sees the bundle ID,
+ *    and NotificationCenter keeps its own in-memory copy, so banners kept an
+ *    old Odin icon through icon changes. When the bundle's icon.icns differs
+ *    from the last one, re-register this bundle and bounce both (launchd
+ *    restarts them), the same as patch-dev-protocol.ts does for the dev bundle.
  */
 export function refreshNotificationIconCache(): void {
 	if (process.platform !== "darwin" || !app.isPackaged) return;
 	if (process.env.ODIN_SMOKE) return;
-	let iconHash: string;
+	let iconHash: string | null = null;
 	try {
 		iconHash = createHash("sha256")
 			.update(readFileSync(join(process.resourcesPath, "icon.icns")))
 			.digest("hex");
-	} catch {
-		return;
-	}
+	} catch {}
 	let stamp: string | null = null;
 	try {
 		stamp = readFileSync(STAMP, "utf8");
 	} catch {}
-	if (!iconCacheIsStale(iconHash, stamp)) return;
+	const iconChanged = iconHash !== null && iconCacheIsStale(iconHash, stamp);
 
-	console.log("[notification-icon] App icon changed - refreshing the cache");
 	const bundle = join(process.resourcesPath, "..", "..");
 	execFile(
 		LSREGISTER,
 		["-dump"],
 		{ maxBuffer: 200 * 1024 * 1024 },
 		(_error, dump) => {
-			for (const parked of parkedBundles(String(dump ?? ""))) {
-				execFile(LSREGISTER, ["-u", parked], () => {});
+			const parked = parkedBundles(String(dump ?? ""));
+			if (parked.length > 0) {
+				console.log(
+					`[notification-icon] Unregistering ${parked.length} parked bundle(s)`,
+				);
 			}
+			for (const path of parked) {
+				execFile(LSREGISTER, ["-u", path], () => {});
+			}
+			if (!iconChanged) return;
+			console.log(
+				"[notification-icon] App icon changed - refreshing the cache",
+			);
 			execFile(LSREGISTER, ["-f", bundle], () => {
 				execFile(
 					"/usr/bin/killall",

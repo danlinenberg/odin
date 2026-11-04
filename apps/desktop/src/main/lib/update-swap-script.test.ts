@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import {
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { shellQuote, swapScript } from "./update-swap-script";
@@ -73,5 +79,44 @@ describe("the wait loop's UI check", () => {
 
 	test("is not fooled by a grep carrying the path in its argv", () => {
 		expect(uiRunning(DAEMON + SELF_MATCHING_GREP)).toBe(false);
+	});
+});
+
+/**
+ * The sweep deletes bundles parked by earlier updates. Launch Services keeps a
+ * deleted bundle's record, so each has to be unregistered first, and the one
+ * the surviving daemon runs from has to be left alone.
+ */
+describe("the stale bundle sweep", () => {
+	test("unregisters every swept bundle and keeps the live one", () => {
+		const home = mkdtempSync(join(tmpdir(), "swap-sweep-test-"));
+		const stale = join(home, ".odin", "stale");
+		const log = join(home, "lsregister.log");
+		for (const name of ["Odin-1.app", "Odin-2.app", "Odin-3.app"]) {
+			mkdirSync(join(stale, name), { recursive: true });
+		}
+		writeFileSync(join(home, ".odin", "terminal-host.pid"), "4242\n");
+		const body = script.slice(
+			script.indexOf('mkdir -p "$STALE_DIR"'),
+			script.indexOf("# Park the old bundle"),
+		);
+		const path = join(home, "sweep.sh");
+		writeFileSync(
+			path,
+			[
+				`HOME=${shellQuote(home)}`,
+				'STALE_DIR="$HOME/.odin/stale"',
+				`LSREGISTER=lsregister_stub`,
+				`lsregister_stub() { echo "$*" >>${shellQuote(log)}; }`,
+				`lsof() { echo "n$STALE_DIR/Odin-2.app/Contents/MacOS/Odin"; }`,
+				body,
+			].join("\n"),
+		);
+		expect(spawnSync("/bin/bash", [path]).status).toBe(0);
+		expect(readdirSync(stale)).toEqual(["Odin-2.app"]);
+		expect(readFileSync(log, "utf8").trim().split("\n")).toEqual([
+			`-u ${stale}/Odin-1.app`,
+			`-u ${stale}/Odin-3.app`,
+		]);
 	});
 });

@@ -76,17 +76,21 @@ log "installing to /Applications…"
 # bundle can't be overwritten in place. Rename it instead: the old inode stays
 # valid and the daemon keeps running from it until it is next replaced.
 STALE_DIR="$ODIN_HOME/stale"
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 mkdir -p "$STALE_DIR"
 # Sweep bundles parked by earlier updates, minus the one the live daemon is on.
 # Its argv still reads /Applications (argv is frozen at exec), so only lsof can
-# say which bundle it actually holds open.
+# say which bundle it actually holds open. Unregister each before deleting it:
+# Launch Services keeps a deleted bundle's record, and nothing removes it after.
 LIVE_BUNDLE=""
 DAEMON_PID="$(daemon_pids | head -1)"
 [[ -n "$DAEMON_PID" ]] &&
   LIVE_BUNDLE="$(lsof -p "$DAEMON_PID" -Fn 2>/dev/null |
     grep -m1 -oE "$STALE_DIR/Odin-[0-9]+\.app" || true)"
 for old in "$STALE_DIR"/Odin-*.app; do
-  [[ -d "$old" && "$old" != "$LIVE_BUNDLE" ]] && rm -rf "$old"
+  [[ -d "$old" && "$old" != "$LIVE_BUNDLE" ]] || continue
+  "$LSREGISTER" -u "$old" >/dev/null 2>&1 || true
+  rm -rf "$old"
 done
 
 STALE="$STALE_DIR/Odin-$(date +%s).app"
@@ -95,8 +99,7 @@ if [[ -d /Applications/Odin.app ]]; then
     { log "could not move the installed bundle aside"; exit 1; }
   # A parked bundle stays registered under Odin's bundle ID, and banners can
   # draw its (older) icon instead of the installed one's.
-  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
-    -u "$STALE" >/dev/null 2>&1 || true
+  "$LSREGISTER" -u "$STALE" >/dev/null 2>&1 || true
 fi
 if ! ditto "$APP" /Applications/Odin.app >>"$LOG" 2>&1; then
   log "INSTALL FAILED - restoring the previous bundle"
@@ -108,8 +111,9 @@ fi
 xattr -dr com.apple.quarantine /Applications/Odin.app >/dev/null 2>&1 || true
 touch /Applications/Odin.app
 
-# The app refreshes the notification icon cache itself on launch when the
-# icon changed (main/lib/notification-icon-cache.ts).
+# On launch the app unregisters any parked bundle still registered, and
+# refreshes the notification icon cache when the icon changed
+# (main/lib/notification-icon-cache.ts).
 
 log "relaunching…"
 open -a /Applications/Odin.app
