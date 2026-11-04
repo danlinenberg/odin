@@ -30,6 +30,7 @@ APP=${shellQuote(appBundle)}
 MNT=${shellQuote(mountPoint)}
 WORK=${shellQuote(workDir)}
 STALE_DIR="$HOME/.odin/stale"
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 echo "[$(date '+%H:%M:%S')] === in-app release update -> $APP ==="
 
 # Wait for the UI to go. Two traps here, both load-bearing:
@@ -62,10 +63,14 @@ done
 mkdir -p "$STALE_DIR"
 # Sweep bundles parked by earlier updates, minus the one a surviving daemon is
 # still executing from - its argv still reads the old path, so only lsof knows.
+# Unregister each before deleting it: Launch Services keeps a deleted bundle's
+# record under Odin's bundle ID, and nothing would ever remove it after.
 LIVE="$(lsof -p "$(cat "$HOME/.odin/terminal-host.pid" 2>/dev/null || echo 0)" -Fn 2>/dev/null |
   grep -m1 -oE "$STALE_DIR/Odin-[0-9]+\\.app" || true)"
 for old in "$STALE_DIR"/Odin-*.app; do
-  [ -d "$old" ] && [ "$old" != "$LIVE" ] && rm -rf "$old"
+  [ -d "$old" ] && [ "$old" != "$LIVE" ] || continue
+  "$LSREGISTER" -u "$old" >/dev/null 2>&1 || true
+  rm -rf "$old"
 done
 
 # Park the old bundle instead of deleting it: a daemon kept alive across the
@@ -83,7 +88,7 @@ if ditto "$MNT/Odin.app" "$APP"; then
   xattr -dr com.apple.quarantine "$APP" >/dev/null 2>&1 || true
   # A parked bundle stays registered under Odin's bundle ID, and banners can
   # draw its (older) icon instead of the installed one's.
-  [ -d "$STALE" ] && /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u "$STALE" >/dev/null 2>&1 || true
+  [ -d "$STALE" ] && "$LSREGISTER" -u "$STALE" >/dev/null 2>&1 || true
   echo "[$(date '+%H:%M:%S')] installed; previous bundle parked at $STALE"
 else
   echo "[$(date '+%H:%M:%S')] INSTALL FAILED - restoring the previous bundle"
