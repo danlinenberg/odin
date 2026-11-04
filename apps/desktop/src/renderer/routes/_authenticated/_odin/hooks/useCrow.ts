@@ -896,6 +896,19 @@ function runOdinAction(
 		const untold = args.take === "true" ? store.takeUntold(paneId) : [];
 		return JSON.stringify({ items, untold });
 	}
+	// What the brief's hide moved under "Hidden", so the phone's brief hides it too.
+	if (action === "hidden-links")
+		return JSON.stringify(
+			usePaneMeta.getState().hiddenByPane[args.paneId ?? ""] ?? [],
+		);
+	// The phone's hide / show on a brief link: the same list the board's uses.
+	if (action === "set-hidden") {
+		if (!args.paneId || !args.url) return "Need paneId and url.";
+		usePaneMeta
+			.getState()
+			.setHidden(args.paneId, args.url, args.hidden !== "false");
+		return "ok";
+	}
 	// The phone stopped a turn: as the board's Stop, the card leaves Working.
 	if (action === "interrupted") {
 		const paneId = args.paneId;

@@ -150,6 +150,9 @@ const night = {
 	],
 };
 
+/** The brief links the demo hid, per session. */
+const hiddenLinks: Record<string, string[]> = {};
+
 export function answer(
 	path: string,
 	input: Record<string, string> | undefined,
@@ -226,7 +229,19 @@ export function answer(
 				},
 				slack: "https://acme.slack.com/archives/C1/p1",
 				notion: null,
+				hidden: hiddenLinks[paneId] ?? [],
 			};
+		case "setHidden": {
+			const { url, hidden } = input as unknown as {
+				url: string;
+				hidden: boolean;
+			};
+			hiddenLinks[paneId] = [
+				...(hiddenLinks[paneId] ?? []).filter((each) => each !== url),
+				...(hidden ? [url] : []),
+			];
+			return "ok";
+		}
 		case "night":
 			return night;
 		case "setNight":

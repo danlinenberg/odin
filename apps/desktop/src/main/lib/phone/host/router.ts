@@ -192,6 +192,7 @@ export const hostPhoneRouter = t.router({
 		jira: null,
 		slack: null,
 		notion: null,
+		hidden: [] as string[],
 	})),
 	dismissed: t.procedure.input(paneInput).query((): string[] => []),
 	/**
