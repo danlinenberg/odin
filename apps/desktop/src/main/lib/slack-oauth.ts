@@ -44,6 +44,17 @@ const USER_SCOPES = [
 	"search:read",
 ];
 
+/**
+ * The scopes Odin asks for that a token lacks, read off Slack's
+ * `x-oauth-scopes` header (comma-separated). None when the header is absent:
+ * no header is no evidence.
+ */
+export function missingSlackScopes(granted: string | null): string[] {
+	if (!granted) return [];
+	const have = new Set(granted.split(",").map((s) => s.trim()));
+	return USER_SCOPES.filter((scope) => !have.has(scope));
+}
+
 /** A consent screen the person abandons shouldn't be resumable forever. */
 const PENDING_TTL_MS = 10 * 60 * 1000;
 

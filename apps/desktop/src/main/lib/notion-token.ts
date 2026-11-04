@@ -3,6 +3,7 @@ import {
 	resolveNotionOAuthApp,
 	updateOdinConfig,
 } from "../../lib/trpc/routers/odin-config";
+import { sharedRefresh } from "./shared-refresh";
 
 /**
  * Notion token upkeep, deliberately separate from the consent flow.
@@ -32,10 +33,19 @@ export function notionBasicAuth(
  * Spend the refresh token for a new access token, returning it. Null when
  * Notion isn't connected, and then the caller's original error stands.
  */
-export async function refreshNotionToken(): Promise<string | null> {
+export function refreshNotionToken(): Promise<string | null> {
 	const app = resolveNotionOAuthApp();
 	const refreshToken = readOdinConfig().notionRefreshToken;
-	if (!app || !refreshToken) return null;
+	if (!app || !refreshToken) return Promise.resolve(null);
+	return sharedRefresh(`notion:${refreshToken}`, () =>
+		exchangeNotionRefreshToken(app, refreshToken),
+	);
+}
+
+async function exchangeNotionRefreshToken(
+	app: { clientId: string; clientSecret: string },
+	refreshToken: string,
+): Promise<string | null> {
 	try {
 		const res = await fetch("https://api.notion.com/v1/oauth/token", {
 			method: "POST",
