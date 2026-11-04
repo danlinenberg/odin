@@ -169,6 +169,7 @@ export class Session {
 	private subprocessStdoutPaused = false;
 	private lastAttachedAt: Date;
 	private exitCode: number | null = null;
+	private lastSubprocessError: string | null = null;
 	private disposed = false;
 	private terminatingAt: number | null = null;
 	private subprocessDecoder: PtySubprocessFrameDecoder | null = null;
@@ -460,6 +461,7 @@ export class Session {
 					`[Session ${this.sessionId}] Subprocess error:`,
 					errorMessage,
 				);
+				this.lastSubprocessError = errorMessage;
 
 				this.broadcastEvent("error", {
 					type: "error",
@@ -782,6 +784,16 @@ export class Session {
 	 */
 	get isAlive(): boolean {
 		return this.subprocess !== null && this.exitCode === null;
+	}
+
+	/**
+	 * Why the PTY is gone: the subprocess's own error (a bad cwd, a shell that
+	 * won't start), else the exit code. Spawn failures happen before any client
+	 * attaches, so the broadcast error event reaches no one.
+	 */
+	get exitReason(): string | null {
+		if (this.lastSubprocessError) return this.lastSubprocessError;
+		return this.exitCode === null ? null : `exit code ${this.exitCode}`;
 	}
 
 	/**
