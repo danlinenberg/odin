@@ -742,6 +742,12 @@ export function attachScript(
 		// latest. `largest` sizes the window to the biggest attached client, so
 		// the real wide viewer wins over a leftover 80x24 one.
 		"tmux set-option -g window-size largest 2>/dev/null",
+		// Claude Code owns the mouse, so a drag is its selection, and its copy is
+		// an OSC 52 that tmux drops by default. These pass it on to Odin, which
+		// puts it on the Mac clipboard. Set on the server, so a session the
+		// Night Agent started gets them at the next attach.
+		"tmux set-option -g set-clipboard on 2>/dev/null",
+		"tmux set-option -g allow-passthrough on 2>/dev/null",
 		spec.fresh ? `tmux kill-session -t ${session} 2>/dev/null` : "",
 		`if tmux has-session -t ${session} 2>/dev/null; then rm -rf ${sh(secretsDir)}; ${reply}exec tmux attach -t ${session}; fi`,
 		`cat > ${sh(secretsDir)}/run.sh <<'ODIN_RUN'`,

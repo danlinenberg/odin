@@ -144,6 +144,18 @@ describe("remote session scripts", () => {
 		);
 	});
 
+	test("tmux passes Claude's copy (OSC 52) on to Odin, before the attach", () => {
+		const attach = attachScript(spec, "/d");
+		const attachAt = attach.indexOf("exec tmux attach");
+		for (const line of [
+			"tmux set-option -g set-clipboard on 2>/dev/null\n",
+			"tmux set-option -g allow-passthrough on 2>/dev/null\n",
+		]) {
+			expect(attach).toContain(line);
+			expect(attach.indexOf(line)).toBeLessThan(attachAt);
+		}
+	});
+
 	test("the run script starts over under its own memory cap, or runs uncapped without systemd", () => {
 		expect(runScript(spec, "/d")).toStartWith(MEMORY_LIMIT_SCRIPT);
 		expect(MEMORY_LIMIT_SCRIPT).toContain(
