@@ -349,6 +349,14 @@ describe("remote session connecting", () => {
 		);
 	});
 
+	it("reads a connect line the pane wrapped at a space", () => {
+		const wrapped =
+			"Odin: Stopped reconnecting to i-0abc123 after 6 tries: the host closed\n the connection before the login finished.\n";
+		expect(remoteConnectLine(wrapped)).toBe(
+			"Stopped reconnecting to i-0abc123 after 6 tries: the host closed the connection before the login finished.",
+		);
+	});
+
 	it("still reads a pane that has retried until its first line scrolled away as connecting", () => {
 		const retry =
 			"Odin: could not reconnect: Timed out while waiting for handshake - trying again in 10s\n\n";
