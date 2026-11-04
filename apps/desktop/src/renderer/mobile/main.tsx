@@ -345,6 +345,49 @@ function ErrorLine({ error }: { error: { message: string } | null }) {
 }
 
 /**
+ * Sessions marked Done in the last 10 seconds. The card leaves on tap; until
+ * the Mac's board stops listing it, a poll must not bring it back.
+ */
+const pendingDone = new Map<string, number>();
+const DONE_HOLD_MS = 10_000;
+
+/** Takes the card off now: held against polls, and out of the cached board. */
+function holdDone(utils: ReturnType<typeof phone.useUtils>, paneId: string) {
+	pendingDone.set(paneId, Date.now());
+	void utils.board.cancel();
+	utils.board.setData(undefined, (data) =>
+		data
+			? {
+					...data,
+					sessions: data.sessions.filter(
+						(session) => session.paneId !== paneId,
+					),
+				}
+			: data,
+	);
+}
+
+function withoutHeldDone<T extends { paneId: string }>(sessions: T[]): T[] {
+	const now = Date.now();
+	for (const [paneId, at] of pendingDone)
+		if (
+			now - at > DONE_HOLD_MS ||
+			!sessions.some((session) => session.paneId === paneId)
+		)
+			pendingDone.delete(paneId);
+	return pendingDone.size
+		? sessions.filter((session) => !pendingDone.has(session.paneId))
+		: sessions;
+}
+
+/** The board's sessions as the phone shows them: held stars and Dones applied. */
+function heldBoard<
+	T extends { sessions: { paneId: string; starred?: boolean }[] },
+>(data: T): T {
+	return { ...data, sessions: withHeldStars(withoutHeldDone(data.sessions)) };
+}
+
+/**
  * Stars tapped in the last 10 seconds, by session. The window saves a star
  * to main a beat after it sets it, so a poll in between would flip it back;
  * until then the tap wins over what the Mac reports.
@@ -433,7 +476,7 @@ let lastMacSessions: {
 function Home() {
 	const board = phone.board.useQuery(undefined, {
 		refetchInterval: POLL,
-		select: (data) => ({ ...data, sessions: withHeldStars(data.sessions) }),
+		select: heldBoard,
 	});
 	// Dictation hears the board's names and terms right (speech.ts).
 	useEffect(() => {
@@ -480,14 +523,20 @@ function Home() {
 			utils.board.setData(undefined, context?.before);
 		},
 	});
-	// A card's swipe actions; the board reads again once Odin did them.
+	// Done leaves the board on tap; the Mac's answer only confirms it (or brings it back).
 	const doneCard = phone.done.useMutation({
+		onMutate: ({ paneId }) => holdDone(utils, paneId),
+		onError: (_error, { paneId }) => {
+			pendingDone.delete(paneId);
+			void board.refetch();
+		},
 		onSuccess: () => {
 			void board.refetch();
 			// A search hit's Done: the hit shows it left the board.
 			void utils.search.invalidate();
 		},
 	});
+	// A card's other swipe actions; the board reads again once Odin did them.
 	const remindCard = phone.remind.useMutation({
 		onSuccess: () => void board.refetch(),
 	});
@@ -1035,9 +1084,15 @@ function Session({ paneId }: { paneId: string }) {
 			void utils.board.invalidate();
 		},
 	});
+	// Back to the board on tap, the card already gone; a failure brings it back.
 	const done = phone.done.useMutation({
-		onSuccess: () => {
+		onMutate: () => {
+			holdDone(utils, paneId);
 			location.hash = "";
+		},
+		onError: () => {
+			pendingDone.delete(paneId);
+			void utils.board.invalidate();
 		},
 	});
 	const [text, setTextState] = useState(() => draftByPane.get(paneId) ?? "");
@@ -1459,12 +1514,20 @@ function NightAgent() {
  * hour and still wait on you, newest first - what the widget counts.
  */
 function RecentlyEnded() {
-	const board = phone.board.useQuery(undefined, { refetchInterval: POLL });
+	const board = phone.board.useQuery(undefined, {
+		refetchInterval: POLL,
+		select: heldBoard,
+	});
 	const utils = phone.useUtils();
 	const star = phone.star.useMutation({
 		onSuccess: () => void utils.board.invalidate(),
 	});
 	const doneCard = phone.done.useMutation({
+		onMutate: ({ paneId }) => holdDone(utils, paneId),
+		onError: (_error, { paneId }) => {
+			pendingDone.delete(paneId);
+			void board.refetch();
+		},
 		onSuccess: () => void board.refetch(),
 	});
 	const rows = recentlyEnded(board.data?.sessions ?? []);
