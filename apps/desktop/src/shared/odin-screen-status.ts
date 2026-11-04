@@ -59,7 +59,7 @@ const REMOTE_TMUX_BAR = /^\[odin-[A-Za-z0-9_-]+:/m;
 // Any of the helper's connect lines, not only the first: a pane retrying for
 // a while has scrolled "connecting to" off the screen.
 const REMOTE_CONNECTING =
-	/^Odin: (connecting to |connection lost|could not (re)?connect|AWS sign-in approved|(Still b|B)locked)/m;
+	/^Odin: (connecting to |connection lost|could not (re)?connect|could not attach|(Stopped|stopped) reconnecting|AWS sign-in approved|(Still b|B)locked)/m;
 
 /**
  * The spinner line, which is the only thing on screen that says "mid-turn":
@@ -238,6 +238,15 @@ export function remoteConnectLine(screen: string): string | undefined {
  */
 export function awaitsAwsSignIn(connectLine: string | undefined): boolean {
 	return !!connectLine?.startsWith("Still blocked: the AWS sign-in");
+}
+
+/**
+ * The connect line once the helper gave up reconnecting (MAX_TRIES failed
+ * tries in a row): it says why and waits for Enter (try again), F (start
+ * Claude over on the host) or R (reboot the host).
+ */
+export function reconnectStopped(connectLine: string | undefined): boolean {
+	return !!connectLine?.startsWith("Stopped reconnecting");
 }
 
 /**

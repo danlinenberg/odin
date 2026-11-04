@@ -10,6 +10,7 @@ import {
 	odinActivity,
 	odinScreenStatus,
 	odinScreenWrite,
+	reconnectStopped,
 	remoteConnectLine,
 	spacesForCursorForward,
 } from "./odin-screen-status";
@@ -354,6 +355,26 @@ describe("remote session connecting", () => {
 		expect(remoteConnectLine(retry.repeat(8))).toBe(
 			"Could not reconnect: Timed out while waiting for handshake - trying again in 10s",
 		);
+	});
+
+	it("reads the stopped state the helper ends in after its tries, not the last reconnecting line", () => {
+		const screen = [
+			"Odin: connection lost - reconnecting to i-0abc123...",
+			"",
+			"Odin: could not attach: exit 1 - trying again in 5s",
+			"",
+			"Odin: Stopped reconnecting to i-0abc123 after 6 tries: could not attach: exit 1.",
+			"  Press Enter to try again, F to start Claude over on the host (it resumes this conversation), or R to reboot the host.",
+			"",
+		].join("\n");
+		const line = remoteConnectLine(screen);
+		expect(line).toBe(
+			"Stopped reconnecting to i-0abc123 after 6 tries: could not attach: exit 1.",
+		);
+		expect(reconnectStopped(line)).toBe(true);
+		expect(
+			reconnectStopped("Connection lost - reconnecting to i-0abc123..."),
+		).toBe(false);
 	});
 
 	it("reads a dropped connection under Claude's old screen as connecting", () => {
