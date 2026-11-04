@@ -22,6 +22,15 @@ import {
 	slackWatchedThread,
 } from "../slack";
 import { approvedBy, pullRequestState } from "../terminal/pr-state";
+import {
+	CLOSED_UPSTREAM_DAYS,
+	type ClosedUpstreamRow,
+	clickupClosedPath,
+	githubClosedQueries,
+	jiraClosedJql,
+	mergeClosed,
+	sinceDate,
+} from "./closed-upstream";
 
 /**
  * Odin fork: read-only "my work" feeds - Jira issues assigned to me and GitHub
@@ -511,6 +520,8 @@ interface GithubSearchResponse {
 		user?: { login?: string };
 		repository_url?: string;
 		body?: string | null;
+		closed_at?: string | null;
+		pull_request?: { merged_at?: string | null };
 	}[];
 }
 
@@ -1098,6 +1109,136 @@ export const createWorkRouter = () => {
 				}
 				return {
 					meetings: parseMeetings(await response.text(), window, self),
+				};
+			},
+		),
+
+		/**
+		 * Work related to me that closed in Jira, GitHub or ClickUp in the last
+		 * two weeks - All's "Show what's Done" lists it beside what was put
+		 * away in Odin. Only asked while that list is on. A source that isn't
+		 * connected or fails is left out, so one bad token can't blank the list.
+		 */
+		recentlyClosed: publicProcedure.query(
+			async (): Promise<{ rows: ClosedUpstreamRow[] }> => {
+				const days = CLOSED_UPSTREAM_DAYS;
+				const now = Date.now();
+				const jira = async (): Promise<ClosedUpstreamRow[]> => {
+					const request = await jiraRequestContext();
+					if (!request) return [];
+					const response = await fetch(
+						`${request.base}/rest/api/3/search/jql?jql=${encodeURIComponent(jiraClosedJql(days))}&maxResults=50&fields=summary,status,statuscategorychangedate,resolutiondate,updated`,
+						{
+							headers: {
+								Authorization: request.authorization,
+								Accept: "application/json",
+							},
+						},
+					);
+					if (!response.ok) return [];
+					const payload = (await response.json()) as JiraSearchResponse;
+					return (payload.issues ?? []).map((issue) => {
+						const fields = issue.fields ?? {};
+						const at =
+							(fields.statuscategorychangedate as string | undefined) ??
+							(fields.resolutiondate as string | undefined) ??
+							fields.updated ??
+							new Date(now).toISOString();
+						return {
+							key: `jira:${issue.key}`,
+							source: "Jira",
+							title: `${issue.key} ${fields.summary ?? ""}`.trim(),
+							url: `${request.siteUrl}/browse/${issue.key}`,
+							state: fields.status?.name ?? "Done",
+							closedAt: new Date(at).toISOString(),
+						};
+					});
+				};
+				const github = async (): Promise<ClosedUpstreamRow[]> => {
+					const token = await githubAccessToken();
+					if (!token) return [];
+					const pages = await Promise.all(
+						githubClosedQueries(sinceDate(days, now)).map(async (q) => {
+							const response = await githubApiFetch(
+								`https://api.github.com/search/issues?q=${encodeURIComponent(q)}&per_page=50&sort=updated`,
+								{
+									headers: {
+										Accept: "application/vnd.github+json",
+										"X-GitHub-Api-Version": "2022-11-28",
+									},
+								},
+								token,
+							);
+							if (!response.ok) return [];
+							const payload = (await response.json()) as GithubSearchResponse;
+							return (payload.items ?? []).map(
+								(item): ClosedUpstreamRow => ({
+									key: `github:${item.id}`,
+									source: "GitHub",
+									title: item.title,
+									url: item.html_url,
+									state: item.pull_request?.merged_at ? "merged" : "closed",
+									closedAt:
+										item.closed_at ??
+										item.updated_at ??
+										new Date(now).toISOString(),
+								}),
+							);
+						}),
+					);
+					return pages.flat();
+				};
+				const clickup = async (): Promise<ClosedUpstreamRow[]> => {
+					const token = readOdinConfig().clickupToken;
+					if (!token) return [];
+					const get = async <T>(path: string): Promise<T | null> => {
+						const response = await clickupFetch(path, token);
+						return response.ok ? ((await response.json()) as T) : null;
+					};
+					const [me, workspaces] = await Promise.all([
+						get<{ user: { id: number } }>("user"),
+						get<{ teams: { id: string }[] }>("team"),
+					]);
+					if (!me || !workspaces) return [];
+					const since = now - days * 86_400_000;
+					const pages = await Promise.all(
+						workspaces.teams.map((team) =>
+							get<{
+								tasks: {
+									id: string;
+									name: string;
+									url: string;
+									status?: { status?: string };
+									date_done?: string | null;
+									date_closed?: string | null;
+								}[];
+							}>(clickupClosedPath(team.id, me.user.id, since)),
+						),
+					);
+					return pages.flatMap((page) =>
+						(page?.tasks ?? []).flatMap((task) => {
+							const at = clickupDate(task.date_done ?? task.date_closed);
+							if (!at || Date.parse(at) < since) return [];
+							return [
+								{
+									key: `clickup:${task.id}`,
+									source: "ClickUp" as const,
+									title: task.name,
+									url: task.url,
+									state: task.status?.status ?? "closed",
+									closedAt: at,
+								},
+							];
+						}),
+					);
+				};
+				const settled = await Promise.allSettled([jira(), github(), clickup()]);
+				return {
+					rows: mergeClosed(
+						settled.flatMap((result) =>
+							result.status === "fulfilled" ? result.value : [],
+						),
+					),
 				};
 			},
 		),
