@@ -280,8 +280,26 @@ function AllFeedPage() {
 		set: setDone,
 	} = useDone();
 	const [shelf, setShelf] = useState(false);
+	// Work closed in Jira, GitHub or ClickUp itself never reached a feed, so
+	// the Done list asks those sources too - only while it's on.
+	const { data: workConfig } = electronTrpc.work.getConfig.useQuery();
+	const hasClosedSource =
+		workConfig?.hasJira === true ||
+		workConfig?.hasGithub === true ||
+		workConfig?.hasClickup === true;
+	const closedQuery = electronTrpc.work.recentlyClosed.useQuery(undefined, {
+		enabled: shelf && hasClosedSource,
+		staleTime: 120_000,
+	});
+	// One already put away in Odin is listed there, with its Undo.
+	const closedUpstream = useMemo(() => {
+		const putAway = new Set(recent.map((row) => row.url));
+		return (closedQuery.data?.rows ?? []).filter(
+			(row) => !putAway.has(row.url),
+		);
+	}, [closedQuery.data, recent]);
 	// Undo on the last row hides its chip too: back to the queue, not a blank.
-	const showDone = shelf && recent.length > 0;
+	const showDone = shelf && (recent.length > 0 || hasClosedSource);
 	// The shelf is the graveyard: a row dropped by Review's sweep or a drop
 	// rule is Done in the store like any other, so it has to say so itself.
 	const profiles = useBacklogReview((s) => s.profiles);
@@ -738,7 +756,7 @@ function AllFeedPage() {
 								label={`Due or overdue only (${dueRows.length})`}
 							/>
 						)}
-						{recent.length > 0 && (
+						{(recent.length > 0 || hasClosedSource) && (
 							<Toggle
 								checked={showDone}
 								onChange={setShelf}
@@ -1041,6 +1059,13 @@ function AllFeedPage() {
 							dropped={droppedBy}
 							onOpen={(url) => openUrl(url)}
 							onUndo={undo}
+						/>
+					)}
+					{showDone && hasClosedSource && (
+						<ClosedUpstreamList
+							rows={closedUpstream}
+							loading={closedQuery.isLoading}
+							onOpen={(url) => openUrl(url)}
 						/>
 					)}
 					{!showDone && items.length === 0 && (
@@ -1589,6 +1614,66 @@ function DoneList({
 					</div>
 				);
 			})}
+		</>
+	);
+}
+
+/**
+ * Closed in its own tool in the last two weeks - a Jira ticket moved to
+ * Done, a merged PR, a closed ClickUp task - without passing through Odin.
+ * Read-only: there is nothing to undo here, only Open.
+ */
+function ClosedUpstreamList({
+	rows,
+	loading,
+	onOpen,
+}: {
+	rows: {
+		key: string;
+		source: string;
+		title: string;
+		url: string;
+		state: string;
+		closedAt: string;
+	}[];
+	loading: boolean;
+	onOpen: (url: string) => void;
+}) {
+	return (
+		<>
+			<div className="px-2 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground">
+				Closed in Jira, GitHub or ClickUp - last 14 days
+				{loading ? " (loading...)" : rows.length === 0 ? " (none)" : ""}
+			</div>
+			{rows.map((row) => (
+				<div key={row.key} className={FEED_ROW}>
+					<div className="flex items-center gap-3">
+						<span className="w-[68px] shrink-0 truncate text-[11px] font-semibold text-muted-foreground">
+							{row.source}
+						</span>
+						<span
+							dir="auto"
+							className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground"
+						>
+							{emojify(row.title)}
+						</span>
+						<span className="shrink-0 text-[11px] text-muted-foreground">
+							{row.state}{" "}
+							{new Date(row.closedAt).toLocaleDateString(undefined, {
+								month: "short",
+								day: "numeric",
+							})}
+						</span>
+						<button
+							type="button"
+							onClick={() => onOpen(row.url)}
+							className="shrink-0 text-[12px] font-semibold text-muted-foreground hover:text-foreground"
+						>
+							Open ↗
+						</button>
+					</div>
+				</div>
+			))}
 		</>
 	);
 }
