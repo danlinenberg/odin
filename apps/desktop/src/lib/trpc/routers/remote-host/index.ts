@@ -1212,11 +1212,19 @@ export const createRemoteHostRouter = () =>
 		/**
 		 * Where a session whose host is down can go instead: the remote host
 		 * new sessions run on, when that is another instance and it is up.
-		 * Null while the session's own host is up, when there is no other
+		 * Null while the session's own host is up (unless its pane stopped
+		 * reconnecting), when there is no other
 		 * host, or when AWS didn't answer.
 		 */
 		fallbackHost: publicProcedure
-			.input(z.object({ host: z.string().min(1) }))
+			.input(
+				z.object({
+					host: z.string().min(1),
+					// The session's pane stopped reconnecting: its host may be up
+					// and still not take it back, so the other host is offered anyway.
+					stuck: z.boolean().optional(),
+				}),
+			)
 			.query(async ({ input }) => {
 				const current = readOdinConfig().remoteHost;
 				if (!current) return null;
@@ -1233,7 +1241,12 @@ export const createRemoteHostRouter = () =>
 							? found
 							: null;
 					if (own?.instanceId === current.instanceId) return null;
-					if (own && (await hostUp(target(own), own.instanceId))) return null;
+					if (
+						own &&
+						!input.stuck &&
+						(await hostUp(target(own), own.instanceId))
+					)
+						return null;
 					return (await hostUp(target(current), current.instanceId))
 						? name
 						: null;

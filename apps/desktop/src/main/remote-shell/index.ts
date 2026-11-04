@@ -34,6 +34,13 @@ import {
 	pushOneTimeKey,
 	userMissing,
 } from "../lib/remote-host/ssm";
+import {
+	keepAttached,
+	LOGIN_TIMEOUT_MS,
+	type StuckChoice,
+	settleWithin,
+	untilReady,
+} from "./reconnect";
 
 /**
  * Odin's local server, read at each use: a restart can bind it to another
@@ -505,25 +512,19 @@ async function login(
 			},
 		);
 	const client = new Client();
-	await new Promise<void>((resolve, reject) => {
-		// Not once: a handshake timeout emits an error, then the SSM socket's
-		// abort emits another, and an unheard one crashes the helper.
-		client.once("ready", resolve).on("error", (err) => {
-			// A failed handshake leaves the SSM plugin running otherwise.
-			sock.destroy();
-			reject(err);
-		});
-		client.connect({
-			sock,
-			username: spec.user,
-			privateKey: key.private,
-			readyTimeout: 60_000,
-			// A connection that died quietly (Wi-Fi changed, the Mac slept) ends
-			// within 30s, so the pane reconnects instead of hanging on it.
-			keepaliveInterval: 10_000,
-			keepaliveCountMax: 3,
-		});
+	// A failed or closed handshake leaves the SSM plugin running otherwise.
+	const ready = untilReady(client, () => sock.destroy());
+	client.connect({
+		sock,
+		username: spec.user,
+		privateKey: key.private,
+		readyTimeout: 60_000,
+		// A connection that died quietly (Wi-Fi changed, the Mac slept) ends
+		// within 30s, so the pane reconnects instead of hanging on it.
+		keepaliveInterval: 10_000,
+		keepaliveCountMax: 3,
 	});
+	await ready;
 	return client;
 }
 
@@ -539,11 +540,27 @@ class NoAccess extends Error {
 	}
 }
 
+/**
+ * One login with a time limit: a step that never answers (an SSM session
+ * start, a key push) ends as a failed try instead of a pane that waits for
+ * good. A login that finishes after that is closed.
+ */
+const loginWithin = (
+	spec: RemoteSessionSpec,
+	target: Parameters<typeof openSsmStream>[0],
+) =>
+	settleWithin(
+		LOGIN_TIMEOUT_MS,
+		`logging in to ${spec.instanceId}`,
+		login(spec, target),
+		(late) => late.end(),
+	);
+
 async function connectOnce(
 	spec: RemoteSessionSpec,
 	target: Parameters<typeof openSsmStream>[0],
 ): Promise<Client> {
-	return login(spec, target).catch(async (err: unknown) => {
+	return loginWithin(spec, target).catch(async (err: unknown) => {
 		if (accessDenied(err)) throw new NoAccess(spec, err);
 		if (keyRefused(err) && !keyOverSsm) {
 			keyOverSsm = true;
@@ -552,28 +569,11 @@ async function connectOnce(
 		}
 		if (userMissing(err)) {
 			await setUpMissingUser(spec, target);
-			return login(spec, target);
+			return loginWithin(spec, target);
 		}
 		if (!ssoExpired(err)) throw err;
 		await signInAgain(spec);
-		return login(spec, target);
-	});
-}
-
-/** Rejects after `ms`, so a step stuck on a hung host can't hang the pane. */
-function within<T>(ms: number, what: string, work: Promise<T>): Promise<T> {
-	return new Promise<T>((resolve, reject) => {
-		const timer = setTimeout(() => reject(new Error(`${what} timed out`)), ms);
-		work.then(
-			(value) => {
-				clearTimeout(timer);
-				resolve(value);
-			},
-			(err: unknown) => {
-				clearTimeout(timer);
-				reject(err);
-			},
-		);
+		return loginWithin(spec, target);
 	});
 }
 
@@ -592,7 +592,7 @@ async function attach(
 ): Promise<boolean> {
 	// A host that took the login but stalls after it (out of memory) left the
 	// pane on "connecting" for good: these steps had no timeout.
-	const { dir, sftp } = await within(
+	const { dir, sftp } = await settleWithin(
 		60_000,
 		"setting up the session",
 		(async () => {
@@ -682,6 +682,30 @@ const waitOrR = (ms: number) =>
 		stdin.on("data", onKey);
 	});
 
+/** The key you pressed once the pane stopped reconnecting. */
+const stuckChoice = () =>
+	new Promise<StuckChoice>((resolve) => {
+		const { stdin } = process;
+		const onKey = (key: Buffer) => {
+			if (key[0] === 3) process.exit(1);
+			const pick: StuckChoice | null =
+				key[0] === 13 || key[0] === 10
+					? "retry"
+					: key[0] === 0x66 || key[0] === 0x46
+						? "fresh"
+						: key[0] === 0x72 || key[0] === 0x52
+							? "reboot"
+							: null;
+			if (!pick) return;
+			stdin.off("data", onKey);
+			stdin.pause();
+			resolve(pick);
+		};
+		stdin.setRawMode?.(true);
+		stdin.resume();
+		stdin.on("data", onKey);
+	});
+
 async function main(): Promise<void> {
 	const startedAt = Date.now();
 	const arg = process.argv[2] ?? "";
@@ -697,69 +721,48 @@ async function main(): Promise<void> {
 		profile: spec.profile,
 		region: spec.region,
 	};
-	// A host busy enough to miss the SSH handshake answers a later try. The
-	// wait doubles up to 5 minutes, with jitter, so a host's panes don't all
-	// retry together and keep it busy. A host that keeps failing is usually
-	// wedged (out of memory); after 3 tries you can reboot it from here, with
-	// the AWS sign-in the pane already uses.
-	const reconnect = async (): Promise<Client> => {
-		for (let wait = 10_000, tries = 1; ; tries++) {
-			try {
-				return await connectOnce(spec, target);
-			} catch (err) {
-				if (err instanceof NoAccess) throw err;
-				const delay = wait / 2 + Math.random() * (wait / 2);
-				const offer =
-					tries >= 3 ? ` (press R to reboot ${spec.instanceId})` : "";
-				say(
-					`could not reconnect: ${err instanceof Error ? err.message : String(err)} - trying again in ${Math.round(delay / 1000)}s${offer}`,
-				);
-				wait = Math.min(wait * 2, 300_000);
-				const pressedR = offer
-					? await waitOrR(delay)
-					: await new Promise<false>((resolve) =>
-							setTimeout(() => resolve(false), delay),
-						);
-				if (!pressedR) continue;
-				try {
-					await new EC2Client(awsClientConfig(target)).send(
-						new RebootInstancesCommand({ InstanceIds: [spec.instanceId] }),
-					);
-					say(`rebooting ${spec.instanceId} - reconnecting once it is back...`);
-					// Its sessions restart there and resume; give it time to boot.
-					await new Promise((resolve) => setTimeout(resolve, 60_000));
-					wait = 10_000;
-					tries = 0;
-				} catch (rebootErr) {
-					say(
-						`could not reboot: ${rebootErr instanceof Error ? rebootErr.message : String(rebootErr)}`,
-					);
-				}
-			}
-		}
-	};
-	say(`connecting to ${spec.instanceId}...`);
-	let client = await connectOnce(spec, target).catch((err: unknown) =>
-		err instanceof NoAccess ? Promise.reject(err) : reconnect(),
-	);
 	// Claude keeps working in tmux on the host while the connection is down;
 	// the reconnect's spec resumes it, prompt and all (reconnectSpec).
 	const again = reconnectSpec(spec, startedAt);
-	for (let first = true; ; first = false) {
-		// A try that failed says why: without it the pane read "connection
-		// lost" for a setup that never got going.
-		const dropped = await attach(client, first ? spec : again, env).catch(
-			(err: unknown) => {
-				say(
-					`could not attach: ${err instanceof Error ? err.message : String(err)}`,
+	await keepAttached<Client>(
+		{
+			connect: () => connectOnce(spec, target),
+			attach: (client, first, fresh) =>
+				attach(
+					client,
+					fresh ? { ...(first ? spec : again), fresh } : first ? spec : again,
+					env,
+				),
+			pause: (ms, offerReboot) =>
+				offerReboot
+					? waitOrR(ms)
+					: new Promise<boolean>((resolve) =>
+							setTimeout(() => resolve(false), ms),
+						),
+			reboot: async () => {
+				await new EC2Client(awsClientConfig(target)).send(
+					new RebootInstancesCommand({ InstanceIds: [spec.instanceId] }),
 				);
-				return true;
+				say(`rebooting ${spec.instanceId} - reconnecting once it is back...`);
+				// Its sessions restart there and resume; give it time to boot.
+				await new Promise((resolve) => setTimeout(resolve, 60_000));
 			},
-		);
-		if (!dropped) break;
-		say(`connection lost - reconnecting to ${spec.instanceId}...`);
-		client = await reconnect();
-	}
+			stuck: (reason, tries) => {
+				say(
+					bold(
+						`Stopped reconnecting to ${spec.instanceId} after ${tries} tries: ${reason.replace(/[.\s]+$/, "")}.`,
+					),
+				);
+				process.stderr.write(
+					"  Press Enter to try again, F to start Claude over on the host (it resumes this conversation), or R to reboot the host.\r\n",
+				);
+				return stuckChoice();
+			},
+			say,
+			fatal: (err) => err instanceof NoAccess,
+		},
+		spec.instanceId,
+	);
 	process.exit(0);
 }
 

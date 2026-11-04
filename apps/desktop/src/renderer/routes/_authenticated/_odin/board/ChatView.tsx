@@ -23,6 +23,7 @@ import {
 	LuBookmark,
 	LuBookmarkCheck,
 	LuChevronRight,
+	LuCircleAlert,
 	LuFile,
 	LuLaptop,
 	LuLoaderCircle,
@@ -71,6 +72,7 @@ import {
 	awaitsAwsSignIn,
 	blockedOnAwsSignIn,
 	claudeDrawn,
+	reconnectStopped,
 	remoteConnectLine,
 } from "shared/odin-screen-status";
 import { typedText } from "shared/typed-text";
@@ -1932,24 +1934,79 @@ function OpenAwsSignInButton() {
 function MoveToHostButton({
 	host,
 	onMove,
+	stuck = false,
 }: {
 	host: string;
 	onMove: (to: string) => void;
+	/** The pane stopped reconnecting: offered even while `host` is up. */
+	stuck?: boolean;
 }) {
 	const { data: to } = electronTrpc.remoteHost.fallbackHost.useQuery(
-		{ host },
+		{ host, stuck },
 		{ refetchInterval: 30_000 },
 	);
 	if (!to) return null;
 	return (
 		<button
 			type="button"
-			title={`${host} is down. Copy this conversation to ${to} and continue it there`}
+			title={`${stuck ? `${host} does not take this session back` : `${host} is down`}. Copy this conversation to ${to} and continue it there`}
 			onClick={() => onMove(to)}
 			className={AWS_SIGN_IN_BUTTON}
 		>
 			Move to {to}
 		</button>
+	);
+}
+
+/**
+ * What a remote session can do once its pane stopped reconnecting (the
+ * helper's MAX_TRIES): try again, start Claude over on the host with this
+ * conversation, move it to another host or to this computer. Before, the
+ * pane retried forever and the row spun with nothing to press.
+ */
+function ReconnectStoppedActions({
+	host,
+	sendKeys,
+	onMoveToHost,
+	onMoveHere,
+}: {
+	host: string | undefined;
+	sendKeys: (keys: string[]) => Promise<void>;
+	onMoveToHost?: (to: string) => void;
+	onMoveHere?: () => void;
+}) {
+	return (
+		<>
+			<button
+				type="button"
+				title="Try to reconnect to the host again"
+				onClick={() => void sendKeys(["\r"])}
+				className={AWS_SIGN_IN_BUTTON}
+			>
+				Retry
+			</button>
+			<button
+				type="button"
+				title="End the session's terminal on the host and start Claude there again, resuming this conversation"
+				onClick={() => void sendKeys(["f"])}
+				className={AWS_SIGN_IN_BUTTON}
+			>
+				Start over on the host
+			</button>
+			{host && onMoveToHost && (
+				<MoveToHostButton host={host} onMove={onMoveToHost} stuck />
+			)}
+			{onMoveHere && (
+				<button
+					type="button"
+					title="Copy this conversation (and its code, if the host answers) to this computer and continue it here"
+					onClick={onMoveHere}
+					className={AWS_SIGN_IN_BUTTON}
+				>
+					Move to this computer
+				</button>
+			)}
+		</>
 	);
 }
 
@@ -3234,6 +3291,8 @@ export function ChatView({
 	const screenText = onShowTerminal && !prompt ? screen.data?.text : null;
 	// A remote session reaching the host: the transcript says nothing until it's there.
 	const connecting = screenText ? remoteConnectLine(screenText) : undefined;
+	// The helper gave up reconnecting and waits on a pick: no spinner, actions.
+	const stopped = reconnectStopped(connecting);
 	// Its connect steps, read off the screen: Claude drawn after the connect
 	// line is connected; the pane ending, or Claude gone from it, after that is
 	// disconnected.
@@ -3784,12 +3843,31 @@ export function ChatView({
 					<div ref={contentRef} className="flex flex-col gap-2.5">
 						{starting ? (
 							<div className="flex items-center gap-3 text-[12.5px] text-working">
-								<WorkingMark />
-								{connecting ?? "Starting session…"}
+								{stopped ? (
+									<LuCircleAlert className="size-3.5 shrink-0 text-danger" />
+								) : (
+									<WorkingMark />
+								)}
+								<span
+									className={cn(
+										"select-text cursor-text",
+										stopped && "text-danger",
+									)}
+								>
+									{connecting ?? "Starting session…"}
+								</span>
 								{awaitsAwsSignIn(connecting) && (
 									<AwsSignInButton onClick={() => void sendKeys(["\r"])} />
 								)}
 								{blockedOnAwsSignIn(connecting) && <OpenAwsSignInButton />}
+								{stopped && (
+									<ReconnectStoppedActions
+										host={host}
+										sendKeys={sendKeys}
+										onMoveToHost={onMoveToHost}
+										onMoveHere={onMoveHere}
+									/>
+								)}
 								{/* Before its first turn the CLI can stop on a terminal-only
 							    prompt (folder trust, bypass-permissions warning) that no
 							    transcript ever shows. */}
@@ -4064,8 +4142,19 @@ export function ChatView({
 						{connecting && !starting && (
 							// A resumed remote session: its old turns are above, the host isn't reached yet.
 							<div className="flex h-7 items-center gap-3 text-[12.5px] text-working">
-								<WorkingMark />
-								<span className="select-text cursor-text">{connecting}</span>
+								{stopped ? (
+									<LuCircleAlert className="size-3.5 shrink-0 text-danger" />
+								) : (
+									<WorkingMark />
+								)}
+								<span
+									className={cn(
+										"select-text cursor-text",
+										stopped && "text-danger",
+									)}
+								>
+									{connecting}
+								</span>
 								{awaitsAwsSignIn(connecting) && (
 									<AwsSignInButton onClick={() => void sendKeys(["\r"])} />
 								)}
@@ -4075,6 +4164,14 @@ export function ChatView({
 									/^Could not (re)?connect/.test(connecting) && (
 										<MoveToHostButton host={host} onMove={onMoveToHost} />
 									)}
+								{stopped && (
+									<ReconnectStoppedActions
+										host={host}
+										sendKeys={sendKeys}
+										onMoveToHost={onMoveToHost}
+										onMoveHere={onMoveHere}
+									/>
+								)}
 								{!noTerminal && (
 									<button
 										type="button"
