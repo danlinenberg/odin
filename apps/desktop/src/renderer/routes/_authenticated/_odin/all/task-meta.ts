@@ -64,6 +64,43 @@ export function moveKey(list: string[], from: string, to: string): string[] {
 	return next;
 }
 
+/** Where a row goes on Up next: the top, the end, or a place counted from 1. */
+export type QueuePlace = "top" | "end" | number;
+
+/**
+ * An API caller's Up next pick ("top", "end" or a place from 1). undefined
+ * when none was given, null when it isn't one of those.
+ */
+export function parseQueuePlace(raw?: string): QueuePlace | null | undefined {
+	const value = raw?.trim().toLowerCase();
+	if (!value) return undefined;
+	if (value === "top" || value === "end") return value;
+	const n = Number(value);
+	return Number.isInteger(n) && n >= 1 ? n : null;
+}
+
+/**
+ * The queue with `key` at `place`, moved there if it was already lined up. A
+ * place past the end is the end. Over KEEP, the far end from the new row
+ * falls off.
+ */
+export function placeKey(
+	list: string[],
+	key: string,
+	place: QueuePlace,
+): string[] {
+	const rest = list.filter((k) => k !== key);
+	const at =
+		place === "top"
+			? 0
+			: place === "end"
+				? rest.length
+				: Math.min(place - 1, rest.length);
+	const next = [...rest.slice(0, at), key, ...rest.slice(at)];
+	if (next.length <= KEEP) return next;
+	return at >= KEEP ? next.slice(-KEEP) : next.slice(0, KEEP);
+}
+
 /**
  * Per-row status and type, and Up next - the rows you've lined up, in the
  * order you'll take them. Keyed by the All-feed key, like Done.
@@ -77,6 +114,8 @@ export const useTaskMeta = create<{
 	setStatus: (key: string, status: TaskStatus | null) => void;
 	setType: (key: string, type: TaskType | null) => void;
 	enqueue: (key: string) => void;
+	/** Line `key` up at `place`, for the API's add (action=add up_next=...). */
+	enqueueAt: (key: string, place: QueuePlace) => void;
 	dequeue: (key: string) => void;
 	move: (from: string, to: string) => void;
 }>()(
@@ -92,6 +131,8 @@ export const useTaskMeta = create<{
 				set((s) =>
 					s.queue.includes(key) ? s : { queue: [...s.queue, key].slice(-KEEP) },
 				),
+			enqueueAt: (key, place) =>
+				set((s) => ({ queue: placeKey(s.queue, key, place) })),
 			dequeue: (key) =>
 				set((s) => ({ queue: s.queue.filter((k) => k !== key) })),
 			move: (from, to) => set((s) => ({ queue: moveKey(s.queue, from, to) })),

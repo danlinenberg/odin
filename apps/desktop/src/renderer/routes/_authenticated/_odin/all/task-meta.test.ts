@@ -1,5 +1,11 @@
 import { expect, test } from "bun:test";
-import { moveKey, typeOf } from "./task-meta";
+import {
+	moveKey,
+	parseQueuePlace,
+	placeKey,
+	typeOf,
+	useTaskMeta,
+} from "./task-meta";
 
 test("moveKey drops the dragged key where the target was", () => {
 	expect(moveKey(["a", "b", "c"], "c", "a")).toEqual(["c", "a", "b"]);
@@ -13,4 +19,49 @@ test("a PR reads as a review until you pick a type", () => {
 		"read",
 	);
 	expect(typeOf({ key: "task:1", source: "Tasks" }, {})).toBeUndefined();
+});
+
+test("placeKey puts a row at the top, the end or a place, once", () => {
+	const q = ["a", "b", "c"];
+	expect(placeKey(q, "x", "top")).toEqual(["x", "a", "b", "c"]);
+	expect(placeKey(q, "x", "end")).toEqual(["a", "b", "c", "x"]);
+	expect(placeKey(q, "x", 2)).toEqual(["a", "x", "b", "c"]);
+	expect(placeKey(q, "x", 1)).toEqual(["x", "a", "b", "c"]);
+	// Past the end is the end.
+	expect(placeKey(q, "x", 99)).toEqual(["a", "b", "c", "x"]);
+	// Already lined up: moved, not listed twice.
+	expect(placeKey(q, "c", "top")).toEqual(["c", "a", "b"]);
+	expect(placeKey(q, "a", 2)).toEqual(["b", "a", "c"]);
+	expect(placeKey([], "x", 3)).toEqual(["x"]);
+});
+
+test("placeKey keeps the new row when the queue is full", () => {
+	const full = Array.from({ length: 500 }, (_, i) => `k${i}`);
+	const top = placeKey(full, "x", "top");
+	expect(top).toHaveLength(500);
+	expect(top[0]).toBe("x");
+	expect(top.at(-1)).toBe("k498");
+	const end = placeKey(full, "x", "end");
+	expect(end).toHaveLength(500);
+	expect(end.at(-1)).toBe("x");
+	expect(end[0]).toBe("k1");
+});
+
+test("parseQueuePlace reads top, end or a place from 1", () => {
+	expect(parseQueuePlace(undefined)).toBeUndefined();
+	expect(parseQueuePlace("  ")).toBeUndefined();
+	expect(parseQueuePlace("top")).toBe("top");
+	expect(parseQueuePlace(" END ")).toBe("end");
+	expect(parseQueuePlace("3")).toBe(3);
+	expect(parseQueuePlace("0")).toBeNull();
+	expect(parseQueuePlace("1.5")).toBeNull();
+	expect(parseQueuePlace("head")).toBeNull();
+});
+
+test("enqueueAt lines a row up at the place asked", () => {
+	useTaskMeta.setState({ queue: ["a", "b"] });
+	useTaskMeta.getState().enqueueAt("task:1", "top");
+	useTaskMeta.getState().enqueueAt("task:2", 2);
+	expect(useTaskMeta.getState().queue).toEqual(["task:1", "task:2", "a", "b"]);
+	useTaskMeta.setState({ queue: [] });
 });
