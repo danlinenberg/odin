@@ -72,6 +72,16 @@ async function board(action: string, args: Record<string, string> = {}) {
 	return text;
 }
 
+/** The brief links hidden on the desktop; [] with the window away or older. */
+async function hiddenLinks(paneId: string): Promise<string[]> {
+	try {
+		const urls = JSON.parse(await board("hidden-links", { paneId }));
+		return Array.isArray(urls) ? urls.filter((u) => typeof u === "string") : [];
+	} catch {
+		return [];
+	}
+}
+
 /**
  * A started task's paneId, which the phone opens. {} when the window answered
  * in words: a launch that failed, or nothing found to start.
@@ -403,7 +413,7 @@ export const phoneRouter = t.router({
 					};
 			  }
 			| undefined;
-		const [states, jira] = await Promise.all([
+		const [states, jira, hidden] = await Promise.all([
 			prs.length && caller
 				? caller.terminal
 						.pullRequestStates({ urls: prs.map((pr) => pr.url) })
@@ -413,6 +423,7 @@ export const phoneRouter = t.router({
 			issue && caller
 				? caller.work.jiraIssueStates({ keys: [issue.key] }).catch(() => ({}))
 				: {},
+			hiddenLinks(input.paneId),
 		]);
 		const state = (url: string) =>
 			(states as Record<string, PullRequestStatus | null>)[url] ?? null;
@@ -432,8 +443,26 @@ export const phoneRouter = t.router({
 			},
 			slack: slackThread(source),
 			notion: notionPage(source),
+			/** What the desktop brief's hide moved under "Hidden". */
+			hidden,
 		};
 	}),
+
+	/** The brief's hide / show on a link, shared with the desktop brief. */
+	setHidden: t.procedure
+		.input(
+			paneInput.extend({
+				url: z.string().url().max(2_000),
+				hidden: z.boolean(),
+			}),
+		)
+		.mutation(({ input }) =>
+			board("set-hidden", {
+				paneId: input.paneId,
+				url: input.url,
+				hidden: String(input.hidden),
+			}),
+		),
 
 	/** The checkouts a new task can run in - New task's repo picker. */
 	repos: t.procedure.query(async () => {

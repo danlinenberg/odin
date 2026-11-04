@@ -1003,6 +1003,22 @@ function Session({ paneId }: { paneId: string }) {
 			utils.dismissed.setData({ paneId }, (items) => [...(items ?? []), item]),
 		onSettled: () => void dismissed.refetch(),
 	});
+	// The brief's hide / show: the Mac keeps the list, shared with its brief.
+	const setLinkHidden = phone.setHidden.useMutation({
+		onMutate: ({ url, hidden }) =>
+			utils.links.setData({ paneId }, (data) =>
+				data
+					? {
+							...data,
+							hidden: [
+								...(data.hidden ?? []).filter((each) => each !== url),
+								...(hidden ? [url] : []),
+							],
+						}
+					: data,
+			),
+		onSettled: () => void links.refetch(),
+	});
 	const keys = phone.keys.useMutation({ onSuccess: refetch });
 	const sendKeys = (sequence: string[]) =>
 		keys.mutate({ paneId, keys: sequence });
@@ -1302,6 +1318,9 @@ function Session({ paneId }: { paneId: string }) {
 								open
 								links={links.data}
 								linksLoading={links.isLoading}
+								onHide={(url, hidden) =>
+									setLinkHidden.mutate({ paneId, url, hidden })
+								}
 							/>
 						</div>
 					</aside>

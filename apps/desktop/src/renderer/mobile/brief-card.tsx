@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { Markdown } from "./markdown";
 
@@ -32,6 +33,8 @@ export type BriefLinks =
 			jira: { url: string; key: string; status: string | null } | null;
 			slack: string | null;
 			notion: { url: string; title: string | null } | null;
+			/** Hidden on the desktop brief; missing from an older Odin on the Mac. */
+			hidden?: string[];
 	  }
 	| undefined;
 
@@ -96,19 +99,34 @@ function ChecksChip({ status }: { status: PrStatus }) {
 function LinkRow({
 	href,
 	children,
+	onHide,
 }: {
 	href: string;
 	children: React.ReactNode;
+	/** The desktop brief's hide: the link moves under "Hidden" on both. */
+	onHide?: () => void;
 }) {
 	return (
-		<a
-			href={href}
-			target="_blank"
-			rel="noreferrer"
-			className="flex flex-wrap items-center gap-1.5 rounded-lg py-1.5 text-[15px] text-link active:bg-accent"
-		>
-			{children}
-		</a>
+		<div className="flex items-center gap-1">
+			<a
+				href={href}
+				target="_blank"
+				rel="noreferrer"
+				className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 rounded-lg py-1.5 text-[15px] text-link active:bg-accent"
+			>
+				{children}
+			</a>
+			{onHide && (
+				<button
+					type="button"
+					aria-label="Hide from the brief"
+					onClick={onHide}
+					className="shrink-0 rounded-md px-2 py-1.5 text-[12px] text-faint-foreground active:bg-accent"
+				>
+					hide
+				</button>
+			)}
+		</div>
 	);
 }
 
@@ -124,6 +142,7 @@ export function BriefCard({
 	onToggle,
 	links,
 	linksLoading,
+	onHide,
 }: {
 	brief: Brief;
 	loading: boolean;
@@ -132,14 +151,43 @@ export function BriefCard({
 	onToggle?: () => void;
 	links: BriefLinks;
 	linksLoading: boolean;
+	/** Hide or show a link, as the desktop brief's hide / show does. */
+	onHide?: (url: string, hidden: boolean) => void;
 }) {
 	const full = brief && typeof brief === "object" ? brief : null;
 	const tldr = typeof brief === "string" ? brief : full?.tldr;
 	const sections = SECTIONS.filter(([key]) => full?.[key]);
 	const Chevron = open ? LuChevronDown : LuChevronRight;
+	const [hiddenOpen, setHiddenOpen] = useState(false);
+	// What you hid on either brief drops out of Links into the Hidden fold.
+	const hiddenUrls = links?.hidden ?? [];
+	const shown = (url: string) => !hiddenUrls.includes(url);
+	const prs = links?.prs.filter((pr) => shown(pr.url)) ?? [];
+	const jira = links?.jira && shown(links.jira.url) ? links.jira : null;
+	const slack = links?.slack && shown(links.slack) ? links.slack : null;
+	const notion = links?.notion && shown(links.notion.url) ? links.notion : null;
+	const hiddenList = [
+		...(links?.prs ?? [])
+			.filter((pr) => !shown(pr.url))
+			.map((pr) => ({ url: pr.url, label: pr.label })),
+		...(links?.jira && !shown(links.jira.url)
+			? [{ url: links.jira.url, label: links.jira.key }]
+			: []),
+		...(links?.slack && !shown(links.slack)
+			? [{ url: links.slack, label: "Slack thread" }]
+			: []),
+		...(links?.notion && !shown(links.notion.url)
+			? [
+					{
+						url: links.notion.url,
+						label: links.notion.title ?? "Notion page",
+					},
+				]
+			: []),
+	];
+	const hide = onHide && ((url: string) => () => onHide(url, true));
 	const hasLinks =
-		!!links &&
-		(links.prs.length > 0 || !!links.jira || !!links.slack || !!links.notion);
+		prs.length > 0 || !!jira || !!slack || !!notion || hiddenList.length > 0;
 	return (
 		<div className="mb-2 rounded-[10px] border border-border border-l-[3px] border-l-primary bg-card text-sm leading-snug text-soft-foreground">
 			<button
@@ -181,8 +229,8 @@ export function BriefCard({
 								No PRs or tickets yet.
 							</div>
 						)}
-						{links?.prs.map((pr) => (
-							<LinkRow key={pr.url} href={pr.url}>
+						{prs.map((pr) => (
+							<LinkRow key={pr.url} href={pr.url} onHide={hide?.(pr.url)}>
 								{pr.repo && !pr.label.startsWith(pr.repo) && (
 									<span className="shrink-0 text-muted-foreground">
 										{pr.repo}
@@ -193,21 +241,64 @@ export function BriefCard({
 								<ChecksChip status={pr.status} />
 							</LinkRow>
 						))}
-						{links?.jira && (
-							<LinkRow href={links.jira.url}>
-								<span>{links.jira.key}</span>
-								{links.jira.status && (
+						{jira && (
+							<LinkRow href={jira.url} onHide={hide?.(jira.url)}>
+								<span>{jira.key}</span>
+								{jira.status && (
 									<span className={`${CHIP} bg-secondary text-soft-foreground`}>
-										{links.jira.status}
+										{jira.status}
 									</span>
 								)}
 							</LinkRow>
 						)}
-						{links?.slack && <LinkRow href={links.slack}>Slack thread</LinkRow>}
-						{links?.notion && (
-							<LinkRow href={links.notion.url}>
-								{links.notion.title ?? "Notion page"}
+						{slack && (
+							<LinkRow href={slack} onHide={hide?.(slack)}>
+								Slack thread
 							</LinkRow>
+						)}
+						{notion && (
+							<LinkRow href={notion.url} onHide={hide?.(notion.url)}>
+								{notion.title ?? "Notion page"}
+							</LinkRow>
+						)}
+						{hiddenList.length > 0 && (
+							<div className="pt-1">
+								<button
+									type="button"
+									onClick={() => setHiddenOpen((was) => !was)}
+									className="flex items-center gap-1 py-1 text-[11px] font-semibold uppercase tracking-wide text-faint-foreground"
+								>
+									{hiddenOpen ? (
+										<LuChevronDown className="size-3.5" />
+									) : (
+										<LuChevronRight className="size-3.5" />
+									)}
+									Hidden ({hiddenList.length})
+								</button>
+								{hiddenOpen &&
+									hiddenList.map(({ url, label }) => (
+										<div key={url} className="flex items-center gap-1">
+											<a
+												href={url}
+												target="_blank"
+												rel="noreferrer"
+												className="min-w-0 flex-1 truncate py-1.5 text-[14px] text-muted-foreground"
+											>
+												{label}
+											</a>
+											{onHide && (
+												<button
+													type="button"
+													aria-label="Show on the brief again"
+													onClick={() => onHide(url, false)}
+													className="shrink-0 rounded-md px-2 py-1.5 text-[12px] text-link active:bg-accent"
+												>
+													show
+												</button>
+											)}
+										</div>
+									))}
+							</div>
 						)}
 					</div>
 				</div>
