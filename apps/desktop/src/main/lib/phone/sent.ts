@@ -4,7 +4,7 @@ import { ODIN_HOME_DIR } from "../app-environment";
 
 /**
  * What each session got from the phone, so the desktop chat can mark those
- * messages "from iPhone": Odin types a phone reply into the session like any
+ * messages "from phone": Odin types a phone reply into the session like any
  * other, and the transcript can't tell them apart.
  */
 

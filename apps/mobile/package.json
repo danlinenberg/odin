@@ -8,11 +8,14 @@
 		"dev": "vite --port 5175 --strictPort",
 		"fake-odin": "bun scripts/fake-odin.ts",
 		"ios": "vite build && cap sync ios && cap open ios",
+		"android": "vite build && cap sync android && cd android && ./gradlew assembleDebug",
+		"android:test": "bash scripts/android-test.sh",
 		"screenshots": "bash scripts/screenshots.sh",
 		"sim": "bash scripts/sim.sh",
 		"build:screens": "vite build --config vite.screens.config.ts"
 	},
 	"dependencies": {
+		"@capacitor/android": "8.5.2",
 		"@capacitor/app": "8.1.1",
 		"@capacitor/core": "8.5.2",
 		"@capacitor/ios": "8.5.2",

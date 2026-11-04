@@ -1473,7 +1473,7 @@ function UserBubble({
 	at?: number;
 	images?: Preview[];
 	pending?: boolean;
-	/** Sent from the Odin iPhone app (main/lib/phone/sent.ts). */
+	/** Sent from the Odin phone app (main/lib/phone/sent.ts). */
 	fromPhone?: boolean;
 	/** Never reached Claude - say so, with a way to see why. */
 	lost?: boolean;
@@ -1553,7 +1553,7 @@ function UserBubble({
 			{fromPhone && (
 				<div className="mt-1 flex items-center justify-end gap-1 text-[11px] text-muted-foreground">
 					<LuSmartphone className="size-3" />
-					from iPhone
+					from phone
 				</div>
 			)}
 			<MessageTime at={at} className="mt-1 text-right" />

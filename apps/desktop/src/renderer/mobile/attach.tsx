@@ -10,6 +10,7 @@ import {
 	LuX,
 } from "react-icons/lu";
 import type { OdinFetch } from "./odin-fetch";
+import { onAndroid } from "./platform";
 import { speechAvailable, type useSpeech } from "./speech";
 
 /**
@@ -158,9 +159,9 @@ async function screenshot(): Promise<File | null> {
 }
 
 /**
- * +: in the app, a menu - a screenshot of Odin's screen, or iOS's own
- * picker (Photo Library, Take Photo or Video, Choose File). In a browser,
- * the picker straight away.
+ * +: in the iPhone app, a menu - a screenshot of Odin's screen, or iOS's
+ * own picker (Photo Library, Take Photo or Video, Choose File). In the
+ * Android app (no screenshot) and in a browser, the picker straight away.
  */
 export function AttachButton({
 	uploads,
@@ -177,7 +178,9 @@ export function AttachButton({
 				type="button"
 				aria-label="Attach"
 				aria-expanded={menu}
-				onClick={() => (native ? setMenu(!menu) : input.current?.click())}
+				onClick={() =>
+					native && !onAndroid ? setMenu(!menu) : input.current?.click()
+				}
 				className="flex size-10 items-center justify-center text-foreground"
 			>
 				<LuPlus
