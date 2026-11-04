@@ -515,3 +515,45 @@ describe("Terminal Host Session emulator backlog backpressure", () => {
 		expect(fakeChildProcess.stdout.resumeCalls).toBe(1);
 	});
 });
+
+describe("Terminal Host Session exit reason", () => {
+	beforeEach(() => {
+		fakeChildProcess = new FakeChildProcess();
+	});
+
+	function newSession() {
+		return new Session({
+			sessionId: "session-exit-reason",
+			workspaceId: "workspace-1",
+			paneId: "pane-1",
+			tabId: "tab-1",
+			cols: 80,
+			rows: 24,
+			cwd: "/tmp",
+			shell: "/bin/bash",
+			spawnProcess: () => fakeChildProcess as unknown as ChildProcess,
+		});
+	}
+
+	it("gives the subprocess's spawn error", () => {
+		const session = newSession();
+		session.spawn({ cwd: "/tmp", cols: 80, rows: 24, env: {} });
+		sendReady(fakeChildProcess);
+		sendFrame(
+			fakeChildProcess,
+			PtySubprocessIpcType.Error,
+			Buffer.from("Spawn failed: error code 267"),
+		);
+		fakeChildProcess.emit("exit", 1);
+		expect(session.isAlive).toBe(false);
+		expect(session.exitReason).toBe("Spawn failed: error code 267");
+	});
+
+	it("falls back to the exit code", () => {
+		const session = newSession();
+		spawnAndReadySession(session);
+		expect(session.exitReason).toBeNull();
+		fakeChildProcess.emit("exit", 3);
+		expect(session.exitReason).toBe("exit code 3");
+	});
+});
