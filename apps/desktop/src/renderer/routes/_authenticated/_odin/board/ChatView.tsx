@@ -4552,6 +4552,11 @@ function Composer({
 					paneId,
 					{
 						...handle,
+						// A Claude stopped for being idle restarts with it. Without
+						// this, Enter woke it bare and the reply was typed into a
+						// Claude still booting, which dropped it: Not delivered.
+						// Attachments have to be pasted, so those still wait.
+						line: hostPaths.length === 0 ? promptLine(sent.text) : undefined,
 						type: async () => {
 							await pasteAttachments(write.mutateAsync, paneId, hostPaths);
 							await typeIntoClaude(write.mutateAsync, paneId, sent.text, now);
