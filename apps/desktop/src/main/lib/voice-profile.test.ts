@@ -114,6 +114,16 @@ describe("learnPrompt and voiceText", () => {
 			voiceText({ ...empty, guide: "G", samples: ["a message of mine"] }),
 		).toContain("G\n\nFrom my last 1 messages:");
 	});
+
+	test("drafts see my newest real messages verbatim, one line each", () => {
+		const samples = Array.from({ length: 60 }, (_, i) => `msg ${i}\nmore`);
+		const text = voiceText({ ...empty, guide: "G", samples });
+		expect(text).toContain("My real messages, newest last.");
+		expect(text).toContain("- msg 59 more");
+		expect(text).toContain("- msg 20 more");
+		expect(text).not.toContain("- msg 19 more");
+		expect(voiceText({ ...empty, samples })).toBe("");
+	});
 });
 
 describe("noteConversation", () => {

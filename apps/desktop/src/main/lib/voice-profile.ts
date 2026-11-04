@@ -203,7 +203,28 @@ export function voiceText(store: VoiceStore): string {
 	if (store.guide) parts.push(store.guide);
 	const stats = voiceStats(store.samples.slice(-LEARN_FROM));
 	if (store.guide && stats) parts.push(stats);
+	const real = realMessages(store.samples);
+	if (store.guide && real) parts.push(real);
 	return parts.join("\n\n");
+}
+
+/** How many of my newest messages every draft sees verbatim. */
+const SHOW_REAL = 40;
+
+/**
+ * My newest messages as I sent them, so a draft copies my real words and
+ * openers instead of making up casual ones I never use ("אוף סורי").
+ */
+export function realMessages(samples: string[]): string {
+	const recent = samples
+		.slice(-SHOW_REAL)
+		.map((line) => line.replace(/\s+/g, " ").trim().slice(0, 240))
+		.filter(Boolean);
+	if (recent.length === 0) return "";
+	return [
+		"My real messages, newest last. Copy their words, openers and length. Never use an opener, filler, apology or phrase that is not in them or in the guide above:",
+		...recent.map((line) => `- ${line}`),
+	].join("\n");
 }
 
 export async function readVoice(path = voicePath()): Promise<VoiceStore> {
