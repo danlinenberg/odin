@@ -13,6 +13,18 @@ export interface BriefTodo {
 	done?: boolean;
 	/** The agent's action item it was copied from - still "added" once edited. */
 	from?: string;
+	/** The chat reply it points to (its transcript id): the to-do jumps back to it. */
+	reply?: string;
+}
+
+/** A reply's to-do text: its first line, as plain text, cut to fit a row. */
+export function replyTodoText(markdown: string): string {
+	const line =
+		markdown
+			.split("\n")
+			.map((l) => plainText(l.replace(/^\s*(#+|[-*>]|\d+\.)\s+/, "")))
+			.find(Boolean) ?? "";
+	return line.length > 80 ? `${line.slice(0, 79).trimEnd()}…` : line;
 }
 
 /** An action item as plain text: My notes shows no markdown. */
@@ -75,7 +87,7 @@ export const usePaneMeta = create<{
 	setContact: (paneId: string, contact: string) => void;
 	setBrief: (paneId: string, brief: string) => void;
 	setNotes: (paneId: string, notes: string) => void;
-	addTodo: (paneId: string, text: string) => void;
+	addTodo: (paneId: string, text: string, reply?: string) => void;
 	/** Appends the agent's action items, skipping ones already on the list. */
 	addTodos: (paneId: string, texts: string[]) => void;
 	/** Done flips its tick; otherwise the to-do is removed. */
@@ -128,12 +140,15 @@ export const usePaneMeta = create<{
 					}
 					return { notesByPane: { ...s.notesByPane, [paneId]: notes } };
 				}),
-			addTodo: (paneId, text) =>
+			addTodo: (paneId, text, reply) =>
 				set((s) => {
 					if (!text.trim()) return {};
+					const have = s.todosByPane[paneId] ?? [];
+					// One to-do per reply: saving it again does nothing.
+					if (reply && have.some((t) => t.reply === reply)) return {};
 					const todos = [
-						...(s.todosByPane[paneId] ?? []),
-						{ text: text.trim() },
+						...have,
+						reply ? { text: text.trim(), reply } : { text: text.trim() },
 					];
 					return { todosByPane: { ...s.todosByPane, [paneId]: todos } };
 				}),

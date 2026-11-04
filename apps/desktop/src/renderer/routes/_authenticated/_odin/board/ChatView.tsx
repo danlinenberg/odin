@@ -20,6 +20,8 @@ import {
 } from "react";
 import { BsCloud } from "react-icons/bs";
 import {
+	LuBookmark,
+	LuBookmarkCheck,
 	LuChevronRight,
 	LuFile,
 	LuLaptop,
@@ -51,6 +53,7 @@ import {
 } from "renderer/stores/dismissed-actions";
 import { type HostEvent, useHostEvents } from "renderer/stores/host-connection";
 import { openUrl } from "renderer/stores/in-app-browser";
+import { useReplyJump } from "renderer/stores/reply-jump";
 import { useSessionView } from "renderer/stores/session-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { runInSessionShell } from "renderer/stores/tabs/useAgentHookListener";
@@ -82,6 +85,7 @@ import {
 } from "../components/skill-picker";
 import { attachmentPaths } from "../components/TaskBox";
 import { COMPACT_MARKDOWN } from "../components/TranscriptView";
+import { replyTodoText, usePaneMeta } from "../hooks/usePaneMeta";
 import {
 	actionItemEntries,
 	actionItemList,
@@ -2768,6 +2772,45 @@ function ReadAloudButton({ id, text }: { id: string; text: string }) {
 	);
 }
 
+/** Saves a pointer to this reply in My notes; the to-do jumps back to it. */
+function SaveReplyButton({
+	paneId,
+	id,
+	text,
+}: {
+	paneId: string;
+	id: string;
+	text: string;
+}) {
+	const saved = usePaneMeta(
+		(s) => !!s.todosByPane[paneId]?.some((todo) => todo.reply === id),
+	);
+	const label = saved ? "In my to-dos" : "Add this reply to my to-dos";
+	return (
+		<button
+			type="button"
+			title={label}
+			aria-label={label}
+			disabled={saved}
+			onClick={() =>
+				usePaneMeta
+					.getState()
+					.addTodo(paneId, replyTodoText(text) || "Reply", id)
+			}
+			className={cn(
+				"flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground",
+				saved && "text-primary hover:bg-transparent hover:text-primary",
+			)}
+		>
+			{saved ? (
+				<LuBookmarkCheck className="size-3.5" />
+			) : (
+				<LuBookmark className="size-3.5" />
+			)}
+		</button>
+	);
+}
+
 /** Switches a long latest reply between folded on its TL;DR and shown whole. */
 function FoldToggle({
 	full,
@@ -2929,7 +2972,11 @@ const ItemView = memo(function ItemView({
 	const toggleFull = () => setFull((value) => !value);
 	return (
 		<CommandNotes.Provider value={notes}>
-			<div ref={rootRef} className="select-text cursor-text">
+			<div
+				ref={rootRef}
+				data-reply-id={item.id}
+				className="select-text cursor-text rounded-md transition-colors duration-700"
+			>
 				{body && (
 					<FoldedReply
 						foldable={fold && placement === "action-items"}
@@ -2949,6 +2996,9 @@ const ItemView = memo(function ItemView({
 				<div className="mt-0.5 flex items-center gap-2">
 					<MessageTime at={item.at} />
 					{readAloud && <ReadAloudButton id={item.id} text={readAloud} />}
+					{paneId && body && (
+						<SaveReplyButton paneId={paneId} id={item.id} text={body} />
+					)}
 				</div>
 				{placement === "card" && shown && (
 					<TldrCard tldr={shown} full={full} onToggle={toggleFull} />
@@ -3592,6 +3642,32 @@ export function ChatView({
 			if (!loaded) fromBottomRef.current = null;
 		});
 	};
+	// A to-do saved from a reply jumps back to it: scroll there, loading
+	// earlier turns until it is in the list, and flash it.
+	const jumpTo = useReplyJump((s) => s.byPane[paneId]);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: items is the trigger - an earlier load may bring the reply in
+	useEffect(() => {
+		const el = scrollRef.current;
+		if (!jumpTo || !el) return;
+		const row = el.querySelector<HTMLElement>(
+			`[data-reply-id="${CSS.escape(jumpTo)}"]`,
+		);
+		if (row) {
+			useReplyJump.getState().clear(paneId);
+			pinnedRef.current = false;
+			row.scrollIntoView({ block: "start", behavior: "smooth" });
+			row.classList.add("bg-primary/10");
+			setTimeout(() => row.classList.remove("bg-primary/10"), 1500);
+		} else if (hasEarlier) {
+			if (fromBottomRef.current === null) {
+				pinnedRef.current = false;
+				fetchEarlier();
+			}
+		} else if (items.length > 0) {
+			useReplyJump.getState().clear(paneId);
+			toast("That reply is no longer in this conversation");
+		}
+	}, [jumpTo, items, hasEarlier]);
 	// A window too short to scroll gives no scroll to load more on.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: items is the trigger - rows change scrollHeight
 	useEffect(() => {
