@@ -25,6 +25,7 @@ import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { openUrl } from "renderer/stores/in-app-browser";
+import { useReplyJump } from "renderer/stores/reply-jump";
 import { PILL } from "../components/pill";
 import {
 	type BriefLink,
@@ -217,6 +218,16 @@ function MyTodo({
 					)}
 				>
 					{todo.text}
+				</button>
+			)}
+			{todo.reply && !editing && (
+				<button
+					type="button"
+					title="Go to the reply this was saved from"
+					onClick={() => useReplyJump.getState().jump(paneId, todo.reply ?? "")}
+					className="mt-[1px] shrink-0 text-[11px] text-link hover:underline"
+				>
+					Go to reply
 				</button>
 			)}
 			<button

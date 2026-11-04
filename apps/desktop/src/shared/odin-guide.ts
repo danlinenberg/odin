@@ -119,6 +119,7 @@ Four columns: **Working** (blue), **Needs you** (amber), **Final Review** (green
 Chat view is the default (Settings → Appearance, "Show sessions as a chat"; store sessionView). Switch with "Terminal View" in the composer or "Chat View" in the footer. Same session behind both; a question or plan approval still opens the terminal.
 - Composer: Enter sends, Ctrl+Enter sends into a running turn, Shift+Enter new line, "!" bash mode, "/" skills, hold Space to talk.
 - Claude's menus show as clickable cards.
+- The bookmark icon under a reply (title "Add this reply to my to-dos") saves it to My notes as a to-do named after its first line; the to-do's **Go to reply** scrolls the chat back to that reply, loading earlier turns if needed.
 - /btw questions never enter the transcript: the answer shows as a card with Close (sends Esc), and the composer hides while it is open.
 
 ## Shell pane
