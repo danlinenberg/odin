@@ -39,6 +39,7 @@ import {
 import { CROW_TAG } from "shared/odin-tags";
 import stripAnsi from "strip-ansi";
 import { create } from "zustand";
+import { parseQueuePlace, useTaskMeta } from "../all/task-meta";
 import { useCardFlags } from "../board/card-flags";
 import { phoneReply } from "../board/phone-resume";
 import { remindSession } from "../board/SessionReminders";
@@ -702,19 +703,32 @@ function runOdinAction(
 		);
 	if (action === "add") {
 		if (!args.text?.trim()) return "Need text.";
+		const place = parseQueuePlace(args.up_next);
+		if (place === null)
+			return "up_next must be top, end or a place from 1 (1 is the top).";
+		const before = useOdinTasks.getState().tasks[0];
 		deps.add(args.text, undefined, args.repo || undefined);
 		const title = args.text.trim().split("\n")[0];
 		// The store puts a new task first: the one just added, as TaskBox's Start now reads it.
-		const task =
-			args.start === "true" ? useOdinTasks.getState().tasks[0] : undefined;
-		if (!task) return `Added "${title}" to the backlog.`;
+		// Text with no title adds nothing, and the old first task isn't this one.
+		const first = useOdinTasks.getState().tasks[0];
+		const added = first !== before ? first : undefined;
+		let lined = "";
+		if (place !== undefined && added) {
+			const key = `task:${added.id}`;
+			useTaskMeta.getState().enqueueAt(key, place);
+			const at = useTaskMeta.getState().queue.indexOf(key) + 1;
+			lined = `, place ${at} on Up next`;
+		}
+		const task = args.start === "true" ? added : undefined;
+		if (!task) return `Added "${title}" to the backlog${lined}.`;
 		// The phone opens the new session: its paneId as JSON, once its card is up.
 		// The phone's Where pick; none keeps Settings' rule.
 		const onHost = args.host ? args.host === "true" : undefined;
 		if (args.open === "true") return openedPane(task, deps, onHost);
 		// Not awaited: a launch can sit behind the machine's capacity gate.
 		void launchTask(task, deps, undefined, onHost);
-		return `Added "${title}" and started it on the board.`;
+		return `Added "${title}"${lined} and started it on the board.`;
 	}
 	if (action === "profile") {
 		// The same switch as the profile menu: the window follows, feeds reload.
