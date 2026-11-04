@@ -11,6 +11,7 @@ Edit the master, then run `python3 apps/desktop/scripts/render-icons.py`
   packages/ui/.../preset-icons/odin.png   preset icon in the renderer
   apps/mobile/.../AppIcon-512@2x.png      iOS app icon (opaque, full bleed)
   apps/mobile/.../splash-2732x2732*.png   iOS launch screen
+  apps/mobile/android/.../mipmap-*, splash Android launcher icon and launch screen
   site/icon.png, site/favicon.png         website brand mark and favicon
 """
 
@@ -19,7 +20,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageChops, ImageDraw
 
 DESKTOP = Path(__file__).resolve().parents[1]
 RES = DESKTOP / "src/resources"
@@ -87,6 +88,65 @@ def ios(src: Image.Image) -> None:
         splash.save(IOS_ASSETS / f"Splash.imageset/splash-2732x2732{suffix}.png")
 
 
+ANDROID_RES = DESKTOP.parents[1] / "apps/mobile/android/app/src/main/res"
+# Launcher icon size per density, in px (48dp each).
+ANDROID_DENSITIES = {"mdpi": 1, "hdpi": 1.5, "xhdpi": 2, "xxhdpi": 3, "xxxhdpi": 4}
+
+
+def android(src: Image.Image) -> None:
+    """Android's launcher draws an adaptive icon: a 108dp foreground over a
+    plain colour, masked to the phone's own shape, with only the middle 66dp
+    sure to show. The mark goes in that middle on the icon's own colour;
+    older launchers get the rounded square as it is, and a round copy."""
+    background = src.getpixel((140, 512))[:3]
+    (ANDROID_RES / "values/ic_launcher_background.xml").write_text(
+        '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n'
+        f'    <color name="ic_launcher_background">#{"%02X%02X%02X" % background}</color>\n'
+        "</resources>\n"
+    )
+    # The mark alone (white, and its dark outline at blue ~63), without the
+    # long shadow (blue ~86-98) that would end in a hard edge on the plain
+    # colour around it.
+    face = src.crop(FACE_BOX)
+    red, _, blue, _ = face.split()
+    alpha = ImageChops.lighter(
+        red.point(lambda v: max(0, min(255, (v - 70) * 255 // 150))),
+        blue.point(lambda v: max(0, min(255, (82 - v) * 255 // 16))),
+    )
+    face.putalpha(alpha)
+    for density, scale in ANDROID_DENSITIES.items():
+        folder = ANDROID_RES / f"mipmap-{density}"
+        side = round(48 * scale)
+        src.resize((side, side), Image.LANCZOS).save(folder / "ic_launcher.png")
+        circle = Image.new("L", (side * 4, side * 4), 0)
+        ImageDraw.Draw(circle).ellipse((0, 0, side * 4 - 1, side * 4 - 1), fill=255)
+        square = src.crop((40, 40, 984, 984)).resize((side, side), Image.LANCZOS)
+        round_icon = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+        round_icon.paste(square, mask=circle.resize((side, side), Image.LANCZOS))
+        round_icon.save(folder / "ic_launcher_round.png")
+        canvas = round(108 * scale)
+        inner = round(66 * scale)
+        foreground = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 0))
+        mark = face.resize((inner, inner), Image.LANCZOS)
+        foreground.paste(mark, ((canvas - inner) // 2,) * 2, mask=mark)
+        foreground.save(folder / "ic_launcher_foreground.png")
+        # Launch screen (Android 11 and older): the icon at the middle of
+        # Odin's background, one per orientation.
+        for orientation, size in (
+            ("port", (round(320 * scale), round(480 * scale))),
+            ("land", (round(480 * scale), round(320 * scale))),
+        ):
+            splash = Image.new("RGB", size, IOS_BACKGROUND)
+            px = round(96 * scale)
+            icon = src.resize((px, px), Image.LANCZOS)
+            splash.paste(icon, ((size[0] - px) // 2, (size[1] - px) // 2), mask=icon)
+            splash.save(ANDROID_RES / f"drawable-{orientation}-{density}/splash.png")
+    splash = Image.new("RGB", (480, 480), IOS_BACKGROUND)
+    icon = src.resize((144, 144), Image.LANCZOS)
+    splash.paste(icon, (168, 168), mask=icon)
+    splash.save(ANDROID_RES / "drawable/splash.png")
+
+
 def main() -> None:
     src = Image.open(MASTER).convert("RGBA")
     icns(src)
@@ -95,6 +155,7 @@ def main() -> None:
     tray(src)
     src.resize((128, 128), Image.LANCZOS).save(PRESET)
     ios(src)
+    android(src)
     src.resize((256, 256), Image.LANCZOS).save(SITE / "icon.png")
     src.resize((64, 64), Image.LANCZOS).save(SITE / "favicon.png")
 

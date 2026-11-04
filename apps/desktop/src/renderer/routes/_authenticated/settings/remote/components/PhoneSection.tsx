@@ -6,7 +6,7 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { SettingRow, SettingsSection } from "../../components/SettingsPage";
 
 /**
- * Settings > Remote > Phone. Odin on your iPhone (main/lib/phone,
+ * Settings > Remote > Phone. Odin on your iPhone or Android (main/lib/phone,
  * docs/phone-encryption.md): an end to end encrypted channel, on this Wi-Fi
  * or through a relay. The QR code carries Odin's public key and a one-time
  * code: scanning it is the pairing.
@@ -32,12 +32,12 @@ export function PhoneSection() {
 	return (
 		<SettingsSection
 			title="Phone"
-			description="The Odin iPhone app: the board and its sessions in your pocket."
+			description="The Odin phone app, for iPhone and Android: the board and its sessions in your pocket."
 		>
 			<SettingRow
 				label="Phone access"
 				htmlFor="phone-access"
-				description="See the board and answer sessions from the Odin iPhone app, on this Wi-Fi or away from it."
+				description="See the board and answer sessions from the Odin phone app, on this Wi-Fi or away from it."
 			>
 				<Switch
 					id="phone-access"
@@ -55,16 +55,23 @@ export function PhoneSection() {
 				<div className="flex gap-5 px-4 py-4">
 					<img
 						src={data.qr}
-						alt="QR code that pairs the Odin iPhone app"
+						alt="QR code that pairs the Odin phone app"
 						className="size-32 shrink-0 rounded-lg bg-white p-1.5"
 					/>
 					<div className="flex min-w-0 flex-col gap-2">
 						<div className="text-sm font-medium">Pair a phone</div>
 						<ol className="list-decimal space-y-1 pl-4 text-[13px] leading-relaxed text-muted-foreground">
-							<li>Open the Camera on your iPhone.</li>
-							<li>Point it at this code.</li>
-							<li>Tap Open in Odin. The code works once, for 10 minutes.</li>
+							<li>
+								iPhone: open the Camera and point it at this code, then tap Open
+								in Odin.
+							</li>
+							<li>
+								Android: open the Odin app, tap Scan QR code and point it at
+								this code.
+							</li>
+							<li>The code works once, for 10 minutes.</li>
 						</ol>
+						<AndroidAppLink />
 						<div className="mt-auto flex items-center gap-1.5 text-xs text-muted-foreground">
 							<LuLock className="size-3.5 shrink-0" />
 							End to end encrypted. Not even Odin's relay can read it.
@@ -118,6 +125,27 @@ export function PhoneSection() {
 				</div>
 			)}
 		</SettingsSection>
+	);
+}
+
+/** Odin.apk on each Odin release (release.yml), to install on the phone. */
+const ANDROID_APP_URL =
+	"https://github.com/danlinenberg/odin/releases/latest/download/Odin.apk";
+
+function AndroidAppLink() {
+	const openUrl = electronTrpc.external.openUrl.useMutation();
+	return (
+		<div className="text-xs text-muted-foreground">
+			No Odin app on your Android yet?{" "}
+			<button
+				type="button"
+				onClick={() => openUrl.mutate(ANDROID_APP_URL)}
+				className="text-primary hover:underline"
+			>
+				Download Odin.apk
+			</button>{" "}
+			on the phone and open it to install.
+		</div>
 	);
 }
 

@@ -9,6 +9,7 @@ import {
 } from "@odin/channel";
 import { setConnectStep } from "./connect-step";
 import type { Pairing } from "./pair-link";
+import { onAndroid } from "./platform";
 
 /**
  * The app's `fetch` to Odin: each request goes through the end-to-end
@@ -98,7 +99,12 @@ async function attempt(
 		return await connectChannel(websocketPipe(socket), {
 			me,
 			host: fromBase64url(pairing.host),
-			hello: { v: 1, code: pairing.code },
+			// The name Settings > Phone lists this phone under.
+			hello: {
+				v: 1,
+				code: pairing.code,
+				name: onAndroid ? "Android" : "iPhone",
+			},
 		});
 	} catch (error) {
 		// It connected, and the other end hung up on the handshake: that's Odin

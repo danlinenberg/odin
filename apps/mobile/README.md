@@ -50,3 +50,25 @@ APNs key (`packages/odin-relay`, `APNS_*`). Nobody sets up a key.
 - The bundle ID is one setting, `ODIN_BUNDLE_ID` (the share extension is
   `$(ODIN_BUNDLE_ID).share`, the widget `$(ODIN_BUNDLE_ID).widget`). A build under another team overrides that, not
   `PRODUCT_BUNDLE_IDENTIFIER`, so the app and its extension move together.
+
+## Odin for Android
+
+The same screens in a Capacitor Android app (`android/`). Its native side is
+smaller: `OdinKeychainPlugin.java` keeps the phone's key sealed by the Android
+Keystore, and `OdinScanPlugin.java` scans the pair QR code in the app
+(Google's code scanner, no camera permission), since Android camera apps
+don't reliably open an `odin://` link. No speech to text, Screenshot this
+screen, share sheet or widget yet: the screens hide those on Android
+(`renderer/mobile/platform.ts`).
+
+- `bun run android` builds the screens, syncs them in and builds
+  `android/app/build/outputs/apk/debug/app-debug.apk`. Needs JDK 21 and the
+  Android SDK (Android Studio has both). `bunx cap open android` opens it in
+  Android Studio, where Run puts it on an emulator or a phone.
+- `bun run android:test`, with an emulator running and the APK built: pairs
+  it with `bun run fake-odin` through the `odin://pair` link and waits for the
+  board. CI's `android` job runs it on every PR.
+- Each Odin release attaches a signed `Odin.apk` (release.yml), which
+  Settings > Remote > Phone links. Android installs it after you allow
+  installs from the browser that downloaded it.
+- The icons and launch screen come from `apps/desktop/scripts/render-icons.py`.

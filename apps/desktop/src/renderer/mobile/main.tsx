@@ -61,6 +61,7 @@ import { NATIVE_API } from "./native-api";
 import { NightPage } from "./night";
 import { channelFetch, type OdinFetch, routedFetch } from "./odin-fetch";
 import { type Pairing, parsePairLink } from "./pair-link";
+import { onAndroid, scanPairCode } from "./platform";
 import { MenuCard, PlanCard, QuestionCard } from "./prompt-cards";
 import { markStarted, useScreensUpdate } from "./screens-update";
 import { SearchBox, SearchResults, titleMatches, useSettled } from "./search";
@@ -1473,22 +1474,56 @@ const PAIR_STEPS = [
 	},
 ];
 
+/** Android camera apps don't reliably open the pair link: the app scans it. */
+const ANDROID_PAIR_STEPS = [
+	...PAIR_STEPS.slice(0, 2),
+	{
+		icon: LuScanQrCode,
+		text: "Tap Scan QR code below and point the phone at the QR code. The app pairs and shows your board.",
+	},
+];
+
+async function scanAndPair() {
+	try {
+		const text = await scanPairCode();
+		if (text && !pairWith(text))
+			alert(
+				"That QR code isn't Odin's. Scan the one in Settings, Remote, Phone.",
+			);
+	} catch (failure) {
+		// The bridge rejects with the plugin's { message }, not an Error.
+		alert((failure as { message?: string } | null)?.message ?? String(failure));
+	}
+}
+
 function Pair() {
 	return (
 		<div className="flex min-h-dvh flex-col gap-6 p-6 pt-[calc(env(safe-area-inset-top)+24px)]">
 			<h1 className="text-2xl font-bold">Pair with Odin</h1>
 			<ol className="flex flex-col gap-4">
-				{PAIR_STEPS.map(({ icon: Icon, text }, index) => (
-					<li key={text} className="flex items-start gap-3">
-						<span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-primary">
-							<Icon className="size-[18px]" />
-						</span>
-						<span className="pt-1.5 text-[15px] leading-snug">
-							<span className="font-semibold">{index + 1}.</span> {text}
-						</span>
-					</li>
-				))}
+				{(onAndroid ? ANDROID_PAIR_STEPS : PAIR_STEPS).map(
+					({ icon: Icon, text }, index) => (
+						<li key={text} className="flex items-start gap-3">
+							<span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-primary">
+								<Icon className="size-[18px]" />
+							</span>
+							<span className="pt-1.5 text-[15px] leading-snug">
+								<span className="font-semibold">{index + 1}.</span> {text}
+							</span>
+						</li>
+					),
+				)}
 			</ol>
+			{onAndroid && (
+				<button
+					type="button"
+					onClick={() => void scanAndPair()}
+					className="flex items-center justify-center gap-2 rounded-[10px] bg-primary px-4 py-3 font-semibold text-primary-foreground"
+				>
+					<LuScanQrCode className="size-5" />
+					Scan QR code
+				</button>
+			)}
 			<div className="mt-2 flex flex-col gap-2 border-t border-border pt-6">
 				<span className="text-sm text-muted-foreground">
 					No Odin on a Mac yet?

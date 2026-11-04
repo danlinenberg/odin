@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { onAndroid } from "./platform";
 
 /**
  * Speech to text for the phone's text boxes, on the phone itself: in the iOS
@@ -41,7 +42,9 @@ const speechWindow = window as unknown as Record<
 const WebSpeech =
 	speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
 
-export const speechAvailable = !!native || !!WebSpeech;
+// Android's web view lists SpeechRecognition but never hears anything, and
+// the Android app has no speech plugin yet.
+export const speechAvailable = !onAndroid && (!!native || !!WebSpeech);
 
 /**
  * iOS answers `stop` within about 1.5s (OdinSpeech.swift). If the answer
