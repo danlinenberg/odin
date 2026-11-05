@@ -42,6 +42,7 @@ import {
 	waitForHost,
 } from "main/lib/remote-host/aws-instances";
 import { isAwsProfileName } from "main/lib/remote-host/aws-on-host";
+import { fallbackAwsProfile } from "main/lib/remote-host/aws-profile";
 import {
 	bringMirrorHome,
 	bringSessionHome,
@@ -486,6 +487,10 @@ export const createRemoteHostRouter = () =>
 				updateOdinConfig({ awsInstances: input });
 			}),
 		awsProfiles: publicProcedure.query(() => listAwsProfiles()),
+		/** The profile Odin signs in with when none is picked and the AWS config has no [default]; null when AWS's own default works. */
+		awsFallbackProfile: publicProcedure.query(
+			() => fallbackAwsProfile() ?? null,
+		),
 		/** Until when claude-auto keeps this computer on the API key, epoch seconds; 0 when it doesn't. */
 		planLimitedUntil: publicProcedure.query(() => planLimitedUntil()),
 		/** claude-auto's plan-limit note while it keeps sessions here on the API key; null when it doesn't. */

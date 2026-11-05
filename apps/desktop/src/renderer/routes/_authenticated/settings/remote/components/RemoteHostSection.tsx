@@ -269,6 +269,9 @@ export function RemoteHostSection() {
 	const { data: saved } = electronTrpc.remoteHost.awsSettings.useQuery();
 	const { data: profiles = [] } =
 		electronTrpc.remoteHost.awsProfiles.useQuery();
+	// No profile picked and no [default] in the AWS config: Odin uses this one.
+	const { data: fallbackProfile } =
+		electronTrpc.remoteHost.awsFallbackProfile.useQuery();
 	const save = electronTrpc.remoteHost.setAwsSettings.useMutation({
 		onSuccess: () => utils.remoteHost.awsSettings.invalidate(),
 		onError,
@@ -606,7 +609,7 @@ export function RemoteHostSection() {
 					{error && awsSignInNeeded(error.message) ? (
 						<SettingRow
 							label="Sign in to AWS"
-							description={`Your AWS sign-in for the ${profile || "default"} profile is missing or has run out. Odin opens the approval page in your browser.`}
+							description={`Your AWS sign-in for the ${profile || fallbackProfile || "default"} profile is missing or has run out. Odin opens the approval page in your browser.`}
 						>
 							<Button
 								size="sm"
@@ -635,7 +638,7 @@ export function RemoteHostSection() {
 					{loaded && (
 						<SettingRow
 							label="Hosts in this account"
-							description={`Instances tagged Odin = host in the ${profile || "default"} profile, ${region || DEFAULT_REGION}. A host made or tagged since the list loaded shows after Search again; one in another account shows after you change the profile under Advanced.`}
+							description={`Instances tagged Odin = host in the ${profile || fallbackProfile || "default"} profile, ${region || DEFAULT_REGION}. A host made or tagged since the list loaded shows after Search again; one in another account shows after you change the profile under Advanced.`}
 						>
 							<Button
 								size="sm"
@@ -926,10 +929,14 @@ export function RemoteHostSection() {
 					)}
 					<SettingRow
 						label="AWS profile"
-						description="From your AWS config. Leave on Default to use the default profile."
+						description={
+							fallbackProfile
+								? `From your AWS config. It has no default profile, so Odin uses ${fallbackProfile} until you pick another.`
+								: "From your AWS config. Leave on Default to use the default profile."
+						}
 					>
 						<Select
-							value={profile || "__default"}
+							value={profile || fallbackProfile || "__default"}
 							onValueChange={(value) => {
 								const next = value === "__default" ? "" : value;
 								setProfile(next);
@@ -940,7 +947,9 @@ export function RemoteHostSection() {
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="__default">Default</SelectItem>
+								{!fallbackProfile && (
+									<SelectItem value="__default">Default</SelectItem>
+								)}
 								{profiles.map((name) => (
 									<SelectItem key={name} value={name}>
 										{name}
