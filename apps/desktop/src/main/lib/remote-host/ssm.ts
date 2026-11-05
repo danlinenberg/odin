@@ -18,6 +18,7 @@ import {
 } from "@aws-sdk/client-ssm";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import { ODIN_HOME_DIR } from "../app-environment";
+import { awsProfileFor, localProfileRegion } from "./aws-profile";
 
 /**
  * SSH to an EC2 instance through AWS Systems Manager: no open port, no public
@@ -64,13 +65,17 @@ export function awsClientConfig(target: {
 	profile?: string | null;
 	region?: string | null;
 }) {
+	// No profile picked and no [default] in the AWS config: the config's
+	// first profile, which also lends its region when none was given.
+	const profile = awsProfileFor(target.profile);
 	return {
-		region: target.region || undefined,
+		region:
+			target.region || (profile && localProfileRegion(profile)) || undefined,
 		// ignoreCache: the SDK keeps ~/.aws/config in memory for the life of
 		// the process, so a profile changed after Odin started kept failing
 		// on its old settings until Odin was restarted.
 		credentials: fromNodeProviderChain({
-			...(target.profile && { profile: target.profile }),
+			...(profile && { profile }),
 			ignoreCache: true,
 		}),
 	};

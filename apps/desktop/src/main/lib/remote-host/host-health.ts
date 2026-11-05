@@ -2,6 +2,7 @@ import { SSMClient } from "@aws-sdk/client-ssm";
 import { awsSignInNeeded } from "shared/host-setup";
 import type { Client } from "ssh2";
 import { SSM_UNSEEN, ssmPing } from "./aws-instances";
+import { awsProfileFor } from "./aws-profile";
 import { HOST_SERVICE_PY } from "./host-service";
 import { SERVICE_CURRENT_SCRIPT } from "./host-tokens";
 import { connectHost, type HostLogin, runOnHost } from "./ssh";
@@ -131,7 +132,7 @@ export async function checkHostHealth(
 		hasClaudeToken ? undefined : "claude",
 	);
 
-	const profile = host.profile || "default";
+	const profile = awsProfileFor(host.profile) ?? "default";
 	if (!(await probe.awsSignedIn().catch(() => false))) {
 		set(
 			"aws",
