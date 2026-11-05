@@ -122,6 +122,7 @@ import {
 } from "main/lib/remote-host/vscode-bridge";
 import { resolveElectronBinary } from "main/lib/terminal-host/electron-binary";
 import { readVoice, voiceText } from "main/lib/voice-profile";
+import { AUTO_START_SOURCES, newAutoStartRows } from "shared/auto-start";
 import {
 	awsSignInNeeded,
 	hostNameProblem,
@@ -761,6 +762,40 @@ export const createRemoteHostRouter = () =>
 				await pushHostTokens(host, []).catch(() => {});
 			else if (input) void refreshHostTokens();
 		}),
+		/** Settings > Remote > Auto-start new tasks: the sources switched on. */
+		autoStart: publicProcedure.query(
+			() => readOdinConfig().autoStartSources ?? [],
+		),
+		setAutoStart: publicProcedure
+			.input(z.object({ sources: z.array(z.enum(AUTO_START_SOURCES)) }))
+			.mutation(({ input }) => {
+				updateOdinConfig({ autoStartSources: input.sources });
+				return input.sources;
+			}),
+		/**
+		 * The board's waiting rows, handed in on every look: answers the ones
+		 * to start now - new since the last look, from a source switched on,
+		 * while the host is on. Every row is recorded either way, so a source
+		 * switched on later starts only what arrives after. Here, not in the
+		 * window, so a reload can't start a row twice.
+		 */
+		claimNewTasks: publicProcedure
+			.input(
+				z.object({
+					rows: z.array(z.object({ source: z.string(), key: z.string() })),
+				}),
+			)
+			.mutation(({ input }) => {
+				const config = readOdinConfig();
+				const { fresh, seen, changed } = newAutoStartRows(
+					config.autoStartSeen,
+					input.rows,
+				);
+				if (changed) updateOdinConfig({ autoStartSeen: seen });
+				if (!config.remoteHost?.on) return [];
+				const on = new Set(config.autoStartSources ?? []);
+				return fresh.filter((row) => on.has(row.source)).map((row) => row.key);
+			}),
 		/**
 		 * The connectors whose tokens live on the host, so sessions there can
 		 * use them with this computer asleep. Written at once; Gmail never.

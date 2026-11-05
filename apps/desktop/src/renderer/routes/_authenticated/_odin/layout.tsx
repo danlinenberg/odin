@@ -59,6 +59,7 @@ import { useNightAgentRunner } from "./hooks/useNightAgentRunner";
 import { useOdinFeeds } from "./hooks/useOdinFeeds";
 import { useOdinProfile } from "./hooks/useOdinProfile";
 import { usePendingFocus } from "./hooks/usePendingFocus";
+import { useRemoteAutoStart } from "./hooks/useRemoteAutoStart";
 import { useSlackAutoLaunch } from "./hooks/useStartReaction";
 
 /**
@@ -248,6 +249,8 @@ const ShellRunners = memo(function ShellRunners({
 	useTaskQueue();
 	// :robot_face: on a Slack message starts its session - see useStartReaction.
 	useSlackAutoLaunch();
+	// New tasks from the sources picked in Settings > Remote start on the host.
+	useRemoteAutoStart();
 	return null;
 });
 

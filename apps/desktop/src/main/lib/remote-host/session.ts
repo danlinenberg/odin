@@ -1,3 +1,4 @@
+import { readOdinConfig } from "../../../lib/trpc/routers/odin-config";
 import { voiceRuleWith } from "../../../shared/constants";
 import { tmuxSession } from "../../../shared/remote-reconnect";
 import {
@@ -134,7 +135,9 @@ export const stashScript =
  * says Working. Mark them answered - the first two in ~/.claude.json, for
  * the folder the session starts in (argv[1]), the warning in
  * ~/.claude/settings.json, as Odin does on this computer. The same file gets
- * this computer's Slack rules: sending as the user is denied, drafts allowed.
+ * this computer's Slack rules: drafts allowed, and sending as the user denied
+ * unless argv[2] is "allow-send" (Settings > Personalization), which takes
+ * back only those deny rules.
  */
 export const SKIP_FIRST_RUN = `import json, os, sys
 def load(p):
@@ -153,9 +156,12 @@ s = load(p)
 before = json.dumps(s, sort_keys=True)
 s["skipDangerousModePermissionPrompt"] = True
 perms = s.get("permissions") if isinstance(s.get("permissions"), dict) else {}
-for key, rules in (("deny", ${JSON.stringify(SLACK_DENY_RULES)}), ("allow", ${JSON.stringify(SLACK_ALLOW_RULES)})):
-    current = perms.get(key) if isinstance(perms.get(key), list) else []
-    perms[key] = current + [r for r in rules if r not in current]
+send = len(sys.argv) > 2 and sys.argv[2] == "allow-send"
+deny_rules = ${JSON.stringify(SLACK_DENY_RULES)}
+deny = [r for r in (perms.get("deny") if isinstance(perms.get("deny"), list) else []) if r not in deny_rules]
+perms["deny"] = deny if send else deny + deny_rules
+allow = perms.get("allow") if isinstance(perms.get("allow"), list) else []
+perms["allow"] = allow + [r for r in ${JSON.stringify(SLACK_ALLOW_RULES)} if r not in allow]
 s["permissions"] = perms
 if json.dumps(s, sort_keys=True) != before:
     os.makedirs(os.path.dirname(p), exist_ok=True)
@@ -652,7 +658,7 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 			? `d=$(python3 -c ${sh(CONVERSATION_DIR)} ${sh(resumed)} 2>/dev/null) && [ -d "$d" ] && cd "$d"; true`
 			: "",
 		resumed ? placeConversation(resumed) : "",
-		`python3 -c ${sh(SKIP_FIRST_RUN)} "$PWD" 2>/dev/null || true`,
+		`python3 -c ${sh(SKIP_FIRST_RUN)} "$PWD"${readOdinConfig().slackSendAllowed ? " allow-send" : ""} 2>/dev/null || true`,
 		'export PATH="$HOME/.local/bin:$PATH"',
 		CLAUDE_LOGIN_SCRIPT,
 		ghInstallScript,

@@ -1,6 +1,7 @@
 import { slackReactions } from "@odin/local-db";
 import { TRPCError } from "@trpc/server";
 import { and, eq, isNull, sql } from "drizzle-orm";
+import { createClaudeSettingsJson } from "main/lib/agent-setup/agent-wrappers";
 import { localDb } from "main/lib/local-db";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
@@ -1241,6 +1242,23 @@ export const createSlackRouter = () => {
 		claimLaunch: publicProcedure
 			.input(z.object({ id: z.string() }))
 			.mutation(({ input }) => ({ claimed: claimLaunch(input.id) })),
+
+		/**
+		 * Settings > Personalization: may sessions send Slack messages as me,
+		 * not only draft them? Off by default. Switching rewrites Claude's
+		 * settings on this computer at once; a remote host's are rewritten at
+		 * each session start there.
+		 */
+		sendAllowed: publicProcedure.query(
+			() => readOdinConfig().slackSendAllowed === true,
+		),
+		setSendAllowed: publicProcedure
+			.input(z.object({ allowed: z.boolean() }))
+			.mutation(({ input }) => {
+				updateOdinConfig({ slackSendAllowed: input.allowed || undefined });
+				createClaudeSettingsJson();
+				return input.allowed;
+			}),
 
 		/** Local-only handled marker - Slack is never written to. */
 		setDone: publicProcedure

@@ -36,7 +36,40 @@ function PersonalizationSettingsPage() {
 			>
 				<VoiceRows />
 			</SettingsSection>
+			<SettingsSection
+				title="Slack"
+				description="What a session may do in Slack on your behalf."
+			>
+				<SlackSendRow />
+			</SettingsSection>
 		</SettingsPage>
+	);
+}
+
+/**
+ * Off (default): sessions only draft Slack messages, and the send and
+ * schedule tools are denied in Claude's settings here and on a remote host.
+ */
+function SlackSendRow() {
+	const utils = electronTrpc.useUtils();
+	const { data: allowed } = electronTrpc.slack.sendAllowed.useQuery();
+	const setAllowed = electronTrpc.slack.setSendAllowed.useMutation({
+		onSuccess: () => void utils.slack.sendAllowed.invalidate(),
+		onError: (error) => toast.error(error.message),
+	});
+	return (
+		<SettingRow
+			label="Let sessions send Slack messages"
+			htmlFor="slack-send-allowed"
+			description="Off: sessions can only write drafts, which wait in Slack for you to send. On: a session can send or schedule a message as you when you ask it to. Sessions still draft by default."
+		>
+			<Switch
+				id="slack-send-allowed"
+				checked={allowed ?? false}
+				disabled={allowed === undefined || setAllowed.isPending}
+				onCheckedChange={(next) => setAllowed.mutate({ allowed: next })}
+			/>
+		</SettingRow>
 	);
 }
 
