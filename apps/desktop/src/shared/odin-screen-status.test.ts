@@ -13,6 +13,7 @@ import {
 	reconnectStopped,
 	remoteConnectLine,
 	spacesForCursorForward,
+	stoppedParts,
 } from "./odin-screen-status";
 
 // The screens below are trimmed from real Claude Code sessions.
@@ -506,5 +507,24 @@ describe("blockedOnAwsSignIn", () => {
 			"\nOdin: Still blocked: the AWS sign-in was not approved, so this session is not connected.\n";
 		expect(blockedOnAwsSignIn(remoteConnectLine(screen))).toBe(false);
 		expect(blockedOnAwsSignIn(undefined)).toBe(false);
+	});
+});
+
+describe("stoppedParts", () => {
+	it("splits the stopped line into what happened and why", () => {
+		expect(
+			stoppedParts(
+				"Stopped reconnecting to i-0abc123 after 6 tries: could not reconnect: logging in to i-0abc123 timed out.",
+			),
+		).toEqual({
+			title: "Stopped reconnecting to i-0abc123 after 6 tries",
+			reason: "Logging in to i-0abc123 timed out.",
+		});
+	});
+
+	it("keeps a line it does not know whole", () => {
+		expect(stoppedParts("Stopped reconnecting")).toEqual({
+			title: "Stopped reconnecting",
+		});
 	});
 });

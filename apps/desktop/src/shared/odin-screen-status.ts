@@ -253,6 +253,23 @@ export function reconnectStopped(connectLine: string | undefined): boolean {
 }
 
 /**
+ * The stopped-reconnecting line split for the chat view: "Stopped reconnecting
+ * to <host> after 6 tries" as the headline, why on its own line below, minus
+ * the "could not reconnect:" the headline already says.
+ */
+export function stoppedParts(line: string): { title: string; reason?: string } {
+	const match = line.match(
+		/^(Stopped reconnecting to .+? after \d+ tries): (.+)$/,
+	);
+	if (!match) return { title: line };
+	const reason = match[2].replace(/^could not (re)?connect:\s*/i, "");
+	return {
+		title: match[1],
+		reason: reason[0].toUpperCase() + reason.slice(1),
+	};
+}
+
+/**
  * The connect line while a remote session waits on its first AWS sign-in: the
  * approval tab Odin opened is all there is to click, and it may never have
  * come up.
