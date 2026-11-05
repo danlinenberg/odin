@@ -6808,8 +6808,9 @@ function DevBoardPage() {
 	// overflow-hidden group, which clipped its tail (the status and the
 	// star) instead.
 	const drawerHeader = drawerCard && (
-		<div className="shrink-0 border-b border-border px-4 py-2">
-			<div className="flex items-center gap-2 whitespace-nowrap">
+		// h-10 matches SessionBrief's header beside it, so the two bottom borders meet.
+		<div className="flex h-10 shrink-0 items-center border-b border-border px-4">
+			<div className="flex min-w-0 flex-1 items-center gap-2 whitespace-nowrap">
 				{renameDraft === null ? (
 					<button
 						type="button"
