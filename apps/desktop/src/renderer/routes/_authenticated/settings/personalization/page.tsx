@@ -150,7 +150,7 @@ function VoiceRows() {
 				<div className="max-h-96 select-text cursor-text overflow-auto rounded-md bg-muted px-4 py-3 text-xs leading-relaxed">
 					{voice?.guide ? (
 						<ReactMarkdown
-							remarkPlugins={[remarkGfm]}
+							remarkPlugins={[[remarkGfm, { singleTilde: false }]]}
 							components={{
 								ul: ({ children }) => (
 									<ul className="flex list-disc flex-col gap-2 pl-4">

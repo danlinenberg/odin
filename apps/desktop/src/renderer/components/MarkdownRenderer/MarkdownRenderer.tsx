@@ -5,10 +5,15 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { useMarkdownStyle } from "renderer/stores";
+import type { PluggableList } from "unified";
 import { SelectionContextMenu } from "./components";
 import { defaultConfig } from "./styles/default/config";
 import { tufteConfig } from "./styles/tufte/config";
 
+/** GFM without single-tilde strikethrough, so "~$10k ... ~$14k" stays text; "~~x~~" still strikes. */
+export const remarkPlugins: PluggableList = [
+	[remarkGfm, { singleTilde: false }],
+];
 /** Images saved to ~/.odin/attachments (SafeImage allows the scheme too). */
 const ATTACHMENT_SCHEME = "odin-attachment";
 
@@ -113,7 +118,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 			>
 				<article ref={articleRef} className={config.articleClass}>
 					<ReactMarkdown
-						remarkPlugins={[remarkGfm]}
+						remarkPlugins={remarkPlugins}
 						rehypePlugins={
 							allowHtml
 								? [rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeAutoDir]

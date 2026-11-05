@@ -17,7 +17,7 @@ export function Markdown({ text }: { text: string }) {
 	return (
 		<div className="md select-text break-words">
 			<ReactMarkdown
-				remarkPlugins={[remarkGfm]}
+				remarkPlugins={[[remarkGfm, { singleTilde: false }]]}
 				components={{
 					a: ({ href, children }) => (
 						<a href={href} target="_blank" rel="noreferrer">
