@@ -357,6 +357,14 @@ describe("remote session connecting", () => {
 		);
 	});
 
+	it("keeps the space at the end of a row the pane wrapped at a space", () => {
+		const wrapped =
+			"Odin: could not reconnect: logging in to i-0abc123 timed out - trying \nagain in 63s (press R to reboot i-0abc123)\n";
+		expect(remoteConnectLine(wrapped)).toBe(
+			"Could not reconnect: logging in to i-0abc123 timed out - trying again in 63s (press R to reboot i-0abc123)",
+		);
+	});
+
 	it("still reads a pane that has retried until its first line scrolled away as connecting", () => {
 		const retry =
 			"Odin: could not reconnect: Timed out while waiting for handshake - trying again in 10s\n\n";
