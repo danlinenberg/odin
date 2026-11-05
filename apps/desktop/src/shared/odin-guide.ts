@@ -122,6 +122,7 @@ Chat view is the default (Settings → Appearance, "Show sessions as a chat"; st
 - Claude's menus show as clickable cards.
 - The bookmark icon under a reply (title "Add this reply to my to-dos") saves it to My notes as a to-do named after its first line; the to-do's **Go to reply** scrolls the chat back to that reply, loading earlier turns if needed.
 - /btw questions never enter the transcript: the answer shows as a card with Close (sends Esc), and the composer hides while it is open.
+- In the terminal view a plain drag is Claude's own selection, and what Claude copies reaches the Mac clipboard, a remote session's too. Option+drag selects the terminal's text directly; Cmd+C copies it.
 
 ## Shell pane
 ❯ Shell opens a terminal in the session's work folder (its PR worktree if it has one, else the checkout), the same shell each time. Dot: green = live in the session's work, amber = live elsewhere, red = disconnected. The ▾ menu moves the shell into any PR worktree or the checkout, shows which other shells sit there, and has VS Code (moves an idle conversation to VS Code). Agents run things you watch here (the /shell/run call).

@@ -81,6 +81,8 @@ function createTerminal(
 		allowProposedApi: true,
 		scrollback: DEFAULT_TERMINAL_SCROLLBACK,
 		macOptionIsMeta: false,
+		// Option+drag selects even while the app (Claude Code) has the mouse.
+		macOptionClickForcesSelection: true,
 		cursorStyle: appearance.cursorStyle,
 		cursorInactiveStyle: "outline",
 		vtExtensions: { kittyKeyboard: true },
