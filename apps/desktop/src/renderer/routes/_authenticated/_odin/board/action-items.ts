@@ -477,3 +477,30 @@ export function placeCommands(
 	}
 	return { under, foot };
 }
+
+const PR_URL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
+
+const MOVES_PR_ALONG = /^\W*(merge|review|approve|land|ship)\b/i;
+
+/** The GitHub PR links an item names, each once. */
+export function itemPullRequests(item: string): string[] {
+	return [...new Set(item.match(PR_URL) ?? [])];
+}
+
+/**
+ * How an item's PRs ended, when every one of them has: "Merge PR #12" for a PR
+ * you merged before the reply was written. Null while any is still open, or
+ * its state is not known yet - an unknown PR is never shown as done. Only an
+ * item asking you to move the PR along counts: "Revert PR #12" still has work
+ * in it after #12 merged.
+ */
+export function settledItem(
+	item: string,
+	states: Record<string, { state: string } | null | undefined> | undefined,
+): "MERGED" | "CLOSED" | null {
+	const urls = itemPullRequests(item);
+	if (urls.length === 0 || !states || !MOVES_PR_ALONG.test(item)) return null;
+	const ends = urls.map((url) => states[url]?.state);
+	if (!ends.every((end) => end === "MERGED" || end === "CLOSED")) return null;
+	return ends.includes("MERGED") ? "MERGED" : "CLOSED";
+}

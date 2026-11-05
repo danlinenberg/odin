@@ -2,11 +2,13 @@ import { expect, test } from "bun:test";
 import {
 	describeCommand,
 	isMoveHereItem,
+	itemPullRequests,
 	itemSnippets,
 	localRunMessage,
 	noActionItems,
 	placeCommands,
 	runnableCommands,
+	settledItem,
 } from "./action-items";
 import { actionItemEntries } from "./brief";
 
@@ -136,4 +138,47 @@ test("an item asking to move the session to my computer gets the Move button", (
 	expect(isMoveHereItem("Merge the PR")).toBe(false);
 	expect(isMoveHereItem("Remove the cache on my computer")).toBe(false);
 	expect(isMoveHereItem("Move it to the remote host")).toBe(false);
+});
+
+const PR = "https://github.com/imagenai/internal-claude/pull/1091";
+const OTHER = "https://github.com/imagenai/odin/pull/7";
+
+test("an item's PR links are found once each, inside markdown links too", () => {
+	expect(itemPullRequests(`Merge [PR #1091](${PR}): ${PR}`)).toEqual([PR]);
+	expect(itemPullRequests("Tell me the export format [CSV | page]")).toEqual(
+		[],
+	);
+});
+
+test("a merge item for a PR you already merged reads as done", () => {
+	expect(
+		settledItem(`Merge PR #1091: ${PR}`, { [PR]: { state: "MERGED" } }),
+	).toBe("MERGED");
+	expect(
+		settledItem(`Merge PR #1091: ${PR}`, { [PR]: { state: "CLOSED" } }),
+	).toBe("CLOSED");
+});
+
+test("an open, unknown or partly open PR keeps the item live", () => {
+	expect(settledItem(`Merge ${PR}`, { [PR]: { state: "OPEN" } })).toBeNull();
+	expect(settledItem(`Merge ${PR}`, {})).toBeNull();
+	expect(settledItem(`Merge ${PR}`, undefined)).toBeNull();
+	expect(
+		settledItem(`Merge ${PR} and ${OTHER}`, {
+			[PR]: { state: "MERGED" },
+			[OTHER]: { state: "OPEN" },
+		}),
+	).toBeNull();
+	expect(
+		settledItem("Tell me whether to go on", { [PR]: { state: "MERGED" } }),
+	).toBeNull();
+});
+
+test("an item with work left after the merge stays live", () => {
+	expect(
+		settledItem(`Revert PR #1091: ${PR}`, { [PR]: { state: "MERGED" } }),
+	).toBeNull();
+	expect(
+		settledItem(`Review and approve ${PR}`, { [PR]: { state: "MERGED" } }),
+	).toBe("MERGED");
 });

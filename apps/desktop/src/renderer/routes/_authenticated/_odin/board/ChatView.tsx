@@ -104,11 +104,13 @@ import {
 	isYouOnly,
 	itemDetail,
 	itemOptions,
+	itemPullRequests,
 	itemReply,
 	itemSnippets,
 	localCommand,
 	localRunMessage,
 	noActionItems,
+	settledItem,
 	splitActionItems,
 } from "./action-items";
 import {
@@ -2110,8 +2112,11 @@ function ActionItemRow({
 	commands = [],
 	snippets = [],
 	onRun,
+	settled = null,
 }: {
 	item: string;
+	/** Every PR the item names has merged (or closed) since the reply: shown done, no button. */
+	settled?: "MERGED" | "CLOSED" | null;
 	/** The item's own code blocks (a ```sql query), shown under its text. */
 	snippets?: string[];
 	/** The reply's paragraph about this item, shown on hover. */
@@ -2150,7 +2155,17 @@ function ActionItemRow({
 			)}
 		>
 			{/* The button leads the row - you scan for it first. Too narrow (zoomed in), it drops under the text so the text keeps the width. */}
-			{isYouOnly(item) ? (
+			{settled ? (
+				<span
+					title="GitHub says this PR is already done, so there is nothing to do"
+					className={cn(
+						"pt-px text-center text-[12px] text-muted-foreground",
+						"w-[64px] @max-md:col-start-2 @max-md:row-start-2",
+					)}
+				>
+					{settled === "MERGED" ? "Merged" : "Closed"}
+				</span>
+			) : isYouOnly(item) ? (
 				buttonColumn && <span className="@max-md:hidden" />
 			) : (
 				<button
@@ -2198,7 +2213,12 @@ function ActionItemRow({
 			</span>
 			<div className="min-w-0 [overflow-wrap:anywhere]">
 				<ItemDetail detail={detail}>
-					<div className={cn(detail && "cursor-help")}>
+					<div
+						className={cn(
+							detail && "cursor-help",
+							settled && "text-muted-foreground line-through",
+						)}
+					>
 						<MarkdownRenderer
 							content={text}
 							style="default"
@@ -2215,7 +2235,7 @@ function ActionItemRow({
 						className={cn(COMPACT_MARKDOWN, "mt-1 select-text cursor-text")}
 					/>
 				)}
-				{asks && !sent && (
+				{asks && !sent && !settled && (
 					<div className="mt-1.5 flex flex-wrap items-center gap-1.5">
 						{options.map((option) => (
 							<button
@@ -2239,7 +2259,7 @@ function ActionItemRow({
 						/>
 					</div>
 				)}
-				{onRun && commands.length > 0 && (
+				{onRun && commands.length > 0 && !settled && (
 					<RunCommands commands={commands} onRun={onRun} />
 				)}
 			</div>
@@ -2344,6 +2364,16 @@ function ActionItems({
 	const items = entries.filter(
 		({ item }) => !isDismissed(dismissed ?? [], item),
 	);
+	// "Merge PR #12" for a PR you merged before the reply was written: ask
+	// GitHub, and show it done instead of offering to do it again.
+	const prUrls = [
+		...new Set(items.flatMap(({ item }) => itemPullRequests(item))),
+	];
+	const { data: prStates } = electronTrpc.terminal.pullRequestStates.useQuery(
+		{ urls: prUrls },
+		{ enabled: prUrls.length > 0, retry: false, staleTime: 30_000 },
+	);
+	const settled = (item: string) => settledItem(item, prStates ?? undefined);
 	const buttonColumn = !items.every(({ item }) => isYouOnly(item));
 	const homes = commands.map((command) =>
 		commandItem(
@@ -2362,7 +2392,9 @@ function ActionItems({
 		...earlier.filter((_, i) => earlierHomes[i] === index),
 	];
 	const footCommands = onDo && entries.length > 0 ? commandsAt(-1) : commands;
-	const count = onDo ? items.length : actionItemList(text).length;
+	const count = onDo
+		? items.filter(({ item }) => !settled(item)).length
+		: actionItemList(text).length;
 	return (
 		<div
 			data-action-items
@@ -2408,6 +2440,7 @@ function ActionItems({
 							buttonColumn={buttonColumn}
 							commands={commandsAt(number - 1)}
 							onRun={onRun}
+							settled={settled(item)}
 						/>
 					))}
 				</ol>
