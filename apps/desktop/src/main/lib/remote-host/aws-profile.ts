@@ -47,14 +47,20 @@ export function listAwsProfiles(home = os.homedir()): string[] {
 
 /**
  * The profile to use when none is picked: undefined when AWS's own choice
- * works (AWS_PROFILE is set, there is a [default], or there are no profiles
- * at all), else the first named profile.
+ * works (AWS_PROFILE or AWS_ACCESS_KEY_ID is set, there is a [default], or
+ * there are no profiles at all), else the first named profile. Naming a
+ * profile makes the SDK skip keys in the environment, so those keep it off.
  */
 export function fallbackAwsProfile(
 	profiles: string[] = listAwsProfiles(),
-	envProfile: string | undefined = process.env.AWS_PROFILE,
+	vars: Record<string, string | undefined> = process.env,
 ): string | undefined {
-	if (envProfile || !profiles.length || profiles.includes("default"))
+	if (
+		vars.AWS_PROFILE ||
+		vars.AWS_ACCESS_KEY_ID ||
+		!profiles.length ||
+		profiles.includes("default")
+	)
 		return undefined;
 	return profiles[0];
 }

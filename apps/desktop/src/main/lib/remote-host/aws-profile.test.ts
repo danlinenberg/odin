@@ -70,13 +70,19 @@ describe("an AWS config without a default profile", () => {
 
 describe("fallbackAwsProfile", () => {
 	test("AWS's own default when there is one", () => {
-		expect(fallbackAwsProfile(["default", "foo"], undefined)).toBeUndefined();
-		expect(fallbackAwsProfile(["foo"], "foo")).toBeUndefined();
-		expect(fallbackAwsProfile([], undefined)).toBeUndefined();
+		expect(fallbackAwsProfile(["default", "foo"], {})).toBeUndefined();
+		expect(fallbackAwsProfile(["foo"], { AWS_PROFILE: "foo" })).toBeUndefined();
+		expect(fallbackAwsProfile([], {})).toBeUndefined();
+	});
+
+	test("keys in the environment keep working: no profile is forced over them", () => {
+		expect(
+			fallbackAwsProfile(["foo"], { AWS_ACCESS_KEY_ID: "AKID" }),
+		).toBeUndefined();
 	});
 
 	test("the first named profile when there is no [default]", () => {
-		expect(fallbackAwsProfile(["bar", "foo"], undefined)).toBe("bar");
+		expect(fallbackAwsProfile(["bar", "foo"], {})).toBe("bar");
 	});
 });
 
