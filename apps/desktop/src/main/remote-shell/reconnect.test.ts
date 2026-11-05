@@ -107,6 +107,19 @@ describe("keepAttached", () => {
 		expect(fresh).toEqual([true]);
 	});
 
+	test("a pick from the stopped state puts a new connect line on screen, so Retry and Start over take effect at once", async () => {
+		let connects = 0;
+		const { io, said } = fakeIo({
+			connect: async () => {
+				connects++;
+				if (connects <= MAX_TRIES) throw new Error("logging in timed out");
+				return "client";
+			},
+		});
+		await keepAttached(io, "i-0abc");
+		expect(said.at(-1)).toBe("connecting to i-0abc...");
+	});
+
 	test("a failure no retry fixes ends the pane", async () => {
 		const { io } = fakeIo({
 			connect: async () => {
