@@ -404,10 +404,13 @@ function visibleScreen(paneId: string): string {
 	if (!xterm) return "";
 	const buffer = xterm.buffer.active;
 	const lines: string[] = [];
-	for (let row = 0; row < xterm.rows; row++)
-		lines.push(
-			buffer.getLine(buffer.baseY + row)?.translateToString(true) ?? "",
-		);
+	for (let row = 0; row < xterm.rows; row++) {
+		const y = buffer.baseY + row;
+		// A row the pane wrapped at a space ends in that space: trimmed, the
+		// two words ran together ("tryingagain") in the card's status line.
+		const wraps = buffer.getLine(y + 1)?.isWrapped ?? false;
+		lines.push(buffer.getLine(y)?.translateToString(!wraps) ?? "");
+	}
 	return lines.join("\n");
 }
 

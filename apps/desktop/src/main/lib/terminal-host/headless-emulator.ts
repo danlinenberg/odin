@@ -216,9 +216,11 @@ export class HeadlessEmulator {
 		const buffer = this.terminal.buffer.active;
 		const lines: string[] = [];
 		for (let y = 0; y < this.terminal.rows; y++) {
-			lines.push(
-				buffer.getLine(buffer.viewportY + y)?.translateToString(true) ?? "",
-			);
+			const row = buffer.viewportY + y;
+			// A row wrapped at a space keeps that space, so the words on either
+			// side of the wrap don't run together.
+			const wraps = buffer.getLine(row + 1)?.isWrapped ?? false;
+			lines.push(buffer.getLine(row)?.translateToString(!wraps) ?? "");
 		}
 		return lines.join("\n");
 	}
