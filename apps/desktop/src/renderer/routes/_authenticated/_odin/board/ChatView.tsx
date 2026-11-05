@@ -74,6 +74,7 @@ import {
 	claudeDrawn,
 	reconnectStopped,
 	remoteConnectLine,
+	stoppedParts,
 } from "shared/odin-screen-status";
 import { typedText } from "shared/typed-text";
 import { isInterruptMarker, withoutWrapping } from "shared/user-text";
@@ -2012,6 +2013,39 @@ function ReconnectStoppedActions({
 	);
 }
 
+/**
+ * The chat view's row once a remote pane stopped reconnecting: what happened
+ * and why on their own lines, the picks in a row below. In one fixed-height
+ * row the wrapped message ran up over the card above it.
+ */
+function ReconnectStoppedRow({
+	line,
+	children,
+}: {
+	line: string;
+	children: ReactNode;
+}) {
+	const { title, reason } = stoppedParts(line);
+	return (
+		<div className="flex min-w-0 flex-col gap-2.5 rounded-lg border border-danger/25 bg-danger/[0.05] px-3.5 py-3">
+			<div className="flex min-w-0 items-start gap-2.5">
+				<LuCircleAlert className="mt-0.5 size-3.5 shrink-0 text-danger" />
+				<div className="min-w-0 select-text cursor-text">
+					<div className="text-[12.5px] font-medium text-danger [overflow-wrap:anywhere]">
+						{title}
+					</div>
+					{reason && (
+						<div className="mt-0.5 text-[12px] text-muted-foreground [overflow-wrap:anywhere]">
+							{reason}
+						</div>
+					)}
+				</div>
+			</div>
+			<div className="flex flex-wrap items-center gap-2 pl-6">{children}</div>
+		</div>
+	);
+}
+
 function ReplyMark({ className }: { className?: string }) {
 	return (
 		<span
@@ -3874,33 +3908,34 @@ export function ChatView({
 					className="min-h-0 flex-1 overflow-y-auto px-8 py-6 [scrollbar-gutter:stable]"
 				>
 					<div ref={contentRef} className="flex flex-col gap-2.5">
-						{starting ? (
-							<div className="flex items-center gap-3 text-[12.5px] text-working">
-								{stopped ? (
-									<LuCircleAlert className="size-3.5 shrink-0 text-danger" />
-								) : (
-									<WorkingMark />
+						{starting && stopped && connecting ? (
+							<ReconnectStoppedRow line={connecting}>
+								<ReconnectStoppedActions
+									host={host}
+									sendKeys={sendKeys}
+									onMoveToHost={onMoveToHost}
+									onMoveHere={onMoveHere}
+								/>
+								{!noTerminal && (
+									<button
+										type="button"
+										onClick={onShowTerminal}
+										className="px-1 text-[11.5px] text-muted-foreground hover:text-foreground"
+									>
+										Show terminal
+									</button>
 								)}
-								<span
-									className={cn(
-										"select-text cursor-text",
-										stopped && "text-danger",
-									)}
-								>
+							</ReconnectStoppedRow>
+						) : starting ? (
+							<div className="flex items-center gap-3 text-[12.5px] text-working">
+								<WorkingMark />
+								<span className="select-text cursor-text">
 									{connecting ?? "Starting session…"}
 								</span>
 								{awaitsAwsSignIn(connecting) && (
 									<AwsSignInButton onClick={() => void sendKeys(["\r"])} />
 								)}
 								{blockedOnAwsSignIn(connecting) && <OpenAwsSignInButton />}
-								{stopped && (
-									<ReconnectStoppedActions
-										host={host}
-										sendKeys={sendKeys}
-										onMoveToHost={onMoveToHost}
-										onMoveHere={onMoveHere}
-									/>
-								)}
 								{/* Before its first turn the CLI can stop on a terminal-only
 							    prompt (folder trust, bypass-permissions warning) that no
 							    transcript ever shows. */}
@@ -4172,22 +4207,30 @@ export function ChatView({
 								</button>
 							</div>
 						)}
-						{connecting && !starting && (
-							// A resumed remote session: its old turns are above, the host isn't reached yet.
-							<div className="flex h-7 items-center gap-3 text-[12.5px] text-working">
-								{stopped ? (
-									<LuCircleAlert className="size-3.5 shrink-0 text-danger" />
-								) : (
-									<WorkingMark />
+						{connecting && !starting && stopped && (
+							<ReconnectStoppedRow line={connecting}>
+								<ReconnectStoppedActions
+									host={host}
+									sendKeys={sendKeys}
+									onMoveToHost={onMoveToHost}
+									onMoveHere={onMoveHere}
+								/>
+								{!noTerminal && (
+									<button
+										type="button"
+										onClick={onShowTerminal}
+										className="px-1 text-[11.5px] text-muted-foreground hover:text-foreground"
+									>
+										Show terminal
+									</button>
 								)}
-								<span
-									className={cn(
-										"select-text cursor-text",
-										stopped && "text-danger",
-									)}
-								>
-									{connecting}
-								</span>
+							</ReconnectStoppedRow>
+						)}
+						{connecting && !starting && !stopped && (
+							// A resumed remote session: its old turns are above, the host isn't reached yet.
+							<div className="flex min-h-7 items-center gap-3 text-[12.5px] text-working">
+								<WorkingMark />
+								<span className="select-text cursor-text">{connecting}</span>
 								{awaitsAwsSignIn(connecting) && (
 									<AwsSignInButton onClick={() => void sendKeys(["\r"])} />
 								)}
@@ -4197,14 +4240,6 @@ export function ChatView({
 									/^Could not (re)?connect/.test(connecting) && (
 										<MoveToHostButton host={host} onMove={onMoveToHost} />
 									)}
-								{stopped && (
-									<ReconnectStoppedActions
-										host={host}
-										sendKeys={sendKeys}
-										onMoveToHost={onMoveToHost}
-										onMoveHere={onMoveHere}
-									/>
-								)}
 								{!noTerminal && (
 									<button
 										type="button"
