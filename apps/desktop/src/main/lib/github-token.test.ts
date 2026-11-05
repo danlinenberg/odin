@@ -151,6 +151,38 @@ describe("githubAccessToken", () => {
 		mockFetch({ error: "bad_refresh_token" });
 		expect(await githubAccessToken()).toBe("gho_stale");
 	});
+
+	test("callers that find it expired at once share one refresh - the refresh token works once", async () => {
+		updateOdinConfig({
+			githubToken: "gho_old",
+			githubRefreshToken: "ghr_1",
+			githubTokenExpiresAt: Date.now() - 1_000,
+		});
+		const live = new Set(["ghr_1"]);
+		const sent: string[] = [];
+		globalThis.fetch = mock(async (_url: string, init?: RequestInit) => {
+			const rt = new URLSearchParams(String(init?.body)).get("refresh_token");
+			sent.push(String(rt));
+			await new Promise((r) => setTimeout(r, 20));
+			if (!live.delete(String(rt)))
+				return new Response(JSON.stringify({ error: "bad_refresh_token" }));
+			return new Response(
+				JSON.stringify({
+					access_token: "gho_2",
+					refresh_token: "ghr_2",
+					expires_in: 28_800,
+				}),
+			);
+		}) as unknown as typeof fetch;
+		const got = await Promise.all([
+			githubAccessToken(),
+			githubAccessToken(),
+			githubAccessToken(),
+		]);
+		expect(sent).toEqual(["ghr_1"]);
+		expect(got).toEqual(["gho_2", "gho_2", "gho_2"]);
+		expect(readOdinConfig().githubRefreshToken).toBe("ghr_2");
+	});
 });
 
 /**
@@ -167,6 +199,30 @@ function stubGhCli(body: string): void {
 }
 
 describe("githubApiFetch", () => {
+	test("a 401 on the stored token refreshes it once and asks again", async () => {
+		updateOdinConfig({ githubToken: "gho_dead", githubRefreshToken: "ghr_1" });
+		const seen: string[] = [];
+		globalThis.fetch = mock(async (url: string, init?: RequestInit) => {
+			if (url === "https://github.com/login/oauth/access_token")
+				return new Response(
+					JSON.stringify({ access_token: "gho_new", refresh_token: "ghr_2" }),
+				);
+			const auth = String(
+				(init?.headers as Record<string, string>)?.Authorization,
+			);
+			seen.push(auth);
+			return new Response("{}", { status: auth.endsWith("dead") ? 401 : 200 });
+		}) as unknown as typeof fetch;
+
+		const res = await githubApiFetch(
+			"https://api.github.com/user",
+			{},
+			"gho_dead",
+		);
+		expect(res.status).toBe(200);
+		expect(seen).toEqual(["Bearer gho_dead", "Bearer gho_new"]);
+	});
+
 	test("a rejected token is retried with the gh CLI's token for the same login", async () => {
 		updateOdinConfig({ githubLogin: "octocat" });
 		stubGhCli('[ "$4" = "octocat" ] && echo gho_from_cli');

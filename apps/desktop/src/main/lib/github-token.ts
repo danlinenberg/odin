@@ -6,6 +6,7 @@ import {
 	resolveGithubClientId,
 	updateOdinConfig,
 } from "../../lib/trpc/routers/odin-config";
+import { sharedRefresh } from "./shared-refresh";
 
 /**
  * GitHub token upkeep, alongside Jira's and Google's and for the same reason:
@@ -115,9 +116,13 @@ async function exchangeRefreshToken(
 	}
 }
 
-async function refreshGithubAccessToken(): Promise<string | null> {
-	const json = await exchangeRefreshToken(readOdinConfig().githubRefreshToken);
-	return json ? storeGithubTokens(json) : null;
+/** Spend the main connection's refresh token now; null when GitHub refuses it. */
+export function refreshGithubAccessToken(): Promise<string | null> {
+	const refreshToken = readOdinConfig().githubRefreshToken;
+	return sharedRefresh(`github:${refreshToken}`, async () => {
+		const json = await exchangeRefreshToken(refreshToken);
+		return json ? storeGithubTokens(json) : null;
+	});
 }
 
 function needsRefresh(
@@ -162,17 +167,19 @@ async function extraAccountToken(
 	margin = REFRESH_MARGIN_MS,
 ): Promise<string> {
 	if (!needsRefresh(account.expiresAt, margin)) return account.token;
-	const json = await exchangeRefreshToken(account.refreshToken);
-	if (!json?.access_token) return account.token;
-	saveExtraAccount({
-		login: account.login,
-		token: json.access_token,
-		refreshToken: json.refresh_token ?? account.refreshToken,
-		expiresAt: json.expires_in
-			? Date.now() + json.expires_in * 1000
-			: undefined,
+	return sharedRefresh(`github:${account.refreshToken}`, async () => {
+		const json = await exchangeRefreshToken(account.refreshToken);
+		if (!json?.access_token) return account.token;
+		saveExtraAccount({
+			login: account.login,
+			token: json.access_token,
+			refreshToken: json.refresh_token ?? account.refreshToken,
+			expiresAt: json.expires_in
+				? Date.now() + json.expires_in * 1000
+				: undefined,
+		});
+		return json.access_token;
 	});
-	return json.access_token;
 }
 
 /**
@@ -372,6 +379,14 @@ export async function githubApiFetch(
 		if (res.status === 401 && account.token === token) revokedToken = token;
 	}
 	if (res && res.status !== 401) return res;
+	// A token refused before its expiry: one refresh, then one more try.
+	if (token === readOdinConfig().githubToken) {
+		const fresh = await refreshGithubAccessToken();
+		if (fresh && fresh !== token) {
+			res = await send(fresh);
+			if (res.status !== 401) return res;
+		}
+	}
 	const cli = await githubCliToken();
 	if (cli && cli !== token) return await send(cli);
 	return res ?? (await send(token));

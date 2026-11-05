@@ -19,13 +19,17 @@ import {
 	GITHUB_DEVICE_SCOPE,
 	GITHUB_TOKEN_URL,
 	githubAccountTokens,
+	refreshGithubAccessToken,
 } from "main/lib/github-token";
 import {
 	isJiraOAuthConfigured,
 	readJiraOAuthResult,
 	startJiraOAuth,
 } from "main/lib/jira-oauth";
-import { jiraRequestContext } from "main/lib/jira-token";
+import {
+	jiraRequestContext,
+	refreshJiraAccessToken,
+} from "main/lib/jira-token";
 import {
 	isNotionOAuthConfigured,
 	readNotionOAuthResult,
@@ -34,6 +38,7 @@ import {
 import { clickupFetch } from "main/lib/read-link";
 import {
 	isSlackOAuthConfigured,
+	missingSlackScopes,
 	readSlackOAuthResult,
 	startSlackOAuth,
 } from "main/lib/slack-oauth";
@@ -99,6 +104,26 @@ export interface ConnectionStatus {
 	accounts?: { login: string; ok: boolean }[];
 }
 
+/** The Slack row's error when the token lacks a scope Odin now asks for. */
+export const SLACK_NEEDS_SCOPES = "Odin needs new permissions - Reconnect";
+
+/**
+ * A 401 can be a token another call just replaced (refresh tokens rotate) or
+ * one that died before its expiry. Ask once more: with the stored token when
+ * it is newer than the one refused, else with a fresh one.
+ */
+export async function retryWithFreshToken(
+	res: Response,
+	used: string,
+	stored: string | undefined,
+	refresh: () => Promise<string | null>,
+	ask: (token: string) => Promise<Response>,
+): Promise<Response> {
+	if (res.status !== 401) return res;
+	const fresh = stored && stored !== used ? stored : await refresh();
+	return fresh && fresh !== used ? ask(fresh) : res;
+}
+
 /** Probes are best-effort: a network blip is an error string, not a throw. */
 async function probeSlack(): Promise<ConnectionStatus> {
 	const token = resolveSlackToken();
@@ -114,6 +139,10 @@ async function probeSlack(): Promise<ConnectionStatus> {
 			team?: string;
 		};
 		if (!json.ok) return failed("slack", json.error);
+		// A release that asks Slack for more leaves the old token without it:
+		// auth.test still passes while the new feature fails.
+		if (missingSlackScopes(res.headers.get("x-oauth-scopes")).length)
+			return failed("slack", SLACK_NEEDS_SCOPES);
 		return {
 			provider: "slack",
 			configured: true,
@@ -129,12 +158,21 @@ async function probeJira(): Promise<ConnectionStatus> {
 	const oauth = await jiraRequestContext();
 	if (!oauth) return unconfigured("jira");
 	try {
-		const res = await fetch(`${oauth.base}/rest/api/3/myself`, {
-			headers: {
-				Authorization: oauth.authorization,
-				Accept: "application/json",
-			},
-		});
+		const ask = (token: string) =>
+			fetch(`${oauth.base}/rest/api/3/myself`, {
+				headers: {
+					Authorization: `Bearer ${token}`,
+					Accept: "application/json",
+				},
+			});
+		const used = oauth.authorization.replace(/^Bearer /, "");
+		const res = await retryWithFreshToken(
+			await ask(used),
+			used,
+			readOdinConfig().jiraAccessToken,
+			refreshJiraAccessToken,
+			ask,
+		);
 		if (!res.ok) return failed("jira", probeError(res.status));
 		const json = (await res.json()) as { displayName?: string };
 		return {
@@ -155,14 +193,27 @@ async function probeGithub(): Promise<ConnectionStatus> {
 	// to the next account, and a rejected main account would then show up
 	// under the other account's login.
 	const accounts = await Promise.all(
-		tokens.map(async ({ login, token }) => {
-			try {
-				const res = await fetch("https://api.github.com/user", {
+		tokens.map(async ({ login, token }, i) => {
+			const ask = (bearer: string) =>
+				fetch("https://api.github.com/user", {
 					headers: {
-						Authorization: `Bearer ${token}`,
+						Authorization: `Bearer ${bearer}`,
 						Accept: "application/vnd.github+json",
 					},
 				});
+			try {
+				// The main connection is the first; its token is the stored one.
+				const first = await ask(token);
+				const res =
+					i === 0
+						? await retryWithFreshToken(
+								first,
+								token,
+								readOdinConfig().githubToken,
+								refreshGithubAccessToken,
+								ask,
+							)
+						: first;
 				if (!res.ok)
 					return {
 						login: login ?? "GitHub",
