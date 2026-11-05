@@ -630,6 +630,7 @@ test("the host note tells a blocked agent to offer the move to my computer", () 
 		pane: "0d202ff3aa",
 	});
 	expect(note).toContain('starts with "Move this session to my computer"');
+	expect(note).toContain("is not an action item");
 });
 
 test("the host note tells the agent to write in my voice and record corrections", () => {
