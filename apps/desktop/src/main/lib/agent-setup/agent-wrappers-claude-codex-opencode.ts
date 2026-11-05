@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { readOdinConfig } from "lib/trpc/routers/odin-config";
 import {
 	buildWrapperScript,
 	createWrapper,
@@ -17,7 +18,7 @@ import {
 	SUBAGENT_CAP_SCRIPT_NAME,
 } from "./notify-hook";
 import { OPENCODE_CONFIG_DIR, OPENCODE_PLUGIN_DIR } from "./paths";
-import { SLACK_ALLOW_RULES, SLACK_DENY_RULES } from "./slack-tools";
+import { withSlackRules } from "./slack-tools";
 
 export const OPENCODE_PLUGIN_FILE = "odin-notify.js";
 
@@ -169,6 +170,7 @@ export function getClaudeGlobalSettingsJsonPath(): string {
  */
 export function getClaudeGlobalSettingsJsonContent(
 	notifyScriptPath: string,
+	allowSlackSend = readOdinConfig().slackSendAllowed === true,
 ): string | null {
 	const globalPath = getClaudeGlobalSettingsJsonPath();
 	const existing = readExistingClaudeSettings(globalPath);
@@ -299,16 +301,14 @@ export function getClaudeGlobalSettingsJsonContent(
 	// key the CLI opens its one-time "Bypass Permissions mode" warning, which
 	// defaults to "No, exit" and leaves a task session stuck on it.
 	existing.skipDangerousModePermissionPrompt = true;
-	// Slack messages go out as drafts you send yourself: a sent one carries
-	// Odin's footer and can't be taken back. A deny rule holds even under
+	// Slack messages go out as drafts you send yourself, unless Settings >
+	// Personalization allows sending: a sent one carries Odin's footer and
+	// can't be taken back. A deny rule holds even under
 	// --dangerously-skip-permissions; the allow keeps drafts prompt-free.
-	const permissions: { deny?: unknown; allow?: unknown } =
-		existing.permissions ?? {};
-	const merge = (current: unknown, rules: string[]) => [
-		...new Set([...(Array.isArray(current) ? current : []), ...rules]),
-	];
-	permissions.deny = merge(permissions.deny, SLACK_DENY_RULES);
-	permissions.allow = merge(permissions.allow, SLACK_ALLOW_RULES);
+	const permissions = {
+		...(existing.permissions ?? {}),
+		...withSlackRules(existing.permissions ?? {}, allowSlackSend),
+	};
 	existing.permissions = permissions;
 
 	return JSON.stringify(existing, null, 2);

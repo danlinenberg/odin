@@ -1014,6 +1014,7 @@ describe("agent-wrappers claude settings.json", () => {
 	it("blocks sending Slack messages and allows drafts", () => {
 		const content = getClaudeGlobalSettingsJsonContent(
 			"/tmp/.odin/hooks/notify.sh",
+			false,
 		);
 		const { permissions } = JSON.parse(content ?? "{}");
 		expect(permissions.deny).toContain(
@@ -1027,6 +1028,34 @@ describe("agent-wrappers claude settings.json", () => {
 		);
 		expect(permissions.deny).not.toContain(
 			"mcp__plugin_slack_slack__slack_send_message_draft",
+		);
+	});
+
+	it("lifts only its own Slack deny rules when sending is allowed", () => {
+		const blocked = getClaudeGlobalSettingsJsonContent(
+			"/tmp/.odin/hooks/notify.sh",
+			false,
+		);
+		const settingsPath = path.join(mockedHomeDir, ".claude", "settings.json");
+		mkdirSync(path.dirname(settingsPath), { recursive: true });
+		writeFileSync(
+			settingsPath,
+			JSON.stringify({
+				...JSON.parse(blocked ?? "{}"),
+				permissions: {
+					...JSON.parse(blocked ?? "{}").permissions,
+					deny: ["Bash(rm *)", ...JSON.parse(blocked ?? "{}").permissions.deny],
+				},
+			}),
+		);
+		const content = getClaudeGlobalSettingsJsonContent(
+			"/tmp/.odin/hooks/notify.sh",
+			true,
+		);
+		const { permissions } = JSON.parse(content ?? "{}");
+		expect(permissions.deny).toEqual(["Bash(rm *)"]);
+		expect(permissions.allow).toContain(
+			"mcp__claude_ai_Slack__slack_send_message_draft",
 		);
 	});
 

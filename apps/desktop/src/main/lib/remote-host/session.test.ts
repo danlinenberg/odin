@@ -843,6 +843,27 @@ test("a host's first Claude skips onboarding, folder trust and the bypass-permis
 	});
 });
 
+test("allow-send lifts only Odin's Slack deny rules on the host", () => {
+	const home = mkdtempSync(`${tmpdir()}/odin-slack-allow-`);
+	mkdirSync(`${home}/.claude`);
+	writeFileSync(
+		`${home}/.claude/settings.json`,
+		JSON.stringify({
+			permissions: { deny: ["Bash(rm *)", ...SLACK_DENY_RULES], allow: [] },
+		}),
+	);
+	execFileSync(
+		"python3",
+		["-c", SKIP_FIRST_RUN, "/home/u/repos/api", "allow-send"],
+		{ env: { HOME: home, PATH: "/usr/bin:/bin:/opt/homebrew/bin" } },
+	);
+	const { permissions } = JSON.parse(
+		readFileSync(`${home}/.claude/settings.json`, "utf8"),
+	);
+	expect(permissions.deny).toEqual(["Bash(rm *)"]);
+	expect(permissions.allow).toEqual(SLACK_ALLOW_RULES);
+});
+
 test("a host session can't send Slack as the user: the deny joins the host's own rules once", () => {
 	const home = mkdtempSync(`${tmpdir()}/odin-slack-deny-`);
 	mkdirSync(`${home}/.claude`);

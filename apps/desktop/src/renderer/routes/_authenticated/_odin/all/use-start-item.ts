@@ -71,7 +71,8 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 	const start = async (
 		item: AllItem,
 		offHours?: { instructions: string; hostSession?: string },
-		picked?: SessionContext,
+		// Tags ride along to the launch: Auto-start marks its cards.
+		picked?: SessionContext & { tags?: string[] },
 	): Promise<StartResult> => {
 		// Nobody is there to answer at night. A bulk start asked once already.
 		const context =

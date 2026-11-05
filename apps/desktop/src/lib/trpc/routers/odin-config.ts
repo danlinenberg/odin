@@ -242,6 +242,23 @@ export interface OdinFileConfig {
 	odinRepo?: string;
 	/** Remove a session worktree as soon as its PR merges. Unset = on. */
 	pruneMergedWorktrees?: boolean;
+	/**
+	 * Settings > Personalization: sessions may send and schedule Slack
+	 * messages as me, not only draft them. Unset or false: the send tools are
+	 * denied in Claude's settings (main/lib/agent-setup/slack-tools).
+	 */
+	slackSendAllowed?: boolean;
+	/**
+	 * Settings > Remote > Auto-start: the sources (AUTO_START_SOURCES) whose
+	 * new tasks start a session on their own while the remote host is on.
+	 */
+	autoStartSources?: string[];
+	/**
+	 * Every task key Auto-start has already looked at, per source, so a task
+	 * is judged new once: what a source shows the first time is its baseline,
+	 * never started (main/lib/remote-host/auto-start).
+	 */
+	autoStartSeen?: Record<string, string[]>;
 }
 
 /** Override exists so tests can point at a temp file instead of $HOME. */
@@ -277,6 +294,8 @@ const SHARED_KEYS = [
 	"doubleTapModifier",
 	"pruneMergedWorktrees",
 	"textSize",
+	// Claude's settings are one file per machine, so the Slack send switch is too.
+	"slackSendAllowed",
 	// Tags you added on the board, as the renderer keeps them - one list per machine.
 	"customTags",
 	// The OAuth apps: which Slack/Jira/Notion app Odin *is*, and
