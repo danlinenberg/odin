@@ -1472,6 +1472,7 @@ function UserBubble({
 	movingHere,
 	onShowTerminal,
 	onDismiss,
+	onResend,
 	workspaceId,
 	fromPhone,
 	at,
@@ -1491,6 +1492,8 @@ function UserBubble({
 	movingHere?: boolean;
 	onShowTerminal?: () => void;
 	onDismiss?: () => void;
+	/** Types a lost message into Claude again. */
+	onResend?: () => void;
 	workspaceId?: string;
 }) {
 	// A launch prompt (task + standing rules + reply format) fills the screen;
@@ -1578,6 +1581,15 @@ function UserBubble({
 					<span className="text-danger">
 						Not delivered - Claude never took it
 					</span>
+					{onResend && (
+						<button
+							type="button"
+							onClick={onResend}
+							className="text-link hover:underline"
+						>
+							Resend
+						</button>
+					)}
 					{onShowTerminal && (
 						<button
 							type="button"
@@ -4037,6 +4049,20 @@ export function ChatView({
 										setPending((list) =>
 											list.filter((other) => other.id !== sent.id),
 										)
+									}
+									// Its attachments were pasted, not written in the text:
+									// a resend would drop them.
+									onResend={
+										sent.lost &&
+										!sent.previews?.length &&
+										(onShowTerminal || onResumeWith)
+											? () => {
+													setPending((list) =>
+														list.filter((other) => other.id !== sent.id),
+													);
+													sendToClaude(sent.text);
+												}
+											: undefined
 									}
 								/>
 							);
