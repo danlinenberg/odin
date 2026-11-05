@@ -72,6 +72,15 @@ export async function keepAttached<C>(
 			wait = 10_000;
 			if (choice === "fresh") fresh = true;
 			if (choice === "reboot") await reboot();
+			// A new connect line replaces "Stopped reconnecting" on screen. Without
+			// it the chat kept showing Retry until the next login ended (up to
+			// LOGIN_TIMEOUT_MS), and the click looked like it did nothing.
+			else
+				io.say(
+					fresh
+						? `connecting to ${instanceId} to start Claude over...`
+						: `connecting to ${instanceId}...`,
+				);
 			return;
 		}
 		const delay = wait / 2 + random() * (wait / 2);
