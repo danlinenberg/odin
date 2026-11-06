@@ -61,8 +61,8 @@ const STAGED_EXE = "odin-terminal-host.exe";
  *
  * Only what the daemon loads: the exe with the files beside it, `dist/main`
  * read out of the asar, and node-pty, its one native module (~330 MB of the
- * install's 1.1 GB). Copies of other versions are removed: only spawn calls
- * this, so no live daemon is using them.
+ * install's 1.1 GB). Copies of other versions are removed, except one a live
+ * daemon still runs from: see removeUnlessInUse.
  */
 export async function stageDaemonRuntime(options: {
 	execPath: string;
@@ -79,14 +79,7 @@ export async function stageDaemonRuntime(options: {
 		? await readdir(options.runtimeRoot)
 		: []) {
 		if (name === options.version) continue;
-		try {
-			await rm(join(options.runtimeRoot, name), {
-				recursive: true,
-				force: true,
-			});
-		} catch {
-			// A file still in use stays until the next spawn.
-		}
+		await removeUnlessInUse(join(options.runtimeRoot, name));
 	}
 
 	if (!existsSync(exe)) {
@@ -139,6 +132,36 @@ export function stageDaemonRuntimeOnce(
 		throw error;
 	});
 	return staged;
+}
+
+/**
+ * Removes an old version's copy, or leaves it whole when a daemon runs from it.
+ *
+ * A daemon outlives the update that installs the next version, and the new
+ * app keeps using it. Deleting its folder in place fails only on the files
+ * Windows locks (the exe, loaded DLLs) and removes the rest - icudtl.dat with
+ * them. The daemon keeps running, but every pty-subprocess it starts from that
+ * exe dies at once ("Invalid file descriptor to ICU data received", "PTY
+ * process exited immediately"), and the folder is never re-staged.
+ *
+ * Windows will not rename a folder with a running exe in it, so the rename
+ * either moves the whole copy aside for deletion or touches nothing.
+ */
+export async function removeUnlessInUse(
+	dir: string,
+	renameDir: (from: string, to: string) => Promise<void> = rename,
+): Promise<void> {
+	const trash = `${dir}.old-${process.pid}-${Date.now()}`;
+	try {
+		await renameDir(dir, trash);
+	} catch {
+		return; // In use: removed by a later spawn, after that daemon exits.
+	}
+	try {
+		await rm(trash, { recursive: true, force: true });
+	} catch {
+		// Removed by a later spawn.
+	}
 }
 
 async function copyTree(from: string, to: string): Promise<void> {
