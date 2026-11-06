@@ -23,6 +23,13 @@ export function isRtlText(text: string): boolean {
 /** A word of a sentence: letters or a number, maybe with trailing punctuation. */
 const PLAIN_WORD = /^[("'`]?[\p{L}\d][\p{L}\d'’.,:;%)?!"`-]*$/u;
 
+/** Letters and digits in one word, like libnss3 or libgtk-3-0t64: a name, not a word of a sentence. */
+const MIXED_WORD = /(?=.*\p{L})(?=.*\d)/u;
+
+function isPlainWord(word: string): boolean {
+	return PLAIN_WORD.test(word) && !MIXED_WORD.test(word);
+}
+
 /** A code comment, or a line that ends like code: a long English one is still code. */
 const CODE_LINE = /^\s*(?:#|\/\/|--|\/\*|\*)|[{};]\s*$/;
 
@@ -34,10 +41,7 @@ function isSentence(line: string, codeAround: boolean): boolean {
 	const words = line.trim().split(/\s+/);
 	if (words.length < 12) return false;
 	if (/[.?!]$/.test(line.trim())) return true;
-	return (
-		!codeAround &&
-		words.filter((word) => PLAIN_WORD.test(word)).length / words.length >= 0.8
-	);
+	return !codeAround && words.filter(isPlainWord).length / words.length >= 0.8;
 }
 
 export function looksLikeProse(code: string): boolean {

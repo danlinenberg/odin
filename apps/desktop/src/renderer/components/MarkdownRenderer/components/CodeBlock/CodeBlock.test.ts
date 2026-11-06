@@ -32,6 +32,18 @@ test("a drafted message is prose, commands and trees are not", () => {
 			"key = os.environ['KEY']\n# Handle a key that may be stored on a single line in the secrets manager format\nif not key:\n    raise ValueError(key)",
 		),
 	).toBe(false);
+	// A list of package names on one line is not a draft.
+	expect(
+		looksLikeProse(
+			"xvfb xauth libgtk-3-0t64 libgbm1 libasound2t64 libnss3 libxss1 libatk-bridge2.0-0t64 libcups2t64 libxtst6 libsecret-1-0 fonts-liberation",
+		),
+	).toBe(false);
+	// A draft that names an instance type or two is still a draft.
+	expect(
+		looksLikeProse(
+			"g6 capacity is out in our zones so I'm checking why the fallback to g4 isn't working yet",
+		),
+	).toBe(true);
 	// Hebrew drafts rarely end a line with a period.
 	expect(
 		looksLikeProse("לגבי האיטיות - נראה לי שהבעיה בhost\n1. תפתחי Settings"),
