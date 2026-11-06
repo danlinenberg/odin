@@ -40,6 +40,13 @@ const github = Bun.serve({
 	port: 0,
 	hostname: "127.0.0.1",
 	fetch: async (req) => {
+		// GitHub's /user: 401 for a token it revoked.
+		if (new URL(req.url).pathname === "/user")
+			return new Response("", {
+				status: req.headers.get("authorization")?.includes("revoked")
+					? 401
+					: 200,
+			});
 		refreshes.push(await req.text());
 		issued += 1;
 		return Response.json({
@@ -82,6 +89,7 @@ beforeAll(async () => {
 			env: {
 				PATH: process.env.PATH,
 				ODIN_GITHUB_TOKEN_URL: `http://127.0.0.1:${github.port}/token`,
+				ODIN_GITHUB_USER_URL: `http://127.0.0.1:${github.port}/user`,
 			},
 		},
 	);
@@ -169,6 +177,36 @@ describe.skipIf(!live)("Odin's host service", () => {
 			expect(JSON.parse(readFileSync(tokensFile, "utf8")).github).toBe(
 				"gho_fresh",
 			);
+		} finally {
+			laptop.stop(true);
+			writeFileSync(tokensFile, before);
+		}
+	});
+
+	test("a copy GitHub revoked is replaced by the laptop's current one at once, not after the half hour", async () => {
+		const tokensFile = join(dir, "tokens.json");
+		const before = readFileSync(tokensFile, "utf8");
+		writeFileSync(
+			tokensFile,
+			JSON.stringify({
+				githubLogin: "fresh",
+				github: "gho_revoked",
+				tunnel: "s3cret",
+			}),
+		);
+		const laptop = Bun.serve({
+			port: PORT + 1,
+			hostname: "127.0.0.1",
+			fetch: () =>
+				Response.json({
+					githubLogin: "fresh",
+					github: "gho_from_gh",
+					tunnel: "s3cret",
+				}),
+		});
+		try {
+			const res = await token("service=github&login=fresh");
+			expect(await res.text()).toBe("gho_from_gh");
 		} finally {
 			laptop.stop(true);
 			writeFileSync(tokensFile, before);

@@ -1,5 +1,5 @@
 import type { OdinFileConfig } from "lib/trpc/routers/odin-config";
-import { githubAccessToken, githubTokenForLogin } from "../github-token";
+import { githubAccessToken, liveGithubTokenForLogin } from "../github-token";
 
 /**
  * Which connected GitHub accounts may go to the remote host (Settings →
@@ -87,7 +87,7 @@ export async function hostGithubToken(
 	margin?: number,
 ): Promise<string | undefined> {
 	const login = hostGithubLogin(config, owner);
-	if (login) return (await githubTokenForLogin(login, margin)) ?? undefined;
+	if (login) return (await liveGithubTokenForLogin(login, margin)) ?? undefined;
 	// A main connection from before logins were cached, with no choice made
 	// yet: the only account there is, and the one that always went.
 	if (config.remoteHost?.githubOnHost === undefined && !config.githubLogin)
@@ -107,7 +107,7 @@ export async function hostGithubTokens(
 	const out: Record<string, string> = {};
 	for (const account of hostGithubAccounts(config)) {
 		if (!account.onHost) continue;
-		const token = await githubTokenForLogin(account.login, margin);
+		const token = await liveGithubTokenForLogin(account.login, margin);
 		if (token) out[account.login.toLowerCase()] = token;
 	}
 	return out;

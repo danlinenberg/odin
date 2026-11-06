@@ -20,6 +20,7 @@ import {
 	githubApiFetch,
 	githubOwner,
 	githubTokenForLogin,
+	liveGithubTokenForLogin,
 	onGithubTokensChanged,
 	storeGithubTokens,
 	tokenOrder,
@@ -53,6 +54,41 @@ function mockFetch(body: unknown) {
 	}) as unknown as typeof fetch;
 	return calls;
 }
+
+describe("liveGithubTokenForLogin", () => {
+	test("a token GitHub revoked goes to the remote host as gh's token for that login", async () => {
+		updateOdinConfig({ githubLogin: "main", githubToken: "gho_revoked" });
+		const asked: string[] = [];
+		const token = await liveGithubTokenForLogin(
+			"main",
+			undefined,
+			async (t) => t === "gho_revoked",
+			async (login) => {
+				asked.push(login);
+				return "gho_cli";
+			},
+		);
+		expect(token).toBe("gho_cli");
+		expect(asked).toEqual(["main"]);
+	});
+
+	test("a working token goes as is, and with no better one the stored token stays", async () => {
+		updateOdinConfig({ githubLogin: "main", githubToken: "gho_ok" });
+		const cli = mock(async () => "gho_cli");
+		expect(
+			await liveGithubTokenForLogin("main", undefined, async () => false, cli),
+		).toBe("gho_ok");
+		expect(cli).not.toHaveBeenCalled();
+		expect(
+			await liveGithubTokenForLogin(
+				"main",
+				undefined,
+				async () => true,
+				async () => null,
+			),
+		).toBe("gho_ok");
+	});
+});
 
 describe("githubAccessToken", () => {
 	test("null when GitHub isn't connected", async () => {

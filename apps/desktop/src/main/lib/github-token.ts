@@ -199,6 +199,38 @@ export async function githubTokenForLogin(
 	return account ? extraAccountToken(account, margin) : null;
 }
 
+/** True when GitHub answers 401 for the token; offline counts as fine. */
+export async function githubRefuses(token: string): Promise<boolean> {
+	try {
+		const res = await fetch("https://api.github.com/user", {
+			headers: { Authorization: `Bearer ${token}` },
+			signal: AbortSignal.timeout(10_000),
+		});
+		return res.status === 401;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * githubTokenForLogin, checked with GitHub first: the copy the remote host
+ * gets. GitHub revokes Odin's token server-side before it expires, and the
+ * host has no `gh` of this computer's to fall back on, so a dead token here
+ * is swapped for the one `gh` holds for the same login.
+ */
+export async function liveGithubTokenForLogin(
+	login: string,
+	margin = REFRESH_MARGIN_MS,
+	refuses: (token: string) => Promise<boolean> = githubRefuses,
+	cliToken: (login: string) => Promise<string | null> = githubCliToken,
+): Promise<string | null> {
+	const token = await githubTokenForLogin(login, margin);
+	if (token && !(await refuses(token))) return token;
+	const cli = await cliToken(login);
+	if (cli && cli !== token && !(await refuses(cli))) return cli;
+	return token;
+}
+
 export interface GithubAccountToken {
 	/** Null for a main connection made before the login was cached. */
 	login: string | null;
@@ -296,8 +328,9 @@ export function disconnectGithubAccount(login?: string): void {
  * *active* - on a machine signed into a work and a personal account that is a
  * coin flip, and the wrong one quietly returns somebody else's pull requests.
  */
-export async function githubCliToken(): Promise<string | null> {
-	const login = readOdinConfig().githubLogin;
+export async function githubCliToken(
+	login = readOdinConfig().githubLogin,
+): Promise<string | null> {
 	if (!login) return null;
 	try {
 		const { stdout } = await run("gh", ["auth", "token", "--user", login], {
