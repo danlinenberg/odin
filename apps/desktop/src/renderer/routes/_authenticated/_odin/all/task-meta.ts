@@ -102,6 +102,54 @@ export function placeKey(
 }
 
 /**
+ * A row parked while someone else moves: who or what it waits on, and the
+ * day you expect them to - not its due date, the day to look again. On that
+ * day it goes back on Up next by itself.
+ */
+export interface Waiting {
+	/** Who or what - a teammate, a PR, "the release". May be empty. */
+	on: string;
+	/** Local `YYYY-MM-DD` it comes back on Up next. */
+	until: string;
+	/** When it was parked, epoch ms. */
+	setAt: number;
+	/** Kept so the "back on Up next" note can name the row. */
+	title?: string;
+}
+
+/** Days a row waits when you don't pick a day. */
+export const WAIT_DAYS = 3;
+
+/** Local `YYYY-MM-DD`, `days` after `now`. */
+export function dayAfter(now: number, days: number): string {
+	const d = new Date(now);
+	d.setDate(d.getDate() + days);
+	return [
+		d.getFullYear(),
+		String(d.getMonth() + 1).padStart(2, "0"),
+		String(d.getDate()).padStart(2, "0"),
+	].join("-");
+}
+
+/** The waiting rows whose day has come, oldest day first. */
+export function wokenKeys(
+	waiting: Record<string, Waiting>,
+	today: string,
+): string[] {
+	return Object.entries(waiting)
+		.filter(([, w]) => w.until <= today)
+		.sort((a, b) => a[1].until.localeCompare(b[1].until))
+		.map(([key]) => key);
+}
+
+/** The map without `key`. */
+function drop<T>(map: Record<string, T>, key: string): Record<string, T> {
+	if (!(key in map)) return map;
+	const { [key]: _, ...rest } = map;
+	return rest;
+}
+
+/**
  * Per-row status and type, and Up next - the rows you've lined up, in the
  * order you'll take them. Keyed by the All-feed key, like Done.
  * Bounded by KEEP: setting a row moves it to the end, and the oldest fall
@@ -111,6 +159,8 @@ export const useTaskMeta = create<{
 	statuses: Record<string, TaskStatus>;
 	types: Record<string, TaskType>;
 	queue: string[];
+	/** Rows waiting on someone else, off Up next until their day. */
+	waiting: Record<string, Waiting>;
 	setStatus: (key: string, status: TaskStatus | null) => void;
 	setType: (key: string, type: TaskType | null) => void;
 	enqueue: (key: string) => void;
@@ -118,24 +168,74 @@ export const useTaskMeta = create<{
 	enqueueAt: (key: string, place: QueuePlace) => void;
 	dequeue: (key: string) => void;
 	move: (from: string, to: string) => void;
+	/** Park `key` until `until`: off Up next, into Waiting on others. */
+	wait: (key: string, on: string, until: string, title?: string) => void;
+	/** Stop waiting. `back` puts it on top of Up next. */
+	unwait: (key: string, back?: boolean) => void;
+	/** Every row whose day is `today` or past goes back on top of Up next. Returns their keys. */
+	wake: (today: string) => string[];
 }>()(
 	persist(
 		(set) => ({
 			statuses: {},
 			types: {},
 			queue: [],
+			waiting: {},
 			setStatus: (key, status) =>
 				set((s) => ({ statuses: put(s.statuses, key, status) })),
 			setType: (key, type) => set((s) => ({ types: put(s.types, key, type) })),
+			// Lining a row up again ends its wait: it's back to being yours.
 			enqueue: (key) =>
 				set((s) =>
-					s.queue.includes(key) ? s : { queue: [...s.queue, key].slice(-KEEP) },
+					s.queue.includes(key)
+						? s
+						: {
+								queue: [...s.queue, key].slice(-KEEP),
+								waiting: drop(s.waiting, key),
+							},
 				),
 			enqueueAt: (key, place) =>
-				set((s) => ({ queue: placeKey(s.queue, key, place) })),
+				set((s) => ({
+					queue: placeKey(s.queue, key, place),
+					waiting: drop(s.waiting, key),
+				})),
+			// Off Up next ends a wait too: Done and Drop go through here.
 			dequeue: (key) =>
-				set((s) => ({ queue: s.queue.filter((k) => k !== key) })),
+				set((s) => ({
+					queue: s.queue.filter((k) => k !== key),
+					waiting: drop(s.waiting, key),
+				})),
 			move: (from, to) => set((s) => ({ queue: moveKey(s.queue, from, to) })),
+			wait: (key, on, until, title) =>
+				set((s) => ({
+					queue: s.queue.filter((k) => k !== key),
+					waiting: put(s.waiting, key, {
+						on: on.trim(),
+						until,
+						setAt: Date.now(),
+						...(title ? { title } : {}),
+					}),
+				})),
+			unwait: (key, back = false) =>
+				set((s) => ({
+					waiting: drop(s.waiting, key),
+					...(back ? { queue: placeKey(s.queue, key, "top") } : {}),
+				})),
+			wake: (today) => {
+				const keys = wokenKeys(useTaskMeta.getState().waiting, today);
+				if (!keys.length) return keys;
+				set((s) => {
+					let queue = s.queue;
+					let waiting = s.waiting;
+					// Oldest day placed last, so it ends on top.
+					for (const key of [...keys].reverse()) {
+						queue = placeKey(queue, key, "top");
+						waiting = drop(waiting, key);
+					}
+					return { queue, waiting };
+				});
+				return keys;
+			},
 		}),
 		{ name: "odin-task-meta" },
 	),

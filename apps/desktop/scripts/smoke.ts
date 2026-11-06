@@ -655,6 +655,33 @@ await step(
 	},
 );
 
+await step(
+	"Waiting on others parks a task off the list until its day",
+	async () => {
+		await rail("Tasks");
+		await waitForText(TASK);
+		await page(
+			`[...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(TASK)})?.click()`,
+		);
+		await waitForText("Tasks feed →");
+		await click("button", "Park it off Up next");
+		await waitForText("Waiting on others");
+		await waitForText("back on Up next");
+		await click("button", "Close details");
+		await waitForText("Tasks feed →", false);
+		// The row's hourglass brings it back early, on top of Up next.
+		if (!(await clickOnTaskRow("Stop waiting")))
+			throw new Error("no Stop waiting on the waiting task's row");
+		await waitForText("Waiting on others", false);
+		await waitForText("drag to reorder");
+		await page(
+			`document.querySelector('button[aria-label="Take it off Up next"]')?.click()`,
+		);
+		await waitForText("drag to reorder", false);
+		await waitForText(TASK);
+	},
+);
+
 await step("Tonight on a task row picks it for the Night Agent", async () => {
 	// Next in line is a column you open on the board; a fresh home has it shut.
 	const openNextInLine = () =>
