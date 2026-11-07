@@ -1,7 +1,9 @@
 import {
 	agentOnScreen,
+	awaitsAwsSignIn,
 	claudeDrawn,
 	claudeSetup,
+	reconnectStopped,
 	remoteConnectLine,
 } from "shared/odin-screen-status";
 
@@ -67,6 +69,20 @@ export function hostNotAway(screen: string): boolean {
 	);
 }
 
+/**
+ * The pane waits on you, not on the host: an AWS sign-in to approve, or a
+ * reconnect that stopped until you pick Retry. Time there doesn't count
+ * against WAIT_MAX_MS, so a reply sent before you signed in still goes in.
+ */
+export function waitsOnYou(screen: string): boolean {
+	const line = remoteConnectLine(screen);
+	return (
+		!!line?.startsWith("Blocked:") ||
+		awaitsAwsSignIn(line) ||
+		reconnectStopped(line)
+	);
+}
+
 const POLL_MS = 500;
 /** Enter again if the stopped prompt is still up this long after the last one. */
 const WAKE_RETRY_MS = 15_000;
@@ -106,10 +122,16 @@ async function untilReady(
 	let sent = false;
 	let woke = -WAKE_RETRY_MS;
 	let unsure = 0;
-	for (let waited = 0; waited < WAIT_MAX_MS; waited += POLL_MS) {
+	// `waited` is the clock the idle wake runs on; `away` only the time the
+	// host was away on its own. Time the pane waits on you is not counted:
+	// a reply sent before an expired AWS sign-in gave up after 30 minutes,
+	// and never went in once you signed in and the session reconnected.
+	let away = 0;
+	for (let waited = 0; away < WAIT_MAX_MS; waited += POLL_MS) {
 		if (!deps.alive()) return false;
 		const screen = await read(deps);
 		if (hostReady(screen)) return sent ? "sent" : "ready";
+		if (!waitsOnYou(screen)) away += POLL_MS;
 		unsure = hostNotAway(screen) ? unsure + POLL_MS : 0;
 		if (unsure > UNSURE_MS) return sent ? "sent" : "ready";
 		if (idleStopped(screen) && waited - woke >= WAKE_RETRY_MS) {
