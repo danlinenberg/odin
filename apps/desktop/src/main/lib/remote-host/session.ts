@@ -23,6 +23,8 @@ export { tmuxSession };
 
 export interface RemoteSessionSpec {
 	instanceId: string;
+	/** The host's name in Odin, shown to the user instead of the id. */
+	name?: string | null;
 	profile?: string | null;
 	region?: string | null;
 	user: string;

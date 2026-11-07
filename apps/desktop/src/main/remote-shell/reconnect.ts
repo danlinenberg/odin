@@ -48,7 +48,8 @@ const message = (err: unknown) =>
  */
 export async function keepAttached<C>(
 	io: ReconnectIo<C>,
-	instanceId: string,
+	/** The host as the user knows it: its name, else its instance id. */
+	host: string,
 ): Promise<void> {
 	const now = io.now ?? Date.now;
 	const random = io.random ?? Math.random;
@@ -78,15 +79,15 @@ export async function keepAttached<C>(
 			else
 				io.say(
 					fresh
-						? `connecting to ${instanceId} to start Claude over...`
-						: `connecting to ${instanceId}...`,
+						? `connecting to ${host} to start Claude over...`
+						: `connecting to ${host}...`,
 				);
 			return;
 		}
 		const delay = wait / 2 + random() * (wait / 2);
 		const offer = tries >= 3;
 		io.say(
-			`${reason} - trying again in ${Math.round(delay / 1000)}s${offer ? ` (press R to reboot ${instanceId})` : ""}`,
+			`${reason} - trying again in ${Math.round(delay / 1000)}s${offer ? ` (press R to reboot ${host})` : ""}`,
 		);
 		wait = Math.min(wait * 2, 300_000);
 		if (await io.pause(delay, offer)) await reboot();
@@ -101,7 +102,7 @@ export async function keepAttached<C>(
 			}
 		}
 	};
-	io.say(`connecting to ${instanceId}...`);
+	io.say(`connecting to ${host}...`);
 	for (let first = true; ; first = false) {
 		const client = await login();
 		const startedAt = now();
@@ -118,13 +119,13 @@ export async function keepAttached<C>(
 		if (reason || now() - startedAt < STABLE_MS)
 			await failed(
 				reason ??
-					`could not reconnect: the session on ${instanceId} dropped right away`,
+					`could not reconnect: the session on ${host} dropped right away`,
 			);
 		else {
 			tries = 0;
 			wait = 10_000;
 		}
-		io.say(`connection lost - reconnecting to ${instanceId}...`);
+		io.say(`connection lost - reconnecting to ${host}...`);
 	}
 }
 
