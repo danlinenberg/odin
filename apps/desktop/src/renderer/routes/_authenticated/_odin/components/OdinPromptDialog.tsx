@@ -12,13 +12,34 @@ import { insertSkill, matchSkills, skillToken } from "./skill-picker";
 import { WherePicker } from "./WherePicker";
 
 /**
- * An attachment (image, video or PDF): either bytes to copy in (`dataUrl`) or a
- * file already on disk (`path`).
+ * An attachment (image, video, PDF or text doc): either bytes to copy in
+ * (`dataUrl`) or a file already on disk (`path`).
  */
 export type PromptImage = { name: string; dataUrl?: string; path?: string };
 
 const isPdf = (file: File) =>
 	file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+
+/** A markdown or plain-text doc. macOS often gives a .md file no type at all. */
+const TEXT_DOC = /\.(md|markdown|txt)$/i;
+const isTextDoc = (file: File) =>
+	TEXT_DOC.test(file.name) || /^text\/(markdown|plain)\b/.test(file.type);
+
+/** What the new-session dialog takes on a pick, drop or paste. */
+export const isPromptAttachable = (file: File): boolean =>
+	file.type.startsWith("image/") ||
+	file.type.startsWith("video/") ||
+	isPdf(file) ||
+	isTextDoc(file);
+
+/**
+ * A text doc with no path (pasted) as bytes with a type parseDataUrl knows, so
+ * it lands as .md or .txt and not as an untyped blob.
+ */
+const asTypedTextDoc = (file: File): File =>
+	new File([file], file.name, {
+		type: /\.txt$/i.test(file.name) ? "text/plain" : "text/markdown",
+	});
 
 /**
  * Read a File as a data URL - the browser does the base64 for us, and unlike
@@ -228,20 +249,16 @@ export function OdinPromptDialog({
 	};
 
 	const addFiles = async (picked: FileList | null) => {
-		const accepted = [...(picked ?? [])].filter(
-			(file) =>
-				file.type.startsWith("image/") ||
-				file.type.startsWith("video/") ||
-				isPdf(file),
-		);
+		const accepted = [...(picked ?? [])].filter(isPromptAttachable);
 		if (accepted.length === 0) return;
 		const read = await Promise.all(
 			accepted.map(async (file) => {
-				// A pasted video or PDF (no path) still falls back to bytes.
+				// A pasted video, PDF or doc (no path) still falls back to bytes.
 				const path = !file.type.startsWith("image/")
 					? window.webUtils.getPathForFile(file)
 					: "";
-				return path ? { name: file.name, path } : readFile(file);
+				if (path) return { name: file.name, path };
+				return readFile(isTextDoc(file) ? asTypedTextDoc(file) : file);
 			}),
 		);
 		setFiles((previous) => [...previous, ...read]);
@@ -274,8 +291,8 @@ export function OdinPromptDialog({
 				<div className="mb-2 flex items-baseline justify-between gap-3 text-xs font-semibold text-foreground">
 					{heading}
 					<span className="truncate text-[11px] font-normal text-muted-foreground/70">
-						{sendKeys} start · / for skills · paste or drop images, video and
-						PDFs
+						{sendKeys} start · / for skills · paste or drop images, video, PDFs
+						and .md files
 					</span>
 				</div>
 				{note && (
@@ -389,11 +406,13 @@ export function OdinPromptDialog({
 										className="size-full object-cover"
 									/>
 								) : (
-									// A video or PDF: nothing to draw, so the name is the
+									// A video, PDF or doc: nothing to draw, so the name is the
 									// thumbnail.
 									<span className="flex size-full flex-col items-center justify-center gap-0.5 bg-card px-1 text-[9px] leading-tight text-muted-foreground">
 										<span className="text-[13px]">
-											{/\.pdf$/i.test(file.name) ? "📄" : "🎬"}
+											{/\.pdf$/i.test(file.name) || TEXT_DOC.test(file.name)
+												? "📄"
+												: "🎬"}
 										</span>
 										<span className="w-full truncate text-center">
 											{file.name}
@@ -437,7 +456,7 @@ export function OdinPromptDialog({
 					<input
 						ref={fileInput}
 						type="file"
-						accept="image/*,video/*,application/pdf"
+						accept="image/*,video/*,application/pdf,.md,.markdown,.txt,text/markdown,text/plain"
 						multiple
 						className="hidden"
 						onChange={(event) => {
@@ -448,7 +467,7 @@ export function OdinPromptDialog({
 					<button
 						type="button"
 						onClick={() => fileInput.current?.click()}
-						title="Add images, video or PDFs - you can also paste or drop them"
+						title="Add images, video, PDFs or .md and .txt files - you can also paste or drop them"
 						className="h-7 shrink-0 rounded-[6px] bg-secondary px-2.5 text-[11.5px] font-semibold whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground"
 					>
 						+ Attach
