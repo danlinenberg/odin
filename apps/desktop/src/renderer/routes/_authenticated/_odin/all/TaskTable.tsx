@@ -39,7 +39,7 @@ import { usePendingFocus } from "../hooks/usePendingFocus";
 import { type AllItem, bandOf, plainText, previewPastTitle } from "./all-items";
 import { DropRuleMenu } from "./DropRuleMenu";
 import { statusLabel, typeLabel, typeOf, useTaskMeta } from "./task-meta";
-import { useStartAllItem } from "./use-start-item";
+import { START_SESSION_TIP, useStartAllItem } from "./use-start-item";
 
 /**
  * The one task table. All and every feed tab - Tasks, Slack, Jira, GitHub,
@@ -521,6 +521,7 @@ export function TaskRow({
 							<button
 								type="button"
 								aria-label="Start session"
+								title={START_SESSION_TIP}
 								disabled={rows.isLaunching}
 								onClick={() => void rows.start(item)}
 								className={cn(ROW_START_BUTTON, "px-2.5")}

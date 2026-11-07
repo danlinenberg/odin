@@ -65,3 +65,18 @@ test("enqueueAt lines a row up at the place asked", () => {
 	expect(useTaskMeta.getState().queue).toEqual(["task:1", "task:2", "a", "b"]);
 	useTaskMeta.setState({ queue: [] });
 });
+
+test("setNote keeps notes on any row, and empty clears them", () => {
+	useTaskMeta.setState({ notes: {} });
+	useTaskMeta.getState().setNote("slack:C1/123", "  ask Dana first  ");
+	useTaskMeta.getState().setNote("jira:A-1", "blocked on infra");
+	expect(useTaskMeta.getState().notes).toEqual({
+		"slack:C1/123": "ask Dana first",
+		"jira:A-1": "blocked on infra",
+	});
+	useTaskMeta.getState().setNote("jira:A-1", "  ");
+	expect(useTaskMeta.getState().notes).toEqual({
+		"slack:C1/123": "ask Dana first",
+	});
+	useTaskMeta.setState({ notes: {} });
+});
