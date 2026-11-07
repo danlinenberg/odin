@@ -12,8 +12,19 @@ import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { useDoneStore } from "renderer/stores/done";
 import type { AllItem } from "./all-items";
 import { type DropRule, ruleLabel, rulesFor, useDropRules } from "./drop-rules";
+import { dayAfter, useTaskMeta } from "./task-meta";
 
-/** Right-click a row: drop every task like it, now and as new ones arrive. */
+/** The quick waits on the right-click menu; any other day is in the side panel. */
+const WAITS: { days: number; label: string }[] = [
+	{ days: 1, label: "Back on Up next tomorrow" },
+	{ days: 3, label: "Back on Up next in 3 days" },
+	{ days: 7, label: "Back on Up next in a week" },
+];
+
+/**
+ * Right-click a row: park it as waiting on someone else, or drop every task
+ * like it, now and as new ones arrive.
+ */
 export function DropRuleMenu({
 	item,
 	children,
@@ -22,8 +33,9 @@ export function DropRuleMenu({
 	item: AllItem | undefined;
 	children: ReactNode;
 }) {
-	const choices = item ? rulesFor(item) : [];
-	if (!item || choices.length === 0) return children;
+	const waiting = useTaskMeta((s) => (item ? s.waiting[item.key] : undefined));
+	if (!item) return children;
+	const choices = rulesFor(item);
 	// Mail: the sender's address is junk from now on, and the junk filter
 	// takes the mail as an example for look-alikes from other senders.
 	const ignoreLikeThis = () => {
@@ -59,6 +71,36 @@ export function DropRuleMenu({
 		<ContextMenu>
 			<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
 			<ContextMenuContent className="w-[320px]">
+				{waiting ? (
+					<ContextMenuItem
+						onSelect={() => useTaskMeta.getState().unwait(item.key, true)}
+						className="text-[12px]"
+					>
+						Stop waiting - back on top of Up next
+					</ContextMenuItem>
+				) : (
+					<>
+						<ContextMenuLabel className="text-[11px] text-muted-foreground">
+							Waiting on someone else
+						</ContextMenuLabel>
+						{WAITS.map(({ days, label }) => (
+							<ContextMenuItem
+								key={days}
+								onSelect={() =>
+									useTaskMeta
+										.getState()
+										.wait(item.key, "", dayAfter(Date.now(), days), item.title)
+								}
+								className="text-[12px]"
+							>
+								{label}
+							</ContextMenuItem>
+						))}
+					</>
+				)}
+				{(item.source === "Email" || choices.length > 0) && (
+					<ContextMenuSeparator />
+				)}
 				{item.source === "Email" && (
 					<>
 						<ContextMenuItem onSelect={ignoreLikeThis} className="text-[12px]">
@@ -67,9 +109,11 @@ export function DropRuleMenu({
 						<ContextMenuSeparator />
 					</>
 				)}
-				<ContextMenuLabel className="text-[11px] text-muted-foreground">
-					Drop {item.source} tasks like this from now on
-				</ContextMenuLabel>
+				{choices.length > 0 && (
+					<ContextMenuLabel className="text-[11px] text-muted-foreground">
+						Drop {item.source} tasks like this from now on
+					</ContextMenuLabel>
+				)}
 				{choices.map((rule) => (
 					<ContextMenuItem
 						key={rule.field}

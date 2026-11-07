@@ -8,6 +8,7 @@ import {
 	LuBan,
 	LuBookmark,
 	LuExternalLink,
+	LuHourglass,
 	LuListMinus,
 	LuListPlus,
 } from "react-icons/lu";
@@ -28,6 +29,7 @@ import { PersonChip } from "../components/PersonChip";
 import { PILL } from "../components/pill";
 import {
 	DueChip,
+	dueLabel,
 	effectiveDue,
 	isDue,
 	OverdueMark,
@@ -38,7 +40,13 @@ import { useDone } from "../hooks/useDone";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { type AllItem, bandOf, plainText, previewPastTitle } from "./all-items";
 import { DropRuleMenu } from "./DropRuleMenu";
-import { statusLabel, typeLabel, typeOf, useTaskMeta } from "./task-meta";
+import {
+	statusLabel,
+	typeLabel,
+	typeOf,
+	useTaskMeta,
+	type Waiting,
+} from "./task-meta";
 import { useStartAllItem } from "./use-start-item";
 
 /**
@@ -176,7 +184,7 @@ export function useTaskRows(onSlackStarted?: () => void) {
 	const start = useStartAllItem(onSlackStarted);
 	const { markDone, markReading, undo, reading } = useDone();
 	const dropByHand = useDropByHand();
-	const { statuses, types, enqueue, dequeue } = useTaskMeta();
+	const { statuses, types, enqueue, dequeue, waiting, unwait } = useTaskMeta();
 	const reminders = useReminders((s) => s.reminders);
 	const readingKeys = useMemo(
 		() => new Set(reading.map((row) => row.key)),
@@ -190,6 +198,8 @@ export function useTaskRows(onSlackStarted?: () => void) {
 		readingKeys,
 		enqueue,
 		dequeue,
+		waiting,
+		unwait,
 		markReading,
 		undo,
 		/** Done, and off Up next too, so an Undo doesn't bring it back there. */
@@ -238,6 +248,16 @@ export function SortableRow({
 	});
 }
 
+/** A waiting row's second line: who it waits on, and when it comes back. */
+export function waitLine(wait: Waiting, now: number): string {
+	const back = dueLabel(wait.until, now);
+	// "Today", "Tomorrow" read as words in a sentence; a date takes "on".
+	const when = /^\w+day$|^Tomorrow$/.test(back)
+		? back.toLowerCase()
+		: `on ${back}`;
+	return `Waiting${wait.on ? ` on ${wait.on}` : ""} - back on Up next ${when}`;
+}
+
 /** One task, in the table's columns. */
 export function TaskRow({
 	item,
@@ -274,11 +294,14 @@ export function TaskRow({
 	const band = bandOf(item, isDue(due, now), now, isReading);
 	// The second line: the comment that put it here, else the body - always
 	// one line, so every row is the same height and the columns line up.
-	const preview = item.mention
-		? `${item.mention.author ?? "Someone"}: ${plainText(item.mention.text)}`
-		: item.body
-			? previewPastTitle(item.title, plainText(item.body))
-			: "";
+	const wait = rows.waiting[item.key];
+	const preview = wait
+		? waitLine(wait, now)
+		: item.mention
+			? `${item.mention.author ?? "Someone"}: ${plainText(item.mention.text)}`
+			: item.body
+				? previewPastTitle(item.title, plainText(item.body))
+				: "";
 	const at = created
 		? item.createdAt
 		: ASKS.has(item.ask.kind) && item.ask.at
@@ -458,7 +481,18 @@ export function TaskRow({
 							title={item.title}
 							upstream={item.dueDate}
 						/>
-						{drag ? (
+						{wait ? (
+							<IconTip label="Stop waiting - back on top of Up next">
+								<button
+									type="button"
+									onClick={() => rows.unwait(item.key, true)}
+									aria-label="Stop waiting - back on top of Up next"
+									className={cn(ROW_ICON_BUTTON, "text-primary")}
+								>
+									<LuHourglass className="size-3.5" aria-hidden />
+								</button>
+							</IconTip>
+						) : drag ? (
 							<IconTip label="Take it off Up next">
 								<button
 									type="button"
