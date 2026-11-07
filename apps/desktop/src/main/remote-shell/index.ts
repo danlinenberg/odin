@@ -36,6 +36,7 @@ import {
 } from "../lib/remote-host/ssm";
 import {
 	keepAttached,
+	LEAVE_TMUX_SCREEN,
 	LOGIN_TIMEOUT_MS,
 	type StuckChoice,
 	settleWithin,
@@ -653,6 +654,7 @@ async function attach(
 					stopMirror();
 					stopLoad();
 					client.end();
+					stdout.write(LEAVE_TMUX_SCREEN);
 					resolve(!exited);
 				};
 				stream.on("close", end);
