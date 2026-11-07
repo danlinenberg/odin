@@ -15,7 +15,7 @@ import { type DropRule, ruleLabel, rulesFor, useDropRules } from "./drop-rules";
 import { dayAfter, useTaskMeta } from "./task-meta";
 
 /** The quick waits on the right-click menu; any other day is in the side panel. */
-const WAITS: { days: number; label: string }[] = [
+export const WAITS: { days: number; label: string }[] = [
 	{ days: 1, label: "Back on Up next tomorrow" },
 	{ days: 3, label: "Back on Up next in 3 days" },
 	{ days: 7, label: "Back on Up next in a week" },
@@ -27,10 +27,16 @@ const WAITS: { days: number; label: string }[] = [
  */
 export function DropRuleMenu({
 	item,
+	actions,
 	children,
 }: {
 	/** Unset when the row isn't in any feed any more: no menu, just the row. */
 	item: AllItem | undefined;
+	/**
+	 * A task row's own actions (TaskRowMenu), in place of the wait items:
+	 * they carry the waits themselves, for one row or every ticked one.
+	 */
+	actions?: ReactNode;
 	children: ReactNode;
 }) {
 	const waiting = useTaskMeta((s) => (item ? s.waiting[item.key] : undefined));
@@ -71,7 +77,9 @@ export function DropRuleMenu({
 		<ContextMenu>
 			<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
 			<ContextMenuContent className="w-[320px]">
-				{waiting ? (
+				{actions ? (
+					actions
+				) : waiting ? (
 					<ContextMenuItem
 						onSelect={() => useTaskMeta.getState().unwait(item.key, true)}
 						className="text-[12px]"

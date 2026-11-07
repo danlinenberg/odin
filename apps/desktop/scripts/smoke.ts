@@ -762,6 +762,47 @@ await step("ticking two tasks marks both done at once", async () => {
 	await waitForText(TASK);
 });
 
+/** Right-click the row whose title is `title`; true when it was there. */
+async function rightClickTaskRow(title: string): Promise<boolean> {
+	return page<boolean>(`(() => {
+		const t = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(title)});
+		const row = t?.closest("[data-task-row]");
+		const at = row?.getBoundingClientRect();
+		row?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: at?.x, clientY: at?.y }));
+		return !!row;
+	})()`);
+}
+
+await step(
+	"right-click a task row: its actions, one row or every ticked one",
+	async () => {
+		await rail("Tasks");
+		await waitForText(TASK);
+		if (!(await rightClickTaskRow(TASK)))
+			throw new Error("no row for the task");
+		await click('[role="menuitem"]', "Line it up - top of Up next");
+		await waitForText("drag to reorder");
+		if (!(await rightClickTaskRow(TASK))) throw new Error("no row on Up next");
+		await click('[role="menuitem"]', "Take it off Up next");
+		await waitForText("drag to reorder", false);
+		const pair = [`Menu one ${Date.now()}`, `Menu two ${Date.now()}`];
+		for (const typed of pair) {
+			await fill('textarea[placeholder="What needs doing?"]', typed);
+			await click("button", "Add task");
+			await waitForText(typed);
+		}
+		for (const typed of pair)
+			await page(
+				`document.querySelector(${JSON.stringify(`input[aria-label="Select ${typed}"]`)}).click()`,
+			);
+		await waitForText("2 selected");
+		if (!(await rightClickTaskRow(pair[0]))) throw new Error("no ticked row");
+		await click('[role="menuitem"]', "Done - 2 tasks");
+		for (const typed of pair) await waitForText(typed, false);
+		await waitForText(TASK);
+	},
+);
+
 await step("A task's title opens its details beside the list", async () => {
 	await rail("Tasks");
 	await waitForText(TASK);

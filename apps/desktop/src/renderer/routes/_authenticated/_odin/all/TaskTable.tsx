@@ -39,7 +39,7 @@ import { TonightButton } from "../components/TonightButton";
 import { useDone } from "../hooks/useDone";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { type AllItem, bandOf, plainText, previewPastTitle } from "./all-items";
-import { DropRuleMenu } from "./DropRuleMenu";
+import { type BulkActions, TaskRowMenu } from "./TaskRowMenu";
 import {
 	statusLabel,
 	typeLabel,
@@ -269,6 +269,7 @@ export function TaskRow({
 	open = false,
 	onOpen,
 	done = false,
+	bulk,
 }: {
 	item: AllItem;
 	rows: TaskRows;
@@ -285,6 +286,8 @@ export function TaskRow({
 	onOpen?: () => void;
 	/** Already done (Slack's Done view): Done reads as Undo. */
 	done?: boolean;
+	/** Ticked with others: its right-click acts on every ticked row. */
+	bulk?: BulkActions;
 }) {
 	const url = item.url;
 	const SourceIcon = SOURCE_ICON[item.to];
@@ -312,7 +315,7 @@ export function TaskRow({
 		? "Back to Waiting on you"
 		: "Mark it Read later - it moves to Docs";
 	return (
-		<DropRuleMenu item={item}>
+		<TaskRowMenu item={item} rows={rows} done={done} bulk={bulk}>
 			<div
 				ref={drag?.setNodeRef}
 				style={drag?.style}
@@ -571,6 +574,6 @@ export function TaskRow({
 					</span>
 				</div>
 			</div>
-		</DropRuleMenu>
+		</TaskRowMenu>
 	);
 }
