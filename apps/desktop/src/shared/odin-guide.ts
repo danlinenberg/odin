@@ -23,7 +23,8 @@ Tabs, in two groups split by a hairline: Odin's own (All, Tasks, Docs), then the
 - **Done** is Odin only: nothing is written back to the source, and Undo is offered. A row done in one place leaves every feed. Store: done.
 - **Same task, several feeds**: on All, a Jira ticket, the Notion page that copied it and the Slack message asking about it are one row when they share a Jira key or PR link, or the same title (four words or more). The owner's row stays (Jira, GitHub, ClickUp, Notion, Tasks, Slack, Email, in that order) with a chip per other source that opens it there; Done puts them all away. A reworded copy stays its own row.
 - **Right-click a row** (any feed tab, or Review): "Drop <source> tasks like this from now on" - From <person>, In <repo/channel/project>, or Titled <exact title>. Matching rows are marked Done now and as they arrive. The rules list under All's Filter, "Dropped automatically"; × removes one and brings its rows back. Store: odin.all.dropRules.
-- **Start** opens "Start: <title>": click Start session, or "+ Add context" for guidelines or images first. The session opens on the Dev Board.
+- **Start** opens "Start: <title>": click Start session, or "+ Add context" for guidelines or images first. The session opens on the Dev Board, linked to the task (the button turns into Go to session while it runs). Hovering Start says this.
+- **Side panel** (click a task's title): labelled fields Status, Type and Priority, plus "+ Up next". Every task has a Notes box there: your own tasks' notes are their brief; on a Slack, Jira, GitHub, Notion, Email, ClickUp or Calendar row, Notes sit under the source's own text, stay in Odin only, and are added to the brief when you Start session.
 - **Status** is Odin's own if you set one (Backlog, Prioritised, In progress, In review, On hold), else the source's. Odin's status stays in Odin.
 - **Priority** maps to high, medium or low. A Slack reaction and a Jira @-mention always count as High.
 
@@ -33,6 +34,7 @@ Tabs, in two groups split by a hairline: Odin's own (All, Tasks, Docs), then the
 - A leading "!" is Low, "!!!" is High, none is Medium. The Priority picker writes the same marks.
 - A "/skill" after the "!"s (or the Skill picker) makes the session start by running that skill with the title as its argument.
 - The Repo picker ("agent picks") sets the checkout. Empty: the agent picks the repo from the brief.
+- More fields under the box (on Tasks → All and in the New task dialog): **Up next** (No, Start of queue, End of queue), **Due** (a date), **Status** and **Type**, the same ones the side panel sets.
 - Sorted by priority, then newest first. Starting a task keeps it on the list, linked to its session: started is not finished.
 - Schedules (automations) don't show here. Each profile has its own list. The New task dialog has a Start now box.
 - Store: tasks.

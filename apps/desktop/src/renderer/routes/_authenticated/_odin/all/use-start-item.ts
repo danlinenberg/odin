@@ -7,11 +7,16 @@ import {
 	askSessionContext,
 	type SessionContext,
 } from "../components/SessionContextDialog";
-import { useMyTasks } from "../hooks/useOdinTasks";
+import { ATTACHMENT_URL, useMyTasks } from "../hooks/useOdinTasks";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import type { AllItem } from "./all-items";
+import { useTaskMeta } from "./task-meta";
+
+/** Hover text on Start / Start session, in the panel and on a row. */
+export const START_SESSION_TIP =
+	"Start a Claude session on this task: pick where it runs, then it opens on the Dev Board with the task (and your notes) as its brief. The session stays linked to the task, so this button turns into Go to session while it runs.";
 
 /** Is this pane the session started on this row? See livePaneFor. */
 export function paneWorksOn(
@@ -83,7 +88,15 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 			toast.error(ensured.error);
 			return { ok: false, error: ensured.error };
 		}
-		const description = [item.launch.description, offHours?.instructions]
+		// Your notes on a Slack, Jira or other row ride along; your own tasks'
+		// notes are already their brief.
+		const note = useTaskMeta.getState().notes[item.key];
+		const description = [
+			item.launch.description,
+			note &&
+				`My notes:\n${note.replaceAll(ATTACHMENT_URL, "~/.odin/attachments/")}`,
+			offHours?.instructions,
+		]
 			.filter(Boolean)
 			.join("\n\n");
 		const result = await launch({
