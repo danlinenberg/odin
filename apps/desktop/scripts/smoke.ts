@@ -932,6 +932,37 @@ await step("an agent's command runs in its session's own Shell", async () => {
 	}
 });
 
+await step("an agent adds an Odin task through Odin's API", async () => {
+	// What the SessionStart rule tells every session to do when asked to
+	// "open an Odin task", done as the agent would.
+	const [port] = readFileSync(join(home, `pane-${sessionPid}`), "utf8")
+		.trim()
+		.split(" ");
+	const title = "Smoke task from an agent";
+	const odin = async (args: Record<string, string>) => {
+		const response = await fetch(`http://127.0.0.1:${port}/odin`, {
+			method: "POST",
+			body: new URLSearchParams(args),
+		});
+		const text = await response.text();
+		if (!response.ok) throw new Error(`${response.status} ${text}`);
+		return text;
+	};
+	const added = await odin({
+		action: "add",
+		text: `${title}\nNotes from the agent`,
+		due: "2030-01-15",
+		up_next: "top",
+	});
+	if (!added.includes(`Added "${title}"`) || !added.includes("due 2030-01-15"))
+		throw new Error(`unexpected answer: ${added}`);
+	const tasks = JSON.parse(await odin({ action: "tasks" })) as {
+		title: string;
+	}[];
+	if (!tasks.some((task) => task.title === title))
+		throw new Error(`not in the backlog: ${JSON.stringify(tasks)}`);
+});
+
 await step(
 	"Done on the card ends the session and clears the board",
 	async () => {
