@@ -6,7 +6,7 @@ import { awsProfileFor } from "./aws-profile";
 import { HOST_SERVICE_PY } from "./host-service";
 import { SERVICE_CURRENT_SCRIPT } from "./host-tokens";
 import { connectHost, type HostLogin, runOnHost } from "./ssh";
-import { awsClientConfig, keyRefused, userMissing } from "./ssm";
+import { awsClientConfig, hostLabel, keyRefused, userMissing } from "./ssm";
 
 /** ok: done. fail: sessions can't start until it's fixed. warn: they start, but something is off. skipped: an earlier step failed. */
 export type HealthState = "ok" | "fail" | "warn" | "skipped";
@@ -152,13 +152,13 @@ export async function checkHostHealth(
 			ping === "error"
 				? "Could not ask SSM about the host. Your AWS role may not allow ssm:DescribeInstanceInformation."
 				: ping
-					? `SSM reports ${host.instanceId} as ${ping}: it is stopped, rebooting or cut off. Start it.`
-					: `SSM does not list ${host.instanceId}: it was never set up for SSM, it is gone, or your AWS role can't see it. ${SSM_UNSEEN}`,
+					? `SSM reports ${hostLabel(host)} as ${ping}: it is stopped, rebooting or cut off. Start it.`
+					: `SSM does not list ${hostLabel(host)}: it was never set up for SSM, it is gone, or your AWS role can't see it. ${SSM_UNSEEN}`,
 			ping && ping !== "error" ? "start" : undefined,
 		);
 		return done();
 	}
-	set("ssm", "ok", `${host.instanceId} is online.`);
+	set("ssm", "ok", `${hostLabel(host)} is online.`);
 
 	let session: Awaited<ReturnType<HealthProbe["login"]>>;
 	try {
@@ -168,7 +168,7 @@ export async function checkHostHealth(
 			set(
 				"user",
 				"fail",
-				`${host.instanceId} has no Linux user ${host.user}, so Odin can't log in as you. ${ADMIN_FIX}`,
+				`${hostLabel(host)} has no Linux user ${host.user}, so Odin can't log in as you. ${ADMIN_FIX}`,
 				"setup",
 			);
 		} else if (awsSignInNeeded(err)) {

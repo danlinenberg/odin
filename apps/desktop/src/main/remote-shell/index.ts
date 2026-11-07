@@ -29,6 +29,7 @@ import {
 import {
 	accessDenied,
 	awsClientConfig,
+	hostLabel,
 	keyRefused,
 	openSsmStream,
 	pushOneTimeKey,
@@ -413,7 +414,7 @@ async function signInAgain(spec: RemoteSessionSpec): Promise<void> {
 	for (;;) {
 		say(
 			bold(
-				`Blocked: your AWS sign-in expired, so this session can't reach ${spec.instanceId}.`,
+				`Blocked: your AWS sign-in expired, so this session can't reach ${hostLabel(spec)}.`,
 			),
 		);
 		process.stderr.write(
@@ -471,11 +472,11 @@ async function setUpMissingUser(
 	const fix = `Your AWS role needs the permissions in docs/remote-host.md (Who can use a host); ask an administrator to add them.`;
 	if (userSetUpTried)
 		throw new Error(
-			`${spec.instanceId} has no Linux user ${spec.user}. ${fix}`,
+			`${hostLabel(spec)} has no Linux user ${spec.user}. ${fix}`,
 		);
 	userSetUpTried = true;
 	say(
-		`${spec.instanceId} has no Linux user ${spec.user} - setting it up, this takes a few minutes...`,
+		`${hostLabel(spec)} has no Linux user ${spec.user} - setting it up, this takes a few minutes...`,
 	);
 	await setUpHost(
 		{
@@ -487,7 +488,7 @@ async function setUpMissingUser(
 	).catch((err: unknown) => {
 		if (accessDenied(err)) throw new NoAccess(spec, err);
 		throw new Error(
-			`${spec.instanceId} has no Linux user ${spec.user}, and setting it up failed (${err instanceof Error ? err.message : String(err)}). ${fix}`,
+			`${hostLabel(spec)} has no Linux user ${spec.user}, and setting it up failed (${err instanceof Error ? err.message : String(err)}). ${fix}`,
 		);
 	});
 }
@@ -535,7 +536,7 @@ async function login(
 class NoAccess extends Error {
 	constructor(spec: RemoteSessionSpec, cause: unknown) {
 		super(
-			`your AWS role may not log in to ${spec.instanceId} as ${spec.user} (${cause instanceof Error ? cause.message : String(cause)}).\r\n  Your AWS role needs the permissions in docs/remote-host.md (Who can use a host); ask an administrator to add them. Then start this session again.`,
+			`your AWS role may not log in to ${hostLabel(spec)} as ${spec.user} (${cause instanceof Error ? cause.message : String(cause)}).\r\n  Your AWS role needs the permissions in docs/remote-host.md (Who can use a host); ask an administrator to add them. Then start this session again.`,
 		);
 	}
 }
@@ -551,7 +552,7 @@ const loginWithin = (
 ) =>
 	settleWithin(
 		LOGIN_TIMEOUT_MS,
-		`logging in to ${spec.instanceId}`,
+		`logging in to ${hostLabel(spec)}`,
 		login(spec, target),
 		(late) => late.end(),
 	);
@@ -718,6 +719,7 @@ async function main(): Promise<void> {
 	const env = await tokens(process.argv[3]);
 	const target = {
 		instanceId: spec.instanceId,
+		name: spec.name,
 		profile: spec.profile,
 		region: spec.region,
 	};
@@ -743,14 +745,14 @@ async function main(): Promise<void> {
 				await new EC2Client(awsClientConfig(target)).send(
 					new RebootInstancesCommand({ InstanceIds: [spec.instanceId] }),
 				);
-				say(`rebooting ${spec.instanceId} - reconnecting once it is back...`);
+				say(`rebooting ${hostLabel(spec)} - reconnecting once it is back...`);
 				// Its sessions restart there and resume; give it time to boot.
 				await new Promise((resolve) => setTimeout(resolve, 60_000));
 			},
 			stuck: (reason, tries) => {
 				say(
 					bold(
-						`Stopped reconnecting to ${spec.instanceId} after ${tries} tries: ${reason.replace(/[.\s]+$/, "")}.`,
+						`Stopped reconnecting to ${hostLabel(spec)} after ${tries} tries: ${reason.replace(/[.\s]+$/, "")}.`,
 					),
 				);
 				process.stderr.write(
@@ -761,7 +763,7 @@ async function main(): Promise<void> {
 			say,
 			fatal: (err) => err instanceof NoAccess,
 		},
-		spec.instanceId,
+		hostLabel(spec),
 	);
 	process.exit(0);
 }
