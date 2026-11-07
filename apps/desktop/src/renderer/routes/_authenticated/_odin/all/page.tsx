@@ -72,6 +72,7 @@ import { revealRow, rowPlace } from "./reveal-row";
 import { nextSelection, visibleSelection } from "./selection";
 import { TaskDescription } from "./TaskDescription";
 import { TaskDetails } from "./TaskDetails";
+import type { BulkActions } from "./TaskRowMenu";
 import {
 	SOURCE_ICON,
 	type SortableBits,
@@ -322,6 +323,7 @@ function AllFeedPage() {
 		setStatus: setRowStatus,
 		setType: setRowType,
 		enqueue,
+		enqueueAt,
 		dequeue,
 		move,
 		waiting: parkedBy,
@@ -563,6 +565,39 @@ function AllFeedPage() {
 		clearPicked();
 	};
 
+	// The bar's other buttons, named so a ticked row's right-click runs the
+	// very same ones (TaskRowMenu).
+	const pickedRows = () => items.filter((item) => selected.has(item.key));
+	const upNextPicked = (place: "top" | "end" = "end") => {
+		// Placed at the top one by one, the last lands first: go bottom-up.
+		const keys = place === "top" ? [...picked].reverse() : picked;
+		for (const key of keys) enqueueAt(key, place);
+		clearPicked();
+	};
+	const waitPicked = (days = WAIT_DAYS) => {
+		const until = dayAfter(Date.now(), days);
+		for (const item of pickedRows()) wait(item.key, "", until, item.title);
+		clearPicked();
+	};
+	const startPicked = () => {
+		void startMany(pickedRows()).then((went) => went && clearPicked());
+	};
+	const duePicked = (day: string | null) => {
+		const { setDue, clear } = useReminders.getState();
+		for (const item of pickedRows())
+			day ? setDue(item.key, day, item.title) : clear(item.key);
+		clearPicked();
+	};
+	const bulk: BulkActions = {
+		count: picked.length,
+		upNext: upNextPicked,
+		wait: waitPicked,
+		due: duePicked,
+		start: startPicked,
+		done: finishPicked,
+		clear: clearPicked,
+	};
+
 	// From every row, not the filtered ones: narrowing the list shouldn't shut
 	// the panel you're reading. Marking it done does. Search all can open a row
 	// All leaves out (Done'd, started, your own PR), hence the wider fallback.
@@ -659,6 +694,7 @@ function AllFeedPage() {
 			}}
 			open={item.key === openKey}
 			onOpen={() => setOpenKey(item.key === openKey ? null : item.key)}
+			bulk={picked.length > 1 && picked.includes(item.key) ? bulk : undefined}
 		/>
 	);
 
@@ -1015,10 +1051,7 @@ function AllFeedPage() {
 							</FeedSelect>
 							<button
 								type="button"
-								onClick={() => {
-									for (const key of picked) enqueue(key);
-									clearPicked();
-								}}
+								onClick={() => upNextPicked()}
 								title="Line them all up - Up next, above the list"
 								className={ROW_LINK_BUTTON}
 							>
@@ -1026,13 +1059,7 @@ function AllFeedPage() {
 							</button>
 							<button
 								type="button"
-								onClick={() => {
-									const until = dayAfter(Date.now(), WAIT_DAYS);
-									for (const item of items)
-										if (selected.has(item.key))
-											wait(item.key, "", until, item.title);
-									clearPicked();
-								}}
+								onClick={() => waitPicked()}
 								title={`Waiting on someone else - back on Up next in ${WAIT_DAYS} days`}
 								className={ROW_LINK_BUTTON}
 							>
@@ -1041,10 +1068,7 @@ function AllFeedPage() {
 							<button
 								type="button"
 								disabled={isLaunching}
-								onClick={() => {
-									const rows = items.filter((item) => selected.has(item.key));
-									void startMany(rows).then((went) => went && clearPicked());
-								}}
+								onClick={startPicked}
 								title="Start a session on each selected row - pick here or remote once for all"
 								className={ROW_START_BUTTON}
 							>
