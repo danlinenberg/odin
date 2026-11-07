@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
 	moveKey,
+	parseDueDay,
 	parseQueuePlace,
 	placeKey,
 	typeOf,
@@ -56,6 +57,17 @@ test("parseQueuePlace reads top, end or a place from 1", () => {
 	expect(parseQueuePlace("0")).toBeNull();
 	expect(parseQueuePlace("1.5")).toBeNull();
 	expect(parseQueuePlace("head")).toBeNull();
+});
+
+test("parseDueDay reads a real YYYY-MM-DD day", () => {
+	expect(parseDueDay(undefined)).toBeUndefined();
+	expect(parseDueDay(" ")).toBeUndefined();
+	expect(parseDueDay(" 2026-11-12 ")).toBe("2026-11-12");
+	expect(parseDueDay("2028-02-29")).toBe("2028-02-29");
+	expect(parseDueDay("2026-02-30")).toBeNull();
+	expect(parseDueDay("2026-13-01")).toBeNull();
+	expect(parseDueDay("12/11/2026")).toBeNull();
+	expect(parseDueDay("tomorrow")).toBeNull();
 });
 
 test("enqueueAt lines a row up at the place asked", () => {
