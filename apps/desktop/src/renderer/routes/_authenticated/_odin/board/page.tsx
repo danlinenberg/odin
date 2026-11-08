@@ -134,6 +134,7 @@ import { useReadableSlackTitles, useSlackReadable } from "./slack-titles";
 const PILL_TAGS = ["automation", "auto-started", "off-hours"];
 
 import { openUrl, useInAppBrowser } from "renderer/stores/in-app-browser";
+import { rowFinishedWith } from "../all/all-items";
 import { nextSelection, visibleSelection } from "../all/selection";
 import { useSearchableItems } from "../all/use-all-items";
 import { paneWorksOn } from "../all/use-start-item";
@@ -6398,8 +6399,18 @@ function DevBoardPage() {
 		const cwd = sessionCwd(card.pane) ?? card.repoPath;
 		const title = cardTitle(card);
 		const brief = usePaneMeta.getState().briefByPane[card.pane.id];
-		// The feed row this session was started on is finished with it.
-		const row = allTasks.find((item) => paneWorksOn(card.pane, item));
+		// The feed row this session was started on is finished with it - unless
+		// another session on the same task is still open.
+		const found = allTasks.find((item) => paneWorksOn(card.pane, item));
+		const row =
+			found &&
+			rowFinishedWith(
+				Object.values(useTabsStore.getState().panes),
+				card.pane.id,
+				found,
+			)
+				? found
+				: undefined;
 		if (row) setRowDone(row, true);
 		endSession(card.pane.id);
 		if (!sessionId) return;
@@ -6418,6 +6429,9 @@ function DevBoardPage() {
 				brief,
 			});
 			if (!result.ok) return void toast.error(result.error);
+			// The resumed session is the task's again, whatever its name says.
+			if (found?.source === "Tasks")
+				setTaskPane(found.launch.key, result.paneId);
 			// Undoing Remind me: it's back now, no need to ping about it later.
 			useReminders.getState().clear(REMIND_PREFIX + sessionId);
 			toast.success(`Back on the board - ${title.slice(0, 50)}`);

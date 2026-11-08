@@ -10,6 +10,7 @@ import {
 	LuExternalLink,
 	LuListMinus,
 	LuListPlus,
+	LuPlus,
 } from "react-icons/lu";
 import { emojify } from "renderer/lib/emoji";
 import { openUrl } from "renderer/stores/in-app-browser";
@@ -41,7 +42,11 @@ import { PANE_STATUS } from "../pane-status";
 import { type AllItem, bandOf, plainText, previewPastTitle } from "./all-items";
 import { DropRuleMenu } from "./DropRuleMenu";
 import { statusLabel, typeLabel, typeOf, useTaskMeta } from "./task-meta";
-import { START_SESSION_TIP, useStartAllItem } from "./use-start-item";
+import {
+	START_ANOTHER_TIP,
+	START_SESSION_TIP,
+	useStartAllItem,
+} from "./use-start-item";
 
 /**
  * The one task table. All and every feed tab - Tasks, Slack, Jira, GitHub,
@@ -110,8 +115,9 @@ export const COL = {
 /**
  * A task with a session on it says so on its own row: Working, or Needs you
  * when the session is stuck on a question. Hover names the board column.
+ * `count` is how many sessions are open on it; the chip names the newest.
  */
-function WorkingChip({ paneId }: { paneId: string }) {
+function WorkingChip({ paneId, count }: { paneId: string; count: number }) {
 	const status = useTabsStore((s) => s.panes[paneId]?.status ?? "idle");
 	const needsYou = status === "permission";
 	return (
@@ -129,6 +135,7 @@ function WorkingChip({ paneId }: { paneId: string }) {
 				}}
 			/>
 			{needsYou ? "Needs you" : "Working"}
+			{count > 1 && ` · ${count} sessions`}
 		</span>
 	);
 }
@@ -296,7 +303,8 @@ export function TaskRow({
 }) {
 	const url = item.url;
 	const SourceIcon = SOURCE_ICON[item.to];
-	const activePaneId = rows.livePaneFor(item);
+	const livePanes = rows.livePanesFor(item);
+	const activePaneId = livePanes[0] ?? null;
 	const isReading = rows.readingKeys.has(item.key);
 	const due = effectiveDue(item.key, rows.reminders, item.dueDate);
 	const band = bandOf(item, isDue(due, now), now, isReading);
@@ -389,7 +397,22 @@ export function TaskRow({
 									</span>
 								)}
 							</button>
-							{activePaneId && <WorkingChip paneId={activePaneId} />}
+							{activePaneId && (
+								<>
+									<WorkingChip paneId={activePaneId} count={livePanes.length} />
+									<IconTip label={START_ANOTHER_TIP}>
+										<button
+											type="button"
+											aria-label="Start another session"
+											disabled={rows.isLaunching}
+											onClick={() => void rows.start(item)}
+											className={cn(ROW_ICON_BUTTON, "size-5")}
+										>
+											<LuPlus className="size-3" aria-hidden />
+										</button>
+									</IconTip>
+								</>
+							)}
 							{item.also?.map((copy) => (
 								<AlsoIn key={copy.key} copy={copy} />
 							))}

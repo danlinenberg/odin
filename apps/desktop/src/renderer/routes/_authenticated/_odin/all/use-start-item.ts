@@ -11,12 +11,16 @@ import { ATTACHMENT_URL, useMyTasks } from "../hooks/useOdinTasks";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
-import { type AllItem, paneWorksOn } from "./all-items";
+import { type AllItem, livePanesOn } from "./all-items";
 import { useTaskMeta } from "./task-meta";
 
 /** Hover text on Start / Start session, in the panel and on a row. */
 export const START_SESSION_TIP =
 	"Start a Claude session on this task: pick where it runs, then it opens on the Dev Board with the task (and your notes) as its brief. The session stays linked to the task, so this button turns into Go to session while it runs.";
+
+/** Hover text on Start another session, on a row or in the panel. */
+export const START_ANOTHER_TIP =
+	"Start another session on this task - it stays linked too, and Go to session opens the newest";
 
 export { paneWorksOn } from "./all-items";
 
@@ -51,10 +55,11 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 	 * the title gets auto-retitled and a session started from the Notion mirror
 	 * of a Slack message carries the Notion page id, not the Slack one.
 	 */
+	const livePanesFor = (item: AllItem): string[] =>
+		livePanesOn(Object.values(panes), item).map((pane) => pane.id);
+	/** The newest of them - where Go to session goes. */
 	const livePaneFor = (item: AllItem): string | null =>
-		Object.values(panes).find(
-			(pane) => !pane.completed && paneWorksOn(pane, item),
-		)?.id ?? null;
+		livePanesFor(item)[0] ?? null;
 
 	/**
 	 * `offHours` is the overnight runner's launch: tagged, told nobody is
@@ -188,6 +193,7 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 		startMany,
 		planOnHost,
 		livePaneFor,
+		livePanesFor,
 		isLaunching,
 		launchingKey,
 	};

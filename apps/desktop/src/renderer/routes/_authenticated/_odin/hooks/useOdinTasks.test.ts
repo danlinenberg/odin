@@ -60,6 +60,13 @@ describe("setPane / remove", () => {
 		useOdinTasks.getState().setPane(started?.id ?? "", "pane-1");
 		expect(useOdinTasks.getState().tasks[0]?.paneId).toBe("pane-1");
 		expect(useOdinTasks.getState().tasks[1]?.paneId).toBeUndefined();
+		// A second session on the same task joins the first, newest last.
+		useOdinTasks.getState().setPane(started?.id ?? "", "pane-2");
+		expect(useOdinTasks.getState().tasks[0]?.paneIds).toEqual([
+			"pane-1",
+			"pane-2",
+		]);
+		expect(useOdinTasks.getState().tasks[0]?.paneId).toBe("pane-2");
 
 		useOdinTasks.getState().remove(started?.id ?? "");
 		expect(useOdinTasks.getState().tasks.map((t) => t.title)).toEqual([

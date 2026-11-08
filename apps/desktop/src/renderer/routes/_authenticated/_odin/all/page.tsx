@@ -84,7 +84,7 @@ import {
 } from "./task-meta";
 import { useTitleOverrides } from "./title-overrides";
 import { useAllItems, useSearchableItems } from "./use-all-items";
-import { START_SESSION_TIP } from "./use-start-item";
+import { START_ANOTHER_TIP, START_SESSION_TIP } from "./use-start-item";
 
 /** `open`: a row key whose details to open - how Search all lands on a row. */
 type AllSearch = { open?: string };
@@ -1016,6 +1016,7 @@ function AllFeedPage() {
 					>
 						<DetailsActions
 							activePaneId={livePaneFor(openItem)}
+							sessionCount={rows.livePanesFor(openItem).length}
 							isLaunching={isLaunching}
 							launching={launchingKey === openItem.launch.key}
 							onStart={() => void handleStart(openItem)}
@@ -1255,6 +1256,7 @@ function DetailsPanel({
 /** The row's own buttons, so a task read in the panel is acted on there. */
 function DetailsActions({
 	activePaneId,
+	sessionCount,
 	isLaunching,
 	launching,
 	onStart,
@@ -1265,6 +1267,8 @@ function DetailsActions({
 	onDrop,
 }: {
 	activePaneId: string | null;
+	/** Sessions open on this task; Go to session opens the newest. */
+	sessionCount: number;
 	isLaunching: boolean;
 	launching: boolean;
 	onStart: () => void;
@@ -1277,13 +1281,29 @@ function DetailsActions({
 	return (
 		<div className="flex shrink-0 items-center gap-2 border-t border-border px-3.5 py-2.5">
 			{activePaneId ? (
-				<button
-					type="button"
-					onClick={() => onGoTo(activePaneId)}
-					className={ROW_LIVE_BUTTON}
-				>
-					Go to session →
-				</button>
+				<>
+					<button
+						type="button"
+						onClick={() => onGoTo(activePaneId)}
+						title={
+							sessionCount > 1
+								? `${sessionCount} sessions on this task - this opens the newest`
+								: undefined
+						}
+						className={ROW_LIVE_BUTTON}
+					>
+						Go to session →
+					</button>
+					<button
+						type="button"
+						disabled={isLaunching}
+						onClick={onStart}
+						title={START_ANOTHER_TIP}
+						className={ROW_LINK_BUTTON}
+					>
+						{launching ? "Starting…" : "Start another session"}
+					</button>
+				</>
 			) : (
 				<button
 					type="button"

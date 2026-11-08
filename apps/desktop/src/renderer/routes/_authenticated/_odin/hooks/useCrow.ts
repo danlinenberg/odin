@@ -39,7 +39,7 @@ import {
 import { CROW_TAG } from "shared/odin-tags";
 import stripAnsi from "strip-ansi";
 import { create } from "zustand";
-import type { AllItem } from "../all/all-items";
+import { type AllItem, rowFinishedWith } from "../all/all-items";
 import { parseQueuePlace, useTaskMeta } from "../all/task-meta";
 import { useSearchableItems } from "../all/use-all-items";
 import { paneWorksOn } from "../all/use-start-item";
@@ -683,7 +683,10 @@ type CrowDeps = {
  */
 function endSessionAndRow(pane: Pane, deps: CrowDeps) {
 	const row = deps.rows.find((item) => paneWorksOn(pane, item));
-	if (row && !deps.isDone(row)) deps.setRowDone(row, true);
+	// Another session still open on the same task keeps it open.
+	const others = Object.values(useTabsStore.getState().panes);
+	if (row && !deps.isDone(row) && rowFinishedWith(others, pane.id, row))
+		deps.setRowDone(row, true);
 	endSession(pane.id);
 }
 
