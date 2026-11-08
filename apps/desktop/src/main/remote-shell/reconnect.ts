@@ -20,6 +20,17 @@ export const STUCK_RETRY_MS = 5 * 60_000;
 export const STUCK_RETRY_MAX_MS = 30 * 60_000;
 
 /**
+ * Puts the pane's terminal back once tmux on the host is gone: scroll region,
+ * main screen, mouse off, cursor shown, screen cleared. A dropped connection
+ * never lets tmux undo its full-screen mode, so "connection lost" was written
+ * where tmux left the cursor, inside Claude's old input box, with the rest of
+ * Claude's screen still below it. The chat read that as Claude still there and
+ * typed a reply into the reconnect, where it was lost: Not delivered.
+ */
+export const LEAVE_TMUX_SCREEN =
+	"\x1b[r\x1b[?1049l\x1b[?1000l\x1b[?1002l\x1b[?1006l\x1b[?25h\x1b[H\x1b[2J";
+
+/**
  * What you picked once the pane stopped reconnecting, or "auto" when nobody
  * picked before the stopped state's own retry came due.
  */
