@@ -29,6 +29,7 @@ import {
 import {
 	accessDenied,
 	awsClientConfig,
+	hostLabel,
 	keyRefused,
 	openSsmStream,
 	pushOneTimeKey,
@@ -414,7 +415,7 @@ async function signInAgain(spec: RemoteSessionSpec): Promise<void> {
 	for (;;) {
 		say(
 			bold(
-				`Blocked: your AWS sign-in expired, so this session can't reach ${spec.instanceId}.`,
+				`Blocked: your AWS sign-in expired, so this session can't reach ${hostLabel(spec)}.`,
 			),
 		);
 		process.stderr.write(
@@ -472,11 +473,11 @@ async function setUpMissingUser(
 	const fix = `Your AWS role needs the permissions in docs/remote-host.md (Who can use a host); ask an administrator to add them.`;
 	if (userSetUpTried)
 		throw new Error(
-			`${spec.instanceId} has no Linux user ${spec.user}. ${fix}`,
+			`${hostLabel(spec)} has no Linux user ${spec.user}. ${fix}`,
 		);
 	userSetUpTried = true;
 	say(
-		`${spec.instanceId} has no Linux user ${spec.user} - setting it up, this takes a few minutes...`,
+		`${hostLabel(spec)} has no Linux user ${spec.user} - setting it up, this takes a few minutes...`,
 	);
 	await setUpHost(
 		{
@@ -488,7 +489,7 @@ async function setUpMissingUser(
 	).catch((err: unknown) => {
 		if (accessDenied(err)) throw new NoAccess(spec, err);
 		throw new Error(
-			`${spec.instanceId} has no Linux user ${spec.user}, and setting it up failed (${err instanceof Error ? err.message : String(err)}). ${fix}`,
+			`${hostLabel(spec)} has no Linux user ${spec.user}, and setting it up failed (${err instanceof Error ? err.message : String(err)}). ${fix}`,
 		);
 	});
 }
@@ -536,7 +537,7 @@ async function login(
 class NoAccess extends Error {
 	constructor(spec: RemoteSessionSpec, cause: unknown) {
 		super(
-			`your AWS role may not log in to ${spec.instanceId} as ${spec.user} (${cause instanceof Error ? cause.message : String(cause)}).\r\n  Your AWS role needs the permissions in docs/remote-host.md (Who can use a host); ask an administrator to add them. Then start this session again.`,
+			`your AWS role may not log in to ${hostLabel(spec)} as ${spec.user} (${cause instanceof Error ? cause.message : String(cause)}).\r\n  Your AWS role needs the permissions in docs/remote-host.md (Who can use a host); ask an administrator to add them. Then start this session again.`,
 		);
 	}
 }
@@ -552,7 +553,7 @@ const loginWithin = (
 ) =>
 	settleWithin(
 		LOGIN_TIMEOUT_MS,
-		`logging in to ${spec.instanceId}`,
+		`logging in to ${hostLabel(spec)}`,
 		login(spec, target),
 		(late) => late.end(),
 	);
@@ -684,10 +685,20 @@ const waitOrR = (ms: number) =>
 		stdin.on("data", onKey);
 	});
 
-/** The key you pressed once the pane stopped reconnecting. */
-const stuckChoice = () =>
+/**
+ * The key you pressed once the pane stopped reconnecting, or "auto" when
+ * `ms` passed with no key.
+ */
+const stuckChoice = (ms: number) =>
 	new Promise<StuckChoice>((resolve) => {
 		const { stdin } = process;
+		const done = (pick: StuckChoice) => {
+			clearTimeout(timer);
+			stdin.off("data", onKey);
+			stdin.pause();
+			resolve(pick);
+		};
+		const timer = setTimeout(() => done("auto"), ms);
 		const onKey = (key: Buffer) => {
 			if (key[0] === 3) process.exit(1);
 			const pick: StuckChoice | null =
@@ -698,10 +709,7 @@ const stuckChoice = () =>
 						: key[0] === 0x72 || key[0] === 0x52
 							? "reboot"
 							: null;
-			if (!pick) return;
-			stdin.off("data", onKey);
-			stdin.pause();
-			resolve(pick);
+			if (pick) done(pick);
 		};
 		stdin.setRawMode?.(true);
 		stdin.resume();
@@ -720,6 +728,7 @@ async function main(): Promise<void> {
 	const env = await tokens(process.argv[3]);
 	const target = {
 		instanceId: spec.instanceId,
+		name: spec.name,
 		profile: spec.profile,
 		region: spec.region,
 	};
@@ -745,25 +754,29 @@ async function main(): Promise<void> {
 				await new EC2Client(awsClientConfig(target)).send(
 					new RebootInstancesCommand({ InstanceIds: [spec.instanceId] }),
 				);
-				say(`rebooting ${spec.instanceId} - reconnecting once it is back...`);
+				say(`rebooting ${hostLabel(spec)} - reconnecting once it is back...`);
 				// Its sessions restart there and resume; give it time to boot.
 				await new Promise((resolve) => setTimeout(resolve, 60_000));
 			},
-			stuck: (reason, tries) => {
+			stuck: (reason, tries, retryInMs) => {
+				const at = new Date(Date.now() + retryInMs).toLocaleTimeString([], {
+					hour: "2-digit",
+					minute: "2-digit",
+				});
 				say(
 					bold(
-						`Stopped reconnecting to ${spec.instanceId} after ${tries} tries: ${reason.replace(/[.\s]+$/, "")}.`,
+						`Stopped reconnecting to ${hostLabel(spec)} after ${tries} tries (trying again by itself at ${at}): ${reason.replace(/[.\s]+$/, "")}.`,
 					),
 				);
 				process.stderr.write(
 					"  Press Enter to try again, F to start Claude over on the host (it resumes this conversation), or R to reboot the host.\r\n",
 				);
-				return stuckChoice();
+				return stuckChoice(retryInMs);
 			},
 			say,
 			fatal: (err) => err instanceof NoAccess,
 		},
-		spec.instanceId,
+		hostLabel(spec),
 	);
 	process.exit(0);
 }
