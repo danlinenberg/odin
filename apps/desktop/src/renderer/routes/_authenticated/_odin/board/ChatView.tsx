@@ -2066,7 +2066,7 @@ function ReconnectStoppedRow({
 	line: string;
 	children: ReactNode;
 }) {
-	const { title, reason } = stoppedParts(line);
+	const { title, reason, retryAt } = stoppedParts(line);
 	return (
 		<div className="flex min-w-0 flex-col gap-2.5 rounded-lg border border-danger/25 bg-danger/[0.05] px-3.5 py-3">
 			<div className="flex min-w-0 items-start gap-2.5">
@@ -2078,6 +2078,11 @@ function ReconnectStoppedRow({
 					{reason && (
 						<div className="mt-0.5 text-[12px] text-muted-foreground [overflow-wrap:anywhere]">
 							{reason}
+						</div>
+					)}
+					{retryAt && (
+						<div className="mt-0.5 text-[12px] text-muted-foreground">
+							Trying again by itself at {retryAt}.
 						</div>
 					)}
 				</div>
