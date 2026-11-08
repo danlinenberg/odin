@@ -22,6 +22,7 @@ import {
 	slackWatchedThread,
 } from "../slack";
 import { approvedBy, pullRequestState } from "../terminal/pr-state";
+import { closeClickupTask } from "./clickup-close";
 import {
 	CLOSED_UPSTREAM_DAYS,
 	type ClosedUpstreamRow,
@@ -1005,6 +1006,31 @@ export const createWorkRouter = () => {
 			.mutation(async ({ input }) => {
 				const { ignoreEmail } = await import("main/lib/email-triage");
 				ignoreEmail(input);
+			}),
+
+		/**
+		 * Done on a ClickUp row: move the task to its list's closed (or done)
+		 * status in ClickUp. Odin's Done stands either way; the caller says when
+		 * ClickUp wasn't updated.
+		 */
+		closeClickupTask: publicProcedure
+			.input(z.object({ id: z.string().min(1) }))
+			.mutation(async ({ input }) => {
+				const token = readOdinConfig().clickupToken;
+				if (!token) {
+					throw new TRPCError({
+						code: "PRECONDITION_FAILED",
+						message: "ClickUp isn't connected",
+					});
+				}
+				try {
+					return await closeClickupTask(input.id, token, clickupFetch);
+				} catch (error) {
+					throw new TRPCError({
+						code: "BAD_GATEWAY",
+						message: error instanceof Error ? error.message : String(error),
+					});
+				}
 			}),
 
 		/** Open tasks assigned to me, across every ClickUp workspace the token reaches. */

@@ -63,7 +63,7 @@ Pick a database; turn on "@ Mentions" to add pages assigned to you and comment t
 Gmail inbox mail that was unread when Odin first saw it; it stays after you open it, until you mark it Done. Pills: Interesting (default) and All. Junk shows only under All; the model decides junk, and every calendar mail is junk. Right-click a mail, then Ignore mail like this: its sender is junk from then on, and the model treats look-alikes as junk too. Read-only.
 
 ## ClickUp feed
-Open ClickUp tasks assigned to you. Read-only, no filters.
+Open ClickUp tasks assigned to you. No filters. Done on a ClickUp task (here, on All, or ticked with others) also closes it in ClickUp: it moves to its list's closed status (or its done status when the list has no closed one). Only that way: Undo, or bringing it back from "Show what's Done", leaves ClickUp as it is. When ClickUp can't be updated, the task stays Done in Odin and a toast says "ClickUp wasn't updated" with the reason. Reading material doesn't touch ClickUp.
 
 ## Calendar feed
 Meetings from now to the end of tomorrow, soonest first, each one a task of type "Prepare for meeting". A meeting is due the day it happens, so today's sit in Now on All and tomorrow's in Later. The preview line shows the time and who is in it. Open joins the call (Meet, Zoom, Teams or Webex) in your own browser. Start session hands the agent the agenda, organizer and attendees to prepare from. Done puts away that one occurrence, not the rest of a series. Left out: all-day events, cancelled ones, ones you declined, and blocks with nobody else in them. A meeting never merges with another feed's row. Read-only; polled every 5 minutes.
@@ -155,7 +155,7 @@ The sidebar shows: Connections, Sessions, Remote, Storage, Backlog & Night Agent
 - **Jira** (read-only): your issues, in the Jira feed.
 - **Notion**: a database's rows in the Notion feed. Odin sees only pages shared with it and their subpages; to add a teamspace, on its top page use ••• → Connections → Odin.
 - **Gmail**: unread mail in the Email feed, by app password (needs 2-Step Verification), not OAuth.
-- **ClickUp**: a personal API token (pk_…); sessions can read the ClickUp tasks they get.
+- **ClickUp**: a personal API token (pk_…); sessions can read the ClickUp tasks they get, and Done on a ClickUp task closes it there.
 - **Calendar**: Sign in with Google (read-only, the primary calendar). Outlook and iCloud connect by their secret iCal address instead ("Outlook or iCloud? Paste a secret iCal address"). A build with no Google app shows the iCal form first.
 
 ## Sessions settings (Settings → Sessions)
