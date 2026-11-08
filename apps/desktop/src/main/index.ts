@@ -42,6 +42,7 @@ import { ensureProjectIconsDir, getProjectIconPath } from "./lib/project-icons";
 import { startWorktreePruner } from "./lib/prune-worktrees";
 import { runQuitCleanup } from "./lib/quit-sequence";
 import { hostFileSources } from "./lib/remote-host/host-files";
+import { offerRestartOffOldSignature } from "./lib/restart-odin";
 import { initSentry } from "./lib/sentry";
 import { acquireSingleUiLock } from "./lib/single-ui-lock";
 import { completeSlackOAuth, isSlackOAuthCallback } from "./lib/slack-oauth";
@@ -501,6 +502,7 @@ if (!gotTheLock) {
 
 		// Must happen before renderer restore runs
 		await reconcileDaemonSessions();
+		void offerRestartOffOldSignature();
 		prewarmTerminalRuntime();
 
 		const hostServiceCoordinator = getHostServiceCoordinator();
