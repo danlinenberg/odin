@@ -523,6 +523,15 @@ describe("stoppedParts", () => {
 	});
 
 	it("keeps a line it does not know whole", () => {
+		expect(
+			stoppedParts(
+				"Stopped reconnecting to i-0abc123 after 7 tries (trying again by itself at 14:35): could not reconnect: logging in to i-0abc123 timed out.",
+			),
+		).toEqual({
+			title: "Stopped reconnecting to i-0abc123 after 7 tries",
+			reason: "Logging in to i-0abc123 timed out.",
+			retryAt: "14:35",
+		});
 		expect(stoppedParts("Stopped reconnecting")).toEqual({
 			title: "Stopped reconnecting",
 		});

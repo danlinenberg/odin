@@ -683,10 +683,20 @@ const waitOrR = (ms: number) =>
 		stdin.on("data", onKey);
 	});
 
-/** The key you pressed once the pane stopped reconnecting. */
-const stuckChoice = () =>
+/**
+ * The key you pressed once the pane stopped reconnecting, or "auto" when
+ * `ms` passed with no key.
+ */
+const stuckChoice = (ms: number) =>
 	new Promise<StuckChoice>((resolve) => {
 		const { stdin } = process;
+		const done = (pick: StuckChoice) => {
+			clearTimeout(timer);
+			stdin.off("data", onKey);
+			stdin.pause();
+			resolve(pick);
+		};
+		const timer = setTimeout(() => done("auto"), ms);
 		const onKey = (key: Buffer) => {
 			if (key[0] === 3) process.exit(1);
 			const pick: StuckChoice | null =
@@ -697,10 +707,7 @@ const stuckChoice = () =>
 						: key[0] === 0x72 || key[0] === 0x52
 							? "reboot"
 							: null;
-			if (!pick) return;
-			stdin.off("data", onKey);
-			stdin.pause();
-			resolve(pick);
+			if (pick) done(pick);
 		};
 		stdin.setRawMode?.(true);
 		stdin.resume();
@@ -749,16 +756,20 @@ async function main(): Promise<void> {
 				// Its sessions restart there and resume; give it time to boot.
 				await new Promise((resolve) => setTimeout(resolve, 60_000));
 			},
-			stuck: (reason, tries) => {
+			stuck: (reason, tries, retryInMs) => {
+				const at = new Date(Date.now() + retryInMs).toLocaleTimeString([], {
+					hour: "2-digit",
+					minute: "2-digit",
+				});
 				say(
 					bold(
-						`Stopped reconnecting to ${hostLabel(spec)} after ${tries} tries: ${reason.replace(/[.\s]+$/, "")}.`,
+						`Stopped reconnecting to ${hostLabel(spec)} after ${tries} tries (trying again by itself at ${at}): ${reason.replace(/[.\s]+$/, "")}.`,
 					),
 				);
 				process.stderr.write(
 					"  Press Enter to try again, F to start Claude over on the host (it resumes this conversation), or R to reboot the host.\r\n",
 				);
-				return stuckChoice();
+				return stuckChoice(retryInMs);
 			},
 			say,
 			fatal: (err) => err instanceof NoAccess,
