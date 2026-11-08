@@ -6085,7 +6085,7 @@ function DevBoardPage() {
 		}
 	}, [cardsByStatus, agentPaneIds]);
 
-	const { add: addTask } = useMyTasks();
+	const { add: addTask, setPane: setTaskPane } = useMyTasks();
 	const handleNewSession = async (
 		rawPrompt: string,
 		images: PromptImage[],
@@ -6135,6 +6135,10 @@ function DevBoardPage() {
 			usePaneMeta.getState().setBrief(result.paneId, prompt || title);
 			usePaneMeta.getState().setTitle(result.paneId, title);
 			usePaneMeta.getState().setSessionId(result.paneId, result.sessionId);
+			// Every session you start has a task: the same one Backlog would have
+			// added, linked as Start on a task links it, so Tasks shows it Working.
+			const taskId = addTask(prompt || title, undefined, repoPath);
+			if (taskId) setTaskPane(taskId, result.paneId);
 			toast.success(
 				`Session started in ${(repoPath || projectById.get(ensured.workspace.projectId)?.mainRepoPath || "").split("/").pop() || "your repo"}`,
 			);

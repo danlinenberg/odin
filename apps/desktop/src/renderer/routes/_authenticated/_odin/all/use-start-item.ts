@@ -11,24 +11,14 @@ import { ATTACHMENT_URL, useMyTasks } from "../hooks/useOdinTasks";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
-import type { AllItem } from "./all-items";
+import { type AllItem, paneWorksOn } from "./all-items";
 import { useTaskMeta } from "./task-meta";
 
 /** Hover text on Start / Start session, in the panel and on a row. */
 export const START_SESSION_TIP =
 	"Start a Claude session on this task: pick where it runs, then it opens on the Dev Board with the task (and your notes) as its brief. The session stays linked to the task, so this button turns into Go to session while it runs.";
 
-/** Is this pane the session started on this row? See livePaneFor. */
-export function paneWorksOn(
-	pane: { odinPageId?: string; odinTaskTitle?: string; odinBrief?: string },
-	item: AllItem,
-): boolean {
-	return (
-		(item.launch.pageId != null && pane.odinPageId === item.launch.pageId) ||
-		pane.odinTaskTitle === item.launch.title ||
-		pane.odinBrief === item.launch.brief
-	);
-}
+export { paneWorksOn } from "./all-items";
 
 /** What starting a row came to: the session, or why there is none. */
 export type StartResult =

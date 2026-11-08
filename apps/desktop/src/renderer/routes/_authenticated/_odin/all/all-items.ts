@@ -90,6 +90,30 @@ export interface AllItem {
 	launch: AllLaunch;
 	/** The same task in other feeds, folded into this row (merge-duplicates). */
 	also?: AllItem[];
+	/**
+	 * My own tasks only: the session last started on it. Holds the link when
+	 * the session's name no longer matches the task's - renamed, or started
+	 * from New Session with a "/skill" or "!" leading its first line.
+	 */
+	paneId?: string;
+}
+
+/** Is this pane the session started on this row? See useStartAllItem's livePaneFor. */
+export function paneWorksOn(
+	pane: {
+		id?: string;
+		odinPageId?: string;
+		odinTaskTitle?: string;
+		odinBrief?: string;
+	},
+	item: AllItem,
+): boolean {
+	return (
+		(item.paneId != null && pane.id === item.paneId) ||
+		(item.launch.pageId != null && pane.odinPageId === item.launch.pageId) ||
+		pane.odinTaskTitle === item.launch.title ||
+		pane.odinBrief === item.launch.brief
+	);
 }
 
 /** Priority, in the three levels every source can be read as. */
@@ -282,6 +306,7 @@ export function allItems(
 					brief: taskPrompt(task),
 					...(task.skill ? { skill: task.skill } : {}),
 				},
+				...(task.paneId ? { paneId: task.paneId } : {}),
 			}),
 		),
 		...input.slack
