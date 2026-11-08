@@ -148,9 +148,15 @@ export const useOdinTasks = create<{
 	seeded: string[];
 	/**
 	 * Newest first. Blank text is a no-op - Enter on an empty box. Pass a cron
-	 * and it lands as an automation instead of a one-shot task.
+	 * and it lands as an automation instead of a one-shot task. Returns the new
+	 * task's id, so the composer can set its Up next, due date and the rest.
 	 */
-	add: (text: string, profileId?: string, cron?: string, repo?: string) => void;
+	add: (
+		text: string,
+		profileId?: string,
+		cron?: string,
+		repo?: string,
+	) => string | undefined;
 	/** Run this task through a skill, or through none (empty). */
 	setSkill: (id: string, skill: string) => void;
 	/** 1-3, after the fact - the Tasks panel's picker, no retyping the "!"s. */
@@ -184,27 +190,28 @@ export const useOdinTasks = create<{
 		(set) => ({
 			tasks: [],
 			seeded: [],
-			add: (text, profileId, cron, repo) =>
-				set((s) => {
-					const { title, notes, priority, skill } = parseTask(text);
-					if (!title) return s;
-					return {
-						tasks: [
-							{
-								id: crypto.randomUUID(),
-								title,
-								notes,
-								priority,
-								createdAt: Date.now(),
-								profileId: profileOf(profileId),
-								...(cron ? { cron } : {}),
-								...(skill ? { skill } : {}),
-								...(repo ? { repo } : {}),
-							},
-							...s.tasks,
-						],
-					};
-				}),
+			add: (text, profileId, cron, repo) => {
+				const { title, notes, priority, skill } = parseTask(text);
+				if (!title) return undefined;
+				const id = crypto.randomUUID();
+				set((s) => ({
+					tasks: [
+						{
+							id,
+							title,
+							notes,
+							priority,
+							createdAt: Date.now(),
+							profileId: profileOf(profileId),
+							...(cron ? { cron } : {}),
+							...(skill ? { skill } : {}),
+							...(repo ? { repo } : {}),
+						},
+						...s.tasks,
+					],
+				}));
+				return id;
+			},
 			edit: (id, text, repo) =>
 				set((s) => {
 					const { title, notes, priority, skill } = parseTask(text);

@@ -1917,7 +1917,7 @@ function sendFailedToast(error: unknown) {
 }
 
 const AWS_SIGN_IN_BUTTON =
-	"h-6 shrink-0 rounded-md border border-attention/35 bg-attention/[0.07] px-2.5 text-[12px] font-medium text-attention hover:bg-attention/15";
+	"inline-flex h-6 shrink-0 items-center gap-1.5 rounded-md border border-attention/35 bg-attention/[0.07] px-2.5 text-[12px] font-medium text-attention transition-[transform,background-color,opacity] duration-150 ease-out hover:bg-attention/15 active:scale-95 active:bg-attention/25 disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none motion-reduce:active:scale-100";
 
 /**
  * Opens the AWS approval page again while a new remote session waits on its
@@ -1990,23 +1990,47 @@ function ReconnectStoppedActions({
 	onMoveToHost?: (to: string) => void;
 	onMoveHere?: () => void;
 }) {
+	// The pick being carried out: its button spins and the others wait, so a
+	// press shows it landed. The row goes away once the pane moves on; if it
+	// is still here after a while, the buttons come back.
+	const [pressed, setPressed] = useState<"retry" | "fresh" | "here" | null>(
+		null,
+	);
+	useEffect(() => {
+		if (!pressed) return;
+		const timer = setTimeout(() => setPressed(null), 15_000);
+		return () => clearTimeout(timer);
+	}, [pressed]);
+	const spinner = (
+		<LuLoaderCircle className="size-3 animate-spin motion-reduce:animate-none" />
+	);
 	return (
 		<>
 			<button
 				type="button"
 				title="Try to reconnect to the host again"
-				onClick={() => void sendKeys(["\r"])}
+				disabled={pressed !== null}
+				onClick={() => {
+					setPressed("retry");
+					void sendKeys(["\r"]);
+				}}
 				className={AWS_SIGN_IN_BUTTON}
 			>
-				Retry
+				{pressed === "retry" && spinner}
+				{pressed === "retry" ? "Retrying" : "Retry"}
 			</button>
 			<button
 				type="button"
 				title="End the session's terminal on the host and start Claude there again, resuming this conversation"
-				onClick={() => void sendKeys(["f"])}
+				disabled={pressed !== null}
+				onClick={() => {
+					setPressed("fresh");
+					void sendKeys(["f"]);
+				}}
 				className={AWS_SIGN_IN_BUTTON}
 			>
-				Start over on the host
+				{pressed === "fresh" && spinner}
+				{pressed === "fresh" ? "Starting over" : "Start over on the host"}
 			</button>
 			{host && onMoveToHost && (
 				<MoveToHostButton host={host} onMove={onMoveToHost} stuck />
@@ -2015,10 +2039,15 @@ function ReconnectStoppedActions({
 				<button
 					type="button"
 					title="Copy this conversation (and its code, if the host answers) to this computer and continue it here"
-					onClick={onMoveHere}
+					disabled={pressed !== null}
+					onClick={() => {
+						setPressed("here");
+						onMoveHere();
+					}}
 					className={AWS_SIGN_IN_BUTTON}
 				>
-					Move to this computer
+					{pressed === "here" && spinner}
+					{pressed === "here" ? "Moving" : "Move to this computer"}
 				</button>
 			)}
 		</>
@@ -2037,7 +2066,7 @@ function ReconnectStoppedRow({
 	line: string;
 	children: ReactNode;
 }) {
-	const { title, reason } = stoppedParts(line);
+	const { title, reason, retryAt } = stoppedParts(line);
 	return (
 		<div className="flex min-w-0 flex-col gap-2.5 rounded-lg border border-danger/25 bg-danger/[0.05] px-3.5 py-3">
 			<div className="flex min-w-0 items-start gap-2.5">
@@ -2049,6 +2078,11 @@ function ReconnectStoppedRow({
 					{reason && (
 						<div className="mt-0.5 text-[12px] text-muted-foreground [overflow-wrap:anywhere]">
 							{reason}
+						</div>
+					)}
+					{retryAt && (
+						<div className="mt-0.5 text-[12px] text-muted-foreground">
+							Trying again by itself at {retryAt}.
 						</div>
 					)}
 				</div>

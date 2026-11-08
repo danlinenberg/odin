@@ -17,8 +17,8 @@ export const Route = createFileRoute("/_authenticated/_odin/clickup/")({
 });
 
 /**
- * Open ClickUp tasks assigned to me. Read-only: Open takes you to the task,
- * Done takes the row out of Odin (not ClickUp).
+ * Open ClickUp tasks assigned to me. Open takes you to the task; Done takes
+ * the row out of Odin and closes the task in ClickUp (useDone).
  */
 function ClickupPage() {
 	const { clickup, workConfig, syncAll, isSyncing } = useOdinFeeds();

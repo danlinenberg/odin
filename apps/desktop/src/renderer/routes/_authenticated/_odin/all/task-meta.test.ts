@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
 	dayAfter,
 	moveKey,
+	parseDueDay,
 	parseQueuePlace,
 	placeKey,
 	typeOf,
@@ -60,6 +61,17 @@ test("parseQueuePlace reads top, end or a place from 1", () => {
 	expect(parseQueuePlace("head")).toBeNull();
 });
 
+test("parseDueDay reads a real YYYY-MM-DD day", () => {
+	expect(parseDueDay(undefined)).toBeUndefined();
+	expect(parseDueDay(" ")).toBeUndefined();
+	expect(parseDueDay(" 2026-11-12 ")).toBe("2026-11-12");
+	expect(parseDueDay("2028-02-29")).toBe("2028-02-29");
+	expect(parseDueDay("2026-02-30")).toBeNull();
+	expect(parseDueDay("2026-13-01")).toBeNull();
+	expect(parseDueDay("12/11/2026")).toBeNull();
+	expect(parseDueDay("tomorrow")).toBeNull();
+});
+
 test("enqueueAt lines a row up at the place asked", () => {
 	useTaskMeta.setState({ queue: ["a", "b"] });
 	useTaskMeta.getState().enqueueAt("task:1", "top");
@@ -109,4 +121,19 @@ test("lining up, unwaiting or finishing a waiting row ends the wait", () => {
 	wait("a", "", "2026-12-01");
 	dequeue("a");
 	expect(useTaskMeta.getState().waiting).toEqual({});
+});
+
+test("setNote keeps notes on any row, and empty clears them", () => {
+	useTaskMeta.setState({ notes: {} });
+	useTaskMeta.getState().setNote("slack:C1/123", "  ask Dana first  ");
+	useTaskMeta.getState().setNote("jira:A-1", "blocked on infra");
+	expect(useTaskMeta.getState().notes).toEqual({
+		"slack:C1/123": "ask Dana first",
+		"jira:A-1": "blocked on infra",
+	});
+	useTaskMeta.getState().setNote("jira:A-1", "  ");
+	expect(useTaskMeta.getState().notes).toEqual({
+		"slack:C1/123": "ask Dana first",
+	});
+	useTaskMeta.setState({ notes: {} });
 });

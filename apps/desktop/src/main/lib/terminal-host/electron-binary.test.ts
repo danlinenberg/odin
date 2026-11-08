@@ -9,7 +9,11 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { resolveElectronBinary, stageDaemonRuntime } from "./electron-binary";
+import {
+	removeUnlessInUse,
+	resolveElectronBinary,
+	stageDaemonRuntime,
+} from "./electron-binary";
 
 /** A dist dir holding one bundle, plus the Electron.app link pointing at it. */
 function makeDist(bundleName: string, link: boolean): string {
@@ -97,5 +101,35 @@ describe("stageDaemonRuntime", () => {
 			),
 		).toBe(true);
 		expect(readdirSync(runtimeRoot)).toEqual(["1.0.15"]);
+	});
+});
+
+describe("removeUnlessInUse", () => {
+	it("removes a copy no daemon runs from", async () => {
+		const root = mkdtempSync(join(tmpdir(), "odin-remove-"));
+		const dir = join(root, "1.0.20");
+		mkdirSync(dir);
+		writeFileSync(join(dir, "icudtl.dat"), "icu");
+
+		await removeUnlessInUse(dir);
+
+		expect(readdirSync(root)).toEqual([]);
+	});
+
+	it("leaves the whole copy when Windows refuses the rename (a live daemon's exe)", async () => {
+		const root = mkdtempSync(join(tmpdir(), "odin-remove-"));
+		const dir = join(root, "1.0.20");
+		mkdirSync(dir);
+		writeFileSync(join(dir, "odin-terminal-host.exe"), "exe");
+		writeFileSync(join(dir, "icudtl.dat"), "icu");
+
+		await removeUnlessInUse(dir, async () => {
+			throw Object.assign(new Error("EPERM"), { code: "EPERM" });
+		});
+
+		expect(readdirSync(dir).sort()).toEqual([
+			"icudtl.dat",
+			"odin-terminal-host.exe",
+		]);
 	});
 });

@@ -45,13 +45,14 @@ import {
 import type { FeedPath } from "../components/feed-counts";
 import { PersonChip } from "../components/PersonChip";
 import { effectiveDue, isDue, useReminders } from "../components/Reminders";
-import { TaskBox } from "../components/TaskBox";
+import { NewTaskFieldsPicker, TaskBox } from "../components/TaskBox";
 import { useActiveSessions } from "../hooks/useActiveSessions";
 import { useBacklogReview } from "../hooks/useBacklogReview";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import {
 	PRIORITY_LABELS,
+	parseTask,
 	priorityOf,
 	useMyTasks,
 	useOdinTasks,
@@ -68,6 +69,7 @@ import {
 } from "./all-items";
 import { ruleLabel, useDropRules } from "./drop-rules";
 import { droppedWhy, putAwayWhy } from "./graveyard";
+import { applyNewTaskFields, NO_NEW_TASK_FIELDS } from "./new-task-fields";
 import { revealRow, rowPlace } from "./reveal-row";
 import { nextSelection, visibleSelection } from "./selection";
 import { TaskDescription } from "./TaskDescription";
@@ -95,6 +97,7 @@ import {
 } from "./task-meta";
 import { useTitleOverrides } from "./title-overrides";
 import { useAllItems, useSearchableItems } from "./use-all-items";
+import { START_SESSION_TIP } from "./use-start-item";
 
 /** `open`: a row key whose details to open - how Search all lands on a row. */
 type AllSearch = { open?: string };
@@ -319,9 +322,11 @@ function AllFeedPage() {
 	const {
 		statuses,
 		types,
+		notes: rowNotes,
 		queue,
 		setStatus: setRowStatus,
 		setType: setRowType,
+		setNote: setRowNote,
 		enqueue,
 		enqueueAt,
 		dequeue,
@@ -344,6 +349,7 @@ function AllFeedPage() {
 	const setRowPriority = useTitleOverrides((s) => s.setPriority);
 	const [draft, setDraft] = useState("");
 	const [draftRepo, setDraftRepo] = useState("");
+	const [draftFields, setDraftFields] = useState(NO_NEW_TASK_FIELDS);
 	const { data: skills } = electronTrpc.skills.list.useQuery();
 	const { data: docs } = electronTrpc.system.listDocs.useQuery();
 	const { data: repos } = electronTrpc.repos.list.useQuery();
@@ -868,12 +874,25 @@ function AllFeedPage() {
 					placeholder="What needs doing?"
 					onChange={setDraft}
 					onSubmit={() => {
-						add(draft, undefined, draftRepo);
+						const id = add(draft, undefined, draftRepo);
+						if (id)
+							applyNewTaskFields(
+								`task:${id}`,
+								parseTask(draft).title,
+								draftFields,
+							);
 						setDraft("");
 						setDraftRepo("");
+						setDraftFields(NO_NEW_TASK_FIELDS);
 					}}
 					onCancel={() => setDraft("")}
 					submitLabel="Add task"
+					extraFields={
+						<NewTaskFieldsPicker
+							value={draftFields}
+							onChange={setDraftFields}
+						/>
+					}
 				/>
 			</div>
 
@@ -1248,6 +1267,17 @@ function AllFeedPage() {
 								/>
 							)
 						}
+						notes={
+							// Slack, Jira and the rest keep their own text as the body;
+							// yours goes under it, kept in Odin only.
+							!openTask && (
+								<TaskDescription
+									key={openItem.key}
+									notes={rowNotes[openItem.key] ?? ""}
+									onSave={(notes) => setRowNote(openItem.key, notes)}
+								/>
+							)
+						}
 					>
 						<DetailsActions
 							activePaneId={livePaneFor(openItem)}
@@ -1410,6 +1440,7 @@ function DetailsPanel({
 	notice,
 	fields,
 	description,
+	notes,
 	children,
 }: {
 	item: AllItem;
@@ -1419,6 +1450,8 @@ function DetailsPanel({
 	notice?: ReactNode;
 	fields: ReactNode;
 	description: ReactNode;
+	/** Your notes on another source's row, under its own text. */
+	notes?: ReactNode;
 	children: ReactNode;
 }) {
 	const url = item.url;
@@ -1465,7 +1498,19 @@ function DetailsPanel({
 				<div className="mb-2 empty:hidden">
 					<SweepDrop itemKey={item.key} url={item.url} inline={false} />
 				</div>
-				<TaskDetails item={item} onRename={rename} description={description} />
+				<TaskDetails item={item} onRename={rename} description={description}>
+					{notes && (
+						<div>
+							<div
+								className={PANEL_LABEL}
+								title="Kept in Odin only - nothing goes back to the source. Start session adds them to the brief."
+							>
+								Notes
+							</div>
+							{notes}
+						</div>
+					)}
+				</TaskDetails>
 			</div>
 			{children}
 		</aside>
@@ -1509,6 +1554,8 @@ function DetailsActions({
 					type="button"
 					disabled={isLaunching}
 					onClick={onStart}
+					aria-label="Start session"
+					title={START_SESSION_TIP}
 					className={ROW_START_BUTTON}
 				>
 					{launching ? "Starting…" : "Start session"}
@@ -1596,30 +1643,36 @@ function TaskFields({
 }) {
 	return (
 		<>
-			<div className="mb-2.5 flex flex-wrap items-center gap-1.5">
-				<FeedSelect value={status} onChange={onStatus} title="Status">
-					<option value="">Waiting on you</option>
-					{TASK_STATUSES.map(({ id, label }) => (
-						<option key={id} value={id}>
-							{label}
-						</option>
-					))}
-				</FeedSelect>
-				<FeedSelect value={type} onChange={onType} title="Task type">
-					<option value="">No type</option>
-					{TASK_TYPES.map(({ id, label }) => (
-						<option key={id} value={id}>
-							{label}
-						</option>
-					))}
-				</FeedSelect>
-				<FeedSelect value={priority} onChange={onPriority} title="Priority">
-					{priorityOptions.map(([value, label]) => (
-						<option key={value} value={value}>
-							{label}
-						</option>
-					))}
-				</FeedSelect>
+			<div className="mb-2.5 flex flex-wrap items-end gap-1.5">
+				<PanelField label="Status">
+					<FeedSelect value={status} onChange={onStatus} title="Status">
+						<option value="">Waiting on you</option>
+						{TASK_STATUSES.map(({ id, label }) => (
+							<option key={id} value={id}>
+								{label}
+							</option>
+						))}
+					</FeedSelect>
+				</PanelField>
+				<PanelField label="Type">
+					<FeedSelect value={type} onChange={onType} title="Task type">
+						<option value="">No type</option>
+						{TASK_TYPES.map(({ id, label }) => (
+							<option key={id} value={id}>
+								{label}
+							</option>
+						))}
+					</FeedSelect>
+				</PanelField>
+				<PanelField label="Priority">
+					<FeedSelect value={priority} onChange={onPriority} title="Priority">
+						{priorityOptions.map(([value, label]) => (
+							<option key={value} value={value}>
+								{label}
+							</option>
+						))}
+					</FeedSelect>
+				</PanelField>
 				<button
 					type="button"
 					onClick={onQueue}
@@ -1725,6 +1778,26 @@ function WaitField({
 					Wait
 				</button>
 			)}
+		</div>
+	);
+}
+
+/** The small name over a side panel field. */
+const PANEL_LABEL =
+	"mb-0.5 select-none text-[10.5px] font-medium text-muted-foreground";
+
+/** A side panel field with its name above it, so the dropdowns tell apart. */
+function PanelField({
+	label,
+	children,
+}: {
+	label: string;
+	children: ReactNode;
+}) {
+	return (
+		<div className="flex flex-col">
+			<span className={PANEL_LABEL}>{label}</span>
+			{children}
 		</div>
 	);
 }

@@ -80,6 +80,22 @@ export function parseQueuePlace(raw?: string): QueuePlace | null | undefined {
 }
 
 /**
+ * An API caller's due date, `YYYY-MM-DD` as the due picker stores it.
+ * undefined when none was given, null when it isn't a real calendar day.
+ */
+export function parseDueDay(raw?: string): string | null | undefined {
+	const value = raw?.trim();
+	if (!value) return undefined;
+	const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+	if (!match) return null;
+	const [year, month, day] = match.slice(1).map(Number);
+	const date = new Date(Date.UTC(year, month - 1, day));
+	return date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+		? value
+		: null;
+}
+
+/**
  * The queue with `key` at `place`, moved there if it was already lined up. A
  * place past the end is the end. Over KEEP, the far end from the new row
  * falls off.
@@ -150,19 +166,23 @@ function drop<T>(map: Record<string, T>, key: string): Record<string, T> {
 }
 
 /**
- * Per-row status and type, and Up next - the rows you've lined up, in the
- * order you'll take them. Keyed by the All-feed key, like Done.
+ * Per-row status, type and notes, and Up next - the rows you've lined up, in
+ * the order you'll take them. Keyed by the All-feed key, like Done.
  * Bounded by KEEP: setting a row moves it to the end, and the oldest fall
- * off.
+ * off. Notes are for rows from Slack, Jira and the rest; your own tasks keep
+ * theirs on the task.
  */
 export const useTaskMeta = create<{
 	statuses: Record<string, TaskStatus>;
 	types: Record<string, TaskType>;
+	notes: Record<string, string>;
 	queue: string[];
 	/** Rows waiting on someone else, off Up next until their day. */
 	waiting: Record<string, Waiting>;
 	setStatus: (key: string, status: TaskStatus | null) => void;
 	setType: (key: string, type: TaskType | null) => void;
+	/** Your notes on a row, kept in Odin only; empty clears them. */
+	setNote: (key: string, note: string) => void;
 	enqueue: (key: string) => void;
 	/** Line `key` up at `place`, for the API's add (action=add up_next=...). */
 	enqueueAt: (key: string, place: QueuePlace) => void;
@@ -179,11 +199,14 @@ export const useTaskMeta = create<{
 		(set) => ({
 			statuses: {},
 			types: {},
+			notes: {},
 			queue: [],
 			waiting: {},
 			setStatus: (key, status) =>
 				set((s) => ({ statuses: put(s.statuses, key, status) })),
 			setType: (key, type) => set((s) => ({ types: put(s.types, key, type) })),
+			setNote: (key, note) =>
+				set((s) => ({ notes: put(s.notes, key, note.trim() || null) })),
 			// Lining a row up again ends its wait: it's back to being yours.
 			enqueue: (key) =>
 				set((s) =>

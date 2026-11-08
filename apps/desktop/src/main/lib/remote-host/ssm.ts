@@ -30,9 +30,15 @@ import { awsProfileFor, localProfileRegion } from "./aws-profile";
 
 export interface SsmTarget {
 	instanceId: string;
+	/** The host's name in Odin (its Name tag), shown to the user instead of the id. */
+	name?: string | null;
 	profile?: string | null;
 	region?: string | null;
 }
+
+/** How a host is named to the user: its name, else its instance id. */
+export const hostLabel = (host: { name?: string | null; instanceId: string }) =>
+	host.name || host.instanceId;
 
 export const SSM_PLUGIN_VERSION = "1.2.896.0";
 
@@ -184,7 +190,7 @@ export async function pushOneTimeKey(
 	if (!result) return pushKeyOverSsm(target, osUser, publicKey);
 	if (!result.Success)
 		throw new Error(
-			`AWS did not accept the login key for ${target.instanceId}.`,
+			`AWS did not accept the login key for ${hostLabel(target)}.`,
 		);
 }
 
@@ -279,7 +285,7 @@ async function pushKeyOverSsm(
 	);
 	const commandId = sent.Command?.CommandId;
 	if (!commandId)
-		throw new Error(`SSM did not take the login key for ${target.instanceId}.`);
+		throw new Error(`SSM did not take the login key for ${hostLabel(target)}.`);
 	for (let attempt = 0; attempt < 60; attempt++) {
 		await new Promise((resolve) => setTimeout(resolve, 1_000));
 		const result = await ssm
@@ -294,10 +300,10 @@ async function pushKeyOverSsm(
 		if (["Pending", "InProgress", "Delayed"].includes(status)) continue;
 		if (status === "Success") return;
 		throw new Error(
-			`The login key did not reach ${target.instanceId} (${status}): ${(result?.StandardErrorContent ?? "").slice(-200)}`,
+			`The login key did not reach ${hostLabel(target)} (${status}): ${(result?.StandardErrorContent ?? "").slice(-200)}`,
 		);
 	}
-	throw new Error(`The login key took too long to reach ${target.instanceId}.`);
+	throw new Error(`The login key took too long to reach ${hostLabel(target)}.`);
 }
 
 /** What the plugin is started with - the same arguments the aws CLI gives it. */

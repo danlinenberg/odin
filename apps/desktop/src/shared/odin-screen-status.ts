@@ -255,17 +255,23 @@ export function reconnectStopped(connectLine: string | undefined): boolean {
 /**
  * The stopped-reconnecting line split for the chat view: "Stopped reconnecting
  * to <host> after 6 tries" as the headline, why on its own line below, minus
- * the "could not reconnect:" the headline already says.
+ * the "could not reconnect:" the headline already says, and the time the
+ * helper tries again by itself.
  */
-export function stoppedParts(line: string): { title: string; reason?: string } {
+export function stoppedParts(line: string): {
+	title: string;
+	reason?: string;
+	retryAt?: string;
+} {
 	const match = line.match(
-		/^(Stopped reconnecting to .+? after \d+ tries): (.+)$/,
+		/^(Stopped reconnecting to .+? after \d+ tries)(?: \(trying again by itself at ([^)]+)\))?: (.+)$/,
 	);
 	if (!match) return { title: line };
-	const reason = match[2].replace(/^could not (re)?connect:\s*/i, "");
+	const reason = match[3].replace(/^could not (re)?connect:\s*/i, "");
 	return {
 		title: match[1],
 		reason: reason[0].toUpperCase() + reason.slice(1),
+		...(match[2] ? { retryAt: match[2] } : {}),
 	};
 }
 

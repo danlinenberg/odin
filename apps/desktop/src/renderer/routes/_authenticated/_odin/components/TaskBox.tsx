@@ -2,13 +2,30 @@ import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import type { AgentSkill } from "lib/trpc/routers/skills";
 import type { OdinDoc } from "lib/trpc/routers/system";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+	type ReactNode,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { HiOutlineClock, HiOutlineSparkles, HiXMark } from "react-icons/hi2";
 import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useClaudeCommand } from "renderer/stores/claude-command";
 import { describeCron, nextRun } from "shared/cron";
 import { getImageMimeType, isVideoFile } from "shared/file-types";
+import {
+	applyNewTaskFields,
+	type NewTaskFields,
+	NO_NEW_TASK_FIELDS,
+} from "../all/new-task-fields";
+import {
+	TASK_STATUSES,
+	TASK_TYPES,
+	type TaskStatus,
+	type TaskType,
+} from "../all/task-meta";
 import {
 	ATTACHMENT_URL,
 	PRIORITY_LABELS,
@@ -42,7 +59,7 @@ const appendLines = (text: string, lines: string[]) =>
  * matching pills - and when the dialog is narrow it wraps as one set, left to
  * right, instead of stranding one field alone at the far side of a second line.
  */
-const FIELD =
+export const FIELD =
 	"inline-flex h-6 shrink-0 items-center rounded-[6px] bg-secondary ring-1 ring-inset ring-border transition-[box-shadow] focus-within:ring-primary/60";
 /** The field's name, inside the outline. */
 const FIELD_LABEL = "select-none pl-2 pr-1.5 text-[11px] text-muted-foreground";
@@ -50,7 +67,7 @@ const FIELD_LABEL = "select-none pl-2 pr-1.5 text-[11px] text-muted-foreground";
 const FIELD_INPUT =
 	"h-full min-w-0 bg-transparent pr-2 text-[11px] font-semibold outline-none placeholder:font-normal placeholder:text-muted-foreground";
 /** The picked part of a field: Priority. */
-const FIELD_SELECT =
+export const FIELD_SELECT =
 	"h-full cursor-pointer bg-transparent pr-1 text-[11px] font-semibold outline-none [color-scheme:inherit]";
 /** A field that is one menu and nothing else: Doc, and the dialog's Where. */
 const FIELD_MENU =
@@ -206,6 +223,7 @@ export function TaskBox({
 	onSubmit,
 	onCancel,
 	submitLabel,
+	extraFields,
 }: {
 	value: string;
 	placeholder?: string;
@@ -241,6 +259,8 @@ export function TaskBox({
 	onCancel?: () => void;
 	/** Shows a button that does what Ctrl/⌘+Enter does. */
 	submitLabel?: string;
+	/** More fields after Priority - the new task's Up next, due date and the rest. */
+	extraFields?: ReactNode;
 }) {
 	// What the textbox shows is the text alone; the paths ride along as chips.
 	const { text, paths } = splitAttachments(value);
@@ -515,6 +535,7 @@ export function TaskBox({
 							</select>
 						</label>
 					)}
+					{extraFields}
 					{submitLabel && (
 						<button
 							type="button"
@@ -969,6 +990,91 @@ export function AutomationChip({
 	);
 }
 
+/**
+ * The side panel's fields, set while you write the task: Up next (start or
+ * end of the queue), Due, Status and Type. Priority stays in the text ("!"s).
+ */
+export function NewTaskFieldsPicker({
+	value,
+	onChange,
+}: {
+	value: NewTaskFields;
+	onChange: (value: NewTaskFields) => void;
+}) {
+	return (
+		<>
+			<label className={FIELD}>
+				<span className={FIELD_LABEL}>Up next</span>
+				<select
+					aria-label="Up next"
+					title="Line it up on Up next, at the start or the end of the queue"
+					value={value.upNext}
+					onChange={(event) =>
+						onChange({
+							...value,
+							upNext: event.target.value as NewTaskFields["upNext"],
+						})
+					}
+					className={cn(FIELD_SELECT, "text-foreground")}
+				>
+					<option value="">No</option>
+					<option value="top">Start of queue</option>
+					<option value="end">End of queue</option>
+				</select>
+			</label>
+			<label className={FIELD}>
+				<span className={FIELD_LABEL}>Due</span>
+				<input
+					type="date"
+					aria-label="Due"
+					value={value.due}
+					onChange={(event) => onChange({ ...value, due: event.target.value })}
+					// Chromium draws the calendar popup in the element's own colour
+					// scheme, and the app is dark whatever the OS is set to.
+					style={{ colorScheme: "dark" }}
+					className={cn(FIELD_SELECT, "text-foreground")}
+				/>
+			</label>
+			<label className={FIELD}>
+				<span className={FIELD_LABEL}>Status</span>
+				<select
+					aria-label="Status"
+					value={value.status}
+					onChange={(event) =>
+						onChange({ ...value, status: event.target.value as TaskStatus })
+					}
+					className={cn(FIELD_SELECT, "text-foreground")}
+				>
+					<option value="">Waiting on you</option>
+					{TASK_STATUSES.map(({ id, label }) => (
+						<option key={id} value={id}>
+							{label}
+						</option>
+					))}
+				</select>
+			</label>
+			<label className={FIELD}>
+				<span className={FIELD_LABEL}>Type</span>
+				<select
+					aria-label="Type"
+					value={value.type}
+					onChange={(event) =>
+						onChange({ ...value, type: event.target.value as TaskType })
+					}
+					className={cn(FIELD_SELECT, "text-foreground")}
+				>
+					<option value="">No type</option>
+					{TASK_TYPES.map(({ id, label }) => (
+						<option key={id} value={id}>
+							{label}
+						</option>
+					))}
+				</select>
+			</label>
+		</>
+	);
+}
+
 /** Where the dragged-out size lives between opens. */
 const SIZE_KEY = "odin.quick-add-size";
 
@@ -996,6 +1102,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 	const addRecentRepo = useClaudeCommand((state) => state.addRecentRepo);
 	const [draft, setDraft] = useState("");
 	const [repo, setRepo] = useState("");
+	const [fields, setFields] = useState(NO_NEW_TASK_FIELDS);
 	// This computer or the remote host, for the session Start now opens.
 	// Undefined until picked, so the launch keeps Settings' rule.
 	const [onHost, setOnHost] = useState<boolean>();
@@ -1045,7 +1152,8 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 		// Same rule the store uses - no title, no task, so don't claim one. A
 		// pasted screenshot on its own counts: its path is the title.
 		if (!parseTask(draft).title) return onClose();
-		add(draft, undefined, repo);
+		const id = add(draft, undefined, repo);
+		if (id) applyNewTaskFields(`task:${id}`, parseTask(draft).title, fields);
 		if (repo) addRecentRepo(repo);
 		onClose();
 		if (!startNow) return void toast.success("Added to My Tasks");
@@ -1103,6 +1211,9 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 						onChange={setDraft}
 						onSubmit={save}
 						onCancel={onClose}
+						extraFields={
+							<NewTaskFieldsPicker value={fields} onChange={setFields} />
+						}
 					/>
 				</div>
 				{/* The footer is what a resize can't squeeze: TaskBox's brief takes

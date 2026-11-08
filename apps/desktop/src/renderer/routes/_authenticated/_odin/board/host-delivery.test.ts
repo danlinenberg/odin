@@ -224,6 +224,26 @@ describe("deliverOnHost", () => {
 		expect(log.at(-1)).toBe("A lost");
 	});
 
+	test("a reply waits as long as the pane waits on you - an expired AWS sign-in, a stopped reconnect - then goes in", async () => {
+		const BLOCKED =
+			"\nOdin: Still blocked: the AWS sign-in was not approved, so this session is not connected.\n  It timed out or was cancelled.\n  To fix it:\n  1. Press Enter for a new sign-in link, or sign in to AWS anywhere else - Odin sees it and connects.\n";
+		const STOPPED =
+			"\nOdin: Stopped reconnecting to i-0abc123 after 6 tries: could not reconnect: timed out.\n";
+		const HOUR = 60 * 60_000;
+		const { clock, deps } = pane([
+			[0, STOPPED],
+			[HOUR, BLOCKED],
+			[2 * HOUR, `${BLOCKED}\nOdin: AWS sign-in approved - connecting...\n`],
+			[2 * HOUR + 5_000, BACK],
+		]);
+		const log: string[] = [];
+		const { msg, typedAt } = message("A", log, clock);
+		await deliverOnHost("p-signin", msg, deps);
+		expect(typedAt.length).toBe(1);
+		expect(typedAt[0]).toBeGreaterThanOrEqual(2 * HOUR + 5_000);
+		expect(log).not.toContain("A lost");
+	});
+
 	test("a screen that can't be read holds the message only a while, not until the host comes back", async () => {
 		const { clock, deps } = pane([[0, ""]]);
 		const log: string[] = [];

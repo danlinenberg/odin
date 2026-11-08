@@ -200,10 +200,21 @@ async function readGithub(repo: string, number: string): Promise<string> {
 	return lines.join("\n");
 }
 
-/** ClickUp's v2 API, with the personal token Settings → Connections saved. */
-export function clickupFetch(path: string, token: string): Promise<Response> {
+/**
+ * ClickUp's v2 API, with the personal token Settings → Connections saved. A
+ * GET unless `init` names a method; its body is JSON.
+ */
+export function clickupFetch(
+	path: string,
+	token: string,
+	init?: { method: string; body: string },
+): Promise<Response> {
 	return fetch(`https://api.clickup.com/api/v2/${path}`, {
-		headers: { Authorization: token },
+		...init,
+		headers: {
+			Authorization: token,
+			...(init && { "Content-Type": "application/json" }),
+		},
 	});
 }
 
