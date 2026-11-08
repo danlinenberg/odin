@@ -20,5 +20,31 @@ runs:
         git config --global user.name "Odin CI"
         git config --global user.email "ci@odin.local"
 
+    # Electron's binary comes from GitHub releases, which answers 504 for
+    # stretches at a time. Keep the download between runs, and fetch it apart
+    # from the install so a 504 is retried, waiting longer each time.
+    - uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/electron
+          ~/Library/Caches/electron
+          ~/AppData/Local/electron/Cache
+        key: electron-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+        restore-keys: electron-${{ runner.os }}-
+
     - shell: bash
-      run: bun install --frozen-lockfile
+      run: ELECTRON_SKIP_BINARY_DOWNLOAD=1 bun install --frozen-lockfile
+
+    - shell: bash
+      working-directory: apps/desktop
+      run: |
+        install=$(node -p "require.resolve('electron/install.js')")
+        wait=15
+        for try in 1 2 3 4 5 6; do
+          node "$install" && exit 0
+          [ "$try" = 6 ] && break
+          echo "Electron download failed (try $try) - trying again in ${wait}s"
+          sleep "$wait"
+          wait=$((wait * 2))
+        done
+        exit 1
