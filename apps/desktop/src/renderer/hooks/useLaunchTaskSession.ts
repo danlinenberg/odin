@@ -138,10 +138,13 @@ const EXTENSIONS: Record<string, string> = {
 	quicktime: "mov",
 	"x-matroska": "mkv",
 	"svg+xml": "svg",
+	markdown: "md",
+	plain: "txt",
 };
 
 /**
- * Split a `data:image/png;base64,…` (or `data:video/mp4;…`, `data:application/pdf;…`) URL into what the
+ * Split a `data:image/png;base64,…` (or `data:video/mp4;…`, `data:application/pdf;…`,
+ * `data:text/markdown;…`) URL into what the
  * filesystem router wants. Extension comes from the mime type, never the
  * original filename - the name is user-supplied and would need sanitising to
  * be safe in a path.
@@ -152,7 +155,7 @@ export function parseDataUrl(dataUrl: string): {
 } {
 	const [header = "", base64 = ""] = dataUrl.split(",", 2);
 	const subtype =
-		/^data:(?:image|video|application)\/([a-z0-9.+-]+)/i
+		/^data:(?:image|video|application|text)\/([a-z0-9.+-]+)/i
 			.exec(header)?.[1]
 			?.toLowerCase() ?? "png";
 	return {

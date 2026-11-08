@@ -1,5 +1,5 @@
 import { readOdinConfig } from "../../../lib/trpc/routers/odin-config";
-import { voiceRuleWith } from "../../../shared/constants";
+import { ODIN_TASK_RULE, voiceRuleWith } from "../../../shared/constants";
 import { tmuxSession } from "../../../shared/remote-reconnect";
 import {
 	SLACK_ALLOW_RULES,
@@ -23,6 +23,8 @@ export { tmuxSession };
 
 export interface RemoteSessionSpec {
 	instanceId: string;
+	/** The host's name in Odin, shown to the user instead of the id. */
+	name?: string | null;
 	profile?: string | null;
 	region?: string | null;
 	user: string;
@@ -902,6 +904,8 @@ export function hostNote(spec: {
 		// that the host never has, so a host session would draft in its own voice and keep
 		// corrections out of Settings.
 		voiceRuleWith(spec.voiceGuide ?? ""),
+		// Same hook, same gap: the host sends /odin on to Odin on my computer.
+		ODIN_TASK_RULE,
 	].join("\n");
 }
 

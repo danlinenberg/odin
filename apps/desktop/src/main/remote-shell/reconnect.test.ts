@@ -6,6 +6,8 @@ import {
 	keepAttached,
 	MAX_TRIES,
 	type ReconnectIo,
+	STUCK_RETRY_MAX_MS,
+	STUCK_RETRY_MS,
 	type StuckChoice,
 	settleWithin,
 	untilReady,
@@ -118,6 +120,59 @@ describe("keepAttached", () => {
 		});
 		await keepAttached(io, "i-0abc");
 		expect(said.at(-1)).toBe("connecting to i-0abc...");
+	});
+
+	test("left alone, the stopped state tries once by itself, waiting longer after each miss, and a host that comes back is picked up", async () => {
+		let connects = 0;
+		const waits: number[] = [];
+		const counts: number[] = [];
+		const { io, said } = fakeIo({
+			connect: async () => {
+				connects++;
+				// Down for the first round and four of the stopped state's own tries.
+				if (connects <= MAX_TRIES + 4) throw new Error("timed out");
+				return "client";
+			},
+			stuck: async (_reason, tries, retryInMs) => {
+				counts.push(tries);
+				waits.push(retryInMs);
+				return "auto";
+			},
+		});
+		await keepAttached(io, "i-0abc");
+		expect(waits).toEqual([
+			STUCK_RETRY_MS,
+			STUCK_RETRY_MS * 2,
+			STUCK_RETRY_MS * 4,
+			STUCK_RETRY_MAX_MS,
+			STUCK_RETRY_MAX_MS,
+		]);
+		// Each of its own tries is one login, counted on from the round before.
+		expect(counts).toEqual([6, 7, 8, 9, 10]);
+		expect(connects).toBe(MAX_TRIES + 5);
+		// No "trying again in 10s" lines between its own tries.
+		expect(
+			said.filter((line) => line.includes("trying again in")),
+		).toHaveLength(MAX_TRIES - 1);
+	});
+
+	test("Retry from the stopped state starts a full round again, and its own retry back at the first wait", async () => {
+		let connects = 0;
+		const waits: number[] = [];
+		const picks: StuckChoice[] = ["auto", "retry"];
+		const { io } = fakeIo({
+			connect: async () => {
+				connects++;
+				if (connects <= MAX_TRIES + 1 + MAX_TRIES) throw new Error("timed out");
+				return "client";
+			},
+			stuck: async (_reason, _tries, retryInMs) => {
+				waits.push(retryInMs);
+				return picks.shift() ?? "retry";
+			},
+		});
+		await keepAttached(io, "i-0abc");
+		expect(waits).toEqual([STUCK_RETRY_MS, STUCK_RETRY_MS * 2, STUCK_RETRY_MS]);
 	});
 
 	test("a failure no retry fixes ends the pane", async () => {
