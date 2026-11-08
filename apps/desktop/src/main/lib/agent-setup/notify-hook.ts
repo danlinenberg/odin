@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
+	ODIN_TASK_RULE,
 	SHELL_RULE,
 	STE_RULE,
 	VIDEO_RULE,
@@ -25,11 +26,11 @@ const DEFAULT_SUBAGENT_CAP = 4;
 export const SHELL_RULE_SCRIPT_NAME = "shell-rule.sh";
 const SHELL_RULE_SCRIPT_MARKER = "# Odin shell rule hook v4";
 
-/** A session's SessionStart context: the Shell, video and STE rules, and my voice guide when Odin has one. */
+/** A session's SessionStart context: the Shell, Odin task, video and STE rules, and my voice guide when Odin has one. */
 export const sessionStartOutput = (voiceGuide: string) => ({
 	hookSpecificOutput: {
 		hookEventName: "SessionStart",
-		additionalContext: `${SHELL_RULE}\n\n${VIDEO_RULE}\n\n${STE_RULE}\n\n${voiceRuleWith(voiceGuide)}`,
+		additionalContext: `${SHELL_RULE}\n\n${ODIN_TASK_RULE}\n\n${VIDEO_RULE}\n\n${STE_RULE}\n\n${voiceRuleWith(voiceGuide)}`,
 	},
 });
 

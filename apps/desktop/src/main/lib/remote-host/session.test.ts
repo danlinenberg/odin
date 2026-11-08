@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { VOICE_RULE } from "../../../shared/constants";
+import { ODIN_TASK_RULE, VOICE_RULE } from "../../../shared/constants";
 import {
 	SLACK_ALLOW_RULES,
 	SLACK_DENY_RULES,
@@ -641,6 +641,16 @@ test("the host note tells the agent to write in my voice and record corrections"
 		pane: "0d202ff3aa",
 	});
 	expect(note).toContain(VOICE_RULE);
+});
+
+test("the host note tells the agent how to add an Odin task", () => {
+	const note = hostNote({
+		user: "ubuntu",
+		name: "odin-remote",
+		repoName: "odin",
+		pane: "0d202ff3aa",
+	});
+	expect(note).toContain(ODIN_TASK_RULE);
 });
 
 test("the host falls back to the API key only while the plan is limited", () => {

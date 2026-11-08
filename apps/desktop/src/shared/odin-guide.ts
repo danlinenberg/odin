@@ -35,6 +35,7 @@ Tabs, in two groups split by a hairline: Odin's own (All, Tasks, Docs), then the
 - The Repo picker ("agent picks") sets the checkout. Empty: the agent picks the repo from the brief.
 - Sorted by priority, then newest first. Starting a task keeps it on the list, linked to its session: started is not finished.
 - Schedules (automations) don't show here. Each profile has its own list. The New task dialog has a Start now box.
+- Any Claude session Odin starts can add a task here: ask it to "open an Odin task" and it adds one with a title, notes, a due date and an Up next place if you give them.
 - Store: tasks.
 
 ## Next in line (Dev Board column)

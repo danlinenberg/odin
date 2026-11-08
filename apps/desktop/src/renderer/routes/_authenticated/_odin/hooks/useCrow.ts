@@ -40,13 +40,14 @@ import { CROW_TAG } from "shared/odin-tags";
 import stripAnsi from "strip-ansi";
 import { create } from "zustand";
 import type { AllItem } from "../all/all-items";
-import { parseQueuePlace, useTaskMeta } from "../all/task-meta";
+import { parseDueDay, parseQueuePlace, useTaskMeta } from "../all/task-meta";
 import { useSearchableItems } from "../all/use-all-items";
 import { paneWorksOn } from "../all/use-start-item";
 import { useCardFlags } from "../board/card-flags";
 import { phoneReply } from "../board/phone-resume";
 import { remindSession } from "../board/SessionReminders";
 import { type PromptImage, sessionTitle } from "../components/OdinPromptDialog";
+import { useReminders } from "../components/Reminders";
 import { unreadPing, useReplyWatch } from "../components/ReplyWatch";
 import { phoneNights } from "../night-agent/night-log";
 import { readState, runAction, writeState } from "./crow-state";
@@ -726,6 +727,8 @@ function runOdinAction(
 		const place = parseQueuePlace(args.up_next);
 		if (place === null)
 			return "up_next must be top, end or a place from 1 (1 is the top).";
+		const due = parseDueDay(args.due);
+		if (due === null) return "due must be a day as YYYY-MM-DD.";
 		const before = useOdinTasks.getState().tasks[0];
 		deps.add(args.text, undefined, args.repo || undefined);
 		const title = args.text.trim().split("\n")[0];
@@ -734,11 +737,16 @@ function runOdinAction(
 		const first = useOdinTasks.getState().tasks[0];
 		const added = first !== before ? first : undefined;
 		let lined = "";
+		// The same date the row's "+ Due" chip sets.
+		if (due && added) {
+			useReminders.getState().setDue(`task:${added.id}`, due, added.title);
+			lined += `, due ${due}`;
+		}
 		if (place !== undefined && added) {
 			const key = `task:${added.id}`;
 			useTaskMeta.getState().enqueueAt(key, place);
 			const at = useTaskMeta.getState().queue.indexOf(key) + 1;
-			lined = `, place ${at} on Up next`;
+			lined += `, place ${at} on Up next`;
 		}
 		const task = args.start === "true" ? added : undefined;
 		if (!task) return `Added "${title}" to the backlog${lined}.`;
