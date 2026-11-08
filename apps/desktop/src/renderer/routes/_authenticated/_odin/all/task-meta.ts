@@ -118,17 +118,21 @@ export function placeKey(
 }
 
 /**
- * Per-row status and type, and Up next - the rows you've lined up, in the
- * order you'll take them. Keyed by the All-feed key, like Done.
+ * Per-row status, type and notes, and Up next - the rows you've lined up, in
+ * the order you'll take them. Keyed by the All-feed key, like Done.
  * Bounded by KEEP: setting a row moves it to the end, and the oldest fall
- * off.
+ * off. Notes are for rows from Slack, Jira and the rest; your own tasks keep
+ * theirs on the task.
  */
 export const useTaskMeta = create<{
 	statuses: Record<string, TaskStatus>;
 	types: Record<string, TaskType>;
+	notes: Record<string, string>;
 	queue: string[];
 	setStatus: (key: string, status: TaskStatus | null) => void;
 	setType: (key: string, type: TaskType | null) => void;
+	/** Your notes on a row, kept in Odin only; empty clears them. */
+	setNote: (key: string, note: string) => void;
 	enqueue: (key: string) => void;
 	/** Line `key` up at `place`, for the API's add (action=add up_next=...). */
 	enqueueAt: (key: string, place: QueuePlace) => void;
@@ -139,10 +143,13 @@ export const useTaskMeta = create<{
 		(set) => ({
 			statuses: {},
 			types: {},
+			notes: {},
 			queue: [],
 			setStatus: (key, status) =>
 				set((s) => ({ statuses: put(s.statuses, key, status) })),
 			setType: (key, type) => set((s) => ({ types: put(s.types, key, type) })),
+			setNote: (key, note) =>
+				set((s) => ({ notes: put(s.notes, key, note.trim() || null) })),
 			enqueue: (key) =>
 				set((s) =>
 					s.queue.includes(key) ? s : { queue: [...s.queue, key].slice(-KEEP) },

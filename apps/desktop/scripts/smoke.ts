@@ -698,6 +698,47 @@ await step("the Tasks page has its own composer", async () => {
 });
 
 await step(
+	"the composer's Up next puts a new task on the queue, and its panel labels the fields",
+	async () => {
+		const typed = `Queued task ${Date.now()}`;
+		await rail("Tasks");
+		await fill('textarea[placeholder="What needs doing?"]', typed);
+		const picked = await page<boolean>(`(() => {
+		const title = document.querySelector('textarea[placeholder="What needs doing?"]');
+		const select = title.closest("fieldset").parentElement.querySelector('select[aria-label="Up next"]');
+		if (!select) return false;
+		Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(select, "top");
+		select.dispatchEvent(new Event("change", { bubbles: true }));
+		return true;
+	})()`);
+		if (!picked) throw new Error("no Up next field under the composer");
+		await click("button", "Add task");
+		await waitForText(typed);
+		await waitForText("drag to reorder");
+		// Its side panel names each dropdown, and Start says what it does.
+		await page(
+			`[...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(typed)})?.click()`,
+		);
+		const panel = await page<string>(`(() => {
+		const aside = document.querySelector("[data-task-panel]");
+		if (!aside) return "no panel";
+		const labels = ["Status", "Type", "Priority"].filter((l) => ![...aside.querySelectorAll("span")].some((e) => e.textContent.trim() === l));
+		if (labels.length) return "missing labels " + labels.join(", ");
+		const start = [...aside.querySelectorAll("button")].find((e) => e.textContent.trim() === "Start session");
+		return start?.title ? "" : "Start session has no hover text";
+	})()`);
+		if (panel) throw new Error(panel);
+		await click("button", "Close details");
+		await page(`(() => {
+		let row = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(typed)});
+		while (row && !row.querySelector('button[aria-label="Take it off Up next"]')) row = row.parentElement;
+		row?.querySelector('button[aria-label="Take it off Up next"]').click();
+	})()`);
+		await waitForText("drag to reorder", false);
+	},
+);
+
+await step(
 	"the Tasks composer stays open when you click into Repo",
 	async () => {
 		await rail("Tasks");
