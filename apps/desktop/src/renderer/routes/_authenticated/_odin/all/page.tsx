@@ -1216,6 +1216,7 @@ function AllFeedPage() {
 								}
 								queued={queue.includes(openItem.key)}
 								waiting={parkedBy[openItem.key]}
+								person={openItem.person}
 								onWait={(on, until) =>
 									wait(openItem.key, on, until, openItem.title)
 								}
@@ -1575,6 +1576,7 @@ function TaskFields({
 	onPriority,
 	onQueue,
 	waiting,
+	person,
 	onWait,
 	onUnwait,
 }: {
@@ -1588,6 +1590,7 @@ function TaskFields({
 	onPriority: (value: string) => void;
 	onQueue: () => void;
 	waiting: Waiting | undefined;
+	person: string | null;
 	onWait: (on: string, until: string) => void;
 	onUnwait: () => void;
 }) {
@@ -1625,7 +1628,12 @@ function TaskFields({
 					{queued ? "✓ Up next" : "+ Up next"}
 				</button>
 			</div>
-			<WaitField waiting={waiting} onWait={onWait} onUnwait={onUnwait} />
+			<WaitField
+				waiting={waiting}
+				person={person}
+				onWait={onWait}
+				onUnwait={onUnwait}
+			/>
 		</>
 	);
 }
@@ -1636,10 +1644,12 @@ function TaskFields({
  */
 function WaitField({
 	waiting,
+	person,
 	onWait,
 	onUnwait,
 }: {
 	waiting: Waiting | undefined;
+	person: string | null;
 	onWait: (on: string, until: string) => void;
 	onUnwait: () => void;
 }) {
@@ -1653,8 +1663,21 @@ function WaitField({
 		setUntil(waiting?.until ?? dayAfter(Date.now(), WAIT_DAYS));
 	}, [waiting]);
 	const today = dayAfter(Date.now(), 0);
+	// The task's own person first, then everyone in Slack. Free text still
+	// goes in: a PR or a date is a fine thing to wait on.
+	const { data: slackPeople } = electronTrpc.slack.people.useQuery(undefined, {
+		staleTime: 60 * 60_000,
+	});
+	const people = [
+		...new Set([...(person ? [person] : []), ...(slackPeople ?? [])]),
+	];
 	return (
 		<div className="mb-2.5 flex flex-wrap items-center gap-1.5 text-[12px]">
+			<datalist id="odin-wait-people">
+				{people.map((name) => (
+					<option key={name} value={name} />
+				))}
+			</datalist>
 			<span className="text-muted-foreground">Waiting on</span>
 			<input
 				value={on}
@@ -1662,6 +1685,7 @@ function WaitField({
 				onBlur={() => waiting && on.trim() !== waiting.on && onWait(on, until)}
 				placeholder="a teammate, a PR, a date..."
 				aria-label="Waiting on"
+				list="odin-wait-people"
 				className="h-7 min-w-0 flex-1 rounded-[6px] border border-border bg-transparent px-2 text-[12px] text-foreground placeholder:text-muted-foreground"
 			/>
 			<span className="text-muted-foreground">back on Up next</span>

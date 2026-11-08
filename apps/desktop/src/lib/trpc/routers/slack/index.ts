@@ -127,6 +127,52 @@ function slackRead<T extends SlackResponse>(
 	return value;
 }
 
+interface SlackMember {
+	deleted?: boolean;
+	is_bot?: boolean;
+	is_app_user?: boolean;
+	id?: string;
+	name?: string;
+	real_name?: string;
+	profile?: { display_name?: string; real_name?: string };
+}
+
+/** `users.list`, page by page. Kept an hour: people join a team rarely. */
+let peopleCache: { at: number; value: Promise<string[]> } | null = null;
+function workspacePeople(token: string): Promise<string[]> {
+	if (peopleCache && Date.now() - peopleCache.at < 60 * 60_000)
+		return peopleCache.value;
+	const value = (async () => {
+		const names = new Set<string>();
+		let cursor = "";
+		do {
+			const res = await slackApi<
+				SlackResponse & {
+					members?: SlackMember[];
+					response_metadata?: { next_cursor?: string };
+				}
+			>("users.list", { limit: "200", ...(cursor ? { cursor } : {}) }, token);
+			for (const m of res.members ?? []) {
+				if (m.deleted || m.is_bot || m.is_app_user || m.id === "USLACKBOT")
+					continue;
+				const name =
+					m.real_name ||
+					m.profile?.real_name ||
+					m.profile?.display_name ||
+					m.name;
+				if (name) names.add(name);
+			}
+			cursor = res.response_metadata?.next_cursor ?? "";
+		} while (cursor);
+		return [...names].sort((a, b) => a.localeCompare(b));
+	})();
+	peopleCache = { at: Date.now(), value };
+	value.catch(() => {
+		peopleCache = null;
+	});
+	return value;
+}
+
 interface Identity {
 	userId: string;
 	user: string;
@@ -1179,6 +1225,15 @@ export const createSlackRouter = () => {
 					pairs.filter((pair): pair is readonly [string, string] => !!pair[1]),
 				);
 			}),
+
+		/**
+		 * Everyone in the workspace by name, for the "Waiting on" suggestions.
+		 * Bots, apps and deactivated accounts are left out.
+		 */
+		people: publicProcedure.query(async () => {
+			const token = slackToken();
+			return token ? workspacePeople(token) : [];
+		}),
 
 		/** Each text with Slack's raw markup as names: `<@U123>` is "@Name". */
 		readable: publicProcedure
