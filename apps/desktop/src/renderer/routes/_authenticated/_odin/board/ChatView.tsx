@@ -1302,6 +1302,12 @@ export function currentTurn(items: Item[], landed: boolean) {
 		prompt: shown?.kind === "user" ? shown.text : "",
 		/** Everything Claude wrote and ran since. */
 		items: rest,
+		/**
+		 * The rows under the prompt still on screen: the turn's own while it
+		 * runs, the last turn's while your message is on its way. What the
+		 * screen shows that these hold is recorded, not a live line.
+		 */
+		onScreen: items.slice(last + 1),
 		tools: rest.filter((item): item is Tool => item.kind === "tool"),
 		tokens: outputTokens(rest),
 	};
@@ -3530,8 +3536,8 @@ export function ChatView({
 		);
 	}, [working, screenText, screenAt]);
 	const liveSteps = useMemo(
-		() => unrecordedSteps(settled.shown, turn.items, turn.prompt),
-		[settled.shown, turn.items, turn.prompt],
+		() => unrecordedSteps(settled.shown, turn.onScreen, turn.prompt),
+		[settled.shown, turn.onScreen, turn.prompt],
 	);
 	// The lines as one reply, each paragraph once: the same words twice on
 	// screen are one line scrolled.
