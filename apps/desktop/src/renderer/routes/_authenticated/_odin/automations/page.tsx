@@ -737,16 +737,18 @@ function RemindersPanel() {
 					>
 						<div className="flex items-start gap-3">
 							<div className="min-w-0 flex-1">
+								{/* Selectable and whole (the app is select-none), so a
+								    command written into a reminder can be copied out. */}
 								<span
 									dir="auto"
-									className="block truncate text-[13px] font-semibold text-foreground"
+									className="block cursor-text select-text whitespace-pre-wrap break-words text-[13px] font-semibold text-foreground"
 								>
 									{r.title}
 								</span>
 								{r.resume?.brief && (
 									<span
 										dir="auto"
-										className="mt-1 block truncate text-[11.5px] text-muted-foreground"
+										className="mt-1 block cursor-text select-text truncate text-[11.5px] text-muted-foreground"
 									>
 										{r.resume.brief.replace(/\s+/g, " ")}
 									</span>

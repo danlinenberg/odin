@@ -93,7 +93,7 @@ Four columns: **Working** (blue), **Needs you** (amber), **Final Review** (green
 ## Board header
 - **+ New Session**, **Search sessions** (title, brief, tags, person, repo, PRs), and a filter (Starred / Tags / Repos / People).
 - **Next in line** toggle shows that column; ▶ Start launches a row, the moon picks it for tonight.
-- **Reminders strip**: reminders whose day came and unread "New reply" pings, with Resume/Open, Snooze and ✕.
+- **Reminders strip**: reminders whose day came and unread "New reply" pings, with Resume/Open, Snooze and ✕. Hover a reminder to see its whole text; you can select and copy it there or in the strip.
 
 ## Cards
 - Hover: ☆ Star (pins to top), ✓ Done (always visible in Final Review), the bell Remind me (tomorrow at the earliest).
@@ -208,7 +208,7 @@ The raven button at the bottom of the rail, or ⌘⇧I. Until first opened it ha
 Three tabs: Schedules, Rules, Reminders.
 - **Schedules**: tasks that start themselves on a schedule, only while Odin is open. Pick Repeat, day and time, or Custom for a cron. A run that came due while Odin was shut is skipped, not caught up. A due run starts even if the last run's session is still open; Pause stops it. "Run now" starts it at once. While the remote host is on, a schedule's "On <host>" / "On this Mac" button picks where its runs start; "On this Mac" keeps a job that needs this computer's files here. An optional tag makes it run only when an open session on the board has that tag; the run gets those sessions' paneIds and must drop the tag when done. Each run's card is tagged "automation". Schedules also show in My Tasks, marked amber with their schedule. Store: tasks (an automation is a task with a cron).
 - **Rules**: "When <situation>, <action>" - standing instructions for every session Odin starts from now on. A session already running, or one you resume, keeps the prompt it had. A rule can be pinned to some repos ("in"), or to every repo except those ("not in"), and paused. Rules about pull requests or pushes are also re-sent to the agent each time it opens or pushes to a PR. Store: rules - fn add(when, action, repos?, exclude?), update(id, patch), remove(id).
-- **Reminders**: every snoozed session and dated feed row, soonest first. "Remind me to ... on ... at ..." at the top adds a reminder of your own with no task behind it; it fires at its own time and has Done instead of Open. Resume early, Move the day, or drop one. Click a reminder's day-and-time chip ("Tomorrow at 09:00") to change its day or hour in place; it saves as you pick, and OK closes it. A snoozed session shows on the board only when it is due. Store: reminders.
+- **Reminders**: every snoozed session and dated feed row, soonest first. "Remind me to ... on ... at ..." at the top adds a reminder of your own with no task behind it; it fires at its own time and has Done instead of Open. Resume early, Move the day, or drop one. A reminder shows its whole text, which you can select and copy. Click a reminder's day-and-time chip ("Tomorrow at 09:00") to change its day or hour in place; it saves as you pick, and OK closes it. A snoozed session shows on the board only when it is due. Store: reminders.
 
 ## Night Agent (Settings → Backlog & Night Agent, or the Night Agent page's header)
 "Work the backlog overnight": inside the window (default 23:00 to 07:00) it starts the top task of Next in line, waits until that session stops working, then starts the next. One at a time, up to the night's cap (default 8 sessions).
