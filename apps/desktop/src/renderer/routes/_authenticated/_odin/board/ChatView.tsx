@@ -3690,17 +3690,16 @@ export function ChatView({
 	// mid-turn the latest reply is a moving target - and shown only while the
 	// brief read this very reply: a newer one makes it a wrong TL;DR, so the
 	// card waits for the brief that catches up.
-	const { data: brief } =
-		electronTrpc.terminal.summarizeClaudeSession.useQuery(
-			{ sessionId: sessionId ?? "", settled: true },
-			{
-				enabled: !!sessionId && !!lastText && !working,
-				retry: false,
-				staleTime: 30_000,
-				refetchInterval: (query) =>
-					sameReply(lastText?.at, query.state.data?.replyAt) ? false : 15_000,
-			},
-		);
+	const { data: brief } = electronTrpc.terminal.summarizeClaudeSession.useQuery(
+		{ sessionId: sessionId ?? "", settled: true },
+		{
+			enabled: !!sessionId && !!lastText && !working,
+			retry: false,
+			staleTime: 30_000,
+			refetchInterval: (query) =>
+				sameReply(lastText?.at, query.state.data?.replyAt) ? false : 15_000,
+		},
+	);
 	// Measured without its ACTION ITEMS: those show in their own card.
 	const fresh = freshTldr(
 		lastText && { ...lastText, text: splitActionItems(lastText.text).body },
