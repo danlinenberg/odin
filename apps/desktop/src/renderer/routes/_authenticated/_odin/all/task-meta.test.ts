@@ -1,11 +1,13 @@
 import { expect, test } from "bun:test";
 import {
+	dayAfter,
 	moveKey,
 	parseDueDay,
 	parseQueuePlace,
 	placeKey,
 	typeOf,
 	useTaskMeta,
+	wokenKeys,
 } from "./task-meta";
 
 test("moveKey drops the dragged key where the target was", () => {
@@ -76,6 +78,49 @@ test("enqueueAt lines a row up at the place asked", () => {
 	useTaskMeta.getState().enqueueAt("task:2", 2);
 	expect(useTaskMeta.getState().queue).toEqual(["task:1", "task:2", "a", "b"]);
 	useTaskMeta.setState({ queue: [] });
+});
+
+test("dayAfter counts local calendar days", () => {
+	const now = new Date(2026, 10, 30, 23, 30).getTime();
+	expect(dayAfter(now, 3)).toBe("2026-12-03");
+	expect(dayAfter(now, 0)).toBe("2026-11-30");
+});
+
+test("wokenKeys picks rows whose day came, oldest first", () => {
+	const waiting = {
+		a: { on: "Omri", until: "2026-11-09", setAt: 0 },
+		b: { on: "", until: "2026-11-06", setAt: 0 },
+		c: { on: "", until: "2026-11-10", setAt: 0 },
+	};
+	expect(wokenKeys(waiting, "2026-11-09")).toEqual(["b", "a"]);
+	expect(wokenKeys(waiting, "2026-11-01")).toEqual([]);
+});
+
+test("waiting takes a row off Up next and its day brings it back on top", () => {
+	useTaskMeta.setState({ queue: ["a", "b", "c"], waiting: {} });
+	const { wait, wake } = useTaskMeta.getState();
+	wait("b", " my teammate ", "2026-11-09");
+	wait("c", "", "2026-11-08");
+	expect(useTaskMeta.getState().queue).toEqual(["a"]);
+	expect(useTaskMeta.getState().waiting.b?.on).toBe("my teammate");
+	expect(wake("2026-11-07")).toEqual([]);
+	expect(wake("2026-11-09")).toEqual(["c", "b"]);
+	expect(useTaskMeta.getState().queue).toEqual(["c", "b", "a"]);
+	expect(useTaskMeta.getState().waiting).toEqual({});
+});
+
+test("lining up, unwaiting or finishing a waiting row ends the wait", () => {
+	useTaskMeta.setState({ queue: [], waiting: {} });
+	const { wait, enqueue, unwait, dequeue } = useTaskMeta.getState();
+	wait("a", "", "2026-12-01");
+	enqueue("a");
+	expect(useTaskMeta.getState().waiting.a).toBeUndefined();
+	wait("a", "", "2026-12-01");
+	unwait("a", true);
+	expect(useTaskMeta.getState().queue).toEqual(["a"]);
+	wait("a", "", "2026-12-01");
+	dequeue("a");
+	expect(useTaskMeta.getState().waiting).toEqual({});
 });
 
 test("setNote keeps notes on any row, and empty clears them", () => {
