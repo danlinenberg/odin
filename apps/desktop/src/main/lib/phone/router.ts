@@ -60,8 +60,12 @@ const t = initTRPC.create({ transformer: superjson });
 const terminal = () => getWorkspaceRuntimeRegistry().getDefault().terminal;
 
 /** The window owns the backlog - its answer, or a clear error when it's closed. */
-async function board(action: string, args: Record<string, string> = {}) {
-	const text = await askRenderer(action, args);
+async function board(
+	action: string,
+	args: Record<string, string> = {},
+	waitMs?: number,
+) {
+	const text = await askRenderer(action, args, waitMs);
 	if (text === undefined)
 		throw new TRPCError({
 			code: "PRECONDITION_FAILED",
@@ -71,6 +75,14 @@ async function board(action: string, args: Record<string, string> = {}) {
 		throw new TRPCError({ code: "TIMEOUT", message: "Odin didn't answer." });
 	return text;
 }
+
+/**
+ * How long the board poll waits for each of the window's answers. A window
+ * that is off the board (Settings, signing in, reloading) never answers, and
+ * the phone drops a board that takes 12s, so it would spin forever. The
+ * window answers these at once when it is there.
+ */
+const BOARD_READ_MS = 4_000;
 
 /** The brief links hidden on the desktop; [] with the window away or older. */
 async function hiddenLinks(paneId: string): Promise<string[]> {
@@ -106,7 +118,7 @@ async function doneShelf(): Promise<
 	}[]
 > {
 	try {
-		return JSON.parse(await board("done-list"));
+		return JSON.parse(await board("done-list", {}, BOARD_READ_MS));
 	} catch {
 		return [];
 	}
@@ -125,7 +137,7 @@ async function cardFlags(): Promise<
 	>
 > {
 	try {
-		return JSON.parse(await board("card-flags"));
+		return JSON.parse(await board("card-flags", {}, BOARD_READ_MS));
 	} catch {
 		return {};
 	}
@@ -271,7 +283,7 @@ export const phoneRouter = t.router({
 		const [sessions, tasks, flags, done] = await Promise.all([
 			// The profile Odin is in, as the desktop board shows it.
 			loadSessions(true, activeProfileId()),
-			board("tasks").catch(() => "[]"),
+			board("tasks", {}, BOARD_READ_MS).catch(() => "[]"),
 			cardFlags(),
 			doneShelf(),
 		]);
