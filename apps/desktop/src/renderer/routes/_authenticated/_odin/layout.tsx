@@ -31,6 +31,7 @@ import {
 	machineLoad,
 } from "shared/machine-load";
 import { useApplyDropRules } from "./all/drop-rules";
+import { useWakeWaiting } from "./all/use-wake-waiting";
 import { ClaudeSignInBanner } from "./components/ClaudeSignInBanner";
 import { CrowButton } from "./components/CrowButton";
 import { FEED_TABS } from "./components/feed-counts";
@@ -230,6 +231,8 @@ const ShellRunners = memo(function ShellRunners({
 		if (!isProfileLoading) setReminderProfile(activeProfileId);
 	}, [isProfileLoading, activeProfileId, setReminderProfile]);
 	useDueReminders(jiraDue);
+	// Waiting on others: a row whose day came goes back on Up next.
+	useWakeWaiting();
 	// "Ping me on replies" - same reason: it pings whatever screen is open.
 	// Clicking the banner opens the session it was set on.
 	const navigate = useNavigate();

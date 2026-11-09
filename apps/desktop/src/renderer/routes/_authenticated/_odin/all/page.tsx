@@ -66,6 +66,7 @@ import { revealRow, rowPlace } from "./reveal-row";
 import { nextSelection, visibleSelection } from "./selection";
 import { TaskDescription } from "./TaskDescription";
 import { TaskDetails } from "./TaskDetails";
+import type { BulkActions } from "./TaskRowMenu";
 import {
 	type SortableBits,
 	SortableRow,
@@ -75,12 +76,15 @@ import {
 	useTaskRows,
 } from "./TaskTable";
 import {
+	dayAfter,
 	TASK_STATUSES,
 	TASK_TYPES,
 	type TaskStatus,
 	type TaskType,
 	typeOf,
 	useTaskMeta,
+	WAIT_DAYS,
+	type Waiting,
 } from "./task-meta";
 import { useTitleOverrides } from "./title-overrides";
 import { useAllItems, useSearchableItems } from "./use-all-items";
@@ -256,8 +260,12 @@ function AllFeedPage() {
 		setType: setRowType,
 		setNote: setRowNote,
 		enqueue,
+		enqueueAt,
 		dequeue,
 		move,
+		waiting: parkedBy,
+		wait,
+		unwait,
 	} = useTaskMeta();
 	const statusOf = useCallback(
 		(item: AllItem): string =>
@@ -397,6 +405,19 @@ function AllFeedPage() {
 			}),
 		[queue, allRows],
 	);
+	// Waiting on someone else: off Up next and out of the bands until its day,
+	// soonest back first.
+	const parked = useMemo(
+		() =>
+			allRows
+				.filter((row) => parkedBy[row.key])
+				.sort((a, b) =>
+					(parkedBy[a.key]?.until ?? "").localeCompare(
+						parkedBy[b.key]?.until ?? "",
+					),
+				),
+		[allRows, parkedBy],
+	);
 	// A finished row leaves Up next too, so an Undo doesn't bring it back there.
 	const finish = (item: AllItem) => {
 		markDone(item);
@@ -406,7 +427,9 @@ function AllFeedPage() {
 		if (over) move(String(active.id), String(over.id));
 	};
 	const items = useMemo(() => {
-		const listed = byStatus.filter((item) => !queue.includes(item.key));
+		const listed = byStatus.filter(
+			(item) => !queue.includes(item.key) && !parkedBy[item.key],
+		);
 		const due = dueOnly
 			? listed.filter((item) =>
 					isDue(effectiveDue(item.key, reminders, item.dueDate), Date.now()),
@@ -430,7 +453,7 @@ function AllFeedPage() {
 				.toLowerCase()
 				.includes(needle),
 		);
-	}, [byStatus, dueOnly, reminders, needle, sortBy, queue]);
+	}, [byStatus, dueOnly, reminders, needle, sortBy, queue, parkedBy]);
 
 	// The bands. One clock per render: a row's reason and its band must agree.
 	const now = Date.now();
@@ -480,6 +503,39 @@ function AllFeedPage() {
 		clearPicked();
 	};
 
+	// The bar's other buttons, named so a ticked row's right-click runs the
+	// very same ones (TaskRowMenu).
+	const pickedRows = () => items.filter((item) => selected.has(item.key));
+	const upNextPicked = (place: "top" | "end" = "end") => {
+		// Placed at the top one by one, the last lands first: go bottom-up.
+		const keys = place === "top" ? [...picked].reverse() : picked;
+		for (const key of keys) enqueueAt(key, place);
+		clearPicked();
+	};
+	const waitPicked = (days = WAIT_DAYS) => {
+		const until = dayAfter(Date.now(), days);
+		for (const item of pickedRows()) wait(item.key, "", until, item.title);
+		clearPicked();
+	};
+	const startPicked = () => {
+		void startMany(pickedRows()).then((went) => went && clearPicked());
+	};
+	const duePicked = (day: string | null) => {
+		const { setDue, clear } = useReminders.getState();
+		for (const item of pickedRows())
+			day ? setDue(item.key, day, item.title) : clear(item.key);
+		clearPicked();
+	};
+	const bulk: BulkActions = {
+		count: picked.length,
+		upNext: upNextPicked,
+		wait: waitPicked,
+		due: duePicked,
+		start: startPicked,
+		done: finishPicked,
+		clear: clearPicked,
+	};
+
 	// From every row, not the filtered ones: narrowing the list shouldn't shut
 	// the panel you're reading. Marking it done does. Search all can open a row
 	// All leaves out (Done'd, started, your own PR), hence the wider fallback.
@@ -489,8 +545,8 @@ function AllFeedPage() {
 	const openTask = tasks.find((task) => `task:${task.id}` === openItem?.key);
 	// Where the open row is, so the panel can say when it isn't beside it.
 	const listedKeys = useMemo(
-		() => new Set([...items, ...queued].map((item) => item.key)),
-		[items, queued],
+		() => new Set([...items, ...queued, ...parked].map((item) => item.key)),
+		[items, queued, parked],
 	);
 	const allKeys = useMemo(
 		() => new Set(allRows.map((item) => item.key)),
@@ -555,7 +611,7 @@ function AllFeedPage() {
 	};
 
 	// Backlog, Read later and the rest are on the list but not waiting on you.
-	const shown = items.length + queued.length;
+	const shown = items.length + queued.length + parked.length;
 	// Tasks with a session running on them - tasks, not sessions. A task being
 	// worked isn't also waiting on you.
 	const workingRows = allRows.filter((item) => livePaneFor(item));
@@ -584,6 +640,7 @@ function AllFeedPage() {
 			}}
 			open={item.key === openKey}
 			onOpen={() => setOpenKey(item.key === openKey ? null : item.key)}
+			bulk={picked.length > 1 && picked.includes(item.key) ? bulk : undefined}
 		/>
 	);
 
@@ -782,7 +839,7 @@ function AllFeedPage() {
 
 			<div className="flex min-h-0 flex-1">
 				<div className={TABLE_LIST}>
-					{!showDone && items.length + queued.length > 0 && (
+					{!showDone && items.length + queued.length + parked.length > 0 && (
 						<TaskTableHeader
 							date={sortBy === "created" ? "Created" : "Updated"}
 						/>
@@ -825,10 +882,7 @@ function AllFeedPage() {
 							</FeedSelect>
 							<button
 								type="button"
-								onClick={() => {
-									for (const key of picked) enqueue(key);
-									clearPicked();
-								}}
+								onClick={() => upNextPicked()}
 								title="Line them all up - Up next, above the list"
 								className={ROW_LINK_BUTTON}
 							>
@@ -836,11 +890,16 @@ function AllFeedPage() {
 							</button>
 							<button
 								type="button"
+								onClick={() => waitPicked()}
+								title={`Waiting on someone else - back on Up next in ${WAIT_DAYS} days`}
+								className={ROW_LINK_BUTTON}
+							>
+								Waiting
+							</button>
+							<button
+								type="button"
 								disabled={isLaunching}
-								onClick={() => {
-									const rows = items.filter((item) => selected.has(item.key));
-									void startMany(rows).then((went) => went && clearPicked());
-								}}
+								onClick={startPicked}
 								title="Start a session on each selected row - pick here or remote once for all"
 								className={ROW_START_BUTTON}
 							>
@@ -881,6 +940,18 @@ function AllFeedPage() {
 									))}
 								</SortableContext>
 							</DndContext>
+						</>
+					)}
+					{!showDone && parked.length > 0 && (
+						<>
+							<div className={SECTION_LABEL}>
+								Waiting on others
+								<Count n={parked.length} />
+								<span className={SECTION_HINT}>
+									back on Up next on their day
+								</span>
+							</div>
+							{parked.map((item) => renderRow(item))}
 						</>
 					)}
 					{showDone && (
@@ -975,6 +1046,12 @@ function AllFeedPage() {
 											]
 								}
 								queued={queue.includes(openItem.key)}
+								waiting={parkedBy[openItem.key]}
+								person={openItem.person}
+								onWait={(on, until) =>
+									wait(openItem.key, on, until, openItem.title)
+								}
+								onUnwait={() => unwait(openItem.key, true)}
 								onStatus={(value) =>
 									setRowStatus(openItem.key, (value as TaskStatus) || null)
 								}
@@ -1377,6 +1454,10 @@ function TaskFields({
 	onType,
 	onPriority,
 	onQueue,
+	waiting,
+	person,
+	onWait,
+	onUnwait,
 }: {
 	status: string;
 	type: string;
@@ -1387,45 +1468,148 @@ function TaskFields({
 	onType: (value: string) => void;
 	onPriority: (value: string) => void;
 	onQueue: () => void;
+	waiting: Waiting | undefined;
+	person: string | null;
+	onWait: (on: string, until: string) => void;
+	onUnwait: () => void;
 }) {
 	return (
-		<div className="mb-2.5 flex flex-wrap items-end gap-1.5">
-			<PanelField label="Status">
-				<FeedSelect value={status} onChange={onStatus} title="Status">
-					<option value="">Waiting on you</option>
-					{TASK_STATUSES.map(({ id, label }) => (
-						<option key={id} value={id}>
-							{label}
-						</option>
-					))}
-				</FeedSelect>
-			</PanelField>
-			<PanelField label="Type">
-				<FeedSelect value={type} onChange={onType} title="Task type">
-					<option value="">No type</option>
-					{TASK_TYPES.map(({ id, label }) => (
-						<option key={id} value={id}>
-							{label}
-						</option>
-					))}
-				</FeedSelect>
-			</PanelField>
-			<PanelField label="Priority">
-				<FeedSelect value={priority} onChange={onPriority} title="Priority">
-					{priorityOptions.map(([value, label]) => (
-						<option key={value} value={value}>
-							{label}
-						</option>
-					))}
-				</FeedSelect>
-			</PanelField>
-			<button
-				type="button"
-				onClick={onQueue}
-				className={cn(ROW_LINK_BUTTON, queued && "text-foreground")}
-			>
-				{queued ? "✓ Up next" : "+ Up next"}
-			</button>
+		<>
+			<div className="mb-2.5 flex flex-wrap items-end gap-1.5">
+				<PanelField label="Status">
+					<FeedSelect value={status} onChange={onStatus} title="Status">
+						<option value="">Waiting on you</option>
+						{TASK_STATUSES.map(({ id, label }) => (
+							<option key={id} value={id}>
+								{label}
+							</option>
+						))}
+					</FeedSelect>
+				</PanelField>
+				<PanelField label="Type">
+					<FeedSelect value={type} onChange={onType} title="Task type">
+						<option value="">No type</option>
+						{TASK_TYPES.map(({ id, label }) => (
+							<option key={id} value={id}>
+								{label}
+							</option>
+						))}
+					</FeedSelect>
+				</PanelField>
+				<PanelField label="Priority">
+					<FeedSelect value={priority} onChange={onPriority} title="Priority">
+						{priorityOptions.map(([value, label]) => (
+							<option key={value} value={value}>
+								{label}
+							</option>
+						))}
+					</FeedSelect>
+				</PanelField>
+				<button
+					type="button"
+					onClick={onQueue}
+					className={cn(ROW_LINK_BUTTON, queued && "text-foreground")}
+				>
+					{queued ? "✓ Up next" : "+ Up next"}
+				</button>
+			</div>
+			<WaitField
+				waiting={waiting}
+				person={person}
+				onWait={onWait}
+				onUnwait={onUnwait}
+			/>
+		</>
+	);
+}
+
+/**
+ * Waiting on someone else: who or what, and the day to look again - not the
+ * due date. Parking it takes it off Up next; on that day it goes back on top.
+ */
+function WaitField({
+	waiting,
+	person,
+	onWait,
+	onUnwait,
+}: {
+	waiting: Waiting | undefined;
+	person: string | null;
+	onWait: (on: string, until: string) => void;
+	onUnwait: () => void;
+}) {
+	const [on, setOn] = useState(waiting?.on ?? "");
+	const [until, setUntil] = useState(
+		() => waiting?.until ?? dayAfter(Date.now(), WAIT_DAYS),
+	);
+	// Another row opened in the panel, or the wait changed elsewhere.
+	useEffect(() => {
+		setOn(waiting?.on ?? "");
+		setUntil(waiting?.until ?? dayAfter(Date.now(), WAIT_DAYS));
+	}, [waiting]);
+	const today = dayAfter(Date.now(), 0);
+	// The task's own person first, then everyone in Slack. Free text still
+	// goes in: a PR or a date is a fine thing to wait on.
+	const { data: slackPeople } = electronTrpc.slack.people.useQuery(undefined, {
+		staleTime: 60 * 60_000,
+	});
+	const people = [
+		...new Set([...(person ? [person] : []), ...(slackPeople ?? [])]),
+	];
+	return (
+		<div className="mb-2.5 flex flex-wrap items-center gap-1.5 text-[12px]">
+			<datalist id="odin-wait-people">
+				{people.map((name) => (
+					<option key={name} value={name} />
+				))}
+			</datalist>
+			<span className="text-muted-foreground">Waiting on</span>
+			<input
+				value={on}
+				onChange={(e) => setOn(e.target.value)}
+				onBlur={() => waiting && on.trim() !== waiting.on && onWait(on, until)}
+				placeholder="a teammate, a PR, a date..."
+				aria-label="Waiting on"
+				list="odin-wait-people"
+				className="h-7 min-w-0 flex-1 rounded-[6px] border border-border bg-transparent px-2 text-[12px] text-foreground placeholder:text-muted-foreground"
+			/>
+			<span className="text-muted-foreground">back on Up next</span>
+			<input
+				type="date"
+				value={until}
+				min={dayAfter(Date.now(), 1)}
+				onChange={(e) => {
+					const day = e.target.value;
+					if (!day) return;
+					setUntil(day);
+					if (waiting && day > today) onWait(on, day);
+				}}
+				aria-label="Back on Up next on"
+				title="The day you expect it to move - not its due date. On that day it goes back on top of Up next."
+				style={{ colorScheme: "dark" }}
+				className="h-7 rounded-[6px] border border-border bg-transparent px-1.5 text-[12px] text-foreground"
+			/>
+			{waiting ? (
+				<button
+					type="button"
+					onClick={onUnwait}
+					title="Back on top of Up next now"
+					className={ROW_LINK_BUTTON}
+				>
+					Stop waiting
+				</button>
+			) : (
+				<button
+					type="button"
+					onClick={() =>
+						onWait(on, until > today ? until : dayAfter(Date.now(), WAIT_DAYS))
+					}
+					title="Park it off Up next until that day"
+					className={ROW_LINK_BUTTON}
+				>
+					Wait
+				</button>
+			)}
 		</div>
 	);
 }

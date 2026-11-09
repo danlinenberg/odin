@@ -151,15 +151,15 @@ function sftpSession(host: HostLogin): { entry: Kept; reused: boolean } {
 }
 
 /**
- * Copies laptop files to the host over SFTP (paths relative to the login
- * user's home). A connection takes seconds to open - a one-time key, an SSM
- * session, the SSH handshake - and a chat message with a screenshot paid all
- * of it every time. So the connection stays open a few minutes after a copy;
- * one that died meanwhile is opened again once.
+ * Runs `work` on the kept SFTP connection to this host and login. A
+ * connection takes seconds to open - a one-time key, an SSM session, the SSH
+ * handshake - and a chat message with a screenshot paid all of it every time.
+ * So the connection stays open a few minutes after its last use; one that died
+ * meanwhile is opened again once.
  */
-export async function copyFilesToHost(
+async function withSftp(
 	host: HostLogin,
-	files: { local: string; remote: string }[],
+	work: (sftp: import("ssh2").SFTPWrapper) => Promise<void>,
 ): Promise<void> {
 	const key = `${host.instanceId}:${host.user}`;
 	for (;;) {
@@ -167,12 +167,7 @@ export async function copyFilesToHost(
 		clearTimeout(entry.timer);
 		try {
 			const { client, sftp } = await entry.ready;
-			for (const file of files)
-				await new Promise<void>((resolve, reject) =>
-					sftp.fastPut(file.local, file.remote, (err) =>
-						err ? reject(err) : resolve(),
-					),
-				);
+			await work(sftp);
 			entry.timer = setTimeout(() => {
 				forget(key, entry);
 				client.end();
@@ -185,4 +180,38 @@ export async function copyFilesToHost(
 			if (!reused) throw error;
 		}
 	}
+}
+
+/** Copies laptop files to the host over SFTP (paths relative to the login user's home). */
+export function copyFilesToHost(
+	host: HostLogin,
+	files: { local: string; remote: string }[],
+): Promise<void> {
+	return withSftp(host, async (sftp) => {
+		for (const file of files)
+			await new Promise<void>((resolve, reject) =>
+				sftp.fastPut(file.local, file.remote, (err) =>
+					err ? reject(err) : resolve(),
+				),
+			);
+	});
+}
+
+/**
+ * Copies one host file to this computer over SFTP. `remote` is absolute or
+ * relative to the login user's home. A missing file or a folder fails with
+ * the host's own error.
+ */
+export function copyFileFromHost(
+	host: HostLogin,
+	remote: string,
+	local: string,
+): Promise<void> {
+	return withSftp(
+		host,
+		(sftp) =>
+			new Promise<void>((resolve, reject) =>
+				sftp.fastGet(remote, local, (err) => (err ? reject(err) : resolve())),
+			),
+	);
 }

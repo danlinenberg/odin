@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
 	describeCommand,
+	downloadPath,
 	isMoveHereItem,
 	itemPullRequests,
 	itemSnippets,
@@ -181,4 +182,24 @@ test("an item with work left after the merge stays live", () => {
 	expect(
 		settledItem(`Review and approve ${PR}`, { [PR]: { state: "MERGED" } }),
 	).toBe("MERGED");
+});
+
+test("downloadPath reads a !download block's host path, quotes dropped", () => {
+	expect(downloadPath("download /home/me/out/users.csv")).toBe(
+		"/home/me/out/users.csv",
+	);
+	expect(downloadPath('download "/tmp/a b/report.csv"')).toBe(
+		"/tmp/a b/report.csv",
+	);
+	expect(downloadPath("local open ~/Downloads")).toBeNull();
+	expect(downloadPath("downloads-cleanup.sh")).toBeNull();
+	expect(downloadPath("download")).toBeNull();
+});
+
+test("runnableCommands leaves !download out: the phone can't take the file", () => {
+	const reply =
+		"Grab it:\n\n```\n!download /tmp/users.csv\n```\n\nThen:\n\n```\n!ls /tmp\n```";
+	expect(runnableCommands([{ role: "assistant", text: reply }])).toEqual([
+		"ls /tmp",
+	]);
 });
