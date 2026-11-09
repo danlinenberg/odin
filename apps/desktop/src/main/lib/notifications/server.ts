@@ -261,11 +261,13 @@ app.post("/odin", express.urlencoded({ extended: false }), async (req, res) => {
 export async function askRenderer(
 	action: string,
 	args: Record<string, string>,
+	/** How long to wait for the window before the answer is null. */
+	waitMs = 30_000,
 ): Promise<string | null | undefined> {
 	const request: OdinActionRequest = { id: randomUUID(), action, args };
 	const reply = new Promise<string | null>((resolve) => {
 		pendingOdinActions.set(request.id, resolve);
-		setTimeout(() => resolve(null), 30_000);
+		setTimeout(() => resolve(null), waitMs);
 	});
 	if (!notificationsEmitter.emit(NOTIFICATION_EVENTS.ODIN_ACTION, request)) {
 		pendingOdinActions.delete(request.id);

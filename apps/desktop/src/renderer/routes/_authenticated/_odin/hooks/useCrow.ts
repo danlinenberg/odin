@@ -543,9 +543,11 @@ export function useCrow() {
 		onData: (event) => {
 			if (event.type !== NOTIFICATION_EVENTS.ODIN_ACTION || !event.data) return;
 			const request = event.data as OdinActionRequest;
-			void Promise.resolve(runOdinAction(request, latest.current)).then(
-				(text) => odinReply.mutate({ id: request.id, text }),
-			);
+			// A throw still answers: main otherwise waits out its whole timeout.
+			void Promise.resolve()
+				.then(() => runOdinAction(request, latest.current))
+				.catch((error) => `Odin failed: ${error?.message ?? error}`)
+				.then((text) => odinReply.mutate({ id: request.id, text }));
 		},
 	});
 
