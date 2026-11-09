@@ -23,7 +23,7 @@ import {
 	HiMinusCircle,
 	HiXCircle,
 } from "react-icons/hi2";
-import { LuLoaderCircle } from "react-icons/lu";
+import { LuCopy, LuLoaderCircle } from "react-icons/lu";
 import {
 	type ElectronRouterOutputs,
 	electronTrpc,
@@ -265,6 +265,24 @@ export function RemoteHostSection() {
 		renew.isPending ||
 		(setOn.isPending && setOn.variables === true && !current?.hasClaudeToken) ||
 		(use.isPending && !current?.hasClaudeToken);
+	// On Windows Claude waits for the code from its sign-in page: Odin opens
+	// the page, and this shows its link and takes the code.
+	const claudeSignIn = electronTrpc.remoteHost.claudeSignIn.useQuery(
+		undefined,
+		{ refetchInterval: signingIn ? 1000 : false },
+	);
+	const signInPrompt = signingIn ? claudeSignIn.data : null;
+	const [claudeCode, setClaudeCode] = useState("");
+	const sendClaudeCode = electronTrpc.remoteHost.submitClaudeCode.useMutation({
+		onSuccess: () => {
+			setClaudeCode("");
+			void claudeSignIn.refetch();
+		},
+		onError,
+	});
+	useEffect(() => {
+		if (!signingIn) sendClaudeCode.reset();
+	}, [signingIn, sendClaudeCode.reset]);
 
 	const { data: saved } = electronTrpc.remoteHost.awsSettings.useQuery();
 	const { data: profiles = [] } =
@@ -415,6 +433,71 @@ export function RemoteHostSection() {
 			title="Remote host"
 			description="Run new sessions on an EC2 instance in your AWS account, so they keep going with this computer shut. Odin connects with your AWS sign-in over Systems Manager: no open port or SSH key."
 		>
+			{signInPrompt && (
+				<SettingRow
+					label="Sign in to Claude for the host"
+					stacked
+					description={
+						<span className="select-text cursor-text">
+							Odin opened Claude's sign-in page in your browser. Approve there,
+							then paste the code the page shows.
+							<span className="mt-2 flex items-start gap-2">
+								<span className="min-w-0 break-all font-mono text-xs">
+									{signInPrompt.url}
+								</span>
+								<Button
+									size="sm"
+									variant="outline"
+									className="shrink-0"
+									onClick={() =>
+										navigator.clipboard
+											.writeText(signInPrompt.url)
+											.then(() => toast.success("Link copied."))
+									}
+								>
+									<LuCopy className="size-3.5" />
+									Copy
+								</Button>
+							</span>
+						</span>
+					}
+				>
+					{sendClaudeCode.isSuccess && !signInPrompt.awaitingCode ? (
+						<span className="flex items-center gap-2 text-sm text-muted-foreground">
+							<LuLoaderCircle className="size-3.5 animate-spin" />
+							Checking the code...
+						</span>
+					) : (
+						<form
+							className="flex gap-2"
+							onSubmit={(event) => {
+								event.preventDefault();
+								if (claudeCode.trim())
+									sendClaudeCode.mutate({ code: claudeCode });
+							}}
+						>
+							<Input
+								value={claudeCode}
+								onChange={(event) => setClaudeCode(event.target.value)}
+								placeholder="Paste the code from the Claude page"
+								aria-label="Paste the code from the Claude page"
+								className="font-mono"
+							/>
+							<Button
+								type="submit"
+								size="sm"
+								disabled={
+									!claudeCode.trim() ||
+									!signInPrompt.awaitingCode ||
+									sendClaudeCode.isPending
+								}
+							>
+								Submit
+							</Button>
+						</form>
+					)}
+				</SettingRow>
+			)}
 			{current?.host && !changingHost && (
 				<SettingRow
 					label={
