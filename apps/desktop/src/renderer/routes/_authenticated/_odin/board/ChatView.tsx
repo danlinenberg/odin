@@ -29,9 +29,7 @@ import {
 	LuLoaderCircle,
 	LuMic,
 	LuSmartphone,
-	LuSquare,
 	LuSquareTerminal,
-	LuVolume2,
 	LuWrench,
 	LuX,
 } from "react-icons/lu";
@@ -133,14 +131,7 @@ import {
 import { launchRequest } from "./launch-request";
 import { holdForMove, isMoving } from "./moving-home";
 import { PLAN_LIMIT_OPENING } from "./plan-limit-resume";
-import {
-	canSpeak,
-	speak,
-	spokenText,
-	stopSpeaking,
-	useReadAloud,
-	useSpeaking,
-} from "./read-aloud";
+import { speak, spokenText, stopSpeaking, useReadAloud } from "./read-aloud";
 import {
 	cursorReached,
 	menuKeys,
@@ -1167,8 +1158,6 @@ interface ItemViewProps {
 	hideActions?: boolean;
 	/** The latest reply's TL;DR, once the brief has read this very reply. */
 	tldr?: Tldr | null;
-	/** The latest reply: what Odin says for it, its TL;DR when there is one. */
-	readAloud?: string | null;
 	/** The card's reply has no `!` commands: the latest earlier reply that has (earlierCommandsText). */
 	earlierText?: string;
 }
@@ -1187,7 +1176,6 @@ function sameItemView(prev: ItemViewProps, next: ItemViewProps): boolean {
 		prev.tldr?.last === next.tldr?.last &&
 		prev.tldr?.urgency === next.tldr?.urgency &&
 		prev.tldr?.long === next.tldr?.long &&
-		prev.readAloud === next.readAloud &&
 		prev.earlierText === next.earlierText
 	);
 }
@@ -2915,33 +2903,6 @@ function FoldedReply({
 	);
 }
 
-/** Reads the latest reply out loud - its TL;DR when there is one - or stops. */
-function ReadAloudButton({ id, text }: { id: string; text: string }) {
-	const speaking = useSpeaking((s) => s.id === id);
-	const rate = useReadAloud((s) => s.rate);
-	if (!canSpeak()) return null;
-	const label = speaking ? "Stop reading" : "Read aloud";
-	return (
-		<button
-			type="button"
-			title={label}
-			aria-label={label}
-			aria-pressed={speaking}
-			onClick={() => (speaking ? stopSpeaking() : speak(id, text, rate))}
-			className={cn(
-				"flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground",
-				speaking && "text-primary",
-			)}
-		>
-			{speaking ? (
-				<LuSquare className="size-3" />
-			) : (
-				<LuVolume2 className="size-3.5" />
-			)}
-		</button>
-	);
-}
-
 /** Saves a pointer to this reply in My notes; the to-do jumps back to it. */
 function SaveReplyButton({
 	paneId,
@@ -3073,7 +3034,6 @@ const ItemView = memo(function ItemView({
 	paneId,
 	hideActions = false,
 	tldr,
-	readAloud = null,
 	earlierText,
 }: ItemViewProps) {
 	// A long latest reply opens on its TL;DR; this shows it whole.
@@ -3165,7 +3125,6 @@ const ItemView = memo(function ItemView({
 				)}
 				<div className="mt-0.5 flex items-center gap-2">
 					<MessageTime at={item.at} />
-					{readAloud && <ReadAloudButton id={item.id} text={readAloud} />}
 					{paneId && body && (
 						<SaveReplyButton paneId={paneId} id={item.id} text={body} />
 					)}
@@ -4055,7 +4014,6 @@ export function ChatView({
 											segment.id === actionsId ? earlierText : undefined
 										}
 										tldr={segment.id === lastTextId ? tldr : null}
-										readAloud={segment.id === lastTextId ? readAloud : null}
 										onRun={
 											// Only a live PTY runs a ! command; a resume or the raven's send can't.
 											onShowTerminal && !onSend ? runCommand : undefined
