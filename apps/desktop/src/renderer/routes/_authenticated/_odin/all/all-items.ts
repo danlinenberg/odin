@@ -91,11 +91,11 @@ export interface AllItem {
 	/** The same task in other feeds, folded into this row (merge-duplicates). */
 	also?: AllItem[];
 	/**
-	 * My own tasks only: the session last started on it. Holds the link when
-	 * the session's name no longer matches the task's - renamed, or started
-	 * from New Session with a "/skill" or "!" leading its first line.
+	 * My own tasks only: the sessions started on it. Holds the link when a
+	 * session's name no longer matches the task's - renamed, retitled from its
+	 * brief, or started from New Session with a "/skill" or "!" first line.
 	 */
-	paneId?: string;
+	paneIds?: string[];
 }
 
 /** Is this pane the session started on this row? See useStartAllItem's livePaneFor. */
@@ -109,11 +109,41 @@ export function paneWorksOn(
 	item: AllItem,
 ): boolean {
 	return (
-		(item.paneId != null && pane.id === item.paneId) ||
+		(pane.id != null && !!item.paneIds?.includes(pane.id)) ||
 		(item.launch.pageId != null && pane.odinPageId === item.launch.pageId) ||
 		pane.odinTaskTitle === item.launch.title ||
 		pane.odinBrief === item.launch.brief
 	);
+}
+
+type RowPane = Parameters<typeof paneWorksOn>[0] & {
+	id: string;
+	completed?: boolean;
+};
+
+/** When a pane was made: its id carries the ms (tabs/utils generateId). */
+const paneBorn = (id: string) => Number(id.split("-")[1]) || 0;
+
+/**
+ * Every session still open on this row, newest first - a task can have
+ * several. Go to session takes the first.
+ */
+export function livePanesOn<P extends RowPane>(panes: P[], item: AllItem): P[] {
+	return panes
+		.filter((pane) => !pane.completed && paneWorksOn(pane, item))
+		.sort((a, b) => paneBorn(b.id) - paneBorn(a.id));
+}
+
+/**
+ * Done on session `paneId` finishes its row too, unless another session on
+ * the same row is still open.
+ */
+export function rowFinishedWith(
+	panes: RowPane[],
+	paneId: string,
+	item: AllItem,
+): boolean {
+	return !livePanesOn(panes, item).some((pane) => pane.id !== paneId);
 }
 
 /** Priority, in the three levels every source can be read as. */
@@ -306,7 +336,9 @@ export function allItems(
 					brief: taskPrompt(task),
 					...(task.skill ? { skill: task.skill } : {}),
 				},
-				...(task.paneId ? { paneId: task.paneId } : {}),
+				...(task.paneIds?.length || task.paneId
+					? { paneIds: task.paneIds ?? [task.paneId as string] }
+					: {}),
 			}),
 		),
 		...input.slack

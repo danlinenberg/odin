@@ -1011,22 +1011,29 @@ await step(
 );
 
 await step(
-	"New Session adds its task to Tasks, Working with Go to session",
+	"New Session adds its task to Tasks, Working with Go to session and Start another",
 	async () => {
 		await rail("Tasks");
 		await waitForText(SESSION);
-		const row = await page<{ working: boolean; goTo: boolean } | null>(`(() => {
+		const row = await page<{
+			working: boolean;
+			goTo: boolean;
+			another: boolean;
+		} | null>(`(() => {
 		const title = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(SESSION)});
 		const row = title?.closest("[data-task-row]");
 		if (!row) return null;
 		return {
 			working: /Working|Needs you/.test(row.textContent),
 			goTo: !!row.querySelector('button[aria-label="Go to session"]'),
+			another: !!row.querySelector('button[aria-label="Start another session"]'),
 		};
 	})()`);
 		if (!row) throw new Error("no task row for the New Session session");
 		if (!row.working) throw new Error("the task's row doesn't say Working");
 		if (!row.goTo) throw new Error("the task's row has no Go to session");
+		if (!row.another)
+			throw new Error("the task's row has no Start another session");
 		await rail("Dev Board");
 		await waitForText("next in line");
 	},
