@@ -1404,20 +1404,28 @@ const PR_URL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
 /**
  * A Bash command that opens a PR: `gh pr create`, or a POST to the REST
  * `pulls` endpoint itself (the fallback when GraphQL is rate-limited) - not a
- * comment or review on one, `pulls/<n>/...`. Only in command position: a
- * `grep "gh pr create"` prints PR urls that are not this session's. Env
- * assignments and wrappers like `command gh` (past a gh alias) still count.
+ * comment or review on one, `pulls/<n>/...`. A `curl` POST to that endpoint
+ * counts too: a host with no gh sign-in for the repo opens it with a shared
+ * key that way, and the PR's author is then that key's bot. Only in command
+ * position: a `grep "gh pr create"` prints PR urls that are not this
+ * session's. Env assignments and wrappers like `command gh` (past a gh
+ * alias) still count.
  */
 const GH_COMMAND =
-	/(?:^|[;&|(])\s*(?:(?:\w+=(?:\$\([^)]*\)|\S*)|command|env|builtin|exec|nohup|time)\s+)*gh (pr create\b|api\b[^;&|\n]*)/gm;
+	/(?:^|[;&|(])\s*(?:(?:\w+=(?:\$\([^)]*\)|\S*)|command|env|builtin|exec|nohup|time)\s+)*(gh (?:pr create\b|api\b)|curl\b)([^;&|\n]*)/gm;
 export function opensPr(command: string): boolean {
-	for (const [, args = ""] of command.matchAll(GH_COMMAND))
+	for (const [, tool = "", args = ""] of command.matchAll(GH_COMMAND)) {
+		if (tool.startsWith("gh pr create")) return true;
+		const posts = /(?:-X|--method|--request)[\s=]*POST\b/i.test(args);
+		if (tool === "gh api" && posts && /\/pulls(?![/\w])/.test(args))
+			return true;
 		if (
-			args.startsWith("pr create") ||
-			(/\/pulls(?![/\w])/.test(args) &&
-				/(?:-X|--method)[\s=]*POST\b/i.test(args))
+			tool === "curl" &&
+			posts &&
+			/api\.github\.com\/repos\/[\w.-]+\/[\w.-]+\/pulls(?![/\w])/.test(args)
 		)
 			return true;
+	}
 	return false;
 }
 
