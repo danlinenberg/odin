@@ -22,6 +22,7 @@ import { remoteShellArgv } from "shared/remote-shell-command";
 import {
 	getCommandShellArgs,
 	getShellArgs,
+	moveScriptToEnv,
 } from "../lib/agent-setup/shell-wrappers";
 import { raceWithAbort, throwIfAborted } from "../lib/terminal/abort";
 import { buildSafeEnv } from "../lib/terminal/env";
@@ -289,11 +290,18 @@ export class Session {
 			process.platform === "win32" && this.command
 				? remoteShellArgv(this.command)
 				: null;
-		const shellArgs = direct
+		let shellArgs = direct
 			? direct.args
 			: this.command
 				? getCommandShellArgs(this.shell, this.command)
 				: getShellArgs(this.shell);
+		// Git Bash on Windows cuts a long quoted argument short: the command
+		// travels in the environment there (see moveScriptToEnv).
+		if (process.platform === "win32" && !direct && this.command) {
+			const moved = moveScriptToEnv(shellArgs);
+			shellArgs = moved.args;
+			Object.assign(processEnv, moved.env);
+		}
 		const subprocessPath = path.join(__dirname, "pty-subprocess.js");
 
 		// Spawn subprocess with filtered env to prevent leaking NODE_ENV etc.

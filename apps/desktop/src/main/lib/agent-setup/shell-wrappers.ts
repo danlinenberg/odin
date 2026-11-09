@@ -391,3 +391,31 @@ export function getCommandShellArgs(
 	}
 	return ["-lc", commandWithManagedPrelude];
 }
+
+/** The environment variable a Windows pane's `-c` script travels in. */
+export const PANE_SCRIPT_ENV = "ODIN_PANE_SCRIPT";
+
+/**
+ * Moves the script out of `-c` args (from getCommandShellArgs) into
+ * {@link PANE_SCRIPT_ENV}, and has `-c` eval it from there.
+ *
+ * Newer Git for Windows bash (MSYS2 runtime 3.6) keeps only the first ~8 KB
+ * of a quoted command-line argument. The managed-binary prelude alone is
+ * ~6 KB, so a long command - the raven's, with its system prompt - lost its
+ * end and every launch died with "unexpected EOF while looking for matching
+ * `''". An environment variable is copied whole, on old and new Git Bash
+ * alike. The script unsets it before running, so nothing it starts sees it.
+ */
+export function moveScriptToEnv(args: string[]): {
+	args: string[];
+	env: Record<string, string>;
+} {
+	const script = args.at(-1) ?? "";
+	return {
+		args: [
+			...args.slice(0, -1),
+			`_odin_script=$${PANE_SCRIPT_ENV}; unset ${PANE_SCRIPT_ENV}; eval "$_odin_script"`,
+		],
+		env: { [PANE_SCRIPT_ENV]: script },
+	};
+}
