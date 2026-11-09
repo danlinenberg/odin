@@ -123,11 +123,40 @@ export function isYouOnly(item: string): boolean {
 	);
 }
 
+/** A `! command` block: the command without the `!`, where it starts, and a `#` label written inside it. */
+type BangBlock = { command: string; index: number; label?: string };
+
+/**
+ * Every `! command` block in `text`, in order. The asked-for shape is a block whose first line starts with `!`.
+ * Claude sometimes writes the `!` as the fence's language instead (```!), with `#` label lines above the command:
+ * that is the same intent, so it runs too, and the label lines name its button.
+ */
+function bangBlocks(text: string): BangBlock[] {
+	const blocks: BangBlock[] = [];
+	for (const match of text.matchAll(/```[^\n]*\n\s*!([\s\S]*?)\n?```/g))
+		blocks.push({ command: (match[1] ?? "").trim(), index: match.index ?? 0 });
+	for (const match of text.matchAll(/```![ \t]*\n([\s\S]*?)\n?```/g)) {
+		const lines = (match[1] ?? "").split("\n");
+		// A ```! block whose first line already starts with `!` is the asked-for shape: the first loop has it.
+		if ((lines.find((line) => line.trim()) ?? "").trim().startsWith("!"))
+			continue;
+		const labels: string[] = [];
+		while (lines.length && /^\s*(#|$)/.test(lines[0] ?? ""))
+			labels.push((lines.shift() ?? "").trim().replace(/^#+\s*/, ""));
+		blocks.push({
+			command: lines.join("\n").trim(),
+			index: match.index ?? 0,
+			label: labels.filter(Boolean).join(" ") || undefined,
+		});
+	}
+	return blocks
+		.filter((block) => block.command)
+		.sort((a, b) => a.index - b.index);
+}
+
 /** The `! command` blocks Claude hands you to run in the session, without the `!`. */
 export function bangCommands(text: string): string[] {
-	return [...text.matchAll(/```[^\n]*\n\s*!([\s\S]*?)\n?```/g)]
-		.map((match) => (match[1] ?? "").trim())
-		.filter(Boolean);
+	return bangBlocks(text).map((block) => block.command);
 }
 
 /**
@@ -192,16 +221,18 @@ export function localRunMessage(
  */
 export function bangCommandNotes(text: string): Record<string, string> {
 	const notes: Record<string, string> = {};
-	for (const match of text.matchAll(/```[^\n]*\n\s*!([\s\S]*?)\n?```/g)) {
-		const command = (match[1] ?? "").trim();
+	for (const { command, index, label } of bangBlocks(text)) {
 		const above = text
-			.slice(0, match.index)
+			.slice(0, index)
 			.split("\n")
 			.map((line) => line.trim())
 			.filter(Boolean)
 			.at(-1);
-		if (!command || !above || above.startsWith("```")) continue;
-		notes[command] = above.replace(/^(?:[-*+]|\d+[.)])\s+/, "");
+		const note =
+			above && !above.startsWith("```")
+				? above.replace(/^(?:[-*+]|\d+[.)])\s+/, "")
+				: label;
+		if (note) notes[command] = note;
 	}
 	return notes;
 }

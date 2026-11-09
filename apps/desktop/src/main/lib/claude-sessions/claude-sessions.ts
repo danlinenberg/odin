@@ -697,8 +697,8 @@ function base64Images(content: unknown[]): string[] {
 /** An ACTION ITEMS line, in the shapes splitActionItems reads. */
 const ACTION_ITEMS = /^[#>*_\s]*ACTION ITEMS\b/gim;
 
-/** Where a `! command` block opens. */
-const BANG_BLOCK = /```[^\n]*\n\s*!/g;
+/** Where a `! command` block opens: `!` on its first line, or as the fence's language (```!). */
+const BANG_BLOCK = /```(?:[^\n]*\n\s*!|![ \t]*\n)/g;
 
 /**
  * A message cut to `max` characters. A reply ends on its `!` commands and
