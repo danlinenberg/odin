@@ -26,12 +26,14 @@ test("transcriptUsage counts each message once and prices it", () => {
 	// Cache reads are not new tokens.
 	expect(usage?.tokens).toBe(3_000_000);
 	expect(usage?.context).toBe(2_000_000);
+	expect(usage?.model).toBe("us.anthropic.claude-opus-5-5");
 	expect(transcriptUsage("")).toBeNull();
 	// An error row at the end is not the context size.
 	const errored = transcriptUsage(
 		`${jsonl}\n${line("e", "<synthetic>", { input_tokens: 0 })}`,
 	);
 	expect(errored?.context).toBe(2_000_000);
+	expect(errored?.model).toBe("us.anthropic.claude-opus-5-5");
 	// An older, unpriced model: no cost, and a 200K window.
 	const old = transcriptUsage(
 		line("o", "claude-opus-4-1", { input_tokens: 5_000 }),

@@ -11,6 +11,8 @@ export interface SessionUsage {
 	window: number;
 	/** At Anthropic API list prices; null for a model not in the table. */
 	usd: number | null;
+	/** The model of the latest reply, like `claude-opus-5-5`. */
+	model: string;
 }
 
 /** $ per million tokens: input, output, cache read. Writes are 1.25x input (5m), 2x (1h). */
@@ -117,5 +119,5 @@ export function transcriptUsage(jsonl: string): SessionUsage | null {
 		context > 200_000
 			? 1_000_000
 			: 200_000;
-	return { tokens, context, window, usd };
+	return { tokens, context, window, usd, model: lastModel };
 }

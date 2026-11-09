@@ -45,6 +45,7 @@ import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { draftFor, useChatDrafts } from "renderer/stores/chat-drafts";
+import { CLAUDE_MODELS } from "renderer/stores/claude-command";
 import { useCompacting } from "renderer/stores/compacting";
 import {
 	isDismissed,
@@ -538,6 +539,20 @@ export function opensTerminalScreen(text: string): boolean {
 	return /^\/(login|logout|config|model|mcp|permissions|agents|hooks|plugin|resume)\s*$/.test(
 		text.trim(),
 	);
+}
+
+/** The picker's models: New Session's, less "Default model". */
+const CHAT_MODELS = CLAUDE_MODELS.filter((option) => option.value);
+
+/**
+ * The picker value for a reply's model id (`claude-opus-5-5`,
+ * `us.anthropic.claude-opus-5-5`): its alias, or the id when no alias fits.
+ */
+export function modelAlias(model: string): string {
+	const known = CHAT_MODELS.find((option) =>
+		model.includes(`claude-${option.value}`),
+	);
+	return known ? known.value : model;
 }
 
 /**
@@ -4407,6 +4422,7 @@ export function ChatView({
 								dropRef={dropRef}
 								dragging={dragging}
 								filesCwd={startCwd ?? cwd}
+								model={transcript?.usage?.model}
 							/>
 						)}
 					</>
@@ -4422,6 +4438,7 @@ export function ChatView({
 						dropRef={dropRef}
 						dragging={dragging}
 						filesCwd={startCwd ?? cwd}
+						model={transcript?.usage?.model}
 					/>
 				) : (
 					<div className="border-t border-border px-5 py-2 text-center text-[11.5px] text-muted-foreground">
@@ -4590,6 +4607,7 @@ function Composer({
 	dropRef,
 	dragging,
 	filesCwd,
+	model,
 }: {
 	paneId: string;
 	working: boolean;
@@ -4606,6 +4624,8 @@ function Composer({
 	dragging: boolean;
 	/** The session's checkout: `@` lists its files. */
 	filesCwd?: string | null;
+	/** The model of the session's latest reply; none before its first. */
+	model?: string;
 }) {
 	const [draft, setDraft] = useState(() => draftFor(paneId));
 	// Saved once typing pauses, and on the way out: a save rewrites every
@@ -4750,20 +4770,32 @@ function Composer({
 		setSelected(0);
 	};
 	useEffect(() => inputRef.current?.focus(), []);
-	const send = async (now = false) => {
-		const body = draft.trim();
-		const sending = bash ? [] : attached;
+	// The picker's choice until a reply on the new model shows it.
+	const [pickedModel, setPickedModel] = useState<string | null>(null);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: a new reply's model is the trigger
+	useEffect(() => setPickedModel(null), [model]);
+	// `command` (the model picker's /model) goes as it is, and leaves the
+	// draft and its attachments in the box.
+	const send = async (now = false, command?: string) => {
+		const body = command ?? draft.trim();
+		const sending = bash || command ? [] : attached;
 		if (!body && sending.length === 0) return;
 		// Not in bash mode: the note would run as part of the command.
-		const text = bash ? `!${body}` : withDismissals(paneId, body);
-		if (bash) sentAsBash.add(body);
-		setDraft("");
-		// Now, not via the effect: sending can remount this box (a resume, a
-		// menu), and the new one would read the sent text back as a draft.
-		savedDraft.current = "";
-		useChatDrafts.getState().save(paneId, "");
-		setBash(false);
-		if (!bash) setAttached([]);
+		const text = command
+			? command
+			: bash
+				? `!${body}`
+				: withDismissals(paneId, body);
+		if (!command) {
+			if (bash) sentAsBash.add(body);
+			setDraft("");
+			// Now, not via the effect: sending can remount this box (a resume, a
+			// menu), and the new one would read the sent text back as a draft.
+			savedDraft.current = "";
+			useChatDrafts.getState().save(paneId, "");
+			setBash(false);
+			if (!bash) setAttached([]);
+		}
 		const paths = await Promise.all(sending.map((item) => item.path));
 		// On its way here: its files stay here, and it goes with the resume.
 		// Even when the box offers a resume: the move kills the host's Claude
@@ -4827,9 +4859,11 @@ function Composer({
 			await pasteAttachments(write.mutateAsync, paneId, paths);
 			await typeIntoClaude(write.mutateAsync, paneId, text, now);
 		} catch (error) {
-			setDraft(body);
-			setBash(bash);
-			setAttached(sending);
+			if (!command) {
+				setDraft(body);
+				setBash(bash);
+				setAttached(sending);
+			}
 			sendFailedToast(error);
 		}
 	};
@@ -5018,6 +5052,34 @@ function Composer({
 							<LuSquareTerminal className="size-3.5" />
 							Terminal View
 						</button>
+					)}
+					{model && (
+						<select
+							aria-label="Model"
+							title={
+								onResume
+									? `Ran on ${model}. Resume the session to change it.`
+									: working
+										? `Runs on ${model}. Change it once this turn is over.`
+										: `Runs on ${model}. Pick another and Odin sends /model to the session.`
+							}
+							disabled={working || !!onResume}
+							value={pickedModel ?? modelAlias(model)}
+							onChange={(event) => {
+								setPickedModel(event.target.value);
+								void send(false, `/model ${event.target.value}`);
+							}}
+							className="h-6 shrink-0 cursor-pointer rounded-md bg-foreground/10 pl-1.5 pr-1 text-[11px] text-muted-foreground outline-none [color-scheme:inherit] hover:text-foreground disabled:cursor-default disabled:opacity-60"
+						>
+							{!CHAT_MODELS.some((o) => o.value === modelAlias(model)) && (
+								<option value={model}>{model}</option>
+							)}
+							{CHAT_MODELS.map((option) => (
+								<option key={option.value} value={option.value}>
+									{option.label}
+								</option>
+							))}
+						</select>
 					)}
 					{bash ? (
 						<span className="text-[11px] text-pink-500">
