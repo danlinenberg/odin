@@ -133,7 +133,6 @@ import {
 import { launchRequest } from "./launch-request";
 import { holdForMove, isMoving } from "./moving-home";
 import { PLAN_LIMIT_OPENING } from "./plan-limit-resume";
-import { speak, spokenText, stopSpeaking, useReadAloud } from "./read-aloud";
 import {
 	cursorReached,
 	menuKeys,
@@ -3722,17 +3721,16 @@ export function ChatView({
 	// mid-turn the latest reply is a moving target - and shown only while the
 	// brief read this very reply: a newer one makes it a wrong TL;DR, so the
 	// card waits for the brief that catches up.
-	const { data: brief, isError: briefError } =
-		electronTrpc.terminal.summarizeClaudeSession.useQuery(
-			{ sessionId: sessionId ?? "", settled: true },
-			{
-				enabled: !!sessionId && !!lastText && !working,
-				retry: false,
-				staleTime: 30_000,
-				refetchInterval: (query) =>
-					sameReply(lastText?.at, query.state.data?.replyAt) ? false : 15_000,
-			},
-		);
+	const { data: brief } = electronTrpc.terminal.summarizeClaudeSession.useQuery(
+		{ sessionId: sessionId ?? "", settled: true },
+		{
+			enabled: !!sessionId && !!lastText && !working,
+			retry: false,
+			staleTime: 30_000,
+			refetchInterval: (query) =>
+				sameReply(lastText?.at, query.state.data?.replyAt) ? false : 15_000,
+		},
+	);
 	// Measured without its ACTION ITEMS: those show in their own card.
 	const fresh = freshTldr(
 		lastText && { ...lastText, text: splitActionItems(lastText.text).body },
@@ -3740,16 +3738,6 @@ export function ChatView({
 	);
 	// Whether it is shown is ItemView's call: only a reply taller than the view gets one.
 	const tldr = shownTldr(fresh, { working, tldrOnly });
-	// What Odin says for the latest reply: its TL;DR, else the reply itself.
-	// Not mid-turn: the latest reply is still being written.
-	const readAloud =
-		!working && lastText
-			? spokenText(tldr?.last, splitActionItems(lastText.text).body)
-			: null;
-	// The brief has said whether this reply has a TL;DR (it failed, or it read
-	// this very reply): the auto read waits for that before falling back.
-	const briefSettled =
-		briefError || (!!brief && sameReply(lastText?.at, brief.replyAt));
 	// Agents repeat their ACTION ITEMS in every reply; show one card, on the
 	// latest reply that has it, also while Claude works on the next one.
 	const actionsId = lastActionsId(items);
@@ -3763,29 +3751,6 @@ export function ChatView({
 	const firstIdsRef = useRef<Set<string> | null>(null);
 	if (firstIdsRef.current === null && items.length > 0)
 		firstIdsRef.current = new Set(items.map((item) => item.id));
-	// Settings > Sessions > "Read replies aloud": a reply that finishes while
-	// this view is open is said once, its TL;DR when the brief has one. The
-	// reply already finished when the view opened stays quiet; one still being
-	// written then is read when it is done.
-	const readAloudOn = useReadAloud((s) => s.enabled);
-	const speechRate = useReadAloud((s) => s.rate);
-	const quietIdRef = useRef<string | null | undefined>(undefined);
-	if (quietIdRef.current === undefined && items.length > 0)
-		quietIdRef.current = working ? null : (lastTextId ?? null);
-	const spokenIdRef = useRef<string | null>(null);
-	const autoText = readAloudOn && (!!tldr || briefSettled) ? readAloud : null;
-	useEffect(() => {
-		if (!autoText || !lastTextId) return;
-		if (lastTextId === quietIdRef.current) return;
-		if (lastTextId === spokenIdRef.current) return;
-		spokenIdRef.current = lastTextId;
-		speak(lastTextId, autoText, speechRate);
-	}, [autoText, lastTextId, speechRate]);
-	// Your turn: Odin stops talking. So does closing the view.
-	useEffect(() => {
-		if (working) stopSpeaking();
-	}, [working]);
-	useEffect(() => stopSpeaking, []);
 	// Follow new output only while you're at the bottom - scrolling up to read
 	// shouldn't get yanked back every second.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: items/pending are the trigger - new rows change scrollHeight

@@ -1,12 +1,5 @@
 import { ODIN_AUTO_RENAME_SESSIONS_DEFAULT } from "@odin/shared/constants";
 import { Button } from "@odin/ui/button";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@odin/ui/select";
 import { toast } from "@odin/ui/sonner";
 import { Switch } from "@odin/ui/switch";
 import { createFileRoute } from "@tanstack/react-router";
@@ -15,11 +8,6 @@ import { useIdleClose } from "renderer/stores/idle-close";
 import { useIdleCompact } from "renderer/stores/idle-compact";
 import { useLaunchLimits } from "renderer/stores/launch-limits";
 import type { LaunchLimits } from "shared/machine-load";
-import {
-	clampRate,
-	READ_ALOUD_RATES,
-	useReadAloud,
-} from "../../_odin/board/read-aloud";
 import {
 	NumberSetting,
 	SettingRow,
@@ -100,8 +88,6 @@ function SessionsSettingsPage() {
 				description="What the board does with a session once it is running."
 			>
 				<AutoRenameRow />
-				<ReadAloudRow />
-				<SpeechSpeedRow />
 				<IdleCompactRow />
 				<IdleCloseRow />
 			</SettingsSection>
@@ -289,54 +275,6 @@ function AutoRenameRow() {
 				onCheckedChange={(enabled) => setAutoRename.mutate({ enabled })}
 				disabled={isLoading || setAutoRename.isPending}
 			/>
-		</SettingRow>
-	);
-}
-
-/** Odin says each new reply out loud once its turn is over. */
-function ReadAloudRow() {
-	const enabled = useReadAloud((s) => s.enabled);
-	const setEnabled = useReadAloud((s) => s.setEnabled);
-	return (
-		<SettingRow
-			label="Read replies aloud"
-			htmlFor="read-aloud"
-			description="Once a turn is over, Odin says the reply out loud in the open chat view: its TL;DR when the brief has one, else the reply itself. The speaker button under the latest reply reads it, or stops it, any time."
-		>
-			<Switch
-				id="read-aloud"
-				checked={enabled}
-				onCheckedChange={(next) => setEnabled(next)}
-			/>
-		</SettingRow>
-	);
-}
-
-/** How fast Odin speaks: 0.5x to 2x the voice's own pace. */
-function SpeechSpeedRow() {
-	const rate = useReadAloud((s) => s.rate);
-	const setRate = useReadAloud((s) => s.setRate);
-	return (
-		<SettingRow
-			label="Speech speed"
-			htmlFor="speech-speed"
-			description="How fast Odin reads a reply. 1x is the voice's own pace."
-		>
-			<Select
-				value={String(clampRate(rate))}
-				onValueChange={(value) => setRate(Number(value))}
-			>
-				<SelectTrigger id="speech-speed" className="w-[120px]">
-					<SelectValue />
-				</SelectTrigger>
-				<SelectContent>
-					{READ_ALOUD_RATES.map((speed) => (
-						<SelectItem key={speed} value={String(speed)}>
-							{speed}x
-						</SelectItem>
-					))}
-				</SelectContent>
-			</Select>
 		</SettingRow>
 	);
 }
