@@ -38,6 +38,7 @@ import {
 	leavePhase,
 	localCommand,
 	messageAttachments,
+	modelAlias,
 	movedHere,
 	nextHostStep,
 	opensTerminalScreen,
@@ -1276,6 +1277,19 @@ test("a Run label keeps the underscores inside a word", () => {
 	expect(
 		commandLabel("Delete the old venv, node_modules and _build_ folders:"),
 	).toBe("Delete the old venv, node_modules and build folders");
+});
+
+describe("modelAlias", () => {
+	test("a reply's model id gives the picker's alias", () => {
+		expect(modelAlias("claude-opus-5-5")).toBe("opus");
+		expect(modelAlias("us.anthropic.claude-sonnet-5-5")).toBe("sonnet");
+		expect(modelAlias("claude-fable-5-1")).toBe("fable");
+		expect(modelAlias("Sonnet 5.5")).toBe("sonnet");
+	});
+
+	test("an id with no alias stays as it is", () => {
+		expect(modelAlias("gpt-x")).toBe("gpt-x");
+	});
 });
 
 describe("opensTerminalScreen - commands finished in Claude's terminal", () => {

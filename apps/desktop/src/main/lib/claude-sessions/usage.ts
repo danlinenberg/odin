@@ -11,6 +11,11 @@ export interface SessionUsage {
 	window: number;
 	/** At Anthropic API list prices; null for a model not in the table. */
 	usd: number | null;
+	/**
+	 * The model the session runs on: the latest reply's (`claude-opus-5-5`),
+	 * or the name a later /model switched to (`Sonnet 5.5`).
+	 */
+	model: string;
 }
 
 /** $ per million tokens: input, output, cache read. Writes are 1.25x input (5m), 2x (1h). */
@@ -53,7 +58,11 @@ export function transcriptUsage(jsonl: string): SessionUsage | null {
 	const byMessage = new Map<string, { model: string; usage: Usage }>();
 	// A /compact since the last reply: the context is the summary's size.
 	let compacted: number | undefined;
+	// A /model since the last reply: Claude Code says "Set model to `Sonnet 5.5`".
+	let switched: string | undefined;
 	for (const line of jsonl.split("\n")) {
+		const picked = /Set model to `([^`]+)`/.exec(line);
+		if (picked) switched = picked[1];
 		if (!line.includes('"usage"') && !line.includes('"compact_boundary"'))
 			continue;
 		try {
@@ -66,8 +75,10 @@ export function transcriptUsage(jsonl: string): SessionUsage | null {
 				compacted = compactMetadata?.postTokens ?? 0;
 				continue;
 			}
-			if (message?.id && message.usage && message.model !== "<synthetic>")
+			if (message?.id && message.usage && message.model !== "<synthetic>") {
 				compacted = undefined;
+				switched = undefined;
+			}
 			if (message?.id && message.usage)
 				byMessage.set(message.id, {
 					model: message.model ?? "",
@@ -117,5 +128,5 @@ export function transcriptUsage(jsonl: string): SessionUsage | null {
 		context > 200_000
 			? 1_000_000
 			: 200_000;
-	return { tokens, context, window, usd };
+	return { tokens, context, window, usd, model: switched ?? lastModel };
 }
