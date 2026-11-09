@@ -1170,6 +1170,17 @@ describe("currentTurn - the turn the Working row shows", () => {
 		expect(currentTurn(items, false).prompt).toBe("second");
 	});
 
+	test("a message still on its way keeps the last turn's rows as the ones on screen", () => {
+		expect(currentTurn(items, false).onScreen.map((item) => item.id)).toEqual([
+			"t2",
+			"t3",
+		]);
+		expect(currentTurn(items, true).onScreen.map((item) => item.id)).toEqual([
+			"t2",
+			"t3",
+		]);
+	});
+
 	test("with no message of yours, the whole transcript is the turn", () => {
 		const turn = currentTurn(
 			items.filter((item) => item.kind !== "user"),
