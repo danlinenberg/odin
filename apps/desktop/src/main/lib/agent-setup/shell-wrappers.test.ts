@@ -14,6 +14,8 @@ import {
 	createZshWrapper,
 	getCommandShellArgs,
 	getShellArgs,
+	moveScriptToEnv,
+	PANE_SCRIPT_ENV,
 	type ShellWrapperPaths,
 } from "./shell-wrappers";
 
@@ -907,5 +909,38 @@ export ODIN_WORKSPACE_PATH="/wrong/path"
 				expect(wrapper).toContain("\\033]133;A\\007");
 			}
 		});
+	});
+});
+
+describe("moveScriptToEnv", () => {
+	// The raven's launch: its system prompt makes the script ~14 KB, and newer
+	// Git Bash keeps only the first ~8 KB of a quoted argument.
+	const prompt = Array.from(
+		{ length: 120 },
+		(_, i) => `Line ${i}: Odin's raven reads "this" and that.`,
+	).join("\n");
+	const command = `printf '%s' '${prompt.replaceAll("'", "'\\''")}' | wc -c; echo "leaked=\${${PANE_SCRIPT_ENV}:+yes}"`;
+	const MAX_QUOTED_ARG = 8000;
+
+	it("keeps every argument under Git Bash's ~8 KB cut", () => {
+		const longest = (args: string[]) =>
+			Math.max(...args.map((arg) => Buffer.byteLength(arg)));
+		const old = getCommandShellArgs("/bin/bash", command, TEST_PATHS);
+		expect(longest(old)).toBeGreaterThan(MAX_QUOTED_ARG);
+		expect(longest(moveScriptToEnv(old).args)).toBeLessThan(MAX_QUOTED_ARG);
+	});
+
+	it("runs the whole script, and the script never sees its own copy", () => {
+		const moved = moveScriptToEnv(
+			getCommandShellArgs("/bin/bash", command, TEST_PATHS),
+		);
+		const output = execFileSync("bash", moved.args, {
+			encoding: "utf-8",
+			env: { PATH: "/usr/bin:/bin", HOME: TEST_ROOT, ...moved.env },
+		}).trim();
+		expect(output.split("\n").map((line) => line.trim())).toEqual([
+			String(Buffer.byteLength(prompt)),
+			"leaked=",
+		]);
 	});
 });
