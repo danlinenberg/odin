@@ -134,9 +134,14 @@ type BangBlock = { command: string; index: number; label?: string };
 function bangBlocks(text: string): BangBlock[] {
 	const blocks: BangBlock[] = [];
 	for (const match of text.matchAll(/```[^\n]*\n\s*!([\s\S]*?)\n?```/g))
-		blocks.push({ command: (match[1] ?? "").trim(), index: match.index ?? 0 });
+		blocks.push({
+			command: outdent(match[1] ?? "", fenceIndent(text, match.index)).trim(),
+			index: match.index ?? 0,
+		});
 	for (const match of text.matchAll(/```![ \t]*\n([\s\S]*?)\n?```/g)) {
-		const lines = (match[1] ?? "").split("\n");
+		const lines = outdent(match[1] ?? "", fenceIndent(text, match.index)).split(
+			"\n",
+		);
 		// A ```! block whose first line already starts with `!` is the asked-for shape: the first loop has it.
 		if ((lines.find((line) => line.trim()) ?? "").trim().startsWith("!"))
 			continue;
@@ -152,6 +157,26 @@ function bangBlocks(text: string): BangBlock[] {
 	return blocks
 		.filter((block) => block.command)
 		.sort((a, b) => a.index - b.index);
+}
+
+/** The spaces before the fence that opens at `index`: a block under a list item sits that far in. */
+function fenceIndent(text: string, index = 0): number {
+	const lineStart = text.lastIndexOf("\n", index - 1) + 1;
+	return text.slice(lineStart, index).match(/^[ \t]*/)?.[0].length ?? 0;
+}
+
+/**
+ * Each line without the block's own indent - up to `indent` leading spaces, no more. A block under
+ * a list item would otherwise run with the item's indent on every line after the first, and a
+ * heredoc's `EOF` then never ends it.
+ */
+function outdent(body: string, indent: number): string {
+	if (!indent) return body;
+	const margin = new RegExp(`^[ \\t]{0,${indent}}`);
+	return body
+		.split("\n")
+		.map((line) => line.replace(margin, ""))
+		.join("\n");
 }
 
 /** The `! command` blocks Claude hands you to run in the session, without the `!`. */

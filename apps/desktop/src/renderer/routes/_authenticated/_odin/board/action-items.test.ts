@@ -222,6 +222,33 @@ test("a ```! block that already starts with ! is read once", () => {
 	expect(bangCommands("```!\n! git status\n```")).toEqual(["git status"]);
 });
 
+test("a block under a list item runs without the item's indent, so a heredoc still ends", () => {
+	const text = [
+		"1. Do it:",
+		"   ```",
+		"   !local x=$(cat <<'EOF'",
+		"   hello",
+		"     indented on purpose",
+		"   EOF",
+		"   ); echo $x",
+		"   ```",
+	].join("\n");
+	expect(bangCommands(text)).toEqual([
+		"local x=$(cat <<'EOF'\nhello\n  indented on purpose\nEOF\n); echo $x",
+	]);
+	expect(
+		bangCommands(
+			"1. Label\n   ```!\n   # Says hi\n   echo a\n   echo b\n   ```",
+		),
+	).toEqual(["echo a\necho b"]);
+});
+
+test("a block at the margin keeps its lines as written", () => {
+	expect(bangCommands("```\n!for f in *; do\n  echo $f\ndone\n```")).toEqual([
+		"for f in *; do\n  echo $f\ndone",
+	]);
+});
+
 test("other blocks stay code: a ```bash block and an empty ```! block run nothing", () => {
 	expect(bangCommands("```bash\nls\n```\n```!\n# only a label\n```")).toEqual(
 		[],
