@@ -1410,6 +1410,32 @@ test("a gh pr create behind `command` or a token still opens the PR", () => {
 	expect(opensPr('grep -n "command gh pr create" a.ts')).toBe(false);
 });
 
+test("a curl POST to the REST pulls endpoint opens the PR, other curls don't", () => {
+	expect(
+		opensPr(
+			"jq -n '{draft:true}' | curl -s -X POST -H \"Authorization: Bearer $KEY\" https://api.github.com/repos/a/b/pulls -d @- | jq -r .html_url",
+		),
+	).toBe(true);
+	expect(
+		opensPr(
+			"curl -s --request POST https://api.github.com/repos/a/b/pulls -d @pr.json",
+		),
+	).toBe(true);
+	expect(
+		opensPr(
+			'curl -s "https://api.github.com/repos/a/b/pulls?head=a:x&state=all"',
+		),
+	).toBe(false);
+	expect(
+		opensPr(
+			"curl -s -X POST https://api.github.com/repos/a/b/pulls/9/comments -d @c.json",
+		),
+	).toBe(false);
+	expect(opensPr('grep -n "curl -X POST" api.github.com/repos/a/b/pulls')).toBe(
+		false,
+	);
+});
+
 describe("clip - a long message keeps its ACTION ITEMS", () => {
 	test("short text is untouched", () => {
 		expect(clip("hello", 100)).toBe("hello");
