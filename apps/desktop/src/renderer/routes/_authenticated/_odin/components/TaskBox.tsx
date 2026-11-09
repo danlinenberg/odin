@@ -4,6 +4,7 @@ import type { AgentSkill } from "lib/trpc/routers/skills";
 import type { OdinDoc } from "lib/trpc/routers/system";
 import {
 	type ReactNode,
+	useCallback,
 	useEffect,
 	useLayoutEffect,
 	useRef,
@@ -401,9 +402,14 @@ export function TaskBox({
 				}}
 				onDrop={(event) => attach(event.dataTransfer.files, event)}
 				onPaste={(event) => attach(event.clipboardData.files, event)}
+				// A floor of about two lines: in a dialog of fixed height the text
+				// is the only part that gives, and a pasted screenshot's chip row
+				// once squeezed it to nothing.
 				className={cn(
-					"flex min-h-0 min-w-0 grow flex-col overflow-hidden rounded-[10px] border bg-card transition-[border-color,box-shadow] focus-within:border-primary/70 focus-within:shadow-[0_0_0_3px_color-mix(in_oklab,var(--primary)_18%,transparent)]",
-					folded ? "border-dashed border-border" : "border-border",
+					"flex min-w-0 grow flex-col overflow-hidden rounded-[10px] border bg-card transition-[border-color,box-shadow] focus-within:border-primary/70 focus-within:shadow-[0_0_0_3px_color-mix(in_oklab,var(--primary)_18%,transparent)]",
+					folded
+						? "min-h-0 border-dashed border-border"
+						: "min-h-[60px] border-border",
 				)}
 			>
 				<textarea
@@ -1107,6 +1113,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 	// Undefined until picked, so the launch keeps Settings' rule.
 	const [onHost, setOnHost] = useState<boolean>();
 	const dialog = useRef<HTMLDivElement>(null);
+	const body = useRef<HTMLDivElement>(null);
 	const { keys: submitKeys } = useHotkeyDisplay("SUBMIT");
 
 	// The height you picked - the class default, the stored size or a drag -
@@ -1133,20 +1140,34 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 		};
 	}, []);
 
-	// A long brief grows the box instead of scrolling in three lines: back to
-	// the picked height, measure what the text overflows by, add that. Up to
-	// max-h, where the text scrolls. Before paint, so the box never jumps.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: measure when the text changes
-	useLayoutEffect(() => {
+	// A long brief, or a row of attachment chips under it, grows the box
+	// instead of squeezing the text: back to the picked height, measure what
+	// the text and the fields under it overflow by, add that. Up to max-h,
+	// where the text scrolls. Before paint, so the box never jumps.
+	const grow = useCallback(() => {
 		const box = dialog.current;
+		const content = body.current?.firstElementChild;
 		const text = box?.querySelector("textarea");
-		if (!box || !text) return;
+		if (!box || !content || !text) return;
 		if (box.style.height !== grown.current) picked.current = box.offsetHeight;
 		box.style.height = `${picked.current}px`;
-		const overflow = Math.max(0, text.scrollHeight - text.clientHeight);
+		const overflow =
+			Math.max(0, text.scrollHeight - text.clientHeight) +
+			Math.max(0, content.scrollHeight - content.clientHeight);
 		box.style.height = `${picked.current + overflow}px`;
 		grown.current = box.style.height;
-	}, [draft]);
+	}, []);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: measure when the text changes
+	useLayoutEffect(grow, [draft]);
+	// A screenshot still saving shows its chip before the draft holds its
+	// path, so a row coming or going is watched too, not only the text.
+	useLayoutEffect(() => {
+		const content = body.current?.firstElementChild;
+		if (!content) return;
+		const watch = new MutationObserver(grow);
+		watch.observe(content, { childList: true });
+		return () => watch.disconnect();
+	}, [grow]);
 
 	const save = () => {
 		// Same rule the store uses - no title, no task, so don't claim one. A
@@ -1197,7 +1218,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 						<HiXMark className="size-4" />
 					</button>
 				</div>
-				<div className="flex min-h-0 grow flex-col px-4">
+				<div ref={body} className="flex min-h-0 grow flex-col px-4">
 					<TaskBox
 						value={draft}
 						autoFocus
