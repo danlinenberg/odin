@@ -206,7 +206,7 @@ app.post("/odin", express.urlencoded({ extended: false }), async (req, res) => {
 		return res
 			.status(400)
 			.send(
-				"Need action: guide, tasks, start, add, sessions, night, state, set, run, open, done, api, call, service or worktree.\n",
+				"Need action: guide, tasks, start, add, schedule, sessions, night, state, set, run, open, done, api, call, service or worktree.\n",
 			);
 	}
 	// Main's own operations answer here; the board's state is the renderer's.
