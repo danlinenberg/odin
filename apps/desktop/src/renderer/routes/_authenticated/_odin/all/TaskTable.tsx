@@ -14,6 +14,7 @@ import {
 } from "react-icons/lu";
 import { emojify } from "renderer/lib/emoji";
 import { openUrl } from "renderer/stores/in-app-browser";
+import { useTabsStore } from "renderer/stores/tabs/store";
 import { DoneButton } from "../components/DoneButton";
 import { DROP_LABEL, SweepDrop, useDropByHand } from "../components/DropHint";
 import {
@@ -38,6 +39,7 @@ import {
 import { TonightButton } from "../components/TonightButton";
 import { useDone } from "../hooks/useDone";
 import { usePendingFocus } from "../hooks/usePendingFocus";
+import { PANE_STATUS } from "../pane-status";
 import { type AllItem, bandOf, plainText, previewPastTitle } from "./all-items";
 import { type BulkActions, TaskRowMenu } from "./TaskRowMenu";
 import {
@@ -109,9 +111,35 @@ export const COL = {
 	place: "block w-[112px] shrink-0 truncate @max-[1380px]:hidden",
 	date: "flex w-[52px] shrink-0 items-center tabular-nums text-muted-foreground @max-[860px]:hidden",
 	acts: "flex w-[154px] shrink-0 items-center justify-end gap-0.5",
-	start: "flex w-[84px] shrink-0 justify-end",
+	start: "flex w-[104px] shrink-0 justify-end",
 	done: "flex w-[72px] shrink-0",
 };
+
+/**
+ * A task with a session on it says so on its own row: Working, or Needs you
+ * when the session is stuck on a question. Hover names the board column.
+ */
+function WorkingChip({ paneId }: { paneId: string }) {
+	const status = useTabsStore((s) => s.panes[paneId]?.status ?? "idle");
+	const needsYou = status === "permission";
+	return (
+		<span
+			title={`A session is running on this task - ${PANE_STATUS[status].label} on the board`}
+			className={cn(
+				"flex shrink-0 items-center gap-1 text-[11px] font-semibold",
+				needsYou ? "text-attention-ink" : "text-working-ink",
+			)}
+		>
+			<span
+				className={cn("size-1.5 rounded-full", !needsYou && "animate-pulse")}
+				style={{
+					backgroundColor: PANE_STATUS[needsYou ? "permission" : "working"].dot,
+				}}
+			/>
+			{needsYou ? "Needs you" : "Working"}
+		</span>
+	);
+}
 
 /** A row: a line with a divider, not a card - cards spent a third of the height on chrome. */
 const TABLE_ROW =
@@ -387,6 +415,7 @@ export function TaskRow({
 									</span>
 								)}
 							</button>
+							{activePaneId && <WorkingChip paneId={activePaneId} />}
 							{item.also?.map((copy) => (
 								<AlsoIn key={copy.key} copy={copy} />
 							))}
@@ -552,7 +581,7 @@ export function TaskRow({
 								onClick={() => rows.goToPane(activePaneId)}
 								className={cn(ROW_LIVE_BUTTON, "px-2.5")}
 							>
-								Session →
+								Go to session
 							</button>
 						) : (
 							<button

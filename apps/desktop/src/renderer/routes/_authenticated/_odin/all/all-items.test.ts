@@ -4,6 +4,7 @@ import {
 	allItems,
 	bandOf,
 	matchesStatus,
+	paneWorksOn,
 	plainText,
 	previewPastTitle,
 	upcomingMeetings,
@@ -421,4 +422,35 @@ test("a meeting leaves the list once it ends", () => {
 	const end = Date.parse(meeting.end);
 	expect(upcomingMeetings([meeting], end - 1)).toHaveLength(1);
 	expect(upcomingMeetings([meeting], end)).toHaveLength(0);
+});
+
+test("a task's session is found by its pane id when the names differ", () => {
+	const [task] = allItems({
+		tasks: [
+			{
+				id: "t9",
+				title: "ship-status",
+				notes: "",
+				createdAt: 1,
+				paneId: "pane-9",
+			},
+		],
+		slack: [],
+		jira: [],
+		pulls: [],
+		notion: [],
+	});
+	if (!task) throw new Error("no row");
+	expect(task.paneId).toBe("pane-9");
+	// New Session named it "/ship-status"; the task's title has no slash.
+	expect(
+		paneWorksOn({ id: "pane-9", odinTaskTitle: "/ship-status" }, task),
+	).toBe(true);
+	expect(
+		paneWorksOn({ id: "pane-1", odinTaskTitle: "/ship-status" }, task),
+	).toBe(false);
+	// The name still links a session started from the row itself.
+	expect(
+		paneWorksOn({ id: "pane-2", odinTaskTitle: "ship-status" }, task),
+	).toBe(true);
 });

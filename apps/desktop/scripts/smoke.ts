@@ -1010,6 +1010,28 @@ await step(
 	},
 );
 
+await step(
+	"New Session adds its task to Tasks, Working with Go to session",
+	async () => {
+		await rail("Tasks");
+		await waitForText(SESSION);
+		const row = await page<{ working: boolean; goTo: boolean } | null>(`(() => {
+		const title = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(SESSION)});
+		const row = title?.closest("[data-task-row]");
+		if (!row) return null;
+		return {
+			working: /Working|Needs you/.test(row.textContent),
+			goTo: !!row.querySelector('button[aria-label="Go to session"]'),
+		};
+	})()`);
+		if (!row) throw new Error("no task row for the New Session session");
+		if (!row.working) throw new Error("the task's row doesn't say Working");
+		if (!row.goTo) throw new Error("the task's row has no Go to session");
+		await rail("Dev Board");
+		await waitForText("next in line");
+	},
+);
+
 await step("an agent's command runs in its session's own Shell", async () => {
 	// What the launch prompt tells the agent to do, done as the agent would.
 	const [port, paneId] = readFileSync(join(home, `pane-${sessionPid}`), "utf8")
