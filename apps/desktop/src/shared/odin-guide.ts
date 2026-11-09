@@ -124,7 +124,7 @@ Four columns: **Working** (blue), **Needs you** (amber), **Final Review** (green
 ## Chat view and terminal view
 Chat view is the default (Settings → Appearance, "Show sessions as a chat"; store sessionView). Switch with "Terminal View" in the composer or "Chat View" in the footer. Same session behind both; a question or plan approval still opens the terminal.
 - Composer: Enter sends, Ctrl+Enter sends into a running turn, Shift+Enter new line, "!" bash mode, "/" skills, hold Space to talk.
-- **Model** picker in the composer, beside "Terminal View": shows the model the session's latest reply ran on (Fable, Opus, Sonnet, Haiku, or the model's own name). Pick another and Odin sends "/model <name>" to the session; the next reply runs on it. Off while a turn runs, and on an ended session (resume it to change). Shown once the session has replied.
+- **Model** picker in the composer, beside "Terminal View": shows the model the session's latest reply ran on (Fable, Opus, Sonnet, Haiku, or the model's own name). Pick another and Odin sends "/model <name>" to the session; the next reply runs on it, and Claude Code also keeps it as the default for new sessions. Off while a turn runs, and on an ended session (resume it to change). Shown once the session has replied.
 - Claude's menus show as clickable cards.
 - The bookmark icon under a reply (title "Add this reply to my to-dos") saves it to My notes as a to-do named after its first line; the to-do's **Go to reply** scrolls the chat back to that reply, loading earlier turns if needed.
 - /btw questions never enter the transcript: the answer shows as a card with Close (sends Esc), and the composer hides while it is open.

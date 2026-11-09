@@ -545,12 +545,13 @@ export function opensTerminalScreen(text: string): boolean {
 const CHAT_MODELS = CLAUDE_MODELS.filter((option) => option.value);
 
 /**
- * The picker value for a reply's model id (`claude-opus-5-5`,
- * `us.anthropic.claude-opus-5-5`): its alias, or the id when no alias fits.
+ * The picker value for a session's model (`claude-opus-5-5`,
+ * `us.anthropic.claude-opus-5-5`, `Sonnet 5.5`): its alias, or the model
+ * itself when no alias fits.
  */
 export function modelAlias(model: string): string {
 	const known = CHAT_MODELS.find((option) =>
-		model.includes(`claude-${option.value}`),
+		model.toLowerCase().includes(option.value),
 	);
 	return known ? known.value : model;
 }
@@ -5061,7 +5062,7 @@ function Composer({
 									? `Ran on ${model}. Resume the session to change it.`
 									: working
 										? `Runs on ${model}. Change it once this turn is over.`
-										: `Runs on ${model}. Pick another and Odin sends /model to the session.`
+										: `Runs on ${model}. Pick another and Odin sends /model to the session - Claude Code also keeps it as the default for new sessions.`
 							}
 							disabled={working || !!onResume}
 							value={pickedModel ?? modelAlias(model)}

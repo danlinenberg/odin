@@ -1284,6 +1284,7 @@ describe("modelAlias", () => {
 		expect(modelAlias("claude-opus-5-5")).toBe("opus");
 		expect(modelAlias("us.anthropic.claude-sonnet-5-5")).toBe("sonnet");
 		expect(modelAlias("claude-fable-5-1")).toBe("fable");
+		expect(modelAlias("Sonnet 5.5")).toBe("sonnet");
 	});
 
 	test("an id with no alias stays as it is", () => {

@@ -34,6 +34,20 @@ test("transcriptUsage counts each message once and prices it", () => {
 	);
 	expect(errored?.context).toBe(2_000_000);
 	expect(errored?.model).toBe("us.anthropic.claude-opus-5-5");
+	// A /model since the last reply names the model it switched to.
+	const stdout = (text: string) =>
+		JSON.stringify({
+			type: "system",
+			content: `<local-command-stdout>${text}</local-command-stdout>`,
+		});
+	const switched = `${jsonl}\n${stdout("Set model to `Sonnet 5.5` and saved as your default for new sessions")}`;
+	expect(transcriptUsage(switched)?.model).toBe("Sonnet 5.5");
+	// The next reply's own model wins again.
+	expect(
+		transcriptUsage(
+			`${switched}\n${line("n", "claude-sonnet-5-5", { input_tokens: 1 })}`,
+		)?.model,
+	).toBe("claude-sonnet-5-5");
 	// An older, unpriced model: no cost, and a 200K window.
 	const old = transcriptUsage(
 		line("o", "claude-opus-4-1", { input_tokens: 5_000 }),
