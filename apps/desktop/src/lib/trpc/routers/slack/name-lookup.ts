@@ -38,3 +38,25 @@ export function createNameLookup(now: () => number = Date.now) {
 		},
 	};
 }
+
+export interface SlackUser {
+	name?: string;
+	real_name?: string;
+	profile?: { display_name?: string; real_name?: string };
+}
+
+/**
+ * A person's name the way Slack shows it in an @mention and on their messages:
+ * the display name they chose, else their full name. Someone whose full name
+ * is "Ana Maria Lopez" may be tagged "@Ana Lopez", and a draft showing the full
+ * name looked like it tagged the wrong person.
+ */
+export function slackUserName(user: SlackUser | undefined): string | null {
+	return (
+		user?.profile?.display_name?.trim() ||
+		user?.real_name?.trim() ||
+		user?.profile?.real_name?.trim() ||
+		user?.name ||
+		null
+	);
+}

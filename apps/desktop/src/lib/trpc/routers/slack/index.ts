@@ -11,7 +11,7 @@ import {
 	resolveSlackToken,
 	updateOdinConfig,
 } from "../odin-config";
-import { createNameLookup } from "./name-lookup";
+import { createNameLookup, type SlackUser, slackUserName } from "./name-lookup";
 import {
 	buildPermalink,
 	channelLabel,
@@ -212,12 +212,12 @@ async function lookupUserName(
 ): Promise<string | null> {
 	if (!userId) return null;
 	return userNames.get(userId, async () => {
-		const res = await slackApi<
-			SlackResponse & {
-				user?: { real_name?: string; name?: string };
-			}
-		>("users.info", { user: userId }, token);
-		return res.user?.real_name ?? res.user?.name ?? null;
+		const res = await slackApi<SlackResponse & { user?: SlackUser }>(
+			"users.info",
+			{ user: userId },
+			token,
+		);
+		return slackUserName(res.user);
 	});
 }
 
