@@ -60,7 +60,11 @@ import {
 	requestClaudeSync,
 	syncClaudeSetup,
 } from "main/lib/remote-host/claude-sync";
-import { runClaudeLogin } from "main/lib/remote-host/claude-token";
+import {
+	claudeSignInPrompt,
+	runClaudeLogin,
+	submitClaudeCode,
+} from "main/lib/remote-host/claude-token";
 import { downloadTarget, hostPath } from "main/lib/remote-host/download";
 import {
 	pollHostGithubLogin,
@@ -973,6 +977,12 @@ export const createRemoteHostRouter = () =>
 			}),
 		/** A fresh token from `claude setup-token`, replacing the saved one. */
 		renewClaudeToken: publicProcedure.mutation(() => ensureClaudeToken(true)),
+		/** A Claude sign-in for the host waiting on you (Windows): the page Odin opened and whether Claude asks for its code; null when none. */
+		claudeSignIn: publicProcedure.query(() => claudeSignInPrompt()),
+		/** The code the Claude sign-in page showed, typed at Claude's prompt. */
+		submitClaudeCode: publicProcedure
+			.input(z.object({ code: z.string().trim().min(1) }))
+			.mutation(({ input }) => submitClaudeCode(input.code)),
 
 		/**
 		 * A session on this computer, moved to the host: its branch goes to
