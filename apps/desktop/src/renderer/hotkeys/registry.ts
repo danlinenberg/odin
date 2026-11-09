@@ -676,6 +676,13 @@ export const HOTKEYS_REGISTRY = {
 		category: "Terminal",
 		description: "Jump the session chat to its first message",
 	},
+	// Ctrl+F off the Mac too: the chat has no terminal to keep it for.
+	CHAT_FIND: {
+		key: { mac: L("meta+f"), windows: L("ctrl+f"), linux: L("ctrl+f") },
+		label: "Chat: Find",
+		category: "Terminal",
+		description: "Find text in the open session's conversation",
+	},
 	CHAT_TO_BOTTOM: {
 		key: { mac: "pagedown", windows: "pagedown", linux: "pagedown" },
 		label: "Chat: Jump to Bottom",
