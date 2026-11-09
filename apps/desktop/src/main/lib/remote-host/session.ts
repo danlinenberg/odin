@@ -1,5 +1,9 @@
 import { readOdinConfig } from "../../../lib/trpc/routers/odin-config";
-import { ODIN_TASK_RULE, voiceRuleWith } from "../../../shared/constants";
+import {
+	ODIN_TASK_RULE,
+	PR_SCREENSHOT_RULE,
+	voiceRuleWith,
+} from "../../../shared/constants";
 import { tmuxSession } from "../../../shared/remote-reconnect";
 import {
 	SLACK_ALLOW_RULES,
@@ -907,6 +911,8 @@ export function hostNote(spec: {
 		voiceRuleWith(spec.voiceGuide ?? ""),
 		// Same hook, same gap: the host sends /odin on to Odin on my computer.
 		ODIN_TASK_RULE,
+		// And /github/attach: the upload runs in Odin's browser on my computer.
+		PR_SCREENSHOT_RULE,
 	].join("\n");
 }
 

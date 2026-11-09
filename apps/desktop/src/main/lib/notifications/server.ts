@@ -455,6 +455,34 @@ app.post(
 	},
 );
 
+/**
+ * Uploads screenshots to a PR's comment box as me, through Odin's browser
+ * (github-attach). JSON `{ repo, number, files: [{ name, data }] }`, data
+ * base64; answers `{ markdown }`, the image Markdown to post in a comment.
+ */
+app.post(
+	"/github/attach",
+	express.json({ limit: "120mb" }),
+	async (req, res) => {
+		if (req.headers.origin) {
+			return res.status(403).send("Not from a browser.\n");
+		}
+		const { parseAttachRequest, attachToPr, AttachError } = await import(
+			"../browser/github-attach"
+		);
+		const parsed = parseAttachRequest(req.body);
+		if ("error" in parsed) return res.status(400).send(`${parsed.error}\n`);
+		try {
+			const links = await attachToPr(parsed.request, parsed.types);
+			res.json({ markdown: links.join("\n\n") });
+		} catch (error) {
+			res
+				.status(error instanceof AttachError ? error.status : 502)
+				.send(`${error instanceof Error ? error.message : String(error)}\n`);
+		}
+	},
+);
+
 /** A remote session's tokens, for its pane's helper. Single use; never to a browser. */
 app.get("/remote-host/env", (req, res) => {
 	const secrets =

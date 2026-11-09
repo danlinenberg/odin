@@ -123,6 +123,14 @@ export const voiceRuleWith = (guide: string) =>
 /** How a session sees a video: Odin's /frames (main/lib/video-frames.ts), not an ffmpeg it may not have. */
 export const VIDEO_RULE = `To see a video - an attachment, a screen recording, a Slack or Jira video link - don't look for ffmpeg: \`curl -sfG http://127.0.0.1:$ODIN_PORT/frames --data-urlencode "src=<path or link>" -o /tmp/frames.png\` returns one image of frames from across the video, each labeled with its time, and you read that image. To look closer at one part, add \`--data-urlencode from=<seconds> --data-urlencode to=<seconds>\`; for more frames, \`--data-urlencode count=<n>\` (up to 36).`;
 
+/**
+ * How a session puts screenshots on a PR: Odin on my computer uploads them as
+ * me through its own browser (/github/attach), since GitHub has no API for a
+ * comment's images. Delivered at SessionStart and in a remote host session's
+ * prompt.
+ */
+export const PR_SCREENSHOT_RULE = `To put screenshots on a PR (a change that shows on screen), upload them as me through Odin, then post the Markdown it answers in a PR comment with gh: \`jq -n --arg r <owner/repo> --argjson n <PR number> --rawfile a <(base64 < shot.png | tr -d '\\n') '{repo:$r,number:$n,files:[{name:"shot.png",data:$a}]}' | curl -sf http://127.0.0.1:$ODIN_PORT/github/attach -H 'content-type: application/json' --data-binary @-\` answers \`{"markdown": "..."}\` (one files entry per png, jpg or gif, up to 10). GitHub stores them like images pasted by hand. It runs in Odin on my computer: when it answers 503, my computer is asleep or closed - say so and give me the files instead. When I ask for the files themselves, give them to me (from a remote host, in a \`!download <path>\` block).`;
+
 export const STE_RULE =
 	"Write your replies in ASD-STE100 Simplified Technical English: short sentences (procedural steps 20 words or fewer, descriptive text 25 or fewer), active voice, one instruction per sentence, the imperative for instructions, simple common words with one meaning each, and no idioms or phrasal verbs. Code, commands, file paths, identifiers and quoted text stay exactly as they are.";
 

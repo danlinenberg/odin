@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import {
 	ODIN_TASK_RULE,
+	PR_SCREENSHOT_RULE,
 	SHELL_RULE,
 	STE_RULE,
 	VIDEO_RULE,
@@ -460,7 +461,7 @@ describe("shell rule SessionStart hook", () => {
 		expect(JSON.parse(out.stdout.toString())).toEqual({
 			hookSpecificOutput: {
 				hookEventName: "SessionStart",
-				additionalContext: `${SHELL_RULE}\n\n${ODIN_TASK_RULE}\n\n${VIDEO_RULE}\n\n${STE_RULE}\n\n${VOICE_RULE}`,
+				additionalContext: `${SHELL_RULE}\n\n${ODIN_TASK_RULE}\n\n${VIDEO_RULE}\n\n${PR_SCREENSHOT_RULE}\n\n${STE_RULE}\n\n${VOICE_RULE}`,
 			},
 		});
 	});
