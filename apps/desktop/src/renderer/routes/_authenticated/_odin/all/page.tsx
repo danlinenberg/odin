@@ -23,8 +23,6 @@ import {
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { openUrl } from "renderer/stores/in-app-browser";
-import type { BoardSection } from "shared/board-section";
-import type { PaneStatus } from "shared/tabs-types";
 import { DoneButton } from "../components/DoneButton";
 import { DROP_LABEL, SweepDrop } from "../components/DropHint";
 import {
@@ -35,18 +33,13 @@ import {
 	FeedSelect,
 	ROW_LINK_BUTTON,
 	ROW_LIVE_BUTTON,
-	ROW_META,
-	ROW_PRIMARY_SLOT,
 	ROW_START_BUTTON,
 	SECTION_HINT,
 	SECTION_LABEL,
 	SyncButton,
 } from "../components/FeedChrome";
-import type { FeedPath } from "../components/feed-counts";
-import { PersonChip } from "../components/PersonChip";
 import { effectiveDue, isDue, useReminders } from "../components/Reminders";
 import { NewTaskFieldsPicker, TaskBox } from "../components/TaskBox";
-import { useActiveSessions } from "../hooks/useActiveSessions";
 import { useBacklogReview } from "../hooks/useBacklogReview";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
@@ -58,7 +51,6 @@ import {
 	useOdinTasks,
 } from "../hooks/useOdinTasks";
 import { usePendingFocus } from "../hooks/usePendingFocus";
-import { PANE_STATUS } from "../pane-status";
 import {
 	type AllItem,
 	type Band,
@@ -75,7 +67,6 @@ import { nextSelection, visibleSelection } from "./selection";
 import { TaskDescription } from "./TaskDescription";
 import { TaskDetails } from "./TaskDetails";
 import {
-	SOURCE_ICON,
 	type SortableBits,
 	SortableRow,
 	TABLE_LIST,
@@ -116,10 +107,9 @@ export const Route = createFileRoute("/_authenticated/_odin/all/")({
  * used to be painted, which made High mean nothing. Up next, your own order,
  * sits above the bands.
  *
- * Every session running right now folds to one strip above them, whichever
- * tab started it - the per-source feeds each mark only their own rows live,
- * and a Slack row leaves its queue as soon as its session starts, so this is
- * the one place that can answer "what's already going". "show rows" opens it.
+ * Only tasks are listed. A task with a session running says Working on its
+ * own row, with Go to session beside it; every session you start by hand has
+ * a task (the board's New Session adds one), so nothing running is left out.
  *
  * Rows are filtered from one menu - source, priority, place, status, due,
  * done - and what's applied shows as chips under the header, so the list
@@ -127,43 +117,6 @@ export const Route = createFileRoute("/_authenticated/_odin/all/")({
  * feed's prompt builder is shared (feed-prompts.ts, thread-prompt.ts,
  * notion/rows.ts), and the launch payload is built in all-items.ts.
  */
-
-/**
- * A running session's source, in the same terms the rows use - the board's
- * section names on one side, the feed that started it on the other. "normal"
- * is a session started from a prompt rather than a feed row.
- */
-const SESSION_SOURCE: Record<
-	BoardSection,
-	{ to: FeedPath; source: AllItem["source"] }
-> = {
-	slack: { to: "/reactions", source: "Slack" },
-	reactions: { to: "/reactions", source: "Slack" },
-	jira: { to: "/jira", source: "Jira" },
-	pr: { to: "/prs", source: "GitHub" },
-	notion: { to: "/notion", source: "Notion" },
-	normal: { to: "/my-tasks", source: "Tasks" },
-	// Parked is a state, not a source - a session from any feed can be in it,
-	// and the board's own section is where that's visible. Reading it as a task
-	// keeps the row honest about the one thing it can say for sure: it isn't a
-	// feed item.
-	parked: { to: "/my-tasks", source: "Tasks" },
-	// Same for these board-only states.
-	queued: { to: "/my-tasks", source: "Tasks" },
-	waiting: { to: "/my-tasks", source: "Tasks" },
-	recent: { to: "/my-tasks", source: "Tasks" },
-	starred: { to: "/my-tasks", source: "Tasks" },
-};
-
-/** What a live session is doing - the board's columns, as a chip. */
-const SESSION_STATE: Partial<
-	Record<PaneStatus, { label: string; dot: string }>
-> = {
-	permission: { label: "needs you", dot: PANE_STATUS.permission.dot },
-	working: { label: "working", dot: PANE_STATUS.working.dot },
-	review: { label: "done", dot: PANE_STATUS.review.dot },
-	idle: { label: "idle", dot: PANE_STATUS.idle.dot },
-};
 
 /** The source filter, in the order the tab strip lists them. */
 const SOURCES = [
@@ -198,7 +151,6 @@ const BANDS: { id: Band; label: string; hint: string }[] = [
 	{ id: "later", label: "Later", hint: "" },
 ];
 
-const SHOW_SESSIONS_KEY = "odin.all.showSessions";
 /** Kept, unlike the other cuts: hiding Backlog is a standing choice, not a
  * look around. "only:<status>" or "hide:<status>"; "" is every status. */
 const STATUS_FILTER_KEY = "odin.all.statusFilter";
@@ -213,25 +165,9 @@ function readStatusFilter(): string {
 	}
 }
 
-function readShowSessions(): boolean {
-	try {
-		return localStorage.getItem(SHOW_SESSIONS_KEY) === "true";
-	} catch {
-		return false;
-	}
-}
-
 function AllFeedPage() {
 	const { reactions, syncAll, isSyncing } = useOdinFeeds();
 	const navigate = useNavigate();
-	const [showSessions, setShowSessions] = useState(readShowSessions);
-	const toggleSessions = () => {
-		const next = !showSessions;
-		setShowSessions(next);
-		try {
-			localStorage.setItem(SHOW_SESSIONS_KEY, String(next));
-		} catch {}
-	};
 	// The ways to cut the list. Local state: All is the "what now" view, and it
 	// should open saying everything, every time.
 	const [source, setSource] = useState<AllItem["source"] | "">("");
@@ -261,10 +197,6 @@ function AllFeedPage() {
 		isLaunching,
 		launchingKey,
 	} = rows;
-	const sessions = useActiveSessions();
-	const needsYou = sessions.filter(
-		(session) => session.column === "permission",
-	);
 	const goToPane = (paneId: string) => {
 		usePendingFocus.getState().focus(paneId);
 		navigate({ to: "/board" });
@@ -623,8 +555,16 @@ function AllFeedPage() {
 	};
 
 	// Backlog, Read later and the rest are on the list but not waiting on you.
-	const waiting = statusCounts.get("waiting") ?? 0;
 	const shown = items.length + queued.length;
+	// Tasks with a session running on them - tasks, not sessions. A task being
+	// worked isn't also waiting on you.
+	const workingRows = allRows.filter((item) => livePaneFor(item));
+	const working = workingRows.length;
+	const waiting =
+		(statusCounts.get("waiting") ?? 0) -
+		workingRows.filter(
+			(item) => byContext.includes(item) && statusOf(item) === "waiting",
+		).length;
 
 	/** One row of the list. */
 	const renderRow = (
@@ -654,6 +594,7 @@ function AllFeedPage() {
 				<span className="shrink-0 text-[12px] text-muted-foreground">
 					{shown !== allRows.length ? `${shown} of ${allRows.length} · ` : ""}
 					{waiting} waiting on you
+					{working > 0 && ` · ${working} working`}
 					{(bands.now.length > 0 || bands.today.length > 0) &&
 						` · ${bands.now.length} now · ${bands.today.length} today`}
 				</span>
@@ -841,135 +782,6 @@ function AllFeedPage() {
 
 			<div className="flex min-h-0 flex-1">
 				<div className={TABLE_LIST}>
-					{!showDone && sessions.length > 0 && (
-						<>
-							<div className={SECTION_LABEL}>
-								<span className="size-1.5 animate-pulse rounded-full bg-working" />
-								Live
-								<Count n={sessions.length} />
-								{needsYou.length > 0 && (
-									<span className={SECTION_HINT}>
-										{needsYou.length} need you
-									</span>
-								)}
-								<button
-									type="button"
-									onClick={toggleSessions}
-									className={cn(SECTION_HINT, "hover:text-foreground")}
-								>
-									{showSessions ? "fold" : "show rows"}
-								</button>
-							</div>
-							{showSessions ? (
-								sessions.map((session) => {
-									const { to } = SESSION_SOURCE[session.source];
-									const SourceIcon = SOURCE_ICON[to];
-									const state = SESSION_STATE[session.column];
-									return (
-										<div
-											key={session.paneId}
-											className={cn(
-												FEED_ROW,
-												"mb-1 border-l-2 border-l-working",
-											)}
-										>
-											<div className="flex items-center gap-3">
-												<SourceIcon
-													className="size-3.5 shrink-0 text-muted-foreground"
-													aria-hidden
-												/>
-												<button
-													type="button"
-													title="Open the session on the board"
-													onClick={() => goToPane(session.paneId)}
-													className="min-w-0 flex-1 truncate bg-none text-left text-[13px] font-semibold text-foreground"
-												>
-													{emojify(session.title)}
-												</button>
-												{!openItem && (
-													<div className="flex shrink-0 items-center gap-2.5 text-[11px]">
-														{session.tags[0] && (
-															<span className="font-mono text-[10.5px] text-faint-foreground">
-																#{session.tags[0]}
-															</span>
-														)}
-														{session.contact && (
-															<PersonChip
-																name={session.contact}
-																className="max-w-[160px]"
-															/>
-														)}
-														{state && (
-															<span
-																className={cn(
-																	ROW_META,
-																	"flex items-center gap-1.5",
-																)}
-															>
-																<span
-																	className="size-1.5 rounded-full"
-																	style={{ backgroundColor: state.dot }}
-																/>
-																{state.label}
-															</span>
-														)}
-														{session.repo && (
-															<span
-																className="max-w-[132px] truncate text-muted-foreground"
-																title={session.repo}
-															>
-																{session.repo}
-															</span>
-														)}
-													</div>
-												)}
-												<span className={ROW_PRIMARY_SLOT}>
-													<button
-														type="button"
-														onClick={() => goToPane(session.paneId)}
-														className={ROW_LIVE_BUTTON}
-													>
-														Go to session →
-													</button>
-												</span>
-											</div>
-										</div>
-									);
-								})
-							) : (
-								<div
-									className={cn(
-										FEED_ROW,
-										"mb-1 flex items-center gap-3 py-1.5",
-									)}
-								>
-									<div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-										{needsYou.length === 0 && (
-											<span className={ROW_META}>all working</span>
-										)}
-										{needsYou.map((session) => (
-											<button
-												key={session.paneId}
-												type="button"
-												title="Open the session on the board"
-												onClick={() => goToPane(session.paneId)}
-												className="max-w-[220px] shrink-0 truncate rounded-full bg-secondary px-2 py-[1px] text-[11px] text-soft-foreground ring-1 ring-inset ring-attention/50 transition-colors hover:text-foreground"
-											>
-												{emojify(session.title)}
-											</button>
-										))}
-									</div>
-									<button
-										type="button"
-										onClick={() => navigate({ to: "/board" })}
-										className={ROW_LIVE_BUTTON}
-									>
-										Board →
-									</button>
-								</div>
-							)}
-						</>
-					)}
 					{!showDone && items.length + queued.length > 0 && (
 						<TaskTableHeader
 							date={sortBy === "created" ? "Created" : "Updated"}

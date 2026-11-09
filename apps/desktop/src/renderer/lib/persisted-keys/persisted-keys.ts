@@ -43,6 +43,8 @@ export const DEAD_KEYS: DeadKey[] = [
 	{ key: "file-explorer-store", match: "exact" },
 	{ key: "search-dialog-store", match: "exact" },
 	{ key: "v2-available-banner-v1", match: "exact" },
+	// Tasks -> All's Live strip "show rows" toggle; the strip is gone
+	{ key: "odin.all.showSessions", match: "exact" },
 ];
 
 function matchesDeadKey(key: string): boolean {
