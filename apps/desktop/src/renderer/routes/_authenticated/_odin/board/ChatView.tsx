@@ -114,6 +114,7 @@ import {
 	settledItem,
 	splitActionItems,
 } from "./action-items";
+import { useChatFind } from "./ChatFindBar";
 import {
 	PlanCard,
 	QuestionCard,
@@ -2907,7 +2908,14 @@ function FoldedReply({
 }) {
 	return (
 		<>
-			<div className={cn(folded && "line-clamp-5")}>{children}</div>
+			{/* While the find bar is open it shows whole, so every match can be seen. */}
+			<div
+				className={cn(
+					folded && "line-clamp-5 [[data-finding]_&]:line-clamp-none",
+				)}
+			>
+				{children}
+			</div>
 			{(folded || foldable) && (
 				<button
 					type="button"
@@ -3812,6 +3820,16 @@ export function ChatView({
 	// Rows also grow after they mount (code blocks, images, markdown), so a
 	// switched-to session would stop short of the bottom; follow that too.
 	const contentRef = useRef<HTMLDivElement>(null);
+	const rootRef = useRef<HTMLDivElement>(null);
+	const find = useChatFind({
+		root: rootRef,
+		content: contentRef,
+		scroll: scrollRef,
+		trigger: items,
+		onReveal: () => {
+			pinnedRef.current = false;
+		},
+	});
 	useEffect(() => {
 		const el = scrollRef.current;
 		const content = contentRef.current;
@@ -3845,6 +3863,8 @@ export function ChatView({
 		<MoveHere.Provider value={onMoveHere}>
 			{/* biome-ignore lint/a11y/noStaticElementInteractions: Page Up/Down from the composer jump the conversation to its top/bottom; a file dropped anywhere on it attaches */}
 			<div
+				ref={rootRef}
+				data-finding={find.open || undefined}
 				className="flex min-h-0 flex-1 flex-col"
 				onDragOver={(event) => {
 					if (!dropRef.current || !event.dataTransfer.types.includes("Files"))
@@ -3873,6 +3893,7 @@ export function ChatView({
 					el.scrollTop = top ? 0 : el.scrollHeight;
 				}}
 			>
+				{find.bar}
 				<div
 					ref={scrollRef}
 					data-chat-scroll
