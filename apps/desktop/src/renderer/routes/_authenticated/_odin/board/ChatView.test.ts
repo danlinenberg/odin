@@ -428,7 +428,7 @@ describe("ChatView transcript", () => {
 			{ text: "Install the agent:", fences: [fence] },
 			{ text: "Approve the PR", fences: [] },
 		]);
-		expect(bangCommands(fence)).toEqual(["echo a\n   - not an item"]);
+		expect(bangCommands(fence)).toEqual(["echo a\n- not an item"]);
 	});
 
 	test("a command written under its item gets its Run button there, labelled by its line", () => {
