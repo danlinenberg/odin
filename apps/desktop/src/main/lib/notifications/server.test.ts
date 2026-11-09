@@ -197,6 +197,51 @@ describe("notifications/server", () => {
 		});
 	});
 
+	describe("POST /github/attach", () => {
+		const post = async (headers: Record<string, string>, body: unknown) => {
+			const server = notificationsApp.listen(0, "127.0.0.1");
+			await new Promise((resolve) => server.once("listening", resolve));
+			try {
+				const { port } = server.address() as AddressInfo;
+				const response = await fetch(`http://127.0.0.1:${port}/github/attach`, {
+					method: "POST",
+					headers: { "content-type": "application/json", ...headers },
+					body: JSON.stringify(body),
+				});
+				return { status: response.status, text: await response.text() };
+			} finally {
+				server.close();
+			}
+		};
+		const image = {
+			name: "home.png",
+			data: Buffer.from("png").toString("base64"),
+		};
+
+		it("refuses anything a browser sent", async () => {
+			const { status } = await post(
+				{ origin: "https://evil.example" },
+				{ repo: "a/b", number: 1, files: [image] },
+			);
+			expect(status).toBe(403);
+		});
+
+		it("says what is wrong with a request it can't do, before opening anything", async () => {
+			expect(await post({}, { repo: "a/b", number: 1, files: [] })).toEqual({
+				status: 400,
+				text: "files must list at least one image\n",
+			});
+			expect(
+				(
+					await post(
+						{},
+						{ repo: "a/b", number: 1, files: [{ ...image, name: "x.svg" }] },
+					)
+				).status,
+			).toBe(400);
+		});
+	});
+
 	// The crow's Odin actions: the window answers, and that answer is the response.
 	describe("POST /odin", () => {
 		it("answers with the window's reply", async () => {

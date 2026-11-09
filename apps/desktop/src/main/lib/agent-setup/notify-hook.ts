@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {
 	ODIN_TASK_RULE,
+	PR_SCREENSHOT_RULE,
 	SHELL_RULE,
 	STE_RULE,
 	VIDEO_RULE,
@@ -30,7 +31,7 @@ const SHELL_RULE_SCRIPT_MARKER = "# Odin shell rule hook v4";
 export const sessionStartOutput = (voiceGuide: string) => ({
 	hookSpecificOutput: {
 		hookEventName: "SessionStart",
-		additionalContext: `${SHELL_RULE}\n\n${ODIN_TASK_RULE}\n\n${VIDEO_RULE}\n\n${STE_RULE}\n\n${voiceRuleWith(voiceGuide)}`,
+		additionalContext: `${SHELL_RULE}\n\n${ODIN_TASK_RULE}\n\n${VIDEO_RULE}\n\n${PR_SCREENSHOT_RULE}\n\n${STE_RULE}\n\n${voiceRuleWith(voiceGuide)}`,
 	},
 });
 
