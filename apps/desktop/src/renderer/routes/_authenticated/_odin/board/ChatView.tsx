@@ -2229,6 +2229,19 @@ function ActionItemRow({
 	};
 	const moveHere = useContext(MoveHere);
 	const move = !!moveHere && isMoveHereItem(item);
+	// An item that hands you `!` commands ("Run this to start the replays") is done by running them: asking
+	// Claude instead only gets back "I can't type into your prompt". Answers, approvals and "done" still go to Claude.
+	const runs =
+		!move && !approve && !done && !asks && !!onRun && commands.length > 0;
+	const runAll = async () => {
+		setSent(true);
+		try {
+			for (const command of commands) await onRun?.(command);
+		} catch (error) {
+			setSent(false);
+			toast.error(error instanceof Error ? error.message : String(error));
+		}
+	};
 	return (
 		<li
 			className={cn(
@@ -2265,14 +2278,17 @@ function ActionItemRow({
 									? "Send your answer to Claude"
 									: done
 										? "Tell Claude this is done"
-										: "Ask Claude to do this for you"
+										: runs
+											? "Run this item's command in the session"
+											: "Ask Claude to do this for you"
 					}
 					disabled={sent}
 					onClick={() => {
 						if (move) {
 							setSent(true);
 							moveHere?.();
-						} else send(itemReply(item, answer));
+						} else if (runs) void runAll();
+						else send(itemReply(item, answer));
 					}}
 					className={cn(
 						ACTION_BUTTON,
@@ -2284,7 +2300,9 @@ function ActionItemRow({
 					{sent
 						? move
 							? "Moving"
-							: "Sent"
+							: runs
+								? "Started"
+								: "Sent"
 						: move
 							? "Move"
 							: approve

@@ -1,5 +1,7 @@
 import { expect, test } from "bun:test";
 import {
+	bangCommandNotes,
+	bangCommands,
 	describeCommand,
 	downloadPath,
 	isMoveHereItem,
@@ -202,4 +204,26 @@ test("runnableCommands leaves !download out: the phone can't take the file", () 
 	expect(runnableCommands([{ role: "assistant", text: reply }])).toEqual([
 		"ls /tmp",
 	]);
+});
+
+test("a ```! block with a # label line runs, and the label names its button", () => {
+	const text =
+		"Start them:\n\n```!\n# Start the replays in the background\ncd /x && nohup run.py &\n```";
+	expect(bangCommands(text)).toEqual(["cd /x && nohup run.py &"]);
+	expect(bangCommandNotes(text)).toEqual({
+		"cd /x && nohup run.py &": "Start them:",
+	});
+	expect(bangCommandNotes("```!\n# Start the replays\nrun.py\n```")).toEqual({
+		"run.py": "Start the replays",
+	});
+});
+
+test("a ```! block that already starts with ! is read once", () => {
+	expect(bangCommands("```!\n! git status\n```")).toEqual(["git status"]);
+});
+
+test("other blocks stay code: a ```bash block and an empty ```! block run nothing", () => {
+	expect(bangCommands("```bash\nls\n```\n```!\n# only a label\n```")).toEqual(
+		[],
+	);
 });
