@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { createNameLookup } from "./name-lookup";
+import { createNameLookup, slackUserName } from "./name-lookup";
 
 describe("createNameLookup", () => {
 	it("asks Slack once for a name, then answers from the cache", async () => {
@@ -46,5 +46,31 @@ describe("createNameLookup", () => {
 		answer("Dan");
 		expect(await Promise.all([first, second])).toEqual(["Dan", "Dan"]);
 		expect(asked).toBe(1);
+	});
+});
+
+describe("slackUserName", () => {
+	it("is the display name an @mention shows, not the full name", () => {
+		expect(
+			slackUserName({
+				name: "ana.lopez",
+				real_name: "Ana Maria Lopez",
+				profile: { display_name: "Ana Lopez", real_name: "Ana Maria Lopez" },
+			}),
+		).toBe("Ana Lopez");
+	});
+
+	it("falls back to the full name when no display name is set", () => {
+		expect(
+			slackUserName({
+				name: "dan",
+				real_name: "Dan Linenberg",
+				profile: { display_name: "" },
+			}),
+		).toBe("Dan Linenberg");
+	});
+
+	it("is null for an unknown user", () => {
+		expect(slackUserName(undefined)).toBeNull();
 	});
 });
