@@ -50,6 +50,7 @@ import { type PromptImage, sessionTitle } from "../components/OdinPromptDialog";
 import { useReminders } from "../components/Reminders";
 import { unreadPing, useReplyWatch } from "../components/ReplyWatch";
 import { phoneNights } from "../night-agent/night-log";
+import { addSchedule } from "./crow-schedule";
 import { readState, runAction, writeState } from "./crow-state";
 import { endSession, useDone } from "./useDone";
 import { useOdinProfile } from "./useOdinProfile";
@@ -763,6 +764,7 @@ function runOdinAction(
 		void launchTask(task, deps, undefined, onHost);
 		return `Added "${title}"${lined} and started it on the board.`;
 	}
+	if (action === "schedule") return addSchedule(args, deps.add);
 	if (action === "profile") {
 		// The same switch as the profile menu: the window follows, feeds reload.
 		if (!args.id) return "Need id.";
