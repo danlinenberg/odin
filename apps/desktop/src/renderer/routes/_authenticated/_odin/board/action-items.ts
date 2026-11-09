@@ -160,6 +160,16 @@ export function localCommand(command: string): string | null {
 }
 
 /**
+ * The host file of a `!download <path>` block: one a remote session hands you
+ * to copy from its host to this computer's Downloads folder. Null for any
+ * other command.
+ */
+export function downloadPath(command: string): string | null {
+	const path = command.match(/^download\s+(.+)$/)?.[1]?.trim();
+	return path?.replace(/^(["'])(.*)\1$/, "$2") || null;
+}
+
+/**
  * What goes back to Claude once a `!local` command ran on this computer: the
  * command, its output and its exit code, fenced past any backticks inside.
  */
@@ -274,6 +284,14 @@ export function describeCommand(command: string): string {
 }
 
 /**
+ * A reply's `!` commands the phone shows: not `!download`, which puts a file
+ * in this computer's Downloads folder, not on the phone.
+ */
+export function phoneCommands(text: string): string[] {
+	return bangCommands(text).filter((command) => !downloadPath(command));
+}
+
+/**
  * The `!` commands you can run from the phone: those of Claude's latest reply
  * that has any. The phone shows their Run buttons and the Mac runs only these.
  */
@@ -283,7 +301,7 @@ export function runnableCommands(
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const message = messages[i];
 		if (message.role !== "assistant") continue;
-		const commands = bangCommands(message.text);
+		const commands = phoneCommands(message.text);
 		if (commands.length) return commands;
 	}
 	return [];

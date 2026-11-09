@@ -24,6 +24,7 @@ import {
 	LuBookmarkCheck,
 	LuChevronRight,
 	LuCircleAlert,
+	LuDownload,
 	LuFile,
 	LuLaptop,
 	LuLoaderCircle,
@@ -96,6 +97,7 @@ import {
 	commandLabel,
 	commandScore,
 	describeCommand,
+	downloadPath,
 	isAnswerItem,
 	isApprovalItem,
 	isDoneItem,
@@ -2612,10 +2614,15 @@ function RunCommand({
 	const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
 	const note = useContext(CommandNotes)[command];
 	const local = localCommand(command);
-	const shown = local ?? command;
+	const download = downloadPath(command);
+	const shown = local ?? download ?? command;
 	// What it does on the button, in Claude's words or read from the
-	// command; the command itself on hover.
-	const label = note ? commandLabel(note) : describeCommand(shown);
+	// command (a download's file name); the command itself on hover.
+	const label = download
+		? (download.replace(/\/+$/, "").split("/").at(-1) ?? download)
+		: note
+			? commandLabel(note)
+			: describeCommand(shown);
 	return (
 		<Tooltip delayDuration={300}>
 			<TooltipTrigger asChild>
@@ -2635,24 +2642,34 @@ function RunCommand({
 						);
 					}}
 					aria-label={
-						local
-							? `Run on my computer: ${local}`
-							: `Run in this session: ! ${command}`
+						download
+							? `Download to this computer: ${download}`
+							: local
+								? `Run on my computer: ${local}`
+								: `Run in this session: ! ${command}`
 					}
 					className={cn(
 						ACTION_BUTTON,
 						"mt-2 flex max-w-full items-center gap-1.5",
 					)}
 				>
-					<LuSquareTerminal className="size-3.5 shrink-0" />
+					{download ? (
+						<LuDownload className="size-3.5 shrink-0" />
+					) : (
+						<LuSquareTerminal className="size-3.5 shrink-0" />
+					)}
 					<span className="truncate">
-						{local
+						{download
 							? state === "sent"
-								? "Started on my computer:"
-								: "Run on my computer:"
-							: state === "sent"
-								? "Sent:"
-								: "Run:"}{" "}
+								? "Downloaded:"
+								: "Download:"
+							: local
+								? state === "sent"
+									? "Started on my computer:"
+									: "Run on my computer:"
+								: state === "sent"
+									? "Sent:"
+									: "Run:"}{" "}
 						{label}
 					</span>
 				</button>
@@ -2663,7 +2680,7 @@ function RunCommand({
 				className="max-h-[50vh] max-w-[560px] cursor-text select-text overflow-y-auto text-left"
 			>
 				<pre className="whitespace-pre-wrap break-all font-mono text-[11px]">
-					{local ? shown : `! ${command}`}
+					{local || download ? shown : `! ${command}`}
 				</pre>
 				{note && (
 					<MarkdownRenderer
@@ -2674,11 +2691,13 @@ function RunCommand({
 					/>
 				)}
 				<p className="mt-1.5 opacity-70">
-					{local
-						? "Runs in this session's Shell on this computer, where you can watch and stop it. When it ends, its output goes back to Claude."
-						: state === "sent"
-							? "Sent to this session; its output went back to Claude."
-							: "Runs in this session; its output goes back to Claude."}
+					{download
+						? "Copies this file from the remote host to the Downloads folder on this computer, then shows it in Finder."
+						: local
+							? "Runs in this session's Shell on this computer, where you can watch and stop it. When it ends, its output goes back to Claude."
+							: state === "sent"
+								? "Sent to this session; its output went back to Claude."
+								: "Runs in this session; its output goes back to Claude."}
 				</p>
 			</TooltipContent>
 		</Tooltip>
@@ -3087,7 +3106,9 @@ const ItemView = memo(function ItemView({
 	// `!local` is for a session on the remote host: in one running here, its
 	// Run on my computer is the same computer, and only adds a button.
 	const runnable = (text: string) =>
-		bangCommands(text).filter((command) => remote || !localCommand(command));
+		bangCommands(text).filter(
+			(command) => remote || (!localCommand(command) && !downloadPath(command)),
+		);
 	const commands = onRun ? runnable(item.text) : [];
 	const earlier = onRun && earlierText ? runnable(earlierText) : [];
 	const notes = onRun
@@ -3653,6 +3674,16 @@ export function ChatView({
 	// started.
 	const runCommand = useCallback(
 		async (command: string) => {
+			const download = downloadPath(command);
+			if (download) {
+				const { path } =
+					await electronTrpcClient.remoteHost.downloadFromHost.mutate({
+						host: useTabsStore.getState().panes[paneId]?.odinRemote,
+						path: download,
+					});
+				toast.success(`Downloaded to ${path}`);
+				return;
+			}
 			const local = localCommand(command);
 			if (!local) return runInClaude(command);
 			const run = await electronTrpcClient.terminal.startLocalRun.mutate({

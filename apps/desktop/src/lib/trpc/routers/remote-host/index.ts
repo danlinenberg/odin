@@ -7,7 +7,7 @@ import {
 	statSync,
 	writeFileSync,
 } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { homedir, userInfo } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -61,6 +61,7 @@ import {
 	syncClaudeSetup,
 } from "main/lib/remote-host/claude-sync";
 import { runClaudeLogin } from "main/lib/remote-host/claude-token";
+import { downloadTarget, hostPath } from "main/lib/remote-host/download";
 import {
 	pollHostGithubLogin,
 	startHostGithubLogin,
@@ -113,6 +114,7 @@ import {
 } from "main/lib/remote-host/session";
 import {
 	connectHost,
+	copyFileFromHost,
 	copyFilesToHost,
 	runOnHost,
 } from "main/lib/remote-host/ssh";
@@ -1128,6 +1130,32 @@ export const createRemoteHostRouter = () =>
 				await rememberHostFiles(host.user, files);
 				const [text = "", ...paths] = prompt.split(marker);
 				return { text, paths };
+			}),
+
+		/**
+		 * A `!download` block's file: copied from the session's host to this
+		 * computer's Downloads folder (a new name when one is taken), and
+		 * shown in Finder. Returns where it landed.
+		 */
+		downloadFromHost: publicProcedure
+			.input(z.object({ host: paneHost, path: z.string().trim().min(1) }))
+			.mutation(async ({ input }) => {
+				const host = hostNamed(input.host);
+				if (!host) throw new Error("No remote host is set up.");
+				const remote = hostPath(input.path);
+				const local = downloadTarget(app.getPath("downloads"), remote);
+				try {
+					await withAwsSignIn(host, () =>
+						copyFileFromHost(host, remote, local),
+					);
+				} catch (error) {
+					// fastGet leaves what it wrote so far: no half file in Downloads.
+					await rm(local, { force: true });
+					const why = error instanceof Error ? error.message : String(error);
+					throw new Error(`Couldn't download ${input.path}: ${why}`);
+				}
+				shell.showItemInFolder(local);
+				return { path: local };
 			}),
 
 		/**
