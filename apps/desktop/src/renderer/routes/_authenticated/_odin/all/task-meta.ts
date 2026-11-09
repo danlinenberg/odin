@@ -80,6 +80,22 @@ export function parseQueuePlace(raw?: string): QueuePlace | null | undefined {
 }
 
 /**
+ * An API caller's due date, `YYYY-MM-DD` as the due picker stores it.
+ * undefined when none was given, null when it isn't a real calendar day.
+ */
+export function parseDueDay(raw?: string): string | null | undefined {
+	const value = raw?.trim();
+	if (!value) return undefined;
+	const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+	if (!match) return null;
+	const [year, month, day] = match.slice(1).map(Number);
+	const date = new Date(Date.UTC(year, month - 1, day));
+	return date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+		? value
+		: null;
+}
+
+/**
  * The queue with `key` at `place`, moved there if it was already lined up. A
  * place past the end is the end. Over KEEP, the far end from the new row
  * falls off.

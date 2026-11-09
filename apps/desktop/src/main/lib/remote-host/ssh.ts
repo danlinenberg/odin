@@ -3,6 +3,8 @@ import { keyRefused, openSsmStream, pushOneTimeKey } from "./ssm";
 
 export interface HostLogin {
 	instanceId: string;
+	/** The host's name in Odin, shown to the user instead of the id. */
+	name?: string | null;
 	profile?: string | null;
 	region?: string | null;
 	/** The Linux user sessions run as: this Odin user's own on the host. */
@@ -41,6 +43,7 @@ async function connectOnce(
 ): Promise<Client> {
 	const target = {
 		instanceId: host.instanceId,
+		name: host.name,
 		profile: host.profile,
 		region: host.region,
 	};

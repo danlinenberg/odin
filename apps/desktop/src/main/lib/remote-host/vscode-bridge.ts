@@ -114,6 +114,7 @@ function startBridge(
 ) {
 	const target = {
 		instanceId: host.instanceId,
+		name: host.name,
 		profile: host.profile,
 		region: host.region,
 	};

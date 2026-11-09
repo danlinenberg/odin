@@ -1,5 +1,33 @@
 import { describe, expect, it } from "bun:test";
-import { parkedBundleIn } from "./parked-bundle";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { parkedBundleIn, signedUnlike } from "./parked-bundle";
+
+describe.if(process.platform === "darwin")("signedUnlike", () => {
+	const dir = mkdtempSync(join(tmpdir(), "odin-sign-"));
+	const signed = (name: string) => {
+		const path = join(dir, name);
+		writeFileSync(path, `#!/bin/sh\necho ${name}\n`, { mode: 0o755 });
+		execFileSync("codesign", ["-s", "-", path]);
+		return path;
+	};
+	const a = signed("a");
+	const b = signed("b");
+
+	it("is true for two different signatures", async () => {
+		expect(await signedUnlike(a, b)).toBe(true);
+	});
+
+	it("is false for the same signature", async () => {
+		expect(await signedUnlike(a, a)).toBe(false);
+	});
+
+	it("is false when a signature can't be read", async () => {
+		expect(await signedUnlike(join(dir, "missing"), a)).toBe(false);
+	});
+});
 
 describe("parkedBundleIn", () => {
 	it("finds the parked bundle the daemon runs from", () => {
