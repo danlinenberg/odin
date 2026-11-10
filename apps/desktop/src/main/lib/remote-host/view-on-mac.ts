@@ -1,18 +1,15 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import net from "node:net";
-import { join } from "node:path";
-import { BrowserWindow } from "electron";
-import { env } from "shared/env.shared";
 import type { HostLogin } from "./ssh";
 import { vscodeHost } from "./vscode-bridge";
 
 /**
  * A `!view <port> <password>` block: a VNC server a remote session started on
- * its host, on the host's localhost only, shown here in an Odin window running
- * noVNC (renderer/vnc-viewer). noVNC takes tight encoding with JPEG, far less
+ * its host, on the host's localhost only, shown in the session drawer's View
+ * tab by noVNC (HostScreenView). noVNC takes tight encoding with JPEG, far less
  * over the link than macOS Screen Sharing's lossless zlib. The tunnel is ssh
  * through the same bridge VS Code on the host uses, so it needs no open port;
- * it closes with the window.
+ * it stays up for the next click and goes when the ssh dies.
  */
 
 /** A port nothing on this computer listens on. */
@@ -79,45 +76,13 @@ async function openTunnel(alias: string, port: number): Promise<number> {
 	);
 }
 
-/** The viewer page, from the dev server or the built renderer, like the main window. */
-function loadViewer(window: BrowserWindow, query: Record<string, string>) {
-	if (env.NODE_ENV === "development")
-		return window.loadURL(
-			`http://localhost:${env.DESKTOP_VITE_PORT}/vnc-viewer.html?${new URLSearchParams(query)}`,
-		);
-	return window.loadFile(join(__dirname, "../renderer/vnc-viewer.html"), {
-		query,
-	});
-}
-
-/** One window per host port: a second click brings it to the front. */
-const windows = new Map<number, BrowserWindow>();
-
-/** Shows the host's screen on `port` in an Odin window here. */
+/**
+ * Opens (or reuses) the tunnel to the host's screen on `port` and returns its
+ * local port, which the drawer's View tab hands noVNC.
+ */
 export async function viewOnMac(
 	host: HostLogin & { name?: string | null },
 	port: number,
-	password: string,
-): Promise<void> {
-	const shown = windows.get(port);
-	if (shown && !shown.isDestroyed()) {
-		shown.show();
-		shown.focus();
-		return;
-	}
-	const alias = await vscodeHost(host);
-	const local = await openTunnel(alias, port);
-	const window = new BrowserWindow({
-		width: 1200,
-		height: 790,
-		title: "View",
-		backgroundColor: "#111111",
-		webPreferences: { sandbox: true, contextIsolation: true },
-	});
-	windows.set(port, window);
-	window.on("closed", () => {
-		windows.delete(port);
-		tunnels.get(port)?.ssh.kill();
-	});
-	await loadViewer(window, { port: String(local), password });
+): Promise<number> {
+	return openTunnel(await vscodeHost(host), port);
 }

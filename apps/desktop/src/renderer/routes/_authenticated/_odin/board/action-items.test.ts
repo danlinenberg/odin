@@ -268,7 +268,7 @@ test("a !view block names the host screen's port and password; anything else is 
 	expect(viewTarget("ls view 1 2")).toBeNull();
 });
 
-test("the phone leaves out !view: Screen Sharing opens on the computer", () => {
+test("the phone leaves out !view: the app shows in the drawer on the computer", () => {
 	expect(
 		phoneCommands("```\n!view 37166 pw\n```\n```\n!git status\n```"),
 	).toEqual(["git status"]);

@@ -134,6 +134,7 @@ import { useReadableSlackTitles, useSlackReadable } from "./slack-titles";
 /** Tags the card shows as their own pill instead of in the #tag line. */
 const PILL_TAGS = ["automation", "auto-started", "off-hours"];
 
+import { closeHostScreen, useHostView } from "renderer/stores/host-view";
 import { openUrl, useInAppBrowser } from "renderer/stores/in-app-browser";
 import { rowFinishedWith } from "../all/all-items";
 import { nextSelection, visibleSelection } from "../all/selection";
@@ -236,6 +237,7 @@ import {
 } from "./ci-wake";
 import { DiffView } from "./DiffView";
 import { escStaysWithTarget } from "./drawer-esc";
+import { HostScreenView } from "./HostScreenView";
 import { deliverOnHost } from "./host-delivery";
 import { hostStartDelay } from "./host-start-gap";
 import { onIdleArrival, restoreAfterCompact } from "./idle-compact";
@@ -3086,6 +3088,13 @@ function DevBoardPage() {
 	// The ticket (or PR) this session was launched from - the drawer's title says
 	// "CRR-862: …" and until now there was no way to open CRR-862.
 	const drawerLink = drawerCard ? sourceLink(drawerCard.pane.odinBrief) : null;
+	// The app the session runs on its host (its latest `!view` block), and
+	// whether the drawer shows it in the terminal's place, like the diff.
+	const hostScreen = useHostView((state) =>
+		drawerCard ? state.byPane[drawerCard.pane.id] : undefined,
+	);
+	const isViewOpen =
+		useHostView((state) => state.open) === drawerCard?.pane.id && !!hostScreen;
 	// drawerCard is a snapshot taken when the drawer opened, so the star reads
 	// the live pane - otherwise a click saves but the button never changes.
 	const drawerStarred = !!(
@@ -4281,6 +4290,7 @@ function DevBoardPage() {
 			setShellName(named[0][0]);
 			setIsDiffOpen(false);
 			setIsAgentsOpen(false);
+			closeHostScreen();
 			setIsShellOpen(true);
 			return;
 		}
@@ -4303,6 +4313,7 @@ function DevBoardPage() {
 		}
 		setIsDiffOpen(false);
 		setIsAgentsOpen(false);
+		closeHostScreen();
 		setIsShellOpen(true);
 	};
 	const openFolderInVsCode =
@@ -6956,6 +6967,7 @@ function DevBoardPage() {
 						onClick={() => {
 							setIsShellOpen(false);
 							setIsAgentsOpen(false);
+							closeHostScreen();
 							setIsDiffOpen((open) => !open);
 						}}
 						className={cn(
@@ -6976,6 +6988,7 @@ function DevBoardPage() {
 						onClick={() => {
 							setIsShellOpen(false);
 							setIsDiffOpen(false);
+							closeHostScreen();
 							setIsAgentsOpen((open) => !open);
 						}}
 					/>
@@ -7029,6 +7042,27 @@ function DevBoardPage() {
 							/>
 						)}
 					</div>
+				)}
+				{hostScreen && !inCatchUp && (
+					<button
+						type="button"
+						title="Show the app this session runs on its host"
+						onClick={() => {
+							if (isViewOpen) return closeHostScreen();
+							setIsShellOpen(false);
+							setIsDiffOpen(false);
+							setIsAgentsOpen(false);
+							useHostView.setState({ open: drawerCard.pane.id });
+						}}
+						className={cn(
+							"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
+							isViewOpen
+								? "bg-primary/15 text-primary"
+								: "bg-secondary text-muted-foreground hover:text-foreground",
+						)}
+					>
+						▣ View
+					</button>
 				)}
 				{!catchUpLean && (
 					<button
@@ -7960,7 +7994,13 @@ function DevBoardPage() {
 											}
 										/>
 									)}
-									{isShellOpen && drawerShell ? (
+									{isViewOpen && hostScreen && !inCatchUp ? (
+										<HostScreenView
+											key={drawerCard.pane.id}
+											paneId={drawerCard.pane.id}
+											screen={hostScreen}
+										/>
+									) : isShellOpen && drawerShell ? (
 										// A shell in the same checkout, mounted like any other pane -
 										// it spawns on first mount with the session's cwd.
 										<div className="flex min-h-0 flex-1 flex-col bg-background">
@@ -8059,6 +8099,7 @@ function DevBoardPage() {
 												setShellName(name);
 												setIsDiffOpen(false);
 												setIsAgentsOpen(false);
+												closeHostScreen();
 												setIsShellOpen(true);
 											}}
 											onShellDone={() => {

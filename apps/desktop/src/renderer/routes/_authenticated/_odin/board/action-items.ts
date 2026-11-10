@@ -237,8 +237,8 @@ export function downloadPath(command: string): string | null {
 
 /**
  * The screen of a `!view <port> <password>` block: a VNC server a remote
- * session started on its host (localhost only), which Odin shows in Screen
- * Sharing on this computer. Null for any other command.
+ * session started on its host (localhost only), which Odin shows in the
+ * session's drawer (HostScreenView). Null for any other command.
  */
 export function viewTarget(
 	command: string,
