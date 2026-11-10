@@ -3094,10 +3094,10 @@ function DevBoardPage() {
 	// The ticket (or PR) this session was launched from - the drawer's title says
 	// "CRR-862: …" and until now there was no way to open CRR-862.
 	const drawerLink = drawerCard ? sourceLink(drawerCard.pane.odinBrief) : null;
-	// The app the session runs on its host (its latest `!view` block), and
+	// The app a remote session runs on its host (its latest `!view` block), and
 	// whether the drawer shows it in the terminal's place, like the diff.
 	const hostScreen = useHostView((state) =>
-		drawerCard ? state.byPane[drawerCard.pane.id] : undefined,
+		drawerCard?.pane.odinRemote ? state.byPane[drawerCard.pane.id] : undefined,
 	);
 	const isViewOpen =
 		useHostView((state) => state.open) === drawerCard?.pane.id && !!hostScreen;
@@ -6966,6 +6966,27 @@ function DevBoardPage() {
 				>
 					{drawerStarred ? "★" : "☆"}
 				</button>
+				{hostScreen && !inCatchUp && (
+					<button
+						type="button"
+						title="Show the app this session runs on its host"
+						onClick={() => {
+							if (isViewOpen) return closeHostScreen();
+							setIsShellOpen(false);
+							setIsDiffOpen(false);
+							setIsAgentsOpen(false);
+							useHostView.setState({ open: drawerCard.pane.id });
+						}}
+						className={cn(
+							"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
+							isViewOpen
+								? "bg-primary/15 text-primary"
+								: "bg-secondary text-muted-foreground hover:text-foreground",
+						)}
+					>
+						▣ View
+					</button>
+				)}
 				{drawerCard.pane.type === "terminal" && !inCatchUp && (
 					<button
 						type="button"
@@ -7048,27 +7069,6 @@ function DevBoardPage() {
 							/>
 						)}
 					</div>
-				)}
-				{hostScreen && !inCatchUp && (
-					<button
-						type="button"
-						title="Show the app this session runs on its host"
-						onClick={() => {
-							if (isViewOpen) return closeHostScreen();
-							setIsShellOpen(false);
-							setIsDiffOpen(false);
-							setIsAgentsOpen(false);
-							useHostView.setState({ open: drawerCard.pane.id });
-						}}
-						className={cn(
-							"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
-							isViewOpen
-								? "bg-primary/15 text-primary"
-								: "bg-secondary text-muted-foreground hover:text-foreground",
-						)}
-					>
-						▣ View
-					</button>
 				)}
 				{!catchUpLean && (
 					<button
