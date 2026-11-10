@@ -265,13 +265,15 @@ export const pruneInstallScript = (text: string | null) =>
 /**
  * One prune pass over every repo with worktrees under the clone folder and
  * ~/repos, at most every 10 min for the whole user: each session runs the
- * loop, the lock and the timestamp make one of them do it. The last pass's
+ * loop, the lock and the timestamp make one of them do it. A session's first
+ * pass runs as it starts: a host restart, or sessions that live under 10 min,
+ * otherwise go without one. The last pass's
  * output stays in ~/.odin/prune.log.
  */
 export const prunePass = (root: string) =>
 	`[ -n "$(find "$HOME/.odin/pruned-at" -mmin -10 2>/dev/null)" ] && exit; touch "$HOME/.odin/pruned-at"; exec >"$HOME/.odin/prune.log" 2>&1; seen=; for g in ${root}/*/.git "$HOME"/repos/*/.git; do [ -d "$g/worktrees" ] || continue; r=$(cd "\${g%/.git}" && pwd -P) || continue; case " $seen " in *" $r "*) continue ;; esac; seen="$seen $r"; bash ${PRUNE_SCRIPT} "$r"; done`;
 const pruneLoop = (root: string) =>
-	`( while sleep 600; do kill -0 $$ 2>/dev/null || exit; [ -f ${PRUNE_SCRIPT} ] && flock -n "$HOME/.odin/prune.lock" bash -c ${sh(prunePass(root))}; done ) >/dev/null 2>&1 &`;
+	`( while kill -0 $$ 2>/dev/null; do [ -f ${PRUNE_SCRIPT} ] && flock -n "$HOME/.odin/prune.lock" bash -c ${sh(prunePass(root))}; sleep 600; done ) >/dev/null 2>&1 &`;
 
 /**
  * Puts the helper and the wrapper on disk and names the helper in the user's
