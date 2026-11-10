@@ -351,7 +351,7 @@ const cacheLoaded = new Set<string>();
 let cacheDirty = false;
 
 function cachePathFor(archive: string): string {
-	return archive.replace(/\.json$/, "") + "-cache.json";
+	return `${archive.replace(/\.json$/, "")}-cache.json`;
 }
 
 async function loadCache(path: string): Promise<void> {
