@@ -9,9 +9,11 @@ import {
 	itemSnippets,
 	localRunMessage,
 	noActionItems,
+	phoneCommands,
 	placeCommands,
 	runnableCommands,
 	settledItem,
+	viewTarget,
 } from "./action-items";
 import { actionItemEntries } from "./brief";
 
@@ -253,4 +255,21 @@ test("other blocks stay code: a ```bash block and an empty ```! block run nothin
 	expect(bangCommands("```bash\nls\n```\n```!\n# only a label\n```")).toEqual(
 		[],
 	);
+});
+
+test("a !view block names the host screen's port and password; anything else is not one", () => {
+	expect(viewTarget("view 37166 iydAXuDu")).toEqual({
+		port: 37166,
+		password: "iydAXuDu",
+	});
+	expect(viewTarget("view 99999 x")).toBeNull();
+	expect(viewTarget("view 37166")).toBeNull();
+	expect(viewTarget("view port pw")).toBeNull();
+	expect(viewTarget("ls view 1 2")).toBeNull();
+});
+
+test("the phone leaves out !view: Screen Sharing opens on the computer", () => {
+	expect(
+		phoneCommands("```\n!view 37166 pw\n```\n```\n!git status\n```"),
+	).toEqual(["git status"]);
 });
