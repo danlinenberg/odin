@@ -72,5 +72,17 @@ A session on the host has **Open in VS Code on the host** in its card menu
 over SSM, with a login key that lasts minutes, the same way its own
 connections do. It writes a `Host odin-<host>` entry for that port at the top
 of `~/.ssh/config`, adds the Remote-SSH extension to VS Code when it is
-missing, and opens the session's folder there. VS Code reaches the host only
-while Odin runs; `ssh odin-<host>` works from a terminal too.
+missing and opens the session's folder there. Only the folder is the host's:
+Remote-SSH already uses your VS Code settings, keybindings and theme, and Odin
+adds the rest. It tells Remote-SSH the host runs Linux (so it doesn't ask) and
+lists your local extensions in `remote.SSH.defaultExtensions`, so Remote-SSH
+installs them on the host (both skipped when VS Code's settings file has
+comments). When your shell is zsh, it installs zsh on the host, copies your
+`~/.zshenv`, `~/.zprofile` and `~/.zshrc` to `~/.odin/mac-shell` there, and
+makes VS Code's terminal on that host zsh with `ZDOTDIR` on those copies; the
+host's own home files are untouched. Files your `.zshrc` sources by path (an
+oh-my-zsh install, a theme) are not copied.
+VS Code reaches the host only while Odin runs; `ssh odin-<host>` works from a
+terminal too. Odin opens that port again when it starts, so a VS Code window
+left on the host reconnects by itself, and when the AWS sign-in has expired a
+connection opens Odin's approval page and goes on once it is approved.

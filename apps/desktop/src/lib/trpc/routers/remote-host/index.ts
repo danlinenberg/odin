@@ -126,7 +126,9 @@ import {
 import { awsClientConfig } from "main/lib/remote-host/ssm";
 import { viewOnMac } from "main/lib/remote-host/view-on-mac";
 import {
+	bringShellToHost,
 	remoteFolderUri,
+	setVsCodeHostSettings,
 	vscodeHost,
 } from "main/lib/remote-host/vscode-bridge";
 import { resolveElectronBinary } from "main/lib/terminal-host/electron-binary";
@@ -148,7 +150,11 @@ import {
 	updateOdinConfig,
 } from "../odin-config";
 import { scanRepos } from "../repos";
-import { awsSsoLogin, reopenAwsSignIn } from "../terminal/aws-sso";
+import {
+	awsSsoLogin,
+	isAwsSignInExpired,
+	reopenAwsSignIn,
+} from "../terminal/aws-sso";
 import { getProcessEnvWithShellEnv } from "../workspaces/utils/shell-env";
 
 const run = promisify(execFile);
@@ -191,12 +197,7 @@ async function withAwsSignIn<T>(host: RemoteHost, call: () => Promise<T>) {
 	try {
 		return await call();
 	} catch (err) {
-		if (
-			!/SSO session|token (has expired|is expired)|ExpiredToken/i.test(
-				String(err),
-			)
-		)
-			throw err;
+		if (!isAwsSignInExpired(err)) throw err;
 		// The sign-in is { link, done }: done settles when the approval went through.
 		await awsSsoLogin(host.profile ?? null).done;
 		return call();
@@ -1418,6 +1419,21 @@ export const createRemoteHostRouter = () =>
 					process.platform === "darwin"
 						? join(vscode.path, "Contents/Resources/app/bin/code")
 						: null;
+				// VS Code there should feel like here: this computer's extensions
+				// and zsh setup come along, only the folder is the host's.
+				const extensions =
+					cli && existsSync(cli)
+						? await run(cli, ["--list-extensions"]).then(
+								({ stdout }) => stdout.split("\n").filter(Boolean),
+								() => [],
+							)
+						: [];
+				await setVsCodeHostSettings(alias, extensions).catch((error) =>
+					console.warn("[remote-host] VS Code settings:", error),
+				);
+				void withAwsSignIn(host, () => bringShellToHost(host)).catch((error) =>
+					console.warn("[remote-host] VS Code shell:", error),
+				);
 				if (cli && existsSync(cli)) {
 					if (!hasRemoteSsh())
 						await run(cli, [
