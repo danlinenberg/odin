@@ -2142,6 +2142,7 @@ export {
 	LIMIT_HIT_RE,
 	splitActionItems,
 	ToolGroup,
+	ActionItemRow,
 };
 
 /**
@@ -2156,6 +2157,8 @@ export function lastActionsId(items: Item[]): string | undefined {
 }
 
 const POINTS_BACK = /\b(earlier|above|previous|before)\b/i;
+/** An item that sends you to the View on my computer button (a `!view` block's). */
+const NAMES_VIEW = /\bview on my computer\b/i;
 
 /**
  * The text of the latest reply before `id` that hands you `!` commands, when
@@ -2170,6 +2173,20 @@ export function earlierCommandsText(
 	const own = items[at];
 	if (at < 0 || own?.kind !== "text" || bangCommands(own.text).length)
 		return undefined;
+	// "Click View on my computer" in a later reply: that button lives in the
+	// reply with the `!view` block. Only the latest viewer comes along - an
+	// older one's server is usually gone, and the reply's other commands stay.
+	if (actionItemList(own.text).some((item) => NAMES_VIEW.test(item))) {
+		const view = items
+			.slice(0, at)
+			.flatMap((item) =>
+				item.kind === "text"
+					? bangCommands(item.text).filter((command) => viewTarget(command))
+					: [],
+			)
+			.at(-1);
+		if (view) return `\`\`\`\n!${view}\n\`\`\``;
+	}
 	// Only an item that points back ("the checks from my earlier message",
 	// "the commands above", "Run the three AWS commands") borrows them; any
 	// other reply gets no Run button.
@@ -2262,16 +2279,19 @@ function ActionItemRow({
 			)}
 		>
 			{/* The button leads the row - you scan for it first. Too narrow (zoomed in), it drops under the text so the text keeps the width. */}
+			{/* With no button column (every item is "you only"), the label goes under the text instead: a cell here would push the row's number, text and X one column over. */}
 			{settled ? (
-				<span
-					title="GitHub says this PR is already done, so there is nothing to do"
-					className={cn(
-						"pt-px text-center text-[12px] text-muted-foreground",
-						"w-[64px] @max-md:col-start-2 @max-md:row-start-2",
-					)}
-				>
-					{settled === "MERGED" ? "Merged" : "Closed"}
-				</span>
+				buttonColumn && (
+					<span
+						title="GitHub says this PR is already done, so there is nothing to do"
+						className={cn(
+							"pt-px text-center text-[12px] text-muted-foreground",
+							"w-[64px] @max-md:col-start-2 @max-md:row-start-2",
+						)}
+					>
+						{settled === "MERGED" ? "Merged" : "Closed"}
+					</span>
+				)
 			) : isYouOnly(item) ? (
 				buttonColumn && <span className="@max-md:hidden" />
 			) : (
@@ -2339,6 +2359,14 @@ function ActionItemRow({
 						/>
 					</div>
 				</ItemDetail>
+				{settled && !buttonColumn && (
+					<span
+						title="GitHub says this PR is already done, so there is nothing to do"
+						className="text-[12px] text-muted-foreground"
+					>
+						{settled === "MERGED" ? "Merged" : "Closed"}
+					</span>
+				)}
 				{snippets.length > 0 && (
 					<MarkdownRenderer
 						content={snippets.join("\n\n")}

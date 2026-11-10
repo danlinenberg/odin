@@ -3,6 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { remoteConnectLine } from "shared/odin-screen-status";
 import {
+	ActionItemRow,
 	actionItemEntries,
 	actionItemList,
 	applyLines,
@@ -1047,6 +1048,21 @@ describe("an earlier reply's commands in the action items card", () => {
 		).toBe(0);
 	});
 
+	test("an item naming View on my computer gets the latest earlier !view button, and only that", () => {
+		const viewer =
+			"Shared.\n\n```\n!view 43054 xzZdkOx6\n```\n\n```\n!local open ~/Downloads\n```\n\nACTION ITEMS\n1. Click View on my computer";
+		const older =
+			"First.\n\n```\n!view 37166 iydAXuDu\n```\n\nACTION ITEMS\n1. Click View on my computer";
+		const ask =
+			"Faster now.\n\nACTION ITEMS\n1. Click View on my computer and say how it is now (you only)";
+		const items = [text("o", older), text("v", viewer), text("q", ask)];
+		expect(earlierCommandsText(items, "q")).toBe(
+			"```\n!view 43054 xzZdkOx6\n```",
+		);
+		// No earlier viewer: nothing to borrow.
+		expect(earlierCommandsText([text("q", ask)], "q")).toBeUndefined();
+	});
+
 	test("each goes under the item that asks for it, and never to the card's foot", () => {
 		const items = [
 			"Run the two IAM checks from my earlier message and tell me the results (you only)",
@@ -1409,5 +1425,31 @@ describe("keepFolded", () => {
 	test("unfolds once a different view size fits the reply", () => {
 		expect(keepFolded("800x600", false, "800x900")).toBeNull();
 		expect(keepFolded("800x600", true, "800x500")).toBe("800x500");
+	});
+});
+
+describe("ActionItemRow", () => {
+	const row = (buttonColumn: boolean) =>
+		renderToStaticMarkup(
+			createElement(ActionItemRow, {
+				item: "Merge PR #1622 (you only)",
+				detail: null,
+				number: 2,
+				onDo: () => {},
+				onDismiss: () => {},
+				buttonColumn,
+				settled: "MERGED",
+			}),
+		);
+
+	test("with no button column, Merged goes under the text: a cell for it pushes the number, text and X over", () => {
+		const html = row(false);
+		expect(html.indexOf("2.")).toBeGreaterThan(-1);
+		expect(html.indexOf("Merged")).toBeGreaterThan(html.indexOf("Merge PR"));
+	});
+
+	test("with a button column, Merged takes the button's place before the number", () => {
+		const html = row(true);
+		expect(html.indexOf("Merged")).toBeLessThan(html.indexOf("2."));
 	});
 });
