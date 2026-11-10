@@ -2156,6 +2156,8 @@ export function lastActionsId(items: Item[]): string | undefined {
 }
 
 const POINTS_BACK = /\b(earlier|above|previous|before)\b/i;
+/** An item that sends you to the View on my computer button (a `!view` block's). */
+const NAMES_VIEW = /\bview on my computer\b/i;
 
 /**
  * The text of the latest reply before `id` that hands you `!` commands, when
@@ -2170,6 +2172,20 @@ export function earlierCommandsText(
 	const own = items[at];
 	if (at < 0 || own?.kind !== "text" || bangCommands(own.text).length)
 		return undefined;
+	// "Click View on my computer" in a later reply: that button lives in the
+	// reply with the `!view` block. Only the latest viewer comes along - an
+	// older one's server is usually gone, and the reply's other commands stay.
+	if (actionItemList(own.text).some((item) => NAMES_VIEW.test(item))) {
+		const view = items
+			.slice(0, at)
+			.flatMap((item) =>
+				item.kind === "text"
+					? bangCommands(item.text).filter((command) => viewTarget(command))
+					: [],
+			)
+			.at(-1);
+		if (view) return `\`\`\`\n!${view}\n\`\`\``;
+	}
 	// Only an item that points back ("the checks from my earlier message",
 	// "the commands above", "Run the three AWS commands") borrows them; any
 	// other reply gets no Run button.
