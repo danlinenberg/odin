@@ -56,6 +56,43 @@ const github = Bun.serve({
 		});
 	},
 });
+// Slack's Web API, for /read while the laptop sleeps: a two-message thread,
+// and conversations.replies refused like Slack refuses it once a minute.
+let repliesLimited = false;
+const slackApi = Bun.serve({
+	port: 0,
+	hostname: "127.0.0.1",
+	fetch: (req) => {
+		const method = new URL(req.url).pathname.split("/").pop();
+		if (req.headers.get("authorization") !== "Bearer xoxp-test")
+			return Response.json({ ok: false, error: "invalid_auth" });
+		if (method === "auth.test")
+			return Response.json({ ok: true, user_id: "UME" });
+		if (method === "users.info")
+			return Response.json({
+				ok: true,
+				user: { profile: { real_name: "Asker" } },
+			});
+		const ask = {
+			ts: "1794210762.039649",
+			user: "UASK",
+			text: "can i get <@UME> creds",
+		};
+		if (method === "conversations.replies")
+			return repliesLimited
+				? new Response("", { status: 429, headers: { "retry-after": "60" } })
+				: Response.json({
+						ok: true,
+						messages: [
+							ask,
+							{ ts: "1794210800.000000", user: "UME", text: "on it" },
+						],
+					});
+		if (method === "reactions.get")
+			return Response.json({ ok: true, message: ask });
+		return Response.json({ ok: false, error: "unknown_method" });
+	},
+});
 const pairFile = (login: string) =>
 	join(dir, "github", hostGithubLoginFile(login));
 const token = (query: string, rejected?: string) =>
@@ -90,6 +127,7 @@ beforeAll(async () => {
 				PATH: process.env.PATH,
 				ODIN_GITHUB_TOKEN_URL: `http://127.0.0.1:${github.port}/token`,
 				ODIN_GITHUB_USER_URL: `http://127.0.0.1:${github.port}/user`,
+				ODIN_SLACK_API: `http://127.0.0.1:${slackApi.port}/api/`,
 			},
 		},
 	);
@@ -130,7 +168,9 @@ describe.skipIf(!live)("Odin's host service", () => {
 					path: "https://x.example/a",
 				})
 			).text(),
-		).toStartWith("path must be relative to https://slack.com/api/");
+		).toStartWith(
+			`path must be relative to http://127.0.0.1:${slackApi.port}/api/`,
+		);
 	});
 
 	test("says which connectors aren't on the host, and when the laptop is asleep", async () => {
@@ -141,6 +181,28 @@ describe.skipIf(!live)("Odin's host service", () => {
 		).toStartWith("notion isn't on this host.");
 		const asleep = await post({ action: "sessions" });
 		expect(asleep.status).toBe(503);
+	});
+
+	test("reads a Slack thread on the host while the laptop sleeps, or the linked message when Slack holds replies back", async () => {
+		const read = () =>
+			fetch(
+				`${url}/read?url=${encodeURIComponent("https://x.slack.com/archives/D08EZA9PSKU/p1794210762039649")}`,
+			);
+		const res = await read();
+		expect(res.status).toBe(200);
+		const text = await res.text();
+		expect(text).toContain("Asker [LINKED]: can i get @ME creds");
+		expect(text).toContain("ME: on it");
+		repliesLimited = true;
+		try {
+			const one = await (await read()).text();
+			expect(one).toStartWith(
+				"(Only the linked message: Slack is rate-limiting",
+			);
+			expect(one).not.toContain("on it");
+		} finally {
+			repliesLimited = false;
+		}
 	});
 
 	test("a copy older than a push is replaced by the laptop's current tokens, fetched with the secret", async () => {
