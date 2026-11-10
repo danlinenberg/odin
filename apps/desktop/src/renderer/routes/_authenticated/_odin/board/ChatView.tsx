@@ -117,6 +117,7 @@ import {
 	settledItem,
 	splitActionItems,
 	viewTarget,
+	withoutLocalBlocks,
 } from "./action-items";
 import { useChatFind } from "./ChatFindBar";
 import {
@@ -3229,7 +3230,7 @@ const ItemView = memo(function ItemView({
 					>
 						<div ref={bodyRef}>
 							<MarkdownRenderer
-								content={body}
+								content={remote ? withoutLocalBlocks(body) : body}
 								style="default"
 								allowHtml={false}
 								className={COMPACT_MARKDOWN}
