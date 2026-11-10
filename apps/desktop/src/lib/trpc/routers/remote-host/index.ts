@@ -1145,23 +1145,22 @@ export const createRemoteHostRouter = () =>
 
 		/**
 		 * A `!view <port> <password>` block: the VNC screen a session started on
-		 * its host, shown here in an Odin window (noVNC) through an ssh tunnel over the
-		 * host's bridge (view-on-mac).
+		 * its host: an ssh tunnel to it over the host's bridge (view-on-mac).
+		 * Returns the tunnel's local port, for noVNC in the drawer's View tab.
 		 */
 		viewOnMac: publicProcedure
 			.input(
 				z.object({
 					host: paneHost,
 					port: z.number().int().min(1).max(65535),
-					password: z.string().min(1).max(64),
 				}),
 			)
 			.mutation(async ({ input }) => {
 				const host = hostNamed(input.host);
 				if (!host) throw new Error("No remote host is set up.");
-				await withAwsSignIn(host, () =>
-					viewOnMac(host, input.port, input.password),
-				);
+				return {
+					port: await withAwsSignIn(host, () => viewOnMac(host, input.port)),
+				};
 			}),
 
 		/**

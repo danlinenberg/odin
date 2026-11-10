@@ -54,6 +54,7 @@ import {
 	withDismissals,
 } from "renderer/stores/dismissed-actions";
 import { type HostEvent, useHostEvents } from "renderer/stores/host-connection";
+import { showHostScreen, useHostView } from "renderer/stores/host-view";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useReplyJump } from "renderer/stores/reply-jump";
 import { useSessionView } from "renderer/stores/session-view";
@@ -3553,6 +3554,22 @@ export function ChatView({
 	useEffect(() => {
 		setPending((list) => list.filter((sent) => !isEchoed(items, sent)));
 	}, [items]);
+	// The latest `!view` block gives the drawer its ▣ View button.
+	useEffect(() => {
+		const view = items
+			.flatMap((item) =>
+				item.kind === "text" ? bangCommands(item.text).map(viewTarget) : [],
+			)
+			.findLast((target) => target !== null);
+		const known = useHostView.getState().byPane[paneId];
+		if (
+			view &&
+			(view.port !== known?.port || view.password !== known?.password)
+		)
+			useHostView.setState((state) => ({
+				byPane: { ...state.byPane, [paneId]: view },
+			}));
+	}, [items, paneId]);
 	// The turn began with your last message; "Working..." counts from it and
 	// shows every step Claude has run since. The steps are open while Claude
 	// works, so you watch them land; "Hide the steps" folds them for this turn,
@@ -3778,11 +3795,7 @@ export function ChatView({
 			}
 			const view = viewTarget(command);
 			if (view) {
-				toast.info("Opening the app running on the host…");
-				await electronTrpcClient.remoteHost.viewOnMac.mutate({
-					host: useTabsStore.getState().panes[paneId]?.odinRemote,
-					...view,
-				});
+				showHostScreen(paneId, view);
 				return;
 			}
 			const local = localCommand(command);

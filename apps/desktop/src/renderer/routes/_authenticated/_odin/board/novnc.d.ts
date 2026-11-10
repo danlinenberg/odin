@@ -1,4 +1,4 @@
-/** The part of noVNC's RFB client the View on my computer window uses (noVNC ships no types). */
+/** The part of noVNC's RFB client the drawer's View tab uses (noVNC ships no types). */
 declare module "@novnc/novnc" {
 	interface RfbEvents {
 		connect: CustomEvent<Record<string, never>>;
