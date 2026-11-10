@@ -1,9 +1,5 @@
-import { describe, expect, mock, test } from "bun:test";
-
-mock.module("electron", () => ({ shell: {} }));
-mock.module("./vscode-bridge", () => ({ vscodeHost: async () => "odin-x" }));
-
-const { viewUrl } = await import("./view-on-mac");
+import { describe, expect, test } from "bun:test";
+import { viewUrl } from "./view-url";
 
 describe("viewUrl", () => {
 	test("carries the password, so Screen Sharing asks for nothing", () => {

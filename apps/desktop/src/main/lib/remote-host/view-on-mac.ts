@@ -3,6 +3,7 @@ import net from "node:net";
 import { promisify } from "node:util";
 import { shell } from "electron";
 import type { HostLogin } from "./ssh";
+import { viewUrl } from "./view-url";
 import { vscodeHost } from "./vscode-bridge";
 
 /**
@@ -35,10 +36,6 @@ const answers = (port: number) =>
 		});
 		socket.once("error", () => resolve(false));
 	});
-
-/** The Screen Sharing link: the password in it, so there is nothing to type. */
-export const viewUrl = (port: number, password: string) =>
-	`vnc://:${encodeURIComponent(password)}@localhost:${port}`;
 
 const screenSharingRuns = () =>
 	run("pgrep", ["-x", "Screen Sharing"]).then(
