@@ -240,6 +240,17 @@ describe("notifications/server", () => {
 				).status,
 			).toBe(400);
 		});
+
+		it("takes a screenshot-sized request: the app-wide 100kb parser leaves it alone", async () => {
+			const big = {
+				name: "x.svg",
+				data: Buffer.alloc(400 * 1024).toString("base64"),
+			};
+			expect(await post({}, { repo: "a/b", number: 1, files: [big] })).toEqual({
+				status: 400,
+				text: "x.svg: only png, jpg and gif images\n",
+			});
+		});
 	});
 
 	// The crow's Odin actions: the window answers, and that answer is the response.

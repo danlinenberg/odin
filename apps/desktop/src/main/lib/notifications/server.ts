@@ -50,8 +50,12 @@ export const notificationsEmitter = new EventEmitter();
 
 const app = express();
 
-// Parse JSON request bodies
-app.use(express.json());
+// Parse JSON request bodies. /github/attach parses its own, with room for
+// screenshots: this one's 100kb default would refuse them first.
+const json = express.json();
+app.use((req, res, next) =>
+	req.path === "/github/attach" ? next() : json(req, res, next),
+);
 
 // CORS
 app.use((req, res, next) => {
