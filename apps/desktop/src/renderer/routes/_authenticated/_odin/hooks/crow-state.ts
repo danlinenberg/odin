@@ -87,13 +87,29 @@ const merge = (base: unknown, patch: unknown): unknown =>
 			)
 		: patch;
 
-/** action=state: the store names, or one store's data (or one `key` of it). */
+/** Lists keep only the items whose JSON mentions `q`, so one rule or task is one call. */
+export const matching = (
+	data: Record<string, unknown>,
+	q: string,
+): Record<string, unknown> =>
+	Object.fromEntries(
+		Object.entries(data).map(([key, value]) => [
+			key,
+			Array.isArray(value)
+				? value.filter((item) =>
+						JSON.stringify(item).toLowerCase().includes(q.toLowerCase()),
+					)
+				: value,
+		]),
+	);
+
+/** action=state: the store names, or one store's data (or one `key` of it, or only the list items matching `q`). */
 export function readState(args: Record<string, string>): string {
 	if (!args.store)
 		return `Stores: ${Object.keys(STORES).join(", ")}. Read one with store=<name>.`;
 	const store = STORES[args.store];
 	if (!store) return `No store "${args.store}".`;
-	const data = dataOf(store);
+	const data = args.q ? matching(dataOf(store), args.q) : dataOf(store);
 	const json =
 		JSON.stringify(args.key ? data[args.key] : data, null, 1) ?? "undefined";
 	return clip(
