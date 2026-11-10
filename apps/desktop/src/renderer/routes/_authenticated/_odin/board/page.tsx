@@ -127,6 +127,7 @@ import {
 } from "shared/odin-tags";
 import { isQueuedResume } from "shared/queued-resume";
 import { remoteCardsToReconnect, tmuxSession } from "shared/remote-reconnect";
+import { hostsNotTakingLogins, loginFailing } from "./host-stuck";
 import { setPhoneReply } from "./phone-resume";
 import { useReadableSlackTitles, useSlackReadable } from "./slack-titles";
 
@@ -1731,6 +1732,46 @@ function HostMark({ paneId, state }: { paneId: string; state: HostState }) {
 }
 
 /**
+ * One line over the board when several sessions on a host can't log in: the
+ * host itself is stuck (out of memory, sshd not answering), so one Reboot
+ * for all of them, not R in each pane. A minute after it, every pane on the
+ * host tries again by itself, stopped ones too.
+ */
+function HostDownBanner({
+	host,
+	sessions,
+}: {
+	host: string;
+	sessions: number;
+}) {
+	const reboot = electronTrpc.remoteHost.rebootHost.useMutation({
+		onError: (error) => toast.error(error.message),
+	});
+	return (
+		<div className="flex items-center gap-3 border-b border-border bg-danger/10 px-4 py-2 text-[12px] text-danger">
+			<span className="flex-1 select-text cursor-text">
+				{reboot.isSuccess
+					? `Rebooting ${host} - its sessions reconnect and resume once it is back.`
+					: `${host} isn't taking logins: ${sessions} sessions there can't reconnect. Rebooting it ends what runs there; each session then resumes its conversation.`}
+			</span>
+			{!reboot.isSuccess && (
+				<button
+					type="button"
+					disabled={reboot.isPending}
+					onClick={() => reboot.mutate({ host })}
+					className={cn(
+						"shrink-0 rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+						BUTTON.secondary,
+					)}
+				>
+					{reboot.isPending ? "Rebooting..." : `Reboot ${host}`}
+				</button>
+			)}
+		</div>
+	);
+}
+
+/**
  * A red line over a remote session whose host is out of memory: its Claude
  * stops drawing and typing seems to do nothing, and this says why. Asks the
  * host's latest reading, which its panes send every 30s.
@@ -3290,15 +3331,26 @@ function DevBoardPage() {
 	const [connectStates, setConnectStates] = useState<Record<string, HostState>>(
 		{},
 	);
+	// Remote panes whose login fails right now, for the one-per-host banner.
+	const [failingLoginPanes, setFailingLoginPanes] = useState("");
+	const hostsDown = hostsNotTakingLogins(
+		failingLoginPanes
+			.split(",")
+			.flatMap((paneId) => panes[paneId]?.odinRemote ?? []),
+	);
 	const remotePaneIds = Object.values(panes)
 		.filter((pane) => pane.odinRemote && alivePaneIds.has(pane.id))
 		.map((pane) => pane.id)
 		.sort()
 		.join(",");
 	useEffect(() => {
-		if (!remotePaneIds) return setConnectStates({});
+		if (!remotePaneIds) {
+			setFailingLoginPanes("");
+			return setConnectStates({});
+		}
 		let stopped = false;
 		const check = async () => {
+			const failing: string[] = [];
 			const states = await Promise.all(
 				remotePaneIds.split(",").map(async (paneId) => {
 					const screen =
@@ -3308,10 +3360,13 @@ function DevBoardPage() {
 							.then((result) => result.text)
 							.catch(() => null)) ??
 							"");
+					if (loginFailing(screen)) failing.push(paneId);
 					return [paneId, connectStateOf(screen)] as const;
 				}),
 			);
 			if (stopped) return;
+			const failingKey = failing.sort().join(",");
+			setFailingLoginPanes((prev) => (prev === failingKey ? prev : failingKey));
 			const next = Object.fromEntries(states) as Record<string, HostState>;
 			setConnectStates((prev) =>
 				JSON.stringify(prev) === JSON.stringify(next) ? prev : next,
@@ -7008,6 +7063,9 @@ function DevBoardPage() {
 
 	return (
 		<div className="flex h-full flex-col">
+			{hostsDown.map(({ host, sessions }) => (
+				<HostDownBanner key={host} host={host} sessions={sessions} />
+			))}
 			{/* One header row: title, launcher, filter dropdown. */}
 			<div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-[18px] pb-2 pt-2.5">
 				<h1 className="text-[15px] font-semibold">Dev Board</h1>

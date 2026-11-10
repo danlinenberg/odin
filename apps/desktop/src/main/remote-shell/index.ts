@@ -17,6 +17,7 @@ import { HOST_LOAD_COMMAND, parseHostLoad } from "../../shared/host-load";
 import { ODIN_HOME_DIR } from "../lib/app-environment";
 import { setUpHost } from "../lib/remote-host/aws-instances";
 import { hostPorts } from "../lib/remote-host/host-service";
+import { hostUpSince, markHostUp } from "../lib/remote-host/host-up";
 import {
 	attachScript,
 	type RemoteFile,
@@ -665,12 +666,20 @@ async function attach(
 	});
 }
 
-/** Waits `ms`, or until you press R; true when you did. */
-const waitOrR = (ms: number) =>
+/** How often a waiting pane looks whether another one got into the host. */
+const HOST_UP_POLL_MS = 3_000;
+
+/**
+ * Waits `ms`, or until you press R (true) or `back()` says another pane got
+ * into the host (false, to try again now). Keys only when `keys`.
+ */
+const waitOrR = (ms: number, back: () => boolean, keys: boolean) =>
 	new Promise<boolean>((resolve) => {
 		const { stdin } = process;
 		const done = (pressed: boolean) => {
 			clearTimeout(timer);
+			clearInterval(poll);
+			if (!keys) return resolve(pressed);
 			stdin.off("data", onKey);
 			stdin.pause();
 			resolve(pressed);
@@ -680,25 +689,29 @@ const waitOrR = (ms: number) =>
 			if (key[0] === 0x72 || key[0] === 0x52) done(true);
 		};
 		const timer = setTimeout(() => done(false), ms);
+		const poll = setInterval(() => back() && done(false), HOST_UP_POLL_MS);
+		if (!keys) return;
 		stdin.setRawMode?.(true);
 		stdin.resume();
 		stdin.on("data", onKey);
 	});
 
 /**
- * The key you pressed once the pane stopped reconnecting, or "auto" when
- * `ms` passed with no key.
+ * The key you pressed once the pane stopped reconnecting, "retry" once
+ * `back()` says another pane got into the host, or "auto" when `ms` passed.
  */
-const stuckChoice = (ms: number) =>
+const stuckChoice = (ms: number, back: () => boolean) =>
 	new Promise<StuckChoice>((resolve) => {
 		const { stdin } = process;
 		const done = (pick: StuckChoice) => {
 			clearTimeout(timer);
+			clearInterval(poll);
 			stdin.off("data", onKey);
 			stdin.pause();
 			resolve(pick);
 		};
 		const timer = setTimeout(() => done("auto"), ms);
+		const poll = setInterval(() => back() && done("retry"), HOST_UP_POLL_MS);
 		const onKey = (key: Buffer) => {
 			if (key[0] === 3) process.exit(1);
 			const pick: StuckChoice | null =
@@ -735,21 +748,26 @@ async function main(): Promise<void> {
 	// Claude keeps working in tmux on the host while the connection is down;
 	// the reconnect's spec resumes it, prompt and all (reconnectSpec).
 	const again = reconnectSpec(spec, startedAt);
+	// Set as each wait starts: only a pane that got in after it counts.
+	let waitingSince = Date.now();
+	const back = () => hostUpSince(spec.instanceId, waitingSince);
 	await keepAttached<Client>(
 		{
-			connect: () => connectOnce(spec, target),
+			connect: async () => {
+				const client = await connectOnce(spec, target);
+				void markHostUp(spec.instanceId);
+				return client;
+			},
 			attach: (client, first, fresh) =>
 				attach(
 					client,
 					fresh ? { ...(first ? spec : again), fresh } : first ? spec : again,
 					env,
 				),
-			pause: (ms, offerReboot) =>
-				offerReboot
-					? waitOrR(ms)
-					: new Promise<boolean>((resolve) =>
-							setTimeout(() => resolve(false), ms),
-						),
+			pause: (ms, offerReboot) => {
+				waitingSince = Date.now();
+				return waitOrR(ms, back, offerReboot);
+			},
 			reboot: async () => {
 				await new EC2Client(awsClientConfig(target)).send(
 					new RebootInstancesCommand({ InstanceIds: [spec.instanceId] }),
@@ -771,7 +789,8 @@ async function main(): Promise<void> {
 				process.stderr.write(
 					"  Press Enter to try again, F to start Claude over on the host (it resumes this conversation), or R to reboot the host.\r\n",
 				);
-				return stuckChoice(retryInMs);
+				waitingSince = Date.now();
+				return stuckChoice(retryInMs, back);
 			},
 			say,
 			fatal: (err) => err instanceof NoAccess,

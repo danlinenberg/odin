@@ -91,6 +91,7 @@ import {
 	pushHostGithubPair,
 	pushHostTokens,
 } from "main/lib/remote-host/host-tokens";
+import { markHostUp } from "main/lib/remote-host/host-up";
 import {
 	clearNightPlan,
 	NIGHT_PANE_PLACEHOLDER,
@@ -664,12 +665,20 @@ export const createRemoteHostRouter = () =>
 					: readOdinConfig().remoteHost?.profile;
 				await awsSsoLogin(profile || null).done;
 			}),
-		/** The connection check's Reboot: a host out of memory refuses logins until it restarts. */
-		rebootHost: publicProcedure.mutation(async () => {
-			const host = readOdinConfig().remoteHost;
-			if (!host) throw new Error("No remote host is set up.");
-			await withAwsSignIn(host, () => rebootInstance(host, host.instanceId));
-		}),
+		/**
+		 * The connection check's Reboot, or the board's for the host its
+		 * sessions run on (by name): a host out of memory refuses logins until
+		 * it restarts. A minute later its panes all try again (markHostUp),
+		 * stopped ones included, instead of each waiting out its own timer.
+		 */
+		rebootHost: publicProcedure
+			.input(z.object({ host: z.string().optional() }).optional())
+			.mutation(async ({ input }) => {
+				const host = hostNamed(input?.host);
+				if (!host) throw new Error("No remote host is set up.");
+				await withAwsSignIn(host, () => rebootInstance(host, host.instanceId));
+				setTimeout(() => void markHostUp(host.instanceId), 60_000);
+			}),
 		/** The host sessions start on; `on: false` keeps them on this computer. */
 		get: publicProcedure.query(() => ({
 			host: readOdinConfig().remoteHost ?? null,
