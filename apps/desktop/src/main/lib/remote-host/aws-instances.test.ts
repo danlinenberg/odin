@@ -67,6 +67,7 @@ const {
 	parseTools,
 	profileNames,
 	HIDE_OTHERS_PROCESSES_SCRIPT,
+	HOST_MEMORY_GUARD_SCRIPT,
 	setUpScript,
 	tagChoices,
 	toInstances,
@@ -256,6 +257,12 @@ describe("aws-instances", () => {
 		expect(check).toBeLessThan(
 			script.indexOf("sudo -u 'odin-dan' -H bash -lc"),
 		);
+	});
+
+	test("setup caps all sessions' memory together and shields sshd and SSM", () => {
+		expect(setUpScript("odin-dan")).toContain(HOST_MEMORY_GUARD_SCRIPT);
+		expect(HOST_MEMORY_GUARD_SCRIPT).toContain("MemoryMax=80%%");
+		expect(HOST_MEMORY_GUARD_SCRIPT).toContain("OOMScoreAdjust=-1000");
 	});
 
 	test("setup hides other users' processes, now and after a reboot, with one /proc line in fstab", () => {

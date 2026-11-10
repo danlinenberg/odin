@@ -435,6 +435,30 @@ export const HIDE_OTHERS_PROCESSES_SCRIPT = [
 ].join("\n");
 
 /**
+ * Keeps the host reachable when sessions run out of memory. Each session has
+ * its own cap (session.ts MEMORY_LIMIT_SCRIPT), but a dozen of them together
+ * could still take every byte, and then sshd stopped answering logins while
+ * SSM still showed the host online: every pane failed its handshake until a
+ * reboot. All users' sessions together (user.slice) now stop at 80% of
+ * memory, and sshd and the SSM agent are the last the kernel would kill
+ * (OOMScoreAdjust for their next start, oom_score_adj for the running ones;
+ * sshd puts its sessions back to the default). Safe to run again.
+ */
+export const HOST_MEMORY_GUARD_SCRIPT = [
+	"mkdir -p /etc/systemd/system/user.slice.d",
+	"printf '[Slice]\\nMemoryMax=80%%\\n' > /etc/systemd/system/user.slice.d/odin-memory.conf",
+	"for s in ssh sshd amazon-ssm-agent snap.amazon-ssm-agent.amazon-ssm-agent; do",
+	'  systemctl cat "$s.service" >/dev/null 2>&1 || continue',
+	'  mkdir -p "/etc/systemd/system/$s.service.d"',
+	"  printf '[Service]\\nOOMScoreAdjust=-1000\\n' > \"/etc/systemd/system/$s.service.d/odin-oom.conf\"",
+	"done",
+	"systemctl daemon-reload",
+	"systemctl set-property --runtime user.slice MemoryMax=80% >/dev/null 2>&1 || true",
+	"for p in $(pgrep -x sshd) $(pgrep -x amazon-ssm-agent) $(pgrep -x ssm-agent-worker); do echo -1000 > /proc/$p/oom_score_adj 2>/dev/null; done",
+	"true",
+].join("\n");
+
+/**
  * What a host needs for Odin's sessions, installed when missing - run by SSM
  * as root, so it needs no sudo: tmux, git, curl and python3 from the
  * system's package manager, then the packages from Settings (`packages`,
@@ -442,6 +466,7 @@ export const HIDE_OTHERS_PROCESSES_SCRIPT = [
  * manager doesn't have costs only itself); the Odin user's own Linux user,
  * without sudo, and refused when it belongs to another Odin user
  * (ownerCheckScript); other users' processes hidden (HIDE_OTHERS_PROCESSES_SCRIPT);
+ * the host kept reachable when memory runs out (HOST_MEMORY_GUARD_SCRIPT);
  * Claude Code and the GitHub CLI into that user's own ~/.local/bin. Safe to
  * run again. Ends with what it found.
  */
@@ -470,6 +495,7 @@ export function setUpScript(
 		// Another Odin user's Linux user is never set up for this one (owner.ts).
 		`sudo -u ${sh(user)} -H bash -c ${sh(ownerCheckScript(owners))} || exit 1`,
 		HIDE_OTHERS_PROCESSES_SCRIPT,
+		HOST_MEMORY_GUARD_SCRIPT,
 		hostServiceInstallScript(user),
 		// Not sudo -i: it escapes each newline into a line continuation, which
 		// glued the script's lines together (fifor ...).

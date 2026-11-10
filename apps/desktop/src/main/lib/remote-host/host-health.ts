@@ -70,6 +70,7 @@ export const HEALTH_SCRIPT = [
 	'echo "service=$(curl -sf -m 5 "http://127.0.0.1:$((40000 + $(id -u) % 10000 * 2))/health" >/dev/null && echo up || echo down)"',
 	"echo \"mem=$(awk '/MemAvailable/ {print $2}' /proc/meminfo)\"",
 	'echo "disk=$(df -Pk "$HOME" | awk \'NR==2 {print $4}\')"',
+	'echo "guard=$(systemctl show user.slice -p MemoryMax --value 2>/dev/null || echo unknown)"',
 ].join("\n");
 
 /** `name=value` lines into a map. */
@@ -246,14 +247,24 @@ export async function checkHostHealth(
 			memMb < 500 ? `${memMb} MB memory free` : "",
 			diskGb < 2 ? `${diskGb} GB disk free` : "",
 		].filter(Boolean);
-		set(
-			"room",
-			low.length ? "warn" : "ok",
-			low.length
-				? `Only ${low.join(" and ")}: new sessions may stall. End sessions you're done with, or reboot the host.`
-				: `${memMb} MB memory and ${diskGb} GB disk free.`,
-			low.length ? "reboot" : undefined,
-		);
+		// "infinity": no cap on all sessions together (HOST_MEMORY_GUARD_SCRIPT),
+		// so sessions that run out of memory can lock every login out.
+		const unguarded = found.get("guard") === "infinity";
+		if (low.length)
+			set(
+				"room",
+				"warn",
+				`Only ${low.join(" and ")}: new sessions may stall. End sessions you're done with, or reboot the host.`,
+				"reboot",
+			);
+		else if (unguarded)
+			set(
+				"room",
+				"warn",
+				`${memMb} MB memory free, but sessions together have no memory limit: if they run out, the host stops taking logins until it reboots. ${ADMIN_FIX}`,
+				"setup",
+			);
+		else set("room", "ok", `${memMb} MB memory and ${diskGb} GB disk free.`);
 	} catch (err) {
 		set(
 			"tools",
