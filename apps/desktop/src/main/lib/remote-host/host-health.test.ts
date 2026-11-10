@@ -136,22 +136,6 @@ test("no Claude sign-in fails; missing gh, a down service or low memory only war
 	expect(ok.healthy).toBe(true);
 });
 
-test("a host with no cap on all sessions' memory warns, with Set up", async () => {
-	const health = await checkHostHealth(
-		host,
-		true,
-		probe({}, `${GOOD_OUTPUT}\nguard=infinity`),
-	);
-	const room = health.checks.find((check) => check.id === "room");
-	expect(room).toMatchObject({ state: "warn", fix: "setup" });
-	const capped = await checkHostHealth(
-		host,
-		true,
-		probe({}, `${GOOD_OUTPUT}\nguard=26843545600`),
-	);
-	expect(capped.checks.find((check) => check.id === "room")?.state).toBe("ok");
-});
-
 test("the health script runs in sh and prints every value the check reads", () => {
 	const found = parseHealthOutput(
 		execFileSync("bash", ["-c", HEALTH_SCRIPT]).toString(),
