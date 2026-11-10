@@ -432,6 +432,7 @@ export function RemoteHostSection() {
 		<SettingsSection
 			title="Remote host"
 			description="Run new sessions on an EC2 instance in your AWS account, so they keep going with this computer shut. Odin connects with your AWS sign-in over Systems Manager: no open port or SSH key."
+			info={<SetUpYourOwnHost />}
 		>
 			{signInPrompt && (
 				<SettingRow
@@ -1333,5 +1334,31 @@ function HostHealthRow({
 				</div>
 			</div>
 		</SettingRow>
+	);
+}
+
+/** The (i) on Remote host: how to make an instance of your own show up here. */
+function SetUpYourOwnHost() {
+	return (
+		<>
+			<p className="font-medium">Set up your own host</p>
+			<p>
+				1. Launch an Ubuntu or Amazon Linux EC2 instance that can reach the
+				internet. It needs no open port or SSH key.
+			</p>
+			<p>
+				2. Tag it Odin = host. An instance launched from the account's odin-host
+				launch template is tagged for you.
+			</p>
+			<p>
+				3. Under Advanced, pick the instance's AWS profile and region, then
+				select Use. The first setup takes a few minutes.
+			</p>
+			<p className="text-muted-foreground">
+				Your AWS role needs ssm:StartSession, ssm:SendCommand,
+				ssm:GetCommandInvocation and ec2-instance-connect:SendSSHPublicKey on
+				instances tagged Odin = host.
+			</p>
+		</>
 	);
 }
