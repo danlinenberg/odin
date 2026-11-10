@@ -25,6 +25,11 @@ import {
 	hostGithubLoginFile,
 	hostServiceInstallScript,
 } from "./host-service";
+import {
+	hostMcpSignIns,
+	localClaudeCredentials,
+	MERGE_MCP_SIGN_INS_PY,
+} from "./mcp-sign-ins";
 import { GITHUB_HELPERS_SCRIPT, pruneInstallScript, sh } from "./session";
 import { adminLogin, connectHost, type HostLogin, runOnHost } from "./ssh";
 
@@ -219,6 +224,14 @@ export async function pushHostTokens(
 			postToServiceScript("/tokens"),
 			JSON.stringify({ tokens, githubKeep: allowed }),
 		);
+		// Claude Code's connector sign-ins (Slack, Notion...), so sessions there need none of their own.
+		const mcp = hostMcpSignIns(await localClaudeCredentials());
+		if (Object.keys(mcp).length)
+			await runOnHost(
+				client,
+				`python3 -c ${sh(MERGE_MCP_SIGN_INS_PY)}`,
+				JSON.stringify(mcp),
+			);
 		const identity = gitIdentityScript(await localGitIdentity());
 		const { pruneScriptText } = await import("../prune-worktrees");
 		const prune = pruneInstallScript(pruneScriptText());
