@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { ensureAwsReadonlyProfile } from "./aws-readonly-profile";
 import {
 	runSetupAction,
 	setupDesktopAgentCapabilities,
@@ -37,6 +38,7 @@ export function setupAgentIntegrations(): void {
 
 	runSetupAction("zsh-wrapper", createZshWrapper);
 	runSetupAction("bash-wrapper", createBashWrapper);
+	runSetupAction("aws-readonly-profile", () => ensureAwsReadonlyProfile());
 
 	console.log("[agent-setup] Agent integrations provisioned");
 }
