@@ -18,7 +18,7 @@
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
-        <!-- Android 12 and newer: the icon on Odin's background (--background). -->
+        <!-- Android 12 and newer: the icon on Odin's dark background color. -->
         <item name="windowSplashScreenBackground">#0E0E11</item>
     </style>
 </resources>
