@@ -177,6 +177,7 @@ A session's life on this computer, top to bottom. Besides the launch gate limits
 ## Advanced (Settings → Advanced)
 What a session runs, rarely changed:
 - **Claude command**: what starts Claude, e.g. an alias for another account. One per line; with two or more, pick one in the top bar. Empty: claude. Store: claudeCommand.
+- **AWS read-only profile** (automatic, no switch): with the imagen-core plugin installed, Odin checks ~/.aws/config at each start. When an SSO profile signs in to the prod account the plugin's AWS guard names (prod_account_id in its aws-guard.json) with a role other than its read-only role, Odin appends a <name>-readonly profile with the same SSO sign-in and the read-only role (for prod, prod-readonly), so Claude can read prod through the guard with no new login. It only appends: your own profiles stay as they are, and nothing is added when a read-only profile exists already.
 - **Update plugins**: refreshes every plugin marketplace and moves each enabled plugin to its newest version, so a team runs the same skills. New sessions get the new versions; open ones keep theirs until they restart.
 - **Default prompt**: added to the end of every task prompt (how to work, the Shell, ACTION ITEMS), with Reset to default. The board reads ACTION ITEMS from each reply. Store: sessionInstructions.
 
