@@ -93,6 +93,24 @@ const slackApi = Bun.serve({
 		return Response.json({ ok: false, error: "unknown_method" });
 	},
 });
+// Atlassian: the token endpoint rotates the pair; the API answers who the token is.
+const jiraRefreshes: { refresh_token?: string; client_secret?: string }[] = [];
+const jira = Bun.serve({
+	port: 0,
+	hostname: "127.0.0.1",
+	fetch: async (req) => {
+		const path = new URL(req.url).pathname;
+		if (path === "/oauth/token") {
+			jiraRefreshes.push(await req.json());
+			return Response.json({
+				access_token: `jira_new${jiraRefreshes.length}`,
+				refresh_token: `jira_r${jiraRefreshes.length + 1}`,
+				expires_in: 3600,
+			});
+		}
+		return new Response(`${path} ${req.headers.get("authorization")}`);
+	},
+});
 const pairFile = (login: string) =>
 	join(dir, "github", hostGithubLoginFile(login));
 const token = (query: string, rejected?: string) =>
@@ -128,6 +146,8 @@ beforeAll(async () => {
 				ODIN_GITHUB_TOKEN_URL: `http://127.0.0.1:${github.port}/token`,
 				ODIN_GITHUB_USER_URL: `http://127.0.0.1:${github.port}/user`,
 				ODIN_SLACK_API: `http://127.0.0.1:${slackApi.port}/api/`,
+				ODIN_JIRA_TOKEN_URL: `http://127.0.0.1:${jira.port}/oauth/token`,
+				ODIN_JIRA_API: `http://127.0.0.1:${jira.port}/ex/jira/`,
 			},
 		},
 	);
@@ -148,6 +168,7 @@ beforeAll(async () => {
 afterAll(() => {
 	proc?.kill();
 	github.stop(true);
+	jira.stop(true);
 });
 
 // The service is for Linux hosts. CI's macOS runners start python3 but never
@@ -425,6 +446,51 @@ describe.skipIf(!live)("Odin's host service", () => {
 		expect((await send("/github-pair?login=a'b", pair)).status).toBe(400);
 		expect((await send("/github-pair?login=x", { nope: 1 })).status).toBe(400);
 		expect(JSON.parse(readFileSync(tokensFile, "utf8")).slack).toBe("xoxp-new");
+	});
+
+	test("the host's own Jira sign-in answers Jira calls, refreshes itself before it expires, and goes with the connector", async () => {
+		const send = (path: string, body: unknown) =>
+			fetch(`${url}${path}`, { method: "POST", body: JSON.stringify(body) });
+		const jiraFile = join(dir, "jira.json");
+		const tokens = {
+			tokens: { jira: "laptop_copy", jiraBase: "https://laptop.example/" },
+		};
+		expect((await send("/tokens", { ...tokens, jiraKeep: true })).status).toBe(
+			200,
+		);
+		expect((await send("/jira-pair", { access_token: "x" })).status).toBe(400);
+		const pair = {
+			access_token: "jira_old",
+			refresh_token: "jira_r1",
+			expires_at: Date.now() / 1000 + 30,
+			client_id: "cid",
+			client_secret: "secret",
+			cloud_id: "cloud1",
+		};
+		expect((await send("/jira-pair", pair)).status).toBe(200);
+		expect(statSync(jiraFile).mode & 0o777).toBe(0o600);
+		// 30 seconds left: refreshed with the app's secret, the rotated pair kept.
+		const res = await post({
+			action: "service",
+			service: "jira",
+			path: "rest/api/3/myself",
+		});
+		expect(await res.text()).toContain(
+			"/ex/jira/cloud1/rest/api/3/myself Bearer jira_new1",
+		);
+		expect(jiraRefreshes.at(-1)).toMatchObject({
+			refresh_token: "jira_r1",
+			client_secret: "secret",
+		});
+		expect(JSON.parse(readFileSync(jiraFile, "utf8")).refresh_token).toBe(
+			"jira_r2",
+		);
+		// Fresh now: no second refresh.
+		await post({ action: "service", service: "jira", path: "x" });
+		expect(jiraRefreshes.length).toBe(1);
+		// Jira off on the host: the sign-in goes.
+		expect((await send("/tokens", tokens)).status).toBe(200);
+		expect(existsSync(jiraFile)).toBe(false);
 	});
 });
 

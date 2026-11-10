@@ -8,6 +8,7 @@ import {
 	updateOdinConfig,
 } from "lib/trpc/routers/odin-config";
 import type { Client } from "ssh2";
+import type { HostJiraPair } from "../jira-oauth";
 import { jiraRequestContext } from "../jira-token";
 import { awsHostConfigScript, localAwsProfiles } from "./aws-on-host";
 import type { HostGithubPair } from "./github-host-login";
@@ -200,7 +201,11 @@ const adminHint = (host: HostLogin) =>
  * Returns the connectors the host now serves.
  */
 export async function pushHostTokens(
-	host: HostLogin & { awsProfiles?: string[]; name?: string },
+	host: HostLogin & {
+		awsProfiles?: string[];
+		name?: string;
+		jiraHostSignIn?: boolean;
+	},
 	connectors: readonly HostConnector[],
 ): Promise<string[]> {
 	const tokens = await hostTokens(connectors);
@@ -222,7 +227,12 @@ export async function pushHostTokens(
 		await runOnHost(
 			client,
 			postToServiceScript("/tokens"),
-			JSON.stringify({ tokens, githubKeep: allowed }),
+			JSON.stringify({
+				tokens,
+				githubKeep: allowed,
+				// The host's own Jira sign-in stays while the Jira connector does.
+				jiraKeep: connectors.includes("jira") && Boolean(host.jiraHostSignIn),
+			}),
 		);
 		// Claude Code's connector sign-ins (Slack, Notion...), so sessions there need none of their own.
 		const mcp = hostMcpSignIns(await localClaudeCredentials());
@@ -251,6 +261,31 @@ export async function pushHostTokens(
 		client.end();
 	}
 	return keptConnectors(tokens);
+}
+
+/**
+ * Sends the host its own Jira sign-in (jira-oauth, for the host), which its
+ * service refreshes from then on. This computer keeps no copy.
+ */
+export async function pushHostJiraPair(
+	host: HostLogin,
+	pair: HostJiraPair,
+): Promise<void> {
+	const client = await connectHost(host);
+	try {
+		await ensureHostService(host, client, false);
+		await runOnHost(
+			client,
+			postToServiceScript("/jira-pair"),
+			JSON.stringify(pair),
+		);
+	} catch (error) {
+		throw new Error(
+			`Couldn't send the Jira sign-in to the host: ${error instanceof Error ? error.message : String(error)}. ${adminHint(host)}`,
+		);
+	} finally {
+		client.end();
+	}
 }
 
 /**
