@@ -517,6 +517,21 @@ describe("ChatView transcript", () => {
 			text: "Decide https://x/903",
 			options: ["merge", "close"],
 		});
+		expect(
+			itemOptions(
+				"Where the monitors post: [Keep #infra-alerts] [Odin switches them] [Both]",
+			),
+		).toEqual({
+			text: "Where the monitors post:",
+			options: ["Keep #infra-alerts", "Odin switches them", "Both"],
+		});
+		expect(itemOptions("Decide #903: [merge] [close] https://x/903")).toEqual({
+			text: "Decide #903: https://x/903",
+			options: ["merge", "close"],
+		});
+		expect(itemOptions("See [a](https://x) [b](https://y)").options).toEqual(
+			[],
+		);
 		expect(itemOptions("Tell me the seniority.").options).toEqual([]);
 		expect(
 			itemOptions("Pick a fix [extension | write around it] (you only)"),

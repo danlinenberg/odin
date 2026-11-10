@@ -79,6 +79,18 @@ export function isDoneItem(item: string): boolean {
  * them. The launch prompt asks for that shape; no brackets means no choices.
  */
 export function itemOptions(item: string): { text: string; options: string[] } {
+	// Claude sometimes writes the choices as separate brackets, "[A] [B] [C]": read
+	// two or more of them (not links) at the end as "[A | B | C]".
+	const run = item.match(
+		/((?:\[[^[\]|]+\](?!\()\s*){2,})(?=(?:\(you only\))?(?:\s*(?:https?:\/\/\S+|\[[^\]]*\]\([^)]*\)))?\W*$)/i,
+	);
+	if (run?.index !== undefined) {
+		const options = [...(run[1] ?? "").matchAll(/\[([^\]]*)\]/g)].map((m) =>
+			m[1]?.trim(),
+		);
+		item =
+			`${item.slice(0, run.index)}[${options.join(" | ")}] ${item.slice(run.index + (run[1] ?? "").length)}`.trim();
+	}
 	// An option may hold a link ("after [#826](url) merges"); a button shows its words.
 	// A trailing "(you only)" still counts: you pick, so the choices are buttons.
 	// So does the item's link after them - "Decide #903 [merge | close] <url>" - which stays in the text.
