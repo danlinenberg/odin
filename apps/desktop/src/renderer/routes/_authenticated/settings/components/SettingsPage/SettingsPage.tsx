@@ -1,7 +1,9 @@
 import { Input } from "@odin/ui/input";
 import { Label } from "@odin/ui/label";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { cn } from "@odin/ui/utils";
 import type { ReactNode } from "react";
+import { LuInfo } from "react-icons/lu";
 
 /**
  * The one shape every Odin settings screen takes: a title, a line saying
@@ -33,21 +35,46 @@ export function SettingsPage({
 	);
 }
 
-/** A titled card of rows - one topic, e.g. "When sessions start". */
+/**
+ * A titled card of rows - one topic, e.g. "When sessions start". `info` puts
+ * an (i) beside the title whose tooltip holds the longer how-to.
+ */
 export function SettingsSection({
 	title,
 	description,
+	info,
 	children,
 }: {
 	title: string;
 	description?: ReactNode;
+	info?: ReactNode;
 	children: ReactNode;
 }) {
 	return (
 		<section data-setting={title}>
 			<div className="mb-3 px-1">
-				<h3 className="text-[13px] font-semibold uppercase tracking-[.06em] text-soft-foreground">
+				<h3 className="flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[.06em] text-soft-foreground">
 					{title}
+					{info && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<button
+									type="button"
+									aria-label={`About ${title}`}
+									className="text-muted-foreground hover:text-foreground"
+								>
+									<LuInfo className="size-3.5" />
+								</button>
+							</TooltipTrigger>
+							<TooltipContent
+								side="right"
+								align="start"
+								className="max-w-[360px] space-y-1.5 px-2.5 py-2 text-left font-normal normal-case tracking-normal text-foreground"
+							>
+								{info}
+							</TooltipContent>
+						</Tooltip>
+					)}
 				</h3>
 				{description && (
 					<p className="mt-1 text-[13px] text-muted-foreground">
