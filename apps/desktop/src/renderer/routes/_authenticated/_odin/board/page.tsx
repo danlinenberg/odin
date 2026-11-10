@@ -2672,7 +2672,13 @@ const BoardCardTile = memo(
 							// status. Only a failure earns its red edge.
 							card.pane.status === "failed"
 								? "border-danger/40"
-								: "border-border",
+								: card.pane.odinStarred
+									? "border-attention/40"
+									: "border-border",
+							// A starred card carries the list row's amber edge and tint,
+							// so it reads at a glance in a busy column.
+							card.pane.odinStarred &&
+								"bg-[color:color-mix(in_oklab,var(--attention)_10%,var(--card))] shadow-[inset_3px_0_0_var(--attention),inset_0_1px_0_rgb(255_255_255/0.04)]",
 						)}
 					>
 						<div className="flex items-start gap-2">
