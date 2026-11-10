@@ -243,3 +243,53 @@ jobs:
         with:
           name: Odin-Setup-x64
           path: apps/desktop/release/Odin-Setup-x64.exe
+
+  # Odin.apk, the Android app (apps/mobile/android), on the same release.
+  # Settings > Phone links /releases/latest/download/Odin.apk, so the asset
+  # name has to stay exactly that. Signed with ODIN_ANDROID_KEYSTORE (a base64
+  # PKCS12 file, alias "odin") and ODIN_ANDROID_KEYSTORE_PASSWORD: every
+  # release needs that same key, or Android won't install it over the last one.
+  android:
+    needs: macos
+    if: github.repository == 'danlinenberg/odin' && needs.macos.result == 'success' && !inputs.private
+    runs-on: ubuntu-latest
+    environment: release
+    timeout-minutes: 30
+    env:
+      SKIP_ENV_VALIDATION: "true"
+      TAG: ${{ needs.macos.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Build Odin.apk
+        working-directory: apps/mobile
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ODIN_ANDROID_KEYSTORE }}
+          ODIN_KEYSTORE_PASSWORD: ${{ secrets.ODIN_ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$KEYSTORE_BASE64" || -z "$ODIN_KEYSTORE_PASSWORD" ]]; then
+            echo "::warning::No ODIN_ANDROID_KEYSTORE secrets: this release has no Odin.apk"
+            exit 0
+          fi
+          export ODIN_KEYSTORE="$RUNNER_TEMP/odin.p12"
+          base64 -d <<<"$KEYSTORE_BASE64" > "$ODIN_KEYSTORE"
+          # 1.4.12 -> 10412, and up with every release, as Android requires.
+          V="${TAG#v}"
+          export ODIN_VERSION_NAME="$V"
+          export ODIN_VERSION_CODE=$(awk -F. '{print $1*10000 + $2*100 + $3}' <<<"${V%%-*}")
+          bun run build
+          bunx cap sync android
+          (cd android && ./gradlew assembleRelease)
+          mv android/app/build/outputs/apk/release/app-release.apk Odin.apk
+
+      - if: hashFiles('apps/mobile/Odin.apk') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" apps/mobile/Odin.apk
