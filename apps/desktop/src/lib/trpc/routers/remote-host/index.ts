@@ -123,6 +123,7 @@ import {
 	runOnHost,
 } from "main/lib/remote-host/ssh";
 import { awsClientConfig } from "main/lib/remote-host/ssm";
+import { viewOnMac } from "main/lib/remote-host/view-on-mac";
 import {
 	remoteFolderUri,
 	vscodeHost,
@@ -1140,6 +1141,27 @@ export const createRemoteHostRouter = () =>
 				await rememberHostFiles(host.user, files);
 				const [text = "", ...paths] = prompt.split(marker);
 				return { text, paths };
+			}),
+
+		/**
+		 * A `!view <port> <password>` block: the VNC screen a session started on
+		 * its host, shown here in Screen Sharing through an ssh tunnel over the
+		 * host's bridge (view-on-mac).
+		 */
+		viewOnMac: publicProcedure
+			.input(
+				z.object({
+					host: paneHost,
+					port: z.number().int().min(1).max(65535),
+					password: z.string().min(1).max(64),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				const host = hostNamed(input.host);
+				if (!host) throw new Error("No remote host is set up.");
+				await withAwsSignIn(host, () =>
+					viewOnMac(host, input.port, input.password),
+				);
 			}),
 
 		/**

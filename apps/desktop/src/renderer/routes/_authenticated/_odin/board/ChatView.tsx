@@ -29,6 +29,7 @@ import {
 	LuLaptop,
 	LuLoaderCircle,
 	LuMic,
+	LuMonitor,
 	LuSmartphone,
 	LuSquareTerminal,
 	LuWrench,
@@ -114,6 +115,7 @@ import {
 	noActionItems,
 	settledItem,
 	splitActionItems,
+	viewTarget,
 } from "./action-items";
 import { useChatFind } from "./ChatFindBar";
 import {
@@ -2655,14 +2657,17 @@ function RunCommand({
 	const note = useContext(CommandNotes)[command];
 	const local = localCommand(command);
 	const download = downloadPath(command);
+	const view = viewTarget(command);
 	const shown = local ?? download ?? command;
 	// What it does on the button, in Claude's words or read from the
 	// command (a download's file name); the command itself on hover.
 	const label = download
 		? (download.replace(/\/+$/, "").split("/").at(-1) ?? download)
-		: note
-			? commandLabel(note)
-			: describeCommand(shown);
+		: view
+			? "the app running on the host"
+			: note
+				? commandLabel(note)
+				: describeCommand(shown);
 	return (
 		<Tooltip delayDuration={300}>
 			<TooltipTrigger asChild>
@@ -2684,9 +2689,11 @@ function RunCommand({
 					aria-label={
 						download
 							? `Download to this computer: ${download}`
-							: local
-								? `Run on my computer: ${local}`
-								: `Run in this session: ! ${command}`
+							: view
+								? "View the app running on the host, on this computer"
+								: local
+									? `Run on my computer: ${local}`
+									: `Run in this session: ! ${command}`
 					}
 					className={cn(
 						ACTION_BUTTON,
@@ -2695,6 +2702,8 @@ function RunCommand({
 				>
 					{download ? (
 						<LuDownload className="size-3.5 shrink-0" />
+					) : view ? (
+						<LuMonitor className="size-3.5 shrink-0" />
 					) : (
 						<LuSquareTerminal className="size-3.5 shrink-0" />
 					)}
@@ -2703,13 +2712,17 @@ function RunCommand({
 							? state === "sent"
 								? "Downloaded:"
 								: "Download:"
-							: local
+							: view
 								? state === "sent"
-									? "Started on my computer:"
-									: "Run on my computer:"
-								: state === "sent"
-									? "Sent:"
-									: "Run:"}{" "}
+									? "Opened on my computer:"
+									: "View on my computer:"
+								: local
+									? state === "sent"
+										? "Started on my computer:"
+										: "Run on my computer:"
+									: state === "sent"
+										? "Sent:"
+										: "Run:"}{" "}
 						{label}
 					</span>
 				</button>
@@ -3154,7 +3167,11 @@ const ItemView = memo(function ItemView({
 	// Run on my computer is the same computer, and only adds a button.
 	const runnable = (text: string) =>
 		bangCommands(text).filter(
-			(command) => remote || (!localCommand(command) && !downloadPath(command)),
+			(command) =>
+				remote ||
+				(!localCommand(command) &&
+					!downloadPath(command) &&
+					!viewTarget(command)),
 		);
 	const commands = onRun ? runnable(item.text) : [];
 	const earlier = onRun && earlierText ? runnable(earlierText) : [];
@@ -3729,6 +3746,15 @@ export function ChatView({
 						path: download,
 					});
 				toast.success(`Downloaded to ${path}`);
+				return;
+			}
+			const view = viewTarget(command);
+			if (view) {
+				toast.info("Opening the app in Screen Sharing…");
+				await electronTrpcClient.remoteHost.viewOnMac.mutate({
+					host: useTabsStore.getState().panes[paneId]?.odinRemote,
+					...view,
+				});
 				return;
 			}
 			const local = localCommand(command);

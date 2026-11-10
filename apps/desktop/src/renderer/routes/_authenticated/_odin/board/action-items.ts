@@ -224,6 +224,21 @@ export function downloadPath(command: string): string | null {
 }
 
 /**
+ * The screen of a `!view <port> <password>` block: a VNC server a remote
+ * session started on its host (localhost only), which Odin shows in Screen
+ * Sharing on this computer. Null for any other command.
+ */
+export function viewTarget(
+	command: string,
+): { port: number; password: string } | null {
+	const match = command.match(/^view\s+(\d{1,5})\s+(\S+)$/);
+	const port = Number(match?.[1]);
+	return match && port > 0 && port < 65536
+		? { port, password: match[2] ?? "" }
+		: null;
+}
+
+/**
  * What goes back to Claude once a `!local` command ran on this computer: the
  * command, its output and its exit code, fenced past any backticks inside.
  */
@@ -341,10 +356,13 @@ export function describeCommand(command: string): string {
 
 /**
  * A reply's `!` commands the phone shows: not `!download`, which puts a file
- * in this computer's Downloads folder, not on the phone.
+ * in this computer's Downloads folder, not on the phone, nor `!view`, which
+ * opens Screen Sharing here.
  */
 export function phoneCommands(text: string): string[] {
-	return bangCommands(text).filter((command) => !downloadPath(command));
+	return bangCommands(text).filter(
+		(command) => !downloadPath(command) && !viewTarget(command),
+	);
 }
 
 /**
