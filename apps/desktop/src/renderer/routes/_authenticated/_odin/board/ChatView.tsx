@@ -2142,6 +2142,7 @@ export {
 	LIMIT_HIT_RE,
 	splitActionItems,
 	ToolGroup,
+	ActionItemRow,
 };
 
 /**
@@ -2262,16 +2263,19 @@ function ActionItemRow({
 			)}
 		>
 			{/* The button leads the row - you scan for it first. Too narrow (zoomed in), it drops under the text so the text keeps the width. */}
+			{/* With no button column (every item is "you only"), the label goes under the text instead: a cell here would push the row's number, text and X one column over. */}
 			{settled ? (
-				<span
-					title="GitHub says this PR is already done, so there is nothing to do"
-					className={cn(
-						"pt-px text-center text-[12px] text-muted-foreground",
-						"w-[64px] @max-md:col-start-2 @max-md:row-start-2",
-					)}
-				>
-					{settled === "MERGED" ? "Merged" : "Closed"}
-				</span>
+				buttonColumn && (
+					<span
+						title="GitHub says this PR is already done, so there is nothing to do"
+						className={cn(
+							"pt-px text-center text-[12px] text-muted-foreground",
+							"w-[64px] @max-md:col-start-2 @max-md:row-start-2",
+						)}
+					>
+						{settled === "MERGED" ? "Merged" : "Closed"}
+					</span>
+				)
 			) : isYouOnly(item) ? (
 				buttonColumn && <span className="@max-md:hidden" />
 			) : (
@@ -2339,6 +2343,14 @@ function ActionItemRow({
 						/>
 					</div>
 				</ItemDetail>
+				{settled && !buttonColumn && (
+					<span
+						title="GitHub says this PR is already done, so there is nothing to do"
+						className="text-[12px] text-muted-foreground"
+					>
+						{settled === "MERGED" ? "Merged" : "Closed"}
+					</span>
+				)}
 				{snippets.length > 0 && (
 					<MarkdownRenderer
 						content={snippets.join("\n\n")}

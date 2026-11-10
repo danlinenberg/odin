@@ -3,6 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { remoteConnectLine } from "shared/odin-screen-status";
 import {
+	ActionItemRow,
 	actionItemEntries,
 	actionItemList,
 	applyLines,
@@ -1409,5 +1410,31 @@ describe("keepFolded", () => {
 	test("unfolds once a different view size fits the reply", () => {
 		expect(keepFolded("800x600", false, "800x900")).toBeNull();
 		expect(keepFolded("800x600", true, "800x500")).toBe("800x500");
+	});
+});
+
+describe("ActionItemRow", () => {
+	const row = (buttonColumn: boolean) =>
+		renderToStaticMarkup(
+			createElement(ActionItemRow, {
+				item: "Merge PR #1622 (you only)",
+				detail: null,
+				number: 2,
+				onDo: () => {},
+				onDismiss: () => {},
+				buttonColumn,
+				settled: "MERGED",
+			}),
+		);
+
+	test("with no button column, Merged goes under the text: a cell for it pushes the number, text and X over", () => {
+		const html = row(false);
+		expect(html.indexOf("2.")).toBeGreaterThan(-1);
+		expect(html.indexOf("Merged")).toBeGreaterThan(html.indexOf("Merge PR"));
+	});
+
+	test("with a button column, Merged takes the button's place before the number", () => {
+		const html = row(true);
+		expect(html.indexOf("Merged")).toBeLessThan(html.indexOf("2."));
 	});
 });
