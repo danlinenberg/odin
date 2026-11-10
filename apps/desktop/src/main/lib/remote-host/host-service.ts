@@ -265,9 +265,12 @@ def github_refuses(token):
     return refused
 
 
+SLACK_API = os.environ.get("ODIN_SLACK_API") or "https://slack.com/api/"
+
+
 def service_base(name, t):
     if name == "slack" and t.get("slack"):
-        return "https://slack.com/api/", {"Authorization": "Bearer " + t["slack"]}
+        return SLACK_API, {"Authorization": "Bearer " + t["slack"]}
     if name == "notion" and t.get("notion"):
         return "https://api.notion.com/v1/", {"Authorization": "Bearer " + t["notion"], "Notion-Version": "2022-06-28"}
     if name == "clickup" and t.get("clickup"):
@@ -312,6 +315,81 @@ def call_service(form):
     except Exception as e:
         return 200, "Failed: " + str(e) + "\\n"
     return 200, "HTTP " + str(status) + "\\n" + text + "\\n"
+
+
+def laptop_up():
+    """Odin on the laptop answers its tunnel within a few seconds. Asleep, the tunnel hangs instead."""
+    req = urllib.request.Request(TUNNEL + "/health", headers={"X-Odin-Tunnel": tokens().get("tunnel") or ""})
+    try:
+        with urllib.request.urlopen(req, timeout=5):
+            return True
+    except urllib.error.HTTPError:
+        return True
+    except Exception:
+        return False
+
+
+SLACK_LINK = re.compile(r"/archives/([\\w-]+)/p(\\d{10})(\\d{6})")
+
+
+def slack_get(method, params, token):
+    """One Slack Web API read: (the answer, None), or (None, why)."""
+    url = SLACK_API + method + "?" + urllib.parse.urlencode(params)
+    status, text = send(url, {"Authorization": "Bearer " + token}, None, "GET")
+    if status == 429:
+        return None, "Slack is rate-limiting " + method + ", try again in a minute"
+    try:
+        got = json.loads(text)
+    except Exception:
+        return None, "Slack " + method + ": HTTP " + str(status)
+    if not got.get("ok"):
+        return None, "Slack " + method + ": " + str(got.get("error"))
+    return got, None
+
+
+def read_slack(link, token):
+    """A Slack thread as plain lines, read on the host while the laptop sleeps: what /read on the laptop
+    gives, without its voice learning. The thread's messages, or the linked one alone when Slack holds
+    conversations.replies back (an app outside its Marketplace gets one call a minute)."""
+    m = SLACK_LINK.search(link)
+    if not m:
+        return 502, "Odin couldn't read that link on the host: not a Slack message link.\\n"
+    channel, ts = m.group(1), m.group(2) + "." + m.group(3)
+    parent = {k: v[-1] for k, v in urllib.parse.parse_qs(urllib.parse.urlsplit(link).query).items()}.get("thread_ts") or ts
+    me, _ = slack_get("auth.test", {}, token)
+    me = (me or {}).get("user_id")
+    thread, why = slack_get("conversations.replies", {"channel": channel, "ts": parent, "limit": "200"}, token)
+    messages = (thread or {}).get("messages") or []
+    note = ""
+    if not messages:
+        one, why2 = slack_get("reactions.get", {"channel": channel, "timestamp": ts, "full": "true"}, token)
+        if not one or not one.get("message"):
+            return 502, "Odin on the laptop is asleep, and the host couldn't read the thread: " + (why or why2 or "no messages") + ".\\n"
+        messages = [one["message"]]
+        note = "(Only the linked message: " + (why or "the thread wasn't readable") + ".)\\n"
+    names = {}
+
+    def name(user):
+        if not user:
+            return "someone"
+        if user == me:
+            return "ME"
+        if user not in names:
+            info, _ = slack_get("users.info", {"user": user}, token)
+            profile = ((info or {}).get("user") or {}).get("profile") or {}
+            names[user] = profile.get("real_name") or profile.get("display_name") or user
+        return names[user]
+
+    lines = ["(Read on the host: Odin on the laptop is asleep.)"]
+    for msg in messages:
+        text = re.sub(r"\\s+", " ", msg.get("text") or "")
+        text = re.sub(r"<@(U\\w+)>", lambda u: "@" + name(u.group(1)), text)
+        mark = " [LINKED]" if msg.get("ts") == ts else ""
+        lines.append(name(msg.get("user")) + mark + ": " + text)
+        for f in msg.get("files") or []:
+            if f.get("url_private"):
+                lines.append("  [file " + (f.get("name") or "") + "] (a download needs the laptop awake) " + f["url_private"])
+    return 200, note + "\\n".join(lines) + "\\n"
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -414,7 +492,13 @@ class Handler(BaseHTTPRequestHandler):
             form = {k: v[-1] for k, v in urllib.parse.parse_qs(raw.decode("utf-8", "replace")).items()}
             if form.get("action") == "service":
                 return self.reply(*call_service(form))
-        headers = {k: v for k, v in self.headers.items() if k.lower() in ("content-type", "accept")}
+        if self.command == "GET" and path == "/read":
+            # A Slack link reads on the host while the laptop sleeps, rather than hanging on the tunnel.
+            link = {k: v[-1] for k, v in urllib.parse.parse_qs(query).items()}.get("url", "")
+            token = tokens().get("slack")
+            if token and SLACK_LINK.search(link) and not laptop_up():
+                return self.reply(*read_slack(link, token))
+        headers ={k: v for k, v in self.headers.items() if k.lower() in ("content-type", "accept")}
         headers["X-Odin-Tunnel"] = tokens().get("tunnel") or ""
         req = urllib.request.Request(TUNNEL + self.path, data=raw or None, method=self.command, headers=headers)
         try:
