@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import {
 	bangCommandNotes,
 	bangCommands,
@@ -14,6 +14,7 @@ import {
 	runnableCommands,
 	settledItem,
 	viewTarget,
+	withoutLocalBlocks,
 } from "./action-items";
 import { actionItemEntries } from "./brief";
 
@@ -272,4 +273,15 @@ test("the phone leaves out !view: the app shows in the drawer on the computer", 
 	expect(
 		phoneCommands("```\n!view 37166 pw\n```\n```\n!git status\n```"),
 	).toEqual(["git status"]);
+});
+
+describe("withoutLocalBlocks", () => {
+	test("swaps a !local block for a note and keeps other blocks", () => {
+		const text =
+			"Run it:\n\n```text\n!local\ncd ~/odin && scripts/release.sh\n```\n\nThen:\n\n```\n! ls\n```";
+		const out = withoutLocalBlocks(text);
+		expect(out).not.toContain("release.sh");
+		expect(out).toContain("Runs on your computer, not on the remote host");
+		expect(out).toContain("! ls");
+	});
 });

@@ -608,3 +608,14 @@ export function settledItem(
 	if (!ends.every((end) => end === "MERGED" || end === "CLOSED")) return null;
 	return ends.includes("MERGED") ? "MERGED" : "CLOSED";
 }
+
+/**
+ * The reply with each `!local` block swapped for a one-line note: its Run on
+ * my computer button shows the command, so the code itself is only noise.
+ */
+export function withoutLocalBlocks(text: string): string {
+	return text.replace(
+		/```[^\n]*\n\s*!local\s[\s\S]*?\n?[ \t]*```/g,
+		"*Runs on your computer, not on the remote host - use its Run on my computer button.*",
+	);
+}
