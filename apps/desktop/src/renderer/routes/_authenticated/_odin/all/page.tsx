@@ -23,8 +23,6 @@ import {
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { openUrl } from "renderer/stores/in-app-browser";
-import type { BoardSection } from "shared/board-section";
-import type { PaneStatus } from "shared/tabs-types";
 import { DoneButton } from "../components/DoneButton";
 import { DROP_LABEL, SweepDrop } from "../components/DropHint";
 import {
@@ -35,29 +33,24 @@ import {
 	FeedSelect,
 	ROW_LINK_BUTTON,
 	ROW_LIVE_BUTTON,
-	ROW_META,
-	ROW_PRIMARY_SLOT,
 	ROW_START_BUTTON,
 	SECTION_HINT,
 	SECTION_LABEL,
 	SyncButton,
 } from "../components/FeedChrome";
-import type { FeedPath } from "../components/feed-counts";
-import { PersonChip } from "../components/PersonChip";
 import { effectiveDue, isDue, useReminders } from "../components/Reminders";
-import { TaskBox } from "../components/TaskBox";
-import { useActiveSessions } from "../hooks/useActiveSessions";
+import { NewTaskFieldsPicker, TaskBox } from "../components/TaskBox";
 import { useBacklogReview } from "../hooks/useBacklogReview";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import {
 	PRIORITY_LABELS,
+	parseTask,
 	priorityOf,
 	useMyTasks,
 	useOdinTasks,
 } from "../hooks/useOdinTasks";
 import { usePendingFocus } from "../hooks/usePendingFocus";
-import { PANE_STATUS } from "../pane-status";
 import {
 	type AllItem,
 	type Band,
@@ -68,12 +61,13 @@ import {
 } from "./all-items";
 import { ruleLabel, useDropRules } from "./drop-rules";
 import { droppedWhy, putAwayWhy } from "./graveyard";
+import { applyNewTaskFields, NO_NEW_TASK_FIELDS } from "./new-task-fields";
 import { revealRow, rowPlace } from "./reveal-row";
 import { nextSelection, visibleSelection } from "./selection";
 import { TaskDescription } from "./TaskDescription";
 import { TaskDetails } from "./TaskDetails";
+import type { BulkActions } from "./TaskRowMenu";
 import {
-	SOURCE_ICON,
 	type SortableBits,
 	SortableRow,
 	TABLE_LIST,
@@ -82,15 +76,19 @@ import {
 	useTaskRows,
 } from "./TaskTable";
 import {
+	dayAfter,
 	TASK_STATUSES,
 	TASK_TYPES,
 	type TaskStatus,
 	type TaskType,
 	typeOf,
 	useTaskMeta,
+	WAIT_DAYS,
+	type Waiting,
 } from "./task-meta";
 import { useTitleOverrides } from "./title-overrides";
 import { useAllItems, useSearchableItems } from "./use-all-items";
+import { START_ANOTHER_TIP, START_SESSION_TIP } from "./use-start-item";
 
 /** `open`: a row key whose details to open - how Search all lands on a row. */
 type AllSearch = { open?: string };
@@ -113,10 +111,9 @@ export const Route = createFileRoute("/_authenticated/_odin/all/")({
  * used to be painted, which made High mean nothing. Up next, your own order,
  * sits above the bands.
  *
- * Every session running right now folds to one strip above them, whichever
- * tab started it - the per-source feeds each mark only their own rows live,
- * and a Slack row leaves its queue as soon as its session starts, so this is
- * the one place that can answer "what's already going". "show rows" opens it.
+ * Only tasks are listed. A task with a session running says Working on its
+ * own row, with Go to session beside it; every session you start by hand has
+ * a task (the board's New Session adds one), so nothing running is left out.
  *
  * Rows are filtered from one menu - source, priority, place, status, due,
  * done - and what's applied shows as chips under the header, so the list
@@ -124,43 +121,6 @@ export const Route = createFileRoute("/_authenticated/_odin/all/")({
  * feed's prompt builder is shared (feed-prompts.ts, thread-prompt.ts,
  * notion/rows.ts), and the launch payload is built in all-items.ts.
  */
-
-/**
- * A running session's source, in the same terms the rows use - the board's
- * section names on one side, the feed that started it on the other. "normal"
- * is a session started from a prompt rather than a feed row.
- */
-const SESSION_SOURCE: Record<
-	BoardSection,
-	{ to: FeedPath; source: AllItem["source"] }
-> = {
-	slack: { to: "/reactions", source: "Slack" },
-	reactions: { to: "/reactions", source: "Slack" },
-	jira: { to: "/jira", source: "Jira" },
-	pr: { to: "/prs", source: "GitHub" },
-	notion: { to: "/notion", source: "Notion" },
-	normal: { to: "/my-tasks", source: "Tasks" },
-	// Parked is a state, not a source - a session from any feed can be in it,
-	// and the board's own section is where that's visible. Reading it as a task
-	// keeps the row honest about the one thing it can say for sure: it isn't a
-	// feed item.
-	parked: { to: "/my-tasks", source: "Tasks" },
-	// Same for these board-only states.
-	queued: { to: "/my-tasks", source: "Tasks" },
-	waiting: { to: "/my-tasks", source: "Tasks" },
-	recent: { to: "/my-tasks", source: "Tasks" },
-	starred: { to: "/my-tasks", source: "Tasks" },
-};
-
-/** What a live session is doing - the board's columns, as a chip. */
-const SESSION_STATE: Partial<
-	Record<PaneStatus, { label: string; dot: string }>
-> = {
-	permission: { label: "needs you", dot: PANE_STATUS.permission.dot },
-	working: { label: "working", dot: PANE_STATUS.working.dot },
-	review: { label: "done", dot: PANE_STATUS.review.dot },
-	idle: { label: "idle", dot: PANE_STATUS.idle.dot },
-};
 
 /** The source filter, in the order the tab strip lists them. */
 const SOURCES = [
@@ -195,7 +155,6 @@ const BANDS: { id: Band; label: string; hint: string }[] = [
 	{ id: "later", label: "Later", hint: "" },
 ];
 
-const SHOW_SESSIONS_KEY = "odin.all.showSessions";
 /** Kept, unlike the other cuts: hiding Backlog is a standing choice, not a
  * look around. "only:<status>" or "hide:<status>"; "" is every status. */
 const STATUS_FILTER_KEY = "odin.all.statusFilter";
@@ -210,25 +169,9 @@ function readStatusFilter(): string {
 	}
 }
 
-function readShowSessions(): boolean {
-	try {
-		return localStorage.getItem(SHOW_SESSIONS_KEY) === "true";
-	} catch {
-		return false;
-	}
-}
-
 function AllFeedPage() {
 	const { reactions, syncAll, isSyncing } = useOdinFeeds();
 	const navigate = useNavigate();
-	const [showSessions, setShowSessions] = useState(readShowSessions);
-	const toggleSessions = () => {
-		const next = !showSessions;
-		setShowSessions(next);
-		try {
-			localStorage.setItem(SHOW_SESSIONS_KEY, String(next));
-		} catch {}
-	};
 	// The ways to cut the list. Local state: All is the "what now" view, and it
 	// should open saying everything, every time.
 	const [source, setSource] = useState<AllItem["source"] | "">("");
@@ -258,10 +201,6 @@ function AllFeedPage() {
 		isLaunching,
 		launchingKey,
 	} = rows;
-	const sessions = useActiveSessions();
-	const needsYou = sessions.filter(
-		(session) => session.column === "permission",
-	);
 	const goToPane = (paneId: string) => {
 		usePendingFocus.getState().focus(paneId);
 		navigate({ to: "/board" });
@@ -280,8 +219,26 @@ function AllFeedPage() {
 		set: setDone,
 	} = useDone();
 	const [shelf, setShelf] = useState(false);
+	// Work closed in Jira, GitHub or ClickUp itself never reached a feed, so
+	// the Done list asks those sources too - only while it's on.
+	const { data: workConfig } = electronTrpc.work.getConfig.useQuery();
+	const hasClosedSource =
+		workConfig?.hasJira === true ||
+		workConfig?.hasGithub === true ||
+		workConfig?.hasClickup === true;
+	const closedQuery = electronTrpc.work.recentlyClosed.useQuery(undefined, {
+		enabled: shelf && hasClosedSource,
+		staleTime: 120_000,
+	});
+	// One already put away in Odin is listed there, with its Undo.
+	const closedUpstream = useMemo(() => {
+		const putAway = new Set(recent.map((row) => row.url));
+		return (closedQuery.data?.rows ?? []).filter(
+			(row) => !putAway.has(row.url),
+		);
+	}, [closedQuery.data, recent]);
 	// Undo on the last row hides its chip too: back to the queue, not a blank.
-	const showDone = shelf && recent.length > 0;
+	const showDone = shelf && (recent.length > 0 || hasClosedSource);
 	// The shelf is the graveyard: a row dropped by Review's sweep or a drop
 	// rule is Done in the store like any other, so it has to say so itself.
 	const profiles = useBacklogReview((s) => s.profiles);
@@ -297,12 +254,18 @@ function AllFeedPage() {
 	const {
 		statuses,
 		types,
+		notes: rowNotes,
 		queue,
 		setStatus: setRowStatus,
 		setType: setRowType,
+		setNote: setRowNote,
 		enqueue,
+		enqueueAt,
 		dequeue,
 		move,
+		waiting: parkedBy,
+		wait,
+		unwait,
 	} = useTaskMeta();
 	const statusOf = useCallback(
 		(item: AllItem): string =>
@@ -318,6 +281,7 @@ function AllFeedPage() {
 	const setRowPriority = useTitleOverrides((s) => s.setPriority);
 	const [draft, setDraft] = useState("");
 	const [draftRepo, setDraftRepo] = useState("");
+	const [draftFields, setDraftFields] = useState(NO_NEW_TASK_FIELDS);
 	const { data: skills } = electronTrpc.skills.list.useQuery();
 	const { data: docs } = electronTrpc.system.listDocs.useQuery();
 	const { data: repos } = electronTrpc.repos.list.useQuery();
@@ -441,6 +405,19 @@ function AllFeedPage() {
 			}),
 		[queue, allRows],
 	);
+	// Waiting on someone else: off Up next and out of the bands until its day,
+	// soonest back first.
+	const parked = useMemo(
+		() =>
+			allRows
+				.filter((row) => parkedBy[row.key])
+				.sort((a, b) =>
+					(parkedBy[a.key]?.until ?? "").localeCompare(
+						parkedBy[b.key]?.until ?? "",
+					),
+				),
+		[allRows, parkedBy],
+	);
 	// A finished row leaves Up next too, so an Undo doesn't bring it back there.
 	const finish = (item: AllItem) => {
 		markDone(item);
@@ -450,7 +427,9 @@ function AllFeedPage() {
 		if (over) move(String(active.id), String(over.id));
 	};
 	const items = useMemo(() => {
-		const listed = byStatus.filter((item) => !queue.includes(item.key));
+		const listed = byStatus.filter(
+			(item) => !queue.includes(item.key) && !parkedBy[item.key],
+		);
 		const due = dueOnly
 			? listed.filter((item) =>
 					isDue(effectiveDue(item.key, reminders, item.dueDate), Date.now()),
@@ -474,7 +453,7 @@ function AllFeedPage() {
 				.toLowerCase()
 				.includes(needle),
 		);
-	}, [byStatus, dueOnly, reminders, needle, sortBy, queue]);
+	}, [byStatus, dueOnly, reminders, needle, sortBy, queue, parkedBy]);
 
 	// The bands. One clock per render: a row's reason and its band must agree.
 	const now = Date.now();
@@ -524,6 +503,39 @@ function AllFeedPage() {
 		clearPicked();
 	};
 
+	// The bar's other buttons, named so a ticked row's right-click runs the
+	// very same ones (TaskRowMenu).
+	const pickedRows = () => items.filter((item) => selected.has(item.key));
+	const upNextPicked = (place: "top" | "end" = "end") => {
+		// Placed at the top one by one, the last lands first: go bottom-up.
+		const keys = place === "top" ? [...picked].reverse() : picked;
+		for (const key of keys) enqueueAt(key, place);
+		clearPicked();
+	};
+	const waitPicked = (days = WAIT_DAYS) => {
+		const until = dayAfter(Date.now(), days);
+		for (const item of pickedRows()) wait(item.key, "", until, item.title);
+		clearPicked();
+	};
+	const startPicked = () => {
+		void startMany(pickedRows()).then((went) => went && clearPicked());
+	};
+	const duePicked = (day: string | null) => {
+		const { setDue, clear } = useReminders.getState();
+		for (const item of pickedRows())
+			day ? setDue(item.key, day, item.title) : clear(item.key);
+		clearPicked();
+	};
+	const bulk: BulkActions = {
+		count: picked.length,
+		upNext: upNextPicked,
+		wait: waitPicked,
+		due: duePicked,
+		start: startPicked,
+		done: finishPicked,
+		clear: clearPicked,
+	};
+
 	// From every row, not the filtered ones: narrowing the list shouldn't shut
 	// the panel you're reading. Marking it done does. Search all can open a row
 	// All leaves out (Done'd, started, your own PR), hence the wider fallback.
@@ -533,8 +545,8 @@ function AllFeedPage() {
 	const openTask = tasks.find((task) => `task:${task.id}` === openItem?.key);
 	// Where the open row is, so the panel can say when it isn't beside it.
 	const listedKeys = useMemo(
-		() => new Set([...items, ...queued].map((item) => item.key)),
-		[items, queued],
+		() => new Set([...items, ...queued, ...parked].map((item) => item.key)),
+		[items, queued, parked],
 	);
 	const allKeys = useMemo(
 		() => new Set(allRows.map((item) => item.key)),
@@ -599,8 +611,16 @@ function AllFeedPage() {
 	};
 
 	// Backlog, Read later and the rest are on the list but not waiting on you.
-	const waiting = statusCounts.get("waiting") ?? 0;
-	const shown = items.length + queued.length;
+	const shown = items.length + queued.length + parked.length;
+	// Tasks with a session running on them - tasks, not sessions. A task being
+	// worked isn't also waiting on you.
+	const workingRows = allRows.filter((item) => livePaneFor(item));
+	const working = workingRows.length;
+	const waiting =
+		(statusCounts.get("waiting") ?? 0) -
+		workingRows.filter(
+			(item) => byContext.includes(item) && statusOf(item) === "waiting",
+		).length;
 
 	/** One row of the list. */
 	const renderRow = (
@@ -620,6 +640,7 @@ function AllFeedPage() {
 			}}
 			open={item.key === openKey}
 			onOpen={() => setOpenKey(item.key === openKey ? null : item.key)}
+			bulk={picked.length > 1 && picked.includes(item.key) ? bulk : undefined}
 		/>
 	);
 
@@ -630,6 +651,7 @@ function AllFeedPage() {
 				<span className="shrink-0 text-[12px] text-muted-foreground">
 					{shown !== allRows.length ? `${shown} of ${allRows.length} · ` : ""}
 					{waiting} waiting on you
+					{working > 0 && ` · ${working} working`}
 					{(bands.now.length > 0 || bands.today.length > 0) &&
 						` · ${bands.now.length} now · ${bands.today.length} today`}
 				</span>
@@ -738,7 +760,7 @@ function AllFeedPage() {
 								label={`Due or overdue only (${dueRows.length})`}
 							/>
 						)}
-						{recent.length > 0 && (
+						{(recent.length > 0 || hasClosedSource) && (
 							<Toggle
 								checked={showDone}
 								onChange={setShelf}
@@ -793,147 +815,31 @@ function AllFeedPage() {
 					placeholder="What needs doing?"
 					onChange={setDraft}
 					onSubmit={() => {
-						add(draft, undefined, draftRepo);
+						const id = add(draft, undefined, draftRepo);
+						if (id)
+							applyNewTaskFields(
+								`task:${id}`,
+								parseTask(draft).title,
+								draftFields,
+							);
 						setDraft("");
 						setDraftRepo("");
+						setDraftFields(NO_NEW_TASK_FIELDS);
 					}}
 					onCancel={() => setDraft("")}
 					submitLabel="Add task"
+					extraFields={
+						<NewTaskFieldsPicker
+							value={draftFields}
+							onChange={setDraftFields}
+						/>
+					}
 				/>
 			</div>
 
 			<div className="flex min-h-0 flex-1">
 				<div className={TABLE_LIST}>
-					{!showDone && sessions.length > 0 && (
-						<>
-							<div className={SECTION_LABEL}>
-								<span className="size-1.5 animate-pulse rounded-full bg-working" />
-								Live
-								<Count n={sessions.length} />
-								{needsYou.length > 0 && (
-									<span className={SECTION_HINT}>
-										{needsYou.length} need you
-									</span>
-								)}
-								<button
-									type="button"
-									onClick={toggleSessions}
-									className={cn(SECTION_HINT, "hover:text-foreground")}
-								>
-									{showSessions ? "fold" : "show rows"}
-								</button>
-							</div>
-							{showSessions ? (
-								sessions.map((session) => {
-									const { to } = SESSION_SOURCE[session.source];
-									const SourceIcon = SOURCE_ICON[to];
-									const state = SESSION_STATE[session.column];
-									return (
-										<div
-											key={session.paneId}
-											className={cn(
-												FEED_ROW,
-												"mb-1 border-l-2 border-l-working",
-											)}
-										>
-											<div className="flex items-center gap-3">
-												<SourceIcon
-													className="size-3.5 shrink-0 text-muted-foreground"
-													aria-hidden
-												/>
-												<button
-													type="button"
-													title="Open the session on the board"
-													onClick={() => goToPane(session.paneId)}
-													className="min-w-0 flex-1 truncate bg-none text-left text-[13px] font-semibold text-foreground"
-												>
-													{emojify(session.title)}
-												</button>
-												{!openItem && (
-													<div className="flex shrink-0 items-center gap-2.5 text-[11px]">
-														{session.tags[0] && (
-															<span className="font-mono text-[10.5px] text-faint-foreground">
-																#{session.tags[0]}
-															</span>
-														)}
-														{session.contact && (
-															<PersonChip
-																name={session.contact}
-																className="max-w-[160px]"
-															/>
-														)}
-														{state && (
-															<span
-																className={cn(
-																	ROW_META,
-																	"flex items-center gap-1.5",
-																)}
-															>
-																<span
-																	className="size-1.5 rounded-full"
-																	style={{ backgroundColor: state.dot }}
-																/>
-																{state.label}
-															</span>
-														)}
-														{session.repo && (
-															<span
-																className="max-w-[132px] truncate text-muted-foreground"
-																title={session.repo}
-															>
-																{session.repo}
-															</span>
-														)}
-													</div>
-												)}
-												<span className={ROW_PRIMARY_SLOT}>
-													<button
-														type="button"
-														onClick={() => goToPane(session.paneId)}
-														className={ROW_LIVE_BUTTON}
-													>
-														Go to session →
-													</button>
-												</span>
-											</div>
-										</div>
-									);
-								})
-							) : (
-								<div
-									className={cn(
-										FEED_ROW,
-										"mb-1 flex items-center gap-3 py-1.5",
-									)}
-								>
-									<div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-										{needsYou.length === 0 && (
-											<span className={ROW_META}>all working</span>
-										)}
-										{needsYou.map((session) => (
-											<button
-												key={session.paneId}
-												type="button"
-												title="Open the session on the board"
-												onClick={() => goToPane(session.paneId)}
-												className="max-w-[220px] shrink-0 truncate rounded-full bg-secondary px-2 py-[1px] text-[11px] text-soft-foreground ring-1 ring-inset ring-attention/50 transition-colors hover:text-foreground"
-											>
-												{emojify(session.title)}
-											</button>
-										))}
-									</div>
-									<button
-										type="button"
-										onClick={() => navigate({ to: "/board" })}
-										className={ROW_LIVE_BUTTON}
-									>
-										Board →
-									</button>
-								</div>
-							)}
-						</>
-					)}
-					{!showDone && items.length + queued.length > 0 && (
+					{!showDone && items.length + queued.length + parked.length > 0 && (
 						<TaskTableHeader
 							date={sortBy === "created" ? "Created" : "Updated"}
 						/>
@@ -976,10 +882,7 @@ function AllFeedPage() {
 							</FeedSelect>
 							<button
 								type="button"
-								onClick={() => {
-									for (const key of picked) enqueue(key);
-									clearPicked();
-								}}
+								onClick={() => upNextPicked()}
 								title="Line them all up - Up next, above the list"
 								className={ROW_LINK_BUTTON}
 							>
@@ -987,11 +890,16 @@ function AllFeedPage() {
 							</button>
 							<button
 								type="button"
+								onClick={() => waitPicked()}
+								title={`Waiting on someone else - back on Up next in ${WAIT_DAYS} days`}
+								className={ROW_LINK_BUTTON}
+							>
+								Waiting
+							</button>
+							<button
+								type="button"
 								disabled={isLaunching}
-								onClick={() => {
-									const rows = items.filter((item) => selected.has(item.key));
-									void startMany(rows).then((went) => went && clearPicked());
-								}}
+								onClick={startPicked}
 								title="Start a session on each selected row - pick here or remote once for all"
 								className={ROW_START_BUTTON}
 							>
@@ -1034,6 +942,18 @@ function AllFeedPage() {
 							</DndContext>
 						</>
 					)}
+					{!showDone && parked.length > 0 && (
+						<>
+							<div className={SECTION_LABEL}>
+								Waiting on others
+								<Count n={parked.length} />
+								<span className={SECTION_HINT}>
+									back on Up next on their day
+								</span>
+							</div>
+							{parked.map((item) => renderRow(item))}
+						</>
+					)}
 					{showDone && (
 						<DoneList
 							rows={recent}
@@ -1041,6 +961,13 @@ function AllFeedPage() {
 							dropped={droppedBy}
 							onOpen={(url) => openUrl(url)}
 							onUndo={undo}
+						/>
+					)}
+					{showDone && hasClosedSource && (
+						<ClosedUpstreamList
+							rows={closedUpstream}
+							loading={closedQuery.isLoading}
+							onOpen={(url) => openUrl(url)}
 						/>
 					)}
 					{!showDone && items.length === 0 && (
@@ -1119,6 +1046,12 @@ function AllFeedPage() {
 											]
 								}
 								queued={queue.includes(openItem.key)}
+								waiting={parkedBy[openItem.key]}
+								person={openItem.person}
+								onWait={(on, until) =>
+									wait(openItem.key, on, until, openItem.title)
+								}
+								onUnwait={() => unwait(openItem.key, true)}
 								onStatus={(value) =>
 									setRowStatus(openItem.key, (value as TaskStatus) || null)
 								}
@@ -1146,9 +1079,21 @@ function AllFeedPage() {
 								/>
 							)
 						}
+						notes={
+							// Slack, Jira and the rest keep their own text as the body;
+							// yours goes under it, kept in Odin only.
+							!openTask && (
+								<TaskDescription
+									key={openItem.key}
+									notes={rowNotes[openItem.key] ?? ""}
+									onSave={(notes) => setRowNote(openItem.key, notes)}
+								/>
+							)
+						}
 					>
 						<DetailsActions
 							activePaneId={livePaneFor(openItem)}
+							sessionCount={rows.livePanesFor(openItem).length}
 							isLaunching={isLaunching}
 							launching={launchingKey === openItem.launch.key}
 							onStart={() => void handleStart(openItem)}
@@ -1308,6 +1253,7 @@ function DetailsPanel({
 	notice,
 	fields,
 	description,
+	notes,
 	children,
 }: {
 	item: AllItem;
@@ -1317,6 +1263,8 @@ function DetailsPanel({
 	notice?: ReactNode;
 	fields: ReactNode;
 	description: ReactNode;
+	/** Your notes on another source's row, under its own text. */
+	notes?: ReactNode;
 	children: ReactNode;
 }) {
 	const url = item.url;
@@ -1363,7 +1311,19 @@ function DetailsPanel({
 				<div className="mb-2 empty:hidden">
 					<SweepDrop itemKey={item.key} url={item.url} inline={false} />
 				</div>
-				<TaskDetails item={item} onRename={rename} description={description} />
+				<TaskDetails item={item} onRename={rename} description={description}>
+					{notes && (
+						<div>
+							<div
+								className={PANEL_LABEL}
+								title="Kept in Odin only - nothing goes back to the source. Start session adds them to the brief."
+							>
+								Notes
+							</div>
+							{notes}
+						</div>
+					)}
+				</TaskDetails>
 			</div>
 			{children}
 		</aside>
@@ -1373,6 +1333,7 @@ function DetailsPanel({
 /** The row's own buttons, so a task read in the panel is acted on there. */
 function DetailsActions({
 	activePaneId,
+	sessionCount,
 	isLaunching,
 	launching,
 	onStart,
@@ -1383,6 +1344,8 @@ function DetailsActions({
 	onDrop,
 }: {
 	activePaneId: string | null;
+	/** Sessions open on this task; Go to session opens the newest. */
+	sessionCount: number;
 	isLaunching: boolean;
 	launching: boolean;
 	onStart: () => void;
@@ -1395,18 +1358,36 @@ function DetailsActions({
 	return (
 		<div className="flex shrink-0 items-center gap-2 border-t border-border px-3.5 py-2.5">
 			{activePaneId ? (
-				<button
-					type="button"
-					onClick={() => onGoTo(activePaneId)}
-					className={ROW_LIVE_BUTTON}
-				>
-					Go to session →
-				</button>
+				<>
+					<button
+						type="button"
+						onClick={() => onGoTo(activePaneId)}
+						title={
+							sessionCount > 1
+								? `${sessionCount} sessions on this task - this opens the newest`
+								: undefined
+						}
+						className={ROW_LIVE_BUTTON}
+					>
+						Go to session →
+					</button>
+					<button
+						type="button"
+						disabled={isLaunching}
+						onClick={onStart}
+						title={START_ANOTHER_TIP}
+						className={ROW_LINK_BUTTON}
+					>
+						{launching ? "Starting…" : "Start another session"}
+					</button>
+				</>
 			) : (
 				<button
 					type="button"
 					disabled={isLaunching}
 					onClick={onStart}
+					aria-label="Start session"
+					title={START_SESSION_TIP}
 					className={ROW_START_BUTTON}
 				>
 					{launching ? "Starting…" : "Start session"}
@@ -1473,6 +1454,10 @@ function TaskFields({
 	onType,
 	onPriority,
 	onQueue,
+	waiting,
+	person,
+	onWait,
+	onUnwait,
 }: {
 	status: string;
 	type: string;
@@ -1483,39 +1468,168 @@ function TaskFields({
 	onType: (value: string) => void;
 	onPriority: (value: string) => void;
 	onQueue: () => void;
+	waiting: Waiting | undefined;
+	person: string | null;
+	onWait: (on: string, until: string) => void;
+	onUnwait: () => void;
 }) {
 	return (
-		<div className="mb-2.5 flex flex-wrap items-center gap-1.5">
-			<FeedSelect value={status} onChange={onStatus} title="Status">
-				<option value="">Waiting on you</option>
-				{TASK_STATUSES.map(({ id, label }) => (
-					<option key={id} value={id}>
-						{label}
-					</option>
+		<>
+			<div className="mb-2.5 flex flex-wrap items-end gap-1.5">
+				<PanelField label="Status">
+					<FeedSelect value={status} onChange={onStatus} title="Status">
+						<option value="">Waiting on you</option>
+						{TASK_STATUSES.map(({ id, label }) => (
+							<option key={id} value={id}>
+								{label}
+							</option>
+						))}
+					</FeedSelect>
+				</PanelField>
+				<PanelField label="Type">
+					<FeedSelect value={type} onChange={onType} title="Task type">
+						<option value="">No type</option>
+						{TASK_TYPES.map(({ id, label }) => (
+							<option key={id} value={id}>
+								{label}
+							</option>
+						))}
+					</FeedSelect>
+				</PanelField>
+				<PanelField label="Priority">
+					<FeedSelect value={priority} onChange={onPriority} title="Priority">
+						{priorityOptions.map(([value, label]) => (
+							<option key={value} value={value}>
+								{label}
+							</option>
+						))}
+					</FeedSelect>
+				</PanelField>
+				<button
+					type="button"
+					onClick={onQueue}
+					className={cn(ROW_LINK_BUTTON, queued && "text-foreground")}
+				>
+					{queued ? "✓ Up next" : "+ Up next"}
+				</button>
+			</div>
+			<WaitField
+				waiting={waiting}
+				person={person}
+				onWait={onWait}
+				onUnwait={onUnwait}
+			/>
+		</>
+	);
+}
+
+/**
+ * Waiting on someone else: who or what, and the day to look again - not the
+ * due date. Parking it takes it off Up next; on that day it goes back on top.
+ */
+function WaitField({
+	waiting,
+	person,
+	onWait,
+	onUnwait,
+}: {
+	waiting: Waiting | undefined;
+	person: string | null;
+	onWait: (on: string, until: string) => void;
+	onUnwait: () => void;
+}) {
+	const [on, setOn] = useState(waiting?.on ?? "");
+	const [until, setUntil] = useState(
+		() => waiting?.until ?? dayAfter(Date.now(), WAIT_DAYS),
+	);
+	// Another row opened in the panel, or the wait changed elsewhere.
+	useEffect(() => {
+		setOn(waiting?.on ?? "");
+		setUntil(waiting?.until ?? dayAfter(Date.now(), WAIT_DAYS));
+	}, [waiting]);
+	const today = dayAfter(Date.now(), 0);
+	// The task's own person first, then everyone in Slack. Free text still
+	// goes in: a PR or a date is a fine thing to wait on.
+	const { data: slackPeople } = electronTrpc.slack.people.useQuery(undefined, {
+		staleTime: 60 * 60_000,
+	});
+	const people = [
+		...new Set([...(person ? [person] : []), ...(slackPeople ?? [])]),
+	];
+	return (
+		<div className="mb-2.5 flex flex-wrap items-center gap-1.5 text-[12px]">
+			<datalist id="odin-wait-people">
+				{people.map((name) => (
+					<option key={name} value={name} />
 				))}
-			</FeedSelect>
-			<FeedSelect value={type} onChange={onType} title="Task type">
-				<option value="">No type</option>
-				{TASK_TYPES.map(({ id, label }) => (
-					<option key={id} value={id}>
-						{label}
-					</option>
-				))}
-			</FeedSelect>
-			<FeedSelect value={priority} onChange={onPriority} title="Priority">
-				{priorityOptions.map(([value, label]) => (
-					<option key={value} value={value}>
-						{label}
-					</option>
-				))}
-			</FeedSelect>
-			<button
-				type="button"
-				onClick={onQueue}
-				className={cn(ROW_LINK_BUTTON, queued && "text-foreground")}
-			>
-				{queued ? "✓ Up next" : "+ Up next"}
-			</button>
+			</datalist>
+			<span className="text-muted-foreground">Waiting on</span>
+			<input
+				value={on}
+				onChange={(e) => setOn(e.target.value)}
+				onBlur={() => waiting && on.trim() !== waiting.on && onWait(on, until)}
+				placeholder="a teammate, a PR, a date..."
+				aria-label="Waiting on"
+				list="odin-wait-people"
+				className="h-7 min-w-0 flex-1 rounded-[6px] border border-border bg-transparent px-2 text-[12px] text-foreground placeholder:text-muted-foreground"
+			/>
+			<span className="text-muted-foreground">back on Up next</span>
+			<input
+				type="date"
+				value={until}
+				min={dayAfter(Date.now(), 1)}
+				onChange={(e) => {
+					const day = e.target.value;
+					if (!day) return;
+					setUntil(day);
+					if (waiting && day > today) onWait(on, day);
+				}}
+				aria-label="Back on Up next on"
+				title="The day you expect it to move - not its due date. On that day it goes back on top of Up next."
+				style={{ colorScheme: "dark" }}
+				className="h-7 rounded-[6px] border border-border bg-transparent px-1.5 text-[12px] text-foreground"
+			/>
+			{waiting ? (
+				<button
+					type="button"
+					onClick={onUnwait}
+					title="Back on top of Up next now"
+					className={ROW_LINK_BUTTON}
+				>
+					Stop waiting
+				</button>
+			) : (
+				<button
+					type="button"
+					onClick={() =>
+						onWait(on, until > today ? until : dayAfter(Date.now(), WAIT_DAYS))
+					}
+					title="Park it off Up next until that day"
+					className={ROW_LINK_BUTTON}
+				>
+					Wait
+				</button>
+			)}
+		</div>
+	);
+}
+
+/** The small name over a side panel field. */
+const PANEL_LABEL =
+	"mb-0.5 select-none text-[10.5px] font-medium text-muted-foreground";
+
+/** A side panel field with its name above it, so the dropdowns tell apart. */
+function PanelField({
+	label,
+	children,
+}: {
+	label: string;
+	children: ReactNode;
+}) {
+	return (
+		<div className="flex flex-col">
+			<span className={PANEL_LABEL}>{label}</span>
+			{children}
 		</div>
 	);
 }
@@ -1589,6 +1703,66 @@ function DoneList({
 					</div>
 				);
 			})}
+		</>
+	);
+}
+
+/**
+ * Closed in its own tool in the last two weeks - a Jira ticket moved to
+ * Done, a merged PR, a closed ClickUp task - without passing through Odin.
+ * Read-only: there is nothing to undo here, only Open.
+ */
+function ClosedUpstreamList({
+	rows,
+	loading,
+	onOpen,
+}: {
+	rows: {
+		key: string;
+		source: string;
+		title: string;
+		url: string;
+		state: string;
+		closedAt: string;
+	}[];
+	loading: boolean;
+	onOpen: (url: string) => void;
+}) {
+	return (
+		<>
+			<div className="px-2 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground">
+				Closed in Jira, GitHub or ClickUp - last 14 days
+				{loading ? " (loading...)" : rows.length === 0 ? " (none)" : ""}
+			</div>
+			{rows.map((row) => (
+				<div key={row.key} className={FEED_ROW}>
+					<div className="flex items-center gap-3">
+						<span className="w-[68px] shrink-0 truncate text-[11px] font-semibold text-muted-foreground">
+							{row.source}
+						</span>
+						<span
+							dir="auto"
+							className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground"
+						>
+							{emojify(row.title)}
+						</span>
+						<span className="shrink-0 text-[11px] text-muted-foreground">
+							{row.state}{" "}
+							{new Date(row.closedAt).toLocaleDateString(undefined, {
+								month: "short",
+								day: "numeric",
+							})}
+						</span>
+						<button
+							type="button"
+							onClick={() => onOpen(row.url)}
+							className="shrink-0 text-[12px] font-semibold text-muted-foreground hover:text-foreground"
+						>
+							Open ↗
+						</button>
+					</div>
+				</div>
+			))}
 		</>
 	);
 }

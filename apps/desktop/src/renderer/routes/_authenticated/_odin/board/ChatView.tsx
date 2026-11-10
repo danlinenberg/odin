@@ -20,15 +20,18 @@ import {
 } from "react";
 import { BsCloud } from "react-icons/bs";
 import {
+	LuBookmark,
+	LuBookmarkCheck,
 	LuChevronRight,
+	LuCircleAlert,
+	LuDownload,
 	LuFile,
 	LuLaptop,
 	LuLoaderCircle,
 	LuMic,
+	LuMonitor,
 	LuSmartphone,
-	LuSquare,
 	LuSquareTerminal,
-	LuVolume2,
 	LuWrench,
 	LuX,
 } from "react-icons/lu";
@@ -43,6 +46,7 @@ import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { draftFor, useChatDrafts } from "renderer/stores/chat-drafts";
+import { CLAUDE_MODELS } from "renderer/stores/claude-command";
 import { useCompacting } from "renderer/stores/compacting";
 import {
 	isDismissed,
@@ -51,6 +55,7 @@ import {
 } from "renderer/stores/dismissed-actions";
 import { type HostEvent, useHostEvents } from "renderer/stores/host-connection";
 import { openUrl } from "renderer/stores/in-app-browser";
+import { useReplyJump } from "renderer/stores/reply-jump";
 import { useSessionView } from "renderer/stores/session-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { runInSessionShell } from "renderer/stores/tabs/useAgentHookListener";
@@ -68,7 +73,9 @@ import {
 	awaitsAwsSignIn,
 	blockedOnAwsSignIn,
 	claudeDrawn,
+	reconnectStopped,
 	remoteConnectLine,
+	stoppedParts,
 } from "shared/odin-screen-status";
 import { typedText } from "shared/typed-text";
 import { isInterruptMarker, withoutWrapping } from "shared/user-text";
@@ -82,6 +89,7 @@ import {
 } from "../components/skill-picker";
 import { attachmentPaths } from "../components/TaskBox";
 import { COMPACT_MARKDOWN } from "../components/TranscriptView";
+import { replyTodoText, usePaneMeta } from "../hooks/usePaneMeta";
 import {
 	actionItemEntries,
 	actionItemList,
@@ -91,6 +99,7 @@ import {
 	commandLabel,
 	commandScore,
 	describeCommand,
+	downloadPath,
 	isAnswerItem,
 	isApprovalItem,
 	isDoneItem,
@@ -98,13 +107,17 @@ import {
 	isYouOnly,
 	itemDetail,
 	itemOptions,
+	itemPullRequests,
 	itemReply,
 	itemSnippets,
 	localCommand,
 	localRunMessage,
 	noActionItems,
+	settledItem,
 	splitActionItems,
+	viewTarget,
 } from "./action-items";
+import { useChatFind } from "./ChatFindBar";
 import {
 	PlanCard,
 	QuestionCard,
@@ -124,14 +137,6 @@ import {
 import { launchRequest } from "./launch-request";
 import { holdForMove, isMoving } from "./moving-home";
 import { PLAN_LIMIT_OPENING } from "./plan-limit-resume";
-import {
-	canSpeak,
-	speak,
-	spokenText,
-	stopSpeaking,
-	useReadAloud,
-	useSpeaking,
-} from "./read-aloud";
 import {
 	cursorReached,
 	menuKeys,
@@ -537,6 +542,21 @@ export function opensTerminalScreen(text: string): boolean {
 	return /^\/(login|logout|config|model|mcp|permissions|agents|hooks|plugin|resume)\s*$/.test(
 		text.trim(),
 	);
+}
+
+/** The picker's models: New Session's, less "Default model". */
+const CHAT_MODELS = CLAUDE_MODELS.filter((option) => option.value);
+
+/**
+ * The picker value for a session's model (`claude-opus-5-5`,
+ * `us.anthropic.claude-opus-5-5`, `Sonnet 5.5`): its alias, or the model
+ * itself when no alias fits.
+ */
+export function modelAlias(model: string): string {
+	const known = CHAT_MODELS.find((option) =>
+		model.toLowerCase().includes(option.value),
+	);
+	return known ? known.value : model;
 }
 
 /**
@@ -1158,8 +1178,6 @@ interface ItemViewProps {
 	hideActions?: boolean;
 	/** The latest reply's TL;DR, once the brief has read this very reply. */
 	tldr?: Tldr | null;
-	/** The latest reply: what Odin says for it, its TL;DR when there is one. */
-	readAloud?: string | null;
 	/** The card's reply has no `!` commands: the latest earlier reply that has (earlierCommandsText). */
 	earlierText?: string;
 }
@@ -1178,7 +1196,6 @@ function sameItemView(prev: ItemViewProps, next: ItemViewProps): boolean {
 		prev.tldr?.last === next.tldr?.last &&
 		prev.tldr?.urgency === next.tldr?.urgency &&
 		prev.tldr?.long === next.tldr?.long &&
-		prev.readAloud === next.readAloud &&
 		prev.earlierText === next.earlierText
 	);
 }
@@ -1287,6 +1304,12 @@ export function currentTurn(items: Item[], landed: boolean) {
 		prompt: shown?.kind === "user" ? shown.text : "",
 		/** Everything Claude wrote and ran since. */
 		items: rest,
+		/**
+		 * The rows under the prompt still on screen: the turn's own while it
+		 * runs, the last turn's while your message is on its way. What the
+		 * screen shows that these hold is recorded, not a live line.
+		 */
+		onScreen: items.slice(last + 1),
 		tools: rest.filter((item): item is Tool => item.kind === "tool"),
 		tokens: outputTokens(rest),
 	};
@@ -1464,6 +1487,7 @@ function UserBubble({
 	movingHere,
 	onShowTerminal,
 	onDismiss,
+	onResend,
 	workspaceId,
 	fromPhone,
 	at,
@@ -1483,6 +1507,8 @@ function UserBubble({
 	movingHere?: boolean;
 	onShowTerminal?: () => void;
 	onDismiss?: () => void;
+	/** Types a lost message into Claude again. */
+	onResend?: () => void;
 	workspaceId?: string;
 }) {
 	// A launch prompt (task + standing rules + reply format) fills the screen;
@@ -1570,6 +1596,15 @@ function UserBubble({
 					<span className="text-danger">
 						Not delivered - Claude never took it
 					</span>
+					{onResend && (
+						<button
+							type="button"
+							onClick={onResend}
+							className="text-link hover:underline"
+						>
+							Resend
+						</button>
+					)}
 					{onShowTerminal && (
 						<button
 							type="button"
@@ -1896,7 +1931,7 @@ function sendFailedToast(error: unknown) {
 }
 
 const AWS_SIGN_IN_BUTTON =
-	"h-6 shrink-0 rounded-md border border-attention/35 bg-attention/[0.07] px-2.5 text-[12px] font-medium text-attention hover:bg-attention/15";
+	"inline-flex h-6 shrink-0 items-center gap-1.5 rounded-md border border-attention/35 bg-attention/[0.07] px-2.5 text-[12px] font-medium text-attention transition-[transform,background-color,opacity] duration-150 ease-out hover:bg-attention/15 active:scale-95 active:bg-attention/25 disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none motion-reduce:active:scale-100";
 
 /**
  * Opens the AWS approval page again while a new remote session waits on its
@@ -1928,24 +1963,146 @@ function OpenAwsSignInButton() {
 function MoveToHostButton({
 	host,
 	onMove,
+	stuck = false,
 }: {
 	host: string;
 	onMove: (to: string) => void;
+	/** The pane stopped reconnecting: offered even while `host` is up. */
+	stuck?: boolean;
 }) {
 	const { data: to } = electronTrpc.remoteHost.fallbackHost.useQuery(
-		{ host },
+		{ host, stuck },
 		{ refetchInterval: 30_000 },
 	);
 	if (!to) return null;
 	return (
 		<button
 			type="button"
-			title={`${host} is down. Copy this conversation to ${to} and continue it there`}
+			title={`${stuck ? `${host} does not take this session back` : `${host} is down`}. Copy this conversation to ${to} and continue it there`}
 			onClick={() => onMove(to)}
 			className={AWS_SIGN_IN_BUTTON}
 		>
 			Move to {to}
 		</button>
+	);
+}
+
+/**
+ * What a remote session can do once its pane stopped reconnecting (the
+ * helper's MAX_TRIES): try again, start Claude over on the host with this
+ * conversation, move it to another host or to this computer. Before, the
+ * pane retried forever and the row spun with nothing to press.
+ */
+function ReconnectStoppedActions({
+	host,
+	sendKeys,
+	onMoveToHost,
+	onMoveHere,
+}: {
+	host: string | undefined;
+	sendKeys: (keys: string[]) => Promise<void>;
+	onMoveToHost?: (to: string) => void;
+	onMoveHere?: () => void;
+}) {
+	// The pick being carried out: its button spins and the others wait, so a
+	// press shows it landed. The row goes away once the pane moves on; if it
+	// is still here after a while, the buttons come back.
+	const [pressed, setPressed] = useState<"retry" | "fresh" | "here" | null>(
+		null,
+	);
+	useEffect(() => {
+		if (!pressed) return;
+		const timer = setTimeout(() => setPressed(null), 15_000);
+		return () => clearTimeout(timer);
+	}, [pressed]);
+	const spinner = (
+		<LuLoaderCircle className="size-3 animate-spin motion-reduce:animate-none" />
+	);
+	return (
+		<>
+			<button
+				type="button"
+				title="Try to reconnect to the host again"
+				disabled={pressed !== null}
+				onClick={() => {
+					setPressed("retry");
+					void sendKeys(["\r"]);
+				}}
+				className={AWS_SIGN_IN_BUTTON}
+			>
+				{pressed === "retry" && spinner}
+				{pressed === "retry" ? "Retrying" : "Retry"}
+			</button>
+			<button
+				type="button"
+				title="End the session's terminal on the host and start Claude there again, resuming this conversation"
+				disabled={pressed !== null}
+				onClick={() => {
+					setPressed("fresh");
+					void sendKeys(["f"]);
+				}}
+				className={AWS_SIGN_IN_BUTTON}
+			>
+				{pressed === "fresh" && spinner}
+				{pressed === "fresh" ? "Starting over" : "Start over on the host"}
+			</button>
+			{host && onMoveToHost && (
+				<MoveToHostButton host={host} onMove={onMoveToHost} stuck />
+			)}
+			{onMoveHere && (
+				<button
+					type="button"
+					title="Copy this conversation (and its code, if the host answers) to this computer and continue it here"
+					disabled={pressed !== null}
+					onClick={() => {
+						setPressed("here");
+						onMoveHere();
+					}}
+					className={AWS_SIGN_IN_BUTTON}
+				>
+					{pressed === "here" && spinner}
+					{pressed === "here" ? "Moving" : "Move to this computer"}
+				</button>
+			)}
+		</>
+	);
+}
+
+/**
+ * The chat view's row once a remote pane stopped reconnecting: what happened
+ * and why on their own lines, the picks in a row below. In one fixed-height
+ * row the wrapped message ran up over the card above it.
+ */
+function ReconnectStoppedRow({
+	line,
+	children,
+}: {
+	line: string;
+	children: ReactNode;
+}) {
+	const { title, reason, retryAt } = stoppedParts(line);
+	return (
+		<div className="flex min-w-0 flex-col gap-2.5 rounded-lg border border-danger/25 bg-danger/[0.05] px-3.5 py-3">
+			<div className="flex min-w-0 items-start gap-2.5">
+				<LuCircleAlert className="mt-0.5 size-3.5 shrink-0 text-danger" />
+				<div className="min-w-0 select-text cursor-text">
+					<div className="text-[12.5px] font-medium text-danger [overflow-wrap:anywhere]">
+						{title}
+					</div>
+					{reason && (
+						<div className="mt-0.5 text-[12px] text-muted-foreground [overflow-wrap:anywhere]">
+							{reason}
+						</div>
+					)}
+					{retryAt && (
+						<div className="mt-0.5 text-[12px] text-muted-foreground">
+							Trying again by itself at {retryAt}.
+						</div>
+					)}
+				</div>
+			</div>
+			<div className="flex flex-wrap items-center gap-2 pl-6">{children}</div>
+		</div>
 	);
 }
 
@@ -2049,8 +2206,11 @@ function ActionItemRow({
 	commands = [],
 	snippets = [],
 	onRun,
+	settled = null,
 }: {
 	item: string;
+	/** Every PR the item names has merged (or closed) since the reply: shown done, no button. */
+	settled?: "MERGED" | "CLOSED" | null;
 	/** The item's own code blocks (a ```sql query), shown under its text. */
 	snippets?: string[];
 	/** The reply's paragraph about this item, shown on hover. */
@@ -2077,6 +2237,19 @@ function ActionItemRow({
 	};
 	const moveHere = useContext(MoveHere);
 	const move = !!moveHere && isMoveHereItem(item);
+	// An item that hands you `!` commands ("Run this to start the replays") is done by running them: asking
+	// Claude instead only gets back "I can't type into your prompt". Answers, approvals and "done" still go to Claude.
+	const runs =
+		!move && !approve && !done && !asks && !!onRun && commands.length > 0;
+	const runAll = async () => {
+		setSent(true);
+		try {
+			for (const command of commands) await onRun?.(command);
+		} catch (error) {
+			setSent(false);
+			toast.error(error instanceof Error ? error.message : String(error));
+		}
+	};
 	return (
 		<li
 			className={cn(
@@ -2089,7 +2262,17 @@ function ActionItemRow({
 			)}
 		>
 			{/* The button leads the row - you scan for it first. Too narrow (zoomed in), it drops under the text so the text keeps the width. */}
-			{isYouOnly(item) ? (
+			{settled ? (
+				<span
+					title="GitHub says this PR is already done, so there is nothing to do"
+					className={cn(
+						"pt-px text-center text-[12px] text-muted-foreground",
+						"w-[64px] @max-md:col-start-2 @max-md:row-start-2",
+					)}
+				>
+					{settled === "MERGED" ? "Merged" : "Closed"}
+				</span>
+			) : isYouOnly(item) ? (
 				buttonColumn && <span className="@max-md:hidden" />
 			) : (
 				<button
@@ -2103,14 +2286,17 @@ function ActionItemRow({
 									? "Send your answer to Claude"
 									: done
 										? "Tell Claude this is done"
-										: "Ask Claude to do this for you"
+										: runs
+											? "Run this item's command in the session"
+											: "Ask Claude to do this for you"
 					}
 					disabled={sent}
 					onClick={() => {
 						if (move) {
 							setSent(true);
 							moveHere?.();
-						} else send(itemReply(item, answer));
+						} else if (runs) void runAll();
+						else send(itemReply(item, answer));
 					}}
 					className={cn(
 						ACTION_BUTTON,
@@ -2122,7 +2308,9 @@ function ActionItemRow({
 					{sent
 						? move
 							? "Moving"
-							: "Sent"
+							: runs
+								? "Started"
+								: "Sent"
 						: move
 							? "Move"
 							: approve
@@ -2137,7 +2325,12 @@ function ActionItemRow({
 			</span>
 			<div className="min-w-0 [overflow-wrap:anywhere]">
 				<ItemDetail detail={detail}>
-					<div className={cn(detail && "cursor-help")}>
+					<div
+						className={cn(
+							detail && "cursor-help",
+							settled && "text-muted-foreground line-through",
+						)}
+					>
 						<MarkdownRenderer
 							content={text}
 							style="default"
@@ -2154,7 +2347,7 @@ function ActionItemRow({
 						className={cn(COMPACT_MARKDOWN, "mt-1 select-text cursor-text")}
 					/>
 				)}
-				{asks && !sent && (
+				{asks && !sent && !settled && (
 					<div className="mt-1.5 flex flex-wrap items-center gap-1.5">
 						{options.map((option) => (
 							<button
@@ -2178,7 +2371,7 @@ function ActionItemRow({
 						/>
 					</div>
 				)}
-				{onRun && commands.length > 0 && (
+				{onRun && commands.length > 0 && !settled && (
 					<RunCommands commands={commands} onRun={onRun} />
 				)}
 			</div>
@@ -2283,6 +2476,16 @@ function ActionItems({
 	const items = entries.filter(
 		({ item }) => !isDismissed(dismissed ?? [], item),
 	);
+	// "Merge PR #12" for a PR you merged before the reply was written: ask
+	// GitHub, and show it done instead of offering to do it again.
+	const prUrls = [
+		...new Set(items.flatMap(({ item }) => itemPullRequests(item))),
+	];
+	const { data: prStates } = electronTrpc.terminal.pullRequestStates.useQuery(
+		{ urls: prUrls },
+		{ enabled: prUrls.length > 0, retry: false, staleTime: 30_000 },
+	);
+	const settled = (item: string) => settledItem(item, prStates ?? undefined);
 	const buttonColumn = !items.every(({ item }) => isYouOnly(item));
 	const homes = commands.map((command) =>
 		commandItem(
@@ -2301,7 +2504,9 @@ function ActionItems({
 		...earlier.filter((_, i) => earlierHomes[i] === index),
 	];
 	const footCommands = onDo && entries.length > 0 ? commandsAt(-1) : commands;
-	const count = onDo ? items.length : actionItemList(text).length;
+	const count = onDo
+		? items.filter(({ item }) => !settled(item)).length
+		: actionItemList(text).length;
 	return (
 		<div
 			data-action-items
@@ -2347,6 +2552,7 @@ function ActionItems({
 							buttonColumn={buttonColumn}
 							commands={commandsAt(number - 1)}
 							onRun={onRun}
+							settled={settled(item)}
 						/>
 					))}
 				</ol>
@@ -2450,10 +2656,18 @@ function RunCommand({
 	const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
 	const note = useContext(CommandNotes)[command];
 	const local = localCommand(command);
-	const shown = local ?? command;
+	const download = downloadPath(command);
+	const view = viewTarget(command);
+	const shown = local ?? download ?? command;
 	// What it does on the button, in Claude's words or read from the
-	// command; the command itself on hover.
-	const label = note ? commandLabel(note) : describeCommand(shown);
+	// command (a download's file name); the command itself on hover.
+	const label = download
+		? (download.replace(/\/+$/, "").split("/").at(-1) ?? download)
+		: view
+			? "the app running on the host"
+			: note
+				? commandLabel(note)
+				: describeCommand(shown);
 	return (
 		<Tooltip delayDuration={300}>
 			<TooltipTrigger asChild>
@@ -2473,24 +2687,42 @@ function RunCommand({
 						);
 					}}
 					aria-label={
-						local
-							? `Run on my computer: ${local}`
-							: `Run in this session: ! ${command}`
+						download
+							? `Download to this computer: ${download}`
+							: view
+								? "View the app running on the host, on this computer"
+								: local
+									? `Run on my computer: ${local}`
+									: `Run in this session: ! ${command}`
 					}
 					className={cn(
 						ACTION_BUTTON,
 						"mt-2 flex max-w-full items-center gap-1.5",
 					)}
 				>
-					<LuSquareTerminal className="size-3.5 shrink-0" />
+					{download ? (
+						<LuDownload className="size-3.5 shrink-0" />
+					) : view ? (
+						<LuMonitor className="size-3.5 shrink-0" />
+					) : (
+						<LuSquareTerminal className="size-3.5 shrink-0" />
+					)}
 					<span className="truncate">
-						{local
+						{download
 							? state === "sent"
-								? "Started on my computer:"
-								: "Run on my computer:"
-							: state === "sent"
-								? "Sent:"
-								: "Run:"}{" "}
+								? "Downloaded:"
+								: "Download:"
+							: view
+								? state === "sent"
+									? "Opened on my computer:"
+									: "View on my computer:"
+								: local
+									? state === "sent"
+										? "Started on my computer:"
+										: "Run on my computer:"
+									: state === "sent"
+										? "Sent:"
+										: "Run:"}{" "}
 						{label}
 					</span>
 				</button>
@@ -2501,7 +2733,7 @@ function RunCommand({
 				className="max-h-[50vh] max-w-[560px] cursor-text select-text overflow-y-auto text-left"
 			>
 				<pre className="whitespace-pre-wrap break-all font-mono text-[11px]">
-					{local ? shown : `! ${command}`}
+					{local || download ? shown : `! ${command}`}
 				</pre>
 				{note && (
 					<MarkdownRenderer
@@ -2512,11 +2744,13 @@ function RunCommand({
 					/>
 				)}
 				<p className="mt-1.5 opacity-70">
-					{local
-						? "Runs in this session's Shell on this computer, where you can watch and stop it. When it ends, its output goes back to Claude."
-						: state === "sent"
-							? "Sent to this session; its output went back to Claude."
-							: "Runs in this session; its output goes back to Claude."}
+					{download
+						? "Copies this file from the remote host to the Downloads folder on this computer, then shows it in Finder."
+						: local
+							? "Runs in this session's Shell on this computer, where you can watch and stop it. When it ends, its output goes back to Claude."
+							: state === "sent"
+								? "Sent to this session; its output went back to Claude."
+								: "Runs in this session; its output goes back to Claude."}
 				</p>
 			</TooltipContent>
 		</Tooltip>
@@ -2727,7 +2961,14 @@ function FoldedReply({
 }) {
 	return (
 		<>
-			<div className={cn(folded && "line-clamp-5")}>{children}</div>
+			{/* While the find bar is open it shows whole, so every match can be seen. */}
+			<div
+				className={cn(
+					folded && "line-clamp-5 [[data-finding]_&]:line-clamp-none",
+				)}
+			>
+				{children}
+			</div>
 			{(folded || foldable) && (
 				<button
 					type="button"
@@ -2741,28 +2982,40 @@ function FoldedReply({
 	);
 }
 
-/** Reads the latest reply out loud - its TL;DR when there is one - or stops. */
-function ReadAloudButton({ id, text }: { id: string; text: string }) {
-	const speaking = useSpeaking((s) => s.id === id);
-	const rate = useReadAloud((s) => s.rate);
-	if (!canSpeak()) return null;
-	const label = speaking ? "Stop reading" : "Read aloud";
+/** Saves a pointer to this reply in My notes; the to-do jumps back to it. */
+function SaveReplyButton({
+	paneId,
+	id,
+	text,
+}: {
+	paneId: string;
+	id: string;
+	text: string;
+}) {
+	const saved = usePaneMeta(
+		(s) => !!s.todosByPane[paneId]?.some((todo) => todo.reply === id),
+	);
+	const label = saved ? "In my to-dos" : "Add this reply to my to-dos";
 	return (
 		<button
 			type="button"
 			title={label}
 			aria-label={label}
-			aria-pressed={speaking}
-			onClick={() => (speaking ? stopSpeaking() : speak(id, text, rate))}
+			disabled={saved}
+			onClick={() =>
+				usePaneMeta
+					.getState()
+					.addTodo(paneId, replyTodoText(text) || "Reply", id)
+			}
 			className={cn(
 				"flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground",
-				speaking && "text-primary",
+				saved && "text-primary hover:bg-transparent hover:text-primary",
 			)}
 		>
-			{speaking ? (
-				<LuSquare className="size-3" />
+			{saved ? (
+				<LuBookmarkCheck className="size-3.5" />
 			) : (
-				<LuVolume2 className="size-3.5" />
+				<LuBookmark className="size-3.5" />
 			)}
 		</button>
 	);
@@ -2860,7 +3113,6 @@ const ItemView = memo(function ItemView({
 	paneId,
 	hideActions = false,
 	tldr,
-	readAloud = null,
 	earlierText,
 }: ItemViewProps) {
 	// A long latest reply opens on its TL;DR; this shows it whole.
@@ -2914,7 +3166,13 @@ const ItemView = memo(function ItemView({
 	// `!local` is for a session on the remote host: in one running here, its
 	// Run on my computer is the same computer, and only adds a button.
 	const runnable = (text: string) =>
-		bangCommands(text).filter((command) => remote || !localCommand(command));
+		bangCommands(text).filter(
+			(command) =>
+				remote ||
+				(!localCommand(command) &&
+					!downloadPath(command) &&
+					!viewTarget(command)),
+		);
 	const commands = onRun ? runnable(item.text) : [];
 	const earlier = onRun && earlierText ? runnable(earlierText) : [];
 	const notes = onRun
@@ -2929,7 +3187,11 @@ const ItemView = memo(function ItemView({
 	const toggleFull = () => setFull((value) => !value);
 	return (
 		<CommandNotes.Provider value={notes}>
-			<div ref={rootRef} className="select-text cursor-text">
+			<div
+				ref={rootRef}
+				data-reply-id={item.id}
+				className="select-text cursor-text rounded-md transition-colors duration-700"
+			>
 				{body && (
 					<FoldedReply
 						foldable={fold && placement === "action-items"}
@@ -2948,7 +3210,9 @@ const ItemView = memo(function ItemView({
 				)}
 				<div className="mt-0.5 flex items-center gap-2">
 					<MessageTime at={item.at} />
-					{readAloud && <ReadAloudButton id={item.id} text={readAloud} />}
+					{paneId && body && (
+						<SaveReplyButton paneId={paneId} id={item.id} text={body} />
+					)}
 				</div>
 				{placement === "card" && shown && (
 					<TldrCard tldr={shown} full={full} onToggle={toggleFull} />
@@ -3184,6 +3448,8 @@ export function ChatView({
 	const screenText = onShowTerminal && !prompt ? screen.data?.text : null;
 	// A remote session reaching the host: the transcript says nothing until it's there.
 	const connecting = screenText ? remoteConnectLine(screenText) : undefined;
+	// The helper gave up reconnecting and waits on a pick: no spinner, actions.
+	const stopped = reconnectStopped(connecting);
 	// Its connect steps, read off the screen: Claude drawn after the connect
 	// line is connected; the pane ending, or Claude gone from it, after that is
 	// disconnected.
@@ -3287,8 +3553,8 @@ export function ChatView({
 		);
 	}, [working, screenText, screenAt]);
 	const liveSteps = useMemo(
-		() => unrecordedSteps(settled.shown, turn.items, turn.prompt),
-		[settled.shown, turn.items, turn.prompt],
+		() => unrecordedSteps(settled.shown, turn.onScreen, turn.prompt),
+		[settled.shown, turn.onScreen, turn.prompt],
 	);
 	// The lines as one reply, each paragraph once: the same words twice on
 	// screen are one line scrolled.
@@ -3472,6 +3738,25 @@ export function ChatView({
 	// started.
 	const runCommand = useCallback(
 		async (command: string) => {
+			const download = downloadPath(command);
+			if (download) {
+				const { path } =
+					await electronTrpcClient.remoteHost.downloadFromHost.mutate({
+						host: useTabsStore.getState().panes[paneId]?.odinRemote,
+						path: download,
+					});
+				toast.success(`Downloaded to ${path}`);
+				return;
+			}
+			const view = viewTarget(command);
+			if (view) {
+				toast.info("Opening the app in Screen Sharing…");
+				await electronTrpcClient.remoteHost.viewOnMac.mutate({
+					host: useTabsStore.getState().panes[paneId]?.odinRemote,
+					...view,
+				});
+				return;
+			}
 			const local = localCommand(command);
 			if (!local) return runInClaude(command);
 			const run = await electronTrpcClient.terminal.startLocalRun.mutate({
@@ -3510,17 +3795,16 @@ export function ChatView({
 	// mid-turn the latest reply is a moving target - and shown only while the
 	// brief read this very reply: a newer one makes it a wrong TL;DR, so the
 	// card waits for the brief that catches up.
-	const { data: brief, isError: briefError } =
-		electronTrpc.terminal.summarizeClaudeSession.useQuery(
-			{ sessionId: sessionId ?? "", settled: true },
-			{
-				enabled: !!sessionId && !!lastText && !working,
-				retry: false,
-				staleTime: 30_000,
-				refetchInterval: (query) =>
-					sameReply(lastText?.at, query.state.data?.replyAt) ? false : 15_000,
-			},
-		);
+	const { data: brief } = electronTrpc.terminal.summarizeClaudeSession.useQuery(
+		{ sessionId: sessionId ?? "", settled: true },
+		{
+			enabled: !!sessionId && !!lastText && !working,
+			retry: false,
+			staleTime: 30_000,
+			refetchInterval: (query) =>
+				sameReply(lastText?.at, query.state.data?.replyAt) ? false : 15_000,
+		},
+	);
 	// Measured without its ACTION ITEMS: those show in their own card.
 	const fresh = freshTldr(
 		lastText && { ...lastText, text: splitActionItems(lastText.text).body },
@@ -3528,16 +3812,6 @@ export function ChatView({
 	);
 	// Whether it is shown is ItemView's call: only a reply taller than the view gets one.
 	const tldr = shownTldr(fresh, { working, tldrOnly });
-	// What Odin says for the latest reply: its TL;DR, else the reply itself.
-	// Not mid-turn: the latest reply is still being written.
-	const readAloud =
-		!working && lastText
-			? spokenText(tldr?.last, splitActionItems(lastText.text).body)
-			: null;
-	// The brief has said whether this reply has a TL;DR (it failed, or it read
-	// this very reply): the auto read waits for that before falling back.
-	const briefSettled =
-		briefError || (!!brief && sameReply(lastText?.at, brief.replyAt));
 	// Agents repeat their ACTION ITEMS in every reply; show one card, on the
 	// latest reply that has it, also while Claude works on the next one.
 	const actionsId = lastActionsId(items);
@@ -3551,29 +3825,6 @@ export function ChatView({
 	const firstIdsRef = useRef<Set<string> | null>(null);
 	if (firstIdsRef.current === null && items.length > 0)
 		firstIdsRef.current = new Set(items.map((item) => item.id));
-	// Settings > Sessions > "Read replies aloud": a reply that finishes while
-	// this view is open is said once, its TL;DR when the brief has one. The
-	// reply already finished when the view opened stays quiet; one still being
-	// written then is read when it is done.
-	const readAloudOn = useReadAloud((s) => s.enabled);
-	const speechRate = useReadAloud((s) => s.rate);
-	const quietIdRef = useRef<string | null | undefined>(undefined);
-	if (quietIdRef.current === undefined && items.length > 0)
-		quietIdRef.current = working ? null : (lastTextId ?? null);
-	const spokenIdRef = useRef<string | null>(null);
-	const autoText = readAloudOn && (!!tldr || briefSettled) ? readAloud : null;
-	useEffect(() => {
-		if (!autoText || !lastTextId) return;
-		if (lastTextId === quietIdRef.current) return;
-		if (lastTextId === spokenIdRef.current) return;
-		spokenIdRef.current = lastTextId;
-		speak(lastTextId, autoText, speechRate);
-	}, [autoText, lastTextId, speechRate]);
-	// Your turn: Odin stops talking. So does closing the view.
-	useEffect(() => {
-		if (working) stopSpeaking();
-	}, [working]);
-	useEffect(() => stopSpeaking, []);
 	// Follow new output only while you're at the bottom - scrolling up to read
 	// shouldn't get yanked back every second.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: items/pending are the trigger - new rows change scrollHeight
@@ -3592,6 +3843,32 @@ export function ChatView({
 			if (!loaded) fromBottomRef.current = null;
 		});
 	};
+	// A to-do saved from a reply jumps back to it: scroll there, loading
+	// earlier turns until it is in the list, and flash it.
+	const jumpTo = useReplyJump((s) => s.byPane[paneId]);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: items is the trigger - an earlier load may bring the reply in
+	useEffect(() => {
+		const el = scrollRef.current;
+		if (!jumpTo || !el) return;
+		const row = el.querySelector<HTMLElement>(
+			`[data-reply-id="${CSS.escape(jumpTo)}"]`,
+		);
+		if (row) {
+			useReplyJump.getState().clear(paneId);
+			pinnedRef.current = false;
+			row.scrollIntoView({ block: "start", behavior: "smooth" });
+			row.classList.add("bg-primary/10");
+			setTimeout(() => row.classList.remove("bg-primary/10"), 1500);
+		} else if (hasEarlier) {
+			if (fromBottomRef.current === null) {
+				pinnedRef.current = false;
+				fetchEarlier();
+			}
+		} else if (items.length > 0) {
+			useReplyJump.getState().clear(paneId);
+			toast("That reply is no longer in this conversation");
+		}
+	}, [jumpTo, items, hasEarlier]);
 	// A window too short to scroll gives no scroll to load more on.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: items is the trigger - rows change scrollHeight
 	useEffect(() => {
@@ -3609,6 +3886,16 @@ export function ChatView({
 	// Rows also grow after they mount (code blocks, images, markdown), so a
 	// switched-to session would stop short of the bottom; follow that too.
 	const contentRef = useRef<HTMLDivElement>(null);
+	const rootRef = useRef<HTMLDivElement>(null);
+	const find = useChatFind({
+		root: rootRef,
+		content: contentRef,
+		scroll: scrollRef,
+		trigger: items,
+		onReveal: () => {
+			pinnedRef.current = false;
+		},
+	});
 	useEffect(() => {
 		const el = scrollRef.current;
 		const content = contentRef.current;
@@ -3642,6 +3929,8 @@ export function ChatView({
 		<MoveHere.Provider value={onMoveHere}>
 			{/* biome-ignore lint/a11y/noStaticElementInteractions: Page Up/Down from the composer jump the conversation to its top/bottom; a file dropped anywhere on it attaches */}
 			<div
+				ref={rootRef}
+				data-finding={find.open || undefined}
 				className="flex min-h-0 flex-1 flex-col"
 				onDragOver={(event) => {
 					if (!dropRef.current || !event.dataTransfer.types.includes("Files"))
@@ -3670,6 +3959,7 @@ export function ChatView({
 					el.scrollTop = top ? 0 : el.scrollHeight;
 				}}
 			>
+				{find.bar}
 				<div
 					ref={scrollRef}
 					data-chat-scroll
@@ -3706,10 +3996,30 @@ export function ChatView({
 					className="min-h-0 flex-1 overflow-y-auto px-8 py-6 [scrollbar-gutter:stable]"
 				>
 					<div ref={contentRef} className="flex flex-col gap-2.5">
-						{starting ? (
+						{starting && stopped && connecting ? (
+							<ReconnectStoppedRow line={connecting}>
+								<ReconnectStoppedActions
+									host={host}
+									sendKeys={sendKeys}
+									onMoveToHost={onMoveToHost}
+									onMoveHere={onMoveHere}
+								/>
+								{!noTerminal && (
+									<button
+										type="button"
+										onClick={onShowTerminal}
+										className="px-1 text-[11.5px] text-muted-foreground hover:text-foreground"
+									>
+										Show terminal
+									</button>
+								)}
+							</ReconnectStoppedRow>
+						) : starting ? (
 							<div className="flex items-center gap-3 text-[12.5px] text-working">
 								<WorkingMark />
-								{connecting ?? "Starting session…"}
+								<span className="select-text cursor-text">
+									{connecting ?? "Starting session…"}
+								</span>
 								{awaitsAwsSignIn(connecting) && (
 									<AwsSignInButton onClick={() => void sendKeys(["\r"])} />
 								)}
@@ -3787,7 +4097,6 @@ export function ChatView({
 											segment.id === actionsId ? earlierText : undefined
 										}
 										tldr={segment.id === lastTextId ? tldr : null}
-										readAloud={segment.id === lastTextId ? readAloud : null}
 										onRun={
 											// Only a live PTY runs a ! command; a resume or the raven's send can't.
 											onShowTerminal && !onSend ? runCommand : undefined
@@ -3850,6 +4159,20 @@ export function ChatView({
 										setPending((list) =>
 											list.filter((other) => other.id !== sent.id),
 										)
+									}
+									// Its attachments were pasted, not written in the text:
+									// a resend would drop them.
+									onResend={
+										sent.lost &&
+										!sent.previews?.length &&
+										(onShowTerminal || onResumeWith)
+											? () => {
+													setPending((list) =>
+														list.filter((other) => other.id !== sent.id),
+													);
+													sendToClaude(sent.text);
+												}
+											: undefined
 									}
 								/>
 							);
@@ -3985,9 +4308,28 @@ export function ChatView({
 								</button>
 							</div>
 						)}
-						{connecting && !starting && (
+						{connecting && !starting && stopped && (
+							<ReconnectStoppedRow line={connecting}>
+								<ReconnectStoppedActions
+									host={host}
+									sendKeys={sendKeys}
+									onMoveToHost={onMoveToHost}
+									onMoveHere={onMoveHere}
+								/>
+								{!noTerminal && (
+									<button
+										type="button"
+										onClick={onShowTerminal}
+										className="px-1 text-[11.5px] text-muted-foreground hover:text-foreground"
+									>
+										Show terminal
+									</button>
+								)}
+							</ReconnectStoppedRow>
+						)}
+						{connecting && !starting && !stopped && (
 							// A resumed remote session: its old turns are above, the host isn't reached yet.
-							<div className="flex h-7 items-center gap-3 text-[12.5px] text-working">
+							<div className="flex min-h-7 items-center gap-3 text-[12.5px] text-working">
 								<WorkingMark />
 								<span className="select-text cursor-text">{connecting}</span>
 								{awaitsAwsSignIn(connecting) && (
@@ -4152,6 +4494,7 @@ export function ChatView({
 								dropRef={dropRef}
 								dragging={dragging}
 								filesCwd={startCwd ?? cwd}
+								model={transcript?.usage?.model}
 							/>
 						)}
 					</>
@@ -4167,6 +4510,7 @@ export function ChatView({
 						dropRef={dropRef}
 						dragging={dragging}
 						filesCwd={startCwd ?? cwd}
+						model={transcript?.usage?.model}
 					/>
 				) : (
 					<div className="border-t border-border px-5 py-2 text-center text-[11.5px] text-muted-foreground">
@@ -4335,6 +4679,7 @@ function Composer({
 	dropRef,
 	dragging,
 	filesCwd,
+	model,
 }: {
 	paneId: string;
 	working: boolean;
@@ -4351,6 +4696,8 @@ function Composer({
 	dragging: boolean;
 	/** The session's checkout: `@` lists its files. */
 	filesCwd?: string | null;
+	/** The model of the session's latest reply; none before its first. */
+	model?: string;
 }) {
 	const [draft, setDraft] = useState(() => draftFor(paneId));
 	// Saved once typing pauses, and on the way out: a save rewrites every
@@ -4495,20 +4842,32 @@ function Composer({
 		setSelected(0);
 	};
 	useEffect(() => inputRef.current?.focus(), []);
-	const send = async (now = false) => {
-		const body = draft.trim();
-		const sending = bash ? [] : attached;
+	// The picker's choice until a reply on the new model shows it.
+	const [pickedModel, setPickedModel] = useState<string | null>(null);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: a new reply's model is the trigger
+	useEffect(() => setPickedModel(null), [model]);
+	// `command` (the model picker's /model) goes as it is, and leaves the
+	// draft and its attachments in the box.
+	const send = async (now = false, command?: string) => {
+		const body = command ?? draft.trim();
+		const sending = bash || command ? [] : attached;
 		if (!body && sending.length === 0) return;
 		// Not in bash mode: the note would run as part of the command.
-		const text = bash ? `!${body}` : withDismissals(paneId, body);
-		if (bash) sentAsBash.add(body);
-		setDraft("");
-		// Now, not via the effect: sending can remount this box (a resume, a
-		// menu), and the new one would read the sent text back as a draft.
-		savedDraft.current = "";
-		useChatDrafts.getState().save(paneId, "");
-		setBash(false);
-		if (!bash) setAttached([]);
+		const text = command
+			? command
+			: bash
+				? `!${body}`
+				: withDismissals(paneId, body);
+		if (!command) {
+			if (bash) sentAsBash.add(body);
+			setDraft("");
+			// Now, not via the effect: sending can remount this box (a resume, a
+			// menu), and the new one would read the sent text back as a draft.
+			savedDraft.current = "";
+			useChatDrafts.getState().save(paneId, "");
+			setBash(false);
+			if (!bash) setAttached([]);
+		}
 		const paths = await Promise.all(sending.map((item) => item.path));
 		// On its way here: its files stay here, and it goes with the resume.
 		// Even when the box offers a resume: the move kills the host's Claude
@@ -4572,9 +4931,11 @@ function Composer({
 			await pasteAttachments(write.mutateAsync, paneId, paths);
 			await typeIntoClaude(write.mutateAsync, paneId, text, now);
 		} catch (error) {
-			setDraft(body);
-			setBash(bash);
-			setAttached(sending);
+			if (!command) {
+				setDraft(body);
+				setBash(bash);
+				setAttached(sending);
+			}
 			sendFailedToast(error);
 		}
 	};
@@ -4763,6 +5124,34 @@ function Composer({
 							<LuSquareTerminal className="size-3.5" />
 							Terminal View
 						</button>
+					)}
+					{model && (
+						<select
+							aria-label="Model"
+							title={
+								onResume
+									? `Ran on ${model}. Resume the session to change it.`
+									: working
+										? `Runs on ${model}. Change it once this turn is over.`
+										: `Runs on ${model}. Pick another and Odin sends /model to the session - Claude Code also keeps it as the default for new sessions.`
+							}
+							disabled={working || !!onResume}
+							value={pickedModel ?? modelAlias(model)}
+							onChange={(event) => {
+								setPickedModel(event.target.value);
+								void send(false, `/model ${event.target.value}`);
+							}}
+							className="h-6 shrink-0 cursor-pointer rounded-md bg-foreground/10 pl-1.5 pr-1 text-[11px] text-muted-foreground outline-none [color-scheme:inherit] hover:text-foreground disabled:cursor-default disabled:opacity-60"
+						>
+							{!CHAT_MODELS.some((o) => o.value === modelAlias(model)) && (
+								<option value={model}>{model}</option>
+							)}
+							{CHAT_MODELS.map((option) => (
+								<option key={option.value} value={option.value}>
+									{option.label}
+								</option>
+							))}
+						</select>
 					)}
 					{bash ? (
 						<span className="text-[11px] text-pink-500">

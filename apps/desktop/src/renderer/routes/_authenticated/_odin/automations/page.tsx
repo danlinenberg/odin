@@ -41,6 +41,7 @@ import {
 	dueLabel,
 	isDue,
 	isNote,
+	type Reminder,
 	useReminders,
 } from "../components/Reminders";
 import { matchRepos, repoLabel } from "../components/repo-picker";
@@ -736,33 +737,24 @@ function RemindersPanel() {
 					>
 						<div className="flex items-start gap-3">
 							<div className="min-w-0 flex-1">
+								{/* Selectable and whole (the app is select-none), so a
+								    command written into a reminder can be copied out. */}
 								<span
 									dir="auto"
-									className="block truncate text-[13px] font-semibold text-foreground"
+									className="block cursor-text select-text whitespace-pre-wrap break-words text-[13px] font-semibold text-foreground"
 								>
 									{r.title}
 								</span>
 								{r.resume?.brief && (
 									<span
 										dir="auto"
-										className="mt-1 block truncate text-[11.5px] text-muted-foreground"
+										className="mt-1 block cursor-text select-text truncate text-[11.5px] text-muted-foreground"
 									>
 										{r.resume.brief.replace(/\s+/g, " ")}
 									</span>
 								)}
 								<div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
-									<span
-										className={cn(
-											"rounded-[5px] px-[7px] py-[1px] font-semibold",
-											isDue(r.due, now, r.at)
-												? PILL.attention
-												: "bg-secondary text-muted-foreground",
-										)}
-									>
-										{isDue(r.due, now, r.at)
-											? `Due ${dueLabel(r.due, now)} - on the board`
-											: `${dueLabel(r.due, now)} at ${r.at ?? notifyAt}`}
-									</span>
+									<WhenChip itemKey={key} reminder={r} />
 									<span className={ROW_META}>
 										{r.resume
 											? r.resume.cwd.split("/").pop()
@@ -844,6 +836,71 @@ function RemindersPanel() {
 				))}
 			</div>
 		</>
+	);
+}
+
+/**
+ * When a reminder fires, as a chip. Click it to change the day or the time in
+ * place, with the same day field and hour and minute menus as the box above.
+ * A new day or time arms it again, like Move does.
+ */
+function WhenChip({
+	itemKey,
+	reminder,
+}: {
+	itemKey: string;
+	reminder: Reminder;
+}) {
+	const notifyAt = useReminders((s) => s.notifyAt);
+	const setReminder = useReminders((s) => s.setReminder);
+	const [editing, setEditing] = useState(false);
+	const now = Date.now();
+	const at = reminder.at ?? notifyAt;
+	if (editing)
+		return (
+			<span className="flex items-center gap-1.5">
+				<input
+					type="date"
+					aria-label="Day"
+					value={reminder.due}
+					min={dayOf(now)}
+					onChange={(event) =>
+						event.target.value &&
+						setReminder(itemKey, { ...reminder, due: event.target.value })
+					}
+					style={{ colorScheme: "dark" }}
+					className={FIELD}
+				/>
+				<span className="text-muted-foreground">at</span>
+				<TimeFields
+					time={at}
+					onChange={(time) => setReminder(itemKey, { ...reminder, at: time })}
+				/>
+				<button
+					type="button"
+					title="Close - the new day and time are already saved"
+					onClick={() => setEditing(false)}
+					className="rounded-[5px] px-[7px] py-[1px] font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
+				>
+					OK
+				</button>
+			</span>
+		);
+	const due = isDue(reminder.due, now, reminder.at);
+	return (
+		<button
+			type="button"
+			title="Change the day or time"
+			onClick={() => setEditing(true)}
+			className={cn(
+				"cursor-pointer rounded-[5px] px-[7px] py-[1px] font-semibold transition-colors hover:text-foreground",
+				due ? PILL.attention : "bg-secondary text-muted-foreground",
+			)}
+		>
+			{due
+				? `Due ${dueLabel(reminder.due, now)} - on the board`
+				: `${dueLabel(reminder.due, now)} at ${at}`}
+		</button>
 	);
 }
 

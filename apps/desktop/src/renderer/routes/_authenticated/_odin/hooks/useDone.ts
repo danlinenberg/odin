@@ -43,6 +43,24 @@ export function endSession(paneId: string) {
 }
 
 /**
+ * Done on a ClickUp task closes it in ClickUp too (its list's closed or done
+ * status). One way: Undo, or Done taken back, leaves ClickUp as it is. When
+ * ClickUp can't be updated the row stays Done in Odin and a toast says so.
+ */
+export function closeInClickup(key: string, title: string) {
+	if (!key.startsWith("clickup:")) return;
+	electronTrpcClient.work.closeClickupTask
+		.mutate({ id: key.slice("clickup:".length) })
+		.catch((error: unknown) =>
+			toast.error(`ClickUp wasn't updated - ${title.slice(0, 60)}`, {
+				description: `Done in Odin only. ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			}),
+		);
+}
+
+/**
  * Done - the one way a row leaves a feed. From any feed, Next in line or a
  * Review drop, it's the same list, so a row put away in one place is gone
  * from all of them, and All tasks' Done list can bring it back.
@@ -66,6 +84,8 @@ export function useDone() {
 					}
 				: null,
 		);
+		// A ClickUp task is finished in ClickUp too; reading material isn't.
+		if (on && !reading) closeInClickup(item.key, item.title);
 		// Slack has a Done of its own (Odin-only, shared with the Slack feed).
 		if (item.key.startsWith("slack:"))
 			slackDone.mutate({ id: item.key.slice("slack:".length), done: on });

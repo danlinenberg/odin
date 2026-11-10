@@ -25,6 +25,7 @@ import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { openUrl } from "renderer/stores/in-app-browser";
+import { useReplyJump } from "renderer/stores/reply-jump";
 import { PILL } from "../components/pill";
 import {
 	type BriefLink,
@@ -217,6 +218,16 @@ function MyTodo({
 					)}
 				>
 					{todo.text}
+				</button>
+			)}
+			{todo.reply && !editing && (
+				<button
+					type="button"
+					title="Go to the reply this was saved from"
+					onClick={() => useReplyJump.getState().jump(paneId, todo.reply ?? "")}
+					className="mt-[1px] shrink-0 text-[11px] text-link hover:underline"
+				>
+					Go to reply
 				</button>
 			)}
 			<button
@@ -1280,7 +1291,7 @@ export function SessionBrief({
 
 	return (
 		<div className="flex w-[340px] shrink-0 flex-col border-l border-border bg-tertiary">
-			<div className="flex items-center gap-2 border-b border-border px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
+			<div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-4 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
 				<span className="rounded bg-primary/15 px-1.5 py-0.5 normal-case tracking-normal text-primary">
 					ⓘ Brief
 				</span>

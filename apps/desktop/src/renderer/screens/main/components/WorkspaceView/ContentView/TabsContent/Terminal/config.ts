@@ -31,6 +31,8 @@ export const TERMINAL_OPTIONS: ITerminalOptions = {
 	scrollback: DEFAULT_TERMINAL_SCROLLBACK,
 	// Allow Option+key to type special characters on international keyboards (e.g., Option+2 = @)
 	macOptionIsMeta: false,
+	// Option+drag selects even while the app (Claude Code) has the mouse.
+	macOptionClickForcesSelection: true,
 	cursorStyle: "block",
 	cursorInactiveStyle: "outline",
 	vtExtensions: { kittyKeyboard: true },

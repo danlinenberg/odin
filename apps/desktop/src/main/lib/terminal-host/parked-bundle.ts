@@ -44,3 +44,28 @@ export async function daemonParkedBundle(
 		return null;
 	}
 }
+
+async function designatedRequirement(bundle: string): Promise<string | null> {
+	try {
+		const { stdout } = await promisify(execFile)(
+			"codesign",
+			["-d", "-r-", bundle],
+			{ encoding: "utf8", timeout: 5000 },
+		);
+		return stdout.match(/^(?:# )?designated => (.*)$/m)?.[1] ?? null;
+	} catch {
+		return null;
+	}
+}
+
+/** macOS keeps one folder grant per bundle ID, so two signatures revoke each other's on every Allow. */
+export async function signedUnlike(
+	parked: string,
+	installed: string,
+): Promise<boolean> {
+	const [a, b] = await Promise.all([
+		designatedRequirement(parked),
+		designatedRequirement(installed),
+	]);
+	return !!a && !!b && a !== b;
+}

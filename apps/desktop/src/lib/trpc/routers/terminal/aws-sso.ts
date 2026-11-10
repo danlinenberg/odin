@@ -4,6 +4,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { shell } from "electron";
+import { awsProfileFor } from "main/lib/remote-host/aws-profile";
 import { awsClientConfig } from "main/lib/remote-host/ssm";
 
 /** Claude Code on Bedrock names its AWS profile in its settings' env, or the shell does. */
@@ -249,13 +250,15 @@ function runSsoLogin(profile: string | null): SsoLogin {
 		if (ready) return { profile };
 		const configFile =
 			process.env.AWS_CONFIG_FILE ?? join(homedir(), ".aws", "config");
+		// No profile named and no [default]: the profile the SDK fell back to.
+		const named = awsProfileFor(profile) ?? null;
 		const sso = ssoConfig(
 			await readFile(configFile, "utf8").catch(() => ""),
-			profile,
+			named,
 		);
 		if (!sso)
 			throw new Error(
-				`The AWS profile ${profile ?? "default"} has no SSO sign-in in ${configFile}.`,
+				`The AWS profile ${named ?? "default"} has no SSO sign-in in ${configFile}.`,
 			);
 		await deviceSignIn(sso, (url) => {
 			gotLink(url);

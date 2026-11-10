@@ -10,8 +10,10 @@ import {
 	odinActivity,
 	odinScreenStatus,
 	odinScreenWrite,
+	reconnectStopped,
 	remoteConnectLine,
 	spacesForCursorForward,
+	stoppedParts,
 } from "./odin-screen-status";
 
 // The screens below are trimmed from real Claude Code sessions.
@@ -348,12 +350,48 @@ describe("remote session connecting", () => {
 		);
 	});
 
+	it("reads a connect line the pane wrapped at a space", () => {
+		const wrapped =
+			"Odin: Stopped reconnecting to i-0abc123 after 6 tries: the host closed\n the connection before the login finished.\n";
+		expect(remoteConnectLine(wrapped)).toBe(
+			"Stopped reconnecting to i-0abc123 after 6 tries: the host closed the connection before the login finished.",
+		);
+	});
+
+	it("keeps the space at the end of a row the pane wrapped at a space", () => {
+		const wrapped =
+			"Odin: could not reconnect: logging in to i-0abc123 timed out - trying \nagain in 63s (press R to reboot i-0abc123)\n";
+		expect(remoteConnectLine(wrapped)).toBe(
+			"Could not reconnect: logging in to i-0abc123 timed out - trying again in 63s (press R to reboot i-0abc123)",
+		);
+	});
+
 	it("still reads a pane that has retried until its first line scrolled away as connecting", () => {
 		const retry =
 			"Odin: could not reconnect: Timed out while waiting for handshake - trying again in 10s\n\n";
 		expect(remoteConnectLine(retry.repeat(8))).toBe(
 			"Could not reconnect: Timed out while waiting for handshake - trying again in 10s",
 		);
+	});
+
+	it("reads the stopped state the helper ends in after its tries, not the last reconnecting line", () => {
+		const screen = [
+			"Odin: connection lost - reconnecting to i-0abc123...",
+			"",
+			"Odin: could not attach: exit 1 - trying again in 5s",
+			"",
+			"Odin: Stopped reconnecting to i-0abc123 after 6 tries: could not attach: exit 1.",
+			"  Press Enter to try again, F to start Claude over on the host (it resumes this conversation), or R to reboot the host.",
+			"",
+		].join("\n");
+		const line = remoteConnectLine(screen);
+		expect(line).toBe(
+			"Stopped reconnecting to i-0abc123 after 6 tries: could not attach: exit 1.",
+		);
+		expect(reconnectStopped(line)).toBe(true);
+		expect(
+			reconnectStopped("Connection lost - reconnecting to i-0abc123..."),
+		).toBe(false);
 	});
 
 	it("reads a dropped connection under Claude's old screen as connecting", () => {
@@ -469,5 +507,33 @@ describe("blockedOnAwsSignIn", () => {
 			"\nOdin: Still blocked: the AWS sign-in was not approved, so this session is not connected.\n";
 		expect(blockedOnAwsSignIn(remoteConnectLine(screen))).toBe(false);
 		expect(blockedOnAwsSignIn(undefined)).toBe(false);
+	});
+});
+
+describe("stoppedParts", () => {
+	it("splits the stopped line into what happened and why", () => {
+		expect(
+			stoppedParts(
+				"Stopped reconnecting to i-0abc123 after 6 tries: could not reconnect: logging in to i-0abc123 timed out.",
+			),
+		).toEqual({
+			title: "Stopped reconnecting to i-0abc123 after 6 tries",
+			reason: "Logging in to i-0abc123 timed out.",
+		});
+	});
+
+	it("keeps a line it does not know whole", () => {
+		expect(
+			stoppedParts(
+				"Stopped reconnecting to i-0abc123 after 7 tries (trying again by itself at 14:35): could not reconnect: logging in to i-0abc123 timed out.",
+			),
+		).toEqual({
+			title: "Stopped reconnecting to i-0abc123 after 7 tries",
+			reason: "Logging in to i-0abc123 timed out.",
+			retryAt: "14:35",
+		});
+		expect(stoppedParts("Stopped reconnecting")).toEqual({
+			title: "Stopped reconnecting",
+		});
 	});
 });

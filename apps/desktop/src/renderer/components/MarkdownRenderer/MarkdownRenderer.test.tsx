@@ -6,6 +6,7 @@ import { SafeImage } from "./components";
 import {
 	keepAttachmentUrls,
 	rehypeAutoDir,
+	remarkPlugins,
 	sanitizeSchema,
 } from "./MarkdownRenderer";
 
@@ -56,4 +57,14 @@ test("each text block picks its own direction, code stays left-to-right", () => 
 	expect(html).toContain('<ul dir="auto">');
 	expect(html).toContain('<li dir="auto">');
 	expect(html).toContain("<pre><code>");
+});
+
+test("a single tilde stays text, a double tilde still strikes", () => {
+	const html = renderToStaticMarkup(
+		<ReactMarkdown remarkPlugins={remarkPlugins}>
+			{"~$10k/mo and (~$14k/mo), ~~gone~~"}
+		</ReactMarkdown>,
+	);
+	expect(html).toContain("~$10k/mo and (~$14k/mo)");
+	expect(html).toContain("<del>gone</del>");
 });

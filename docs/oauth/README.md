@@ -53,7 +53,8 @@ manifest*, then paste:
         "groups:history",
         "im:history",
         "mpim:history",
-        "files:read"
+        "files:read",
+        "search:read"
       ]
     }
   },
@@ -246,16 +247,47 @@ secret iCal address, and a build without the Google app shows that form first.
 ## Distributing Odin
 
 The credentials above are compiled into the build, which is right for your own
-machine and for colleagues. A public release is different: anyone with the
-bundle can `grep` the secret out, because Slack and Notion both require one at
-the exchange and neither offers PKCE, so the app has nowhere to hide it.
-
-That is not solved here, deliberately - keeping a secret out of a build means
-running something that holds it, and a service is more than this is worth.
-Two other things block a public release anyway: builds are signed with a
-self-signed certificate and not notarized, so a downloaded app is quarantined
-and Gatekeeper refuses it; and Odin is private - LICENSE.md grants nothing to
-anyone the copyright holder has not handed a copy to.
+workspace. Anyone with the bundle can `grep` the secret out, because Slack and
+Notion both require one at the exchange and neither offers PKCE, so the app has
+nowhere to hide it.
 
 GitHub is the exception: its device flow has no client secret at all, so that
 client id is safe to ship as-is.
+
+### Odin in another Slack workspace
+
+Create a Slack app in that workspace from the manifest above and put its three
+values in `~/.config/odin.json`. A workspace's own app is an internal app to
+Slack, so it gets the normal `conversations.history` and
+`conversations.replies` limits and needs no review.
+
+Do not install the shared Odin app into other workspaces. Since May 29, 2025
+Slack limits a distributed app that is not on the Slack Marketplace to 1
+request per minute and 15 messages per call on those two methods, on every new
+install outside the workspace that owns the app. The backlog sweep and a
+session's thread read would stall at that rate.
+
+### Why Odin is not on the Slack Marketplace
+
+Slack's Marketplace review blocks it today, for these reasons:
+
+- **Installs.** Slack accepts a submission only after the app is installed in
+  10 or more workspaces that were active in the past 28 days.
+- **Scopes.** Slack is unlikely to approve `search:read`, and `*:history` and
+  `files:read` get an enhanced review that asks for a Real-time Search or MCP
+  style use case. Odin needs all of them: history for the sweep, files for
+  screenshots in a thread, and search for your own messages (Your voice).
+- **Value in Slack.** Slack rejects apps that "do not include functionality in
+  Slack". Odin does its work in the desktop app, not in Slack.
+- **Secrets.** Slack's security rules say credentials must never be in
+  client-side code. Passing review needs the code exchange moved into a server
+  that holds the secret.
+- **Listing.** A listing also needs a support email or contact form that does
+  not need a GitHub account, with a reply within 2 business days, a privacy
+  policy with a Slack data section (what is read, how long it is kept, how to
+  delete it, and which LLM sees it), an Add to Slack URL that returns a 302 to
+  `slack.com/oauth/v2/authorize` (GitHub Pages cannot do that), 1600x1000
+  screenshots, and a demo video of install, use and uninstall.
+
+The first three are not fixable with code. Until they change, use one Slack app
+per workspace, as above.

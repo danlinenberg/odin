@@ -18,6 +18,7 @@ import {
 } from "@aws-sdk/client-ssm";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import { ODIN_HOME_DIR } from "../app-environment";
+import { awsProfileFor, localProfileRegion } from "./aws-profile";
 
 /**
  * SSH to an EC2 instance through AWS Systems Manager: no open port, no public
@@ -29,9 +30,15 @@ import { ODIN_HOME_DIR } from "../app-environment";
 
 export interface SsmTarget {
 	instanceId: string;
+	/** The host's name in Odin (its Name tag), shown to the user instead of the id. */
+	name?: string | null;
 	profile?: string | null;
 	region?: string | null;
 }
+
+/** How a host is named to the user: its name, else its instance id. */
+export const hostLabel = (host: { name?: string | null; instanceId: string }) =>
+	host.name || host.instanceId;
 
 export const SSM_PLUGIN_VERSION = "1.2.896.0";
 
@@ -64,13 +71,17 @@ export function awsClientConfig(target: {
 	profile?: string | null;
 	region?: string | null;
 }) {
+	// No profile picked and no [default] in the AWS config: the config's
+	// first profile, which also lends its region when none was given.
+	const profile = awsProfileFor(target.profile);
 	return {
-		region: target.region || undefined,
+		region:
+			target.region || (profile && localProfileRegion(profile)) || undefined,
 		// ignoreCache: the SDK keeps ~/.aws/config in memory for the life of
 		// the process, so a profile changed after Odin started kept failing
 		// on its old settings until Odin was restarted.
 		credentials: fromNodeProviderChain({
-			...(target.profile && { profile: target.profile }),
+			...(profile && { profile }),
 			ignoreCache: true,
 		}),
 	};
@@ -179,7 +190,7 @@ export async function pushOneTimeKey(
 	if (!result) return pushKeyOverSsm(target, osUser, publicKey);
 	if (!result.Success)
 		throw new Error(
-			`AWS did not accept the login key for ${target.instanceId}.`,
+			`AWS did not accept the login key for ${hostLabel(target)}.`,
 		);
 }
 
@@ -274,7 +285,7 @@ async function pushKeyOverSsm(
 	);
 	const commandId = sent.Command?.CommandId;
 	if (!commandId)
-		throw new Error(`SSM did not take the login key for ${target.instanceId}.`);
+		throw new Error(`SSM did not take the login key for ${hostLabel(target)}.`);
 	for (let attempt = 0; attempt < 60; attempt++) {
 		await new Promise((resolve) => setTimeout(resolve, 1_000));
 		const result = await ssm
@@ -289,10 +300,10 @@ async function pushKeyOverSsm(
 		if (["Pending", "InProgress", "Delayed"].includes(status)) continue;
 		if (status === "Success") return;
 		throw new Error(
-			`The login key did not reach ${target.instanceId} (${status}): ${(result?.StandardErrorContent ?? "").slice(-200)}`,
+			`The login key did not reach ${hostLabel(target)} (${status}): ${(result?.StandardErrorContent ?? "").slice(-200)}`,
 		);
 	}
-	throw new Error(`The login key took too long to reach ${target.instanceId}.`);
+	throw new Error(`The login key took too long to reach ${hostLabel(target)}.`);
 }
 
 /** What the plugin is started with - the same arguments the aws CLI gives it. */

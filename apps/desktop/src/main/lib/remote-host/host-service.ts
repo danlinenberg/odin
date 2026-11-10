@@ -97,6 +97,11 @@ GITHUB_DIR = os.path.join(os.path.dirname(TOKENS), "github")
 GITHUB_TOKEN_URL = os.environ.get("ODIN_GITHUB_TOKEN_URL") or "https://github.com/login/oauth/access_token"
 # Refresh this far before expiry, so a push that started in time never ages out.
 GITHUB_MARGIN = 30 * 60
+# GitHub revokes tokens server-side with no expiry and no notice. A token is
+# checked here before it is handed out, at most once per CHECK_EVERY.
+GITHUB_USER_URL = os.environ.get("ODIN_GITHUB_USER_URL") or "https://api.github.com/user"
+CHECK_EVERY = 5 * 60
+checked = {}
 LOGIN = re.compile(r"[A-Za-z0-9-]{1,39}")
 github_lock = threading.Lock()
 
@@ -142,20 +147,20 @@ def tokens():
 # tunnel instead, at most once a minute. No refresh token is kept on the host.
 STALE_AFTER = 35 * 60
 pull_lock = threading.Lock()
-last_pull = [0.0]
+last_pull = {False: 0.0, True: 0.0}
 
 
-def fresh_from_laptop():
-    """Replaces a stale tokens file with the laptop's current one, when the laptop answers."""
+def fresh_from_laptop(force=False):
+    """Replaces a stale tokens file (any, with force) with the laptop's current one, when the laptop answers."""
     try:
-        if time.time() - os.path.getmtime(TOKENS) < STALE_AFTER:
+        if not force and time.time() - os.path.getmtime(TOKENS) < STALE_AFTER:
             return
     except OSError:
         return
     with pull_lock:
-        if time.time() - last_pull[0] < 60:
+        if time.time() - last_pull[force] < 60:
             return
-        last_pull[0] = time.time()
+        last_pull[force] = time.time()
     secret = tokens().get("tunnel")
     if not secret:
         return
@@ -240,6 +245,26 @@ def github_token(login, rejected=None):
     return None
 
 
+def github_refuses(token):
+    """True when GitHub answers 401 for the token; a network failure counts as fine. Cached per token."""
+    now = time.time()
+    seen = checked.get(token)
+    if seen and now - seen[0] < CHECK_EVERY:
+        return seen[1]
+    req = urllib.request.Request(GITHUB_USER_URL, headers={"Authorization": "Bearer " + token, "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=10):
+            refused = False
+    except urllib.error.HTTPError as e:
+        refused = e.code == 401
+    except Exception:
+        refused = False
+    for k in [k for k, v in checked.items() if now - v[0] >= CHECK_EVERY]:
+        checked.pop(k, None)
+    checked[token] = (now, refused)
+    return refused
+
+
 def service_base(name, t):
     if name == "slack" and t.get("slack"):
         return "https://slack.com/api/", {"Authorization": "Bearer " + t["slack"]}
@@ -315,6 +340,11 @@ class Handler(BaseHTTPRequestHandler):
         rejected = raw.decode("utf-8", "replace").strip() if self.command == "POST" else ""
         fresh_from_laptop()
         token = github_token(pick_login(login, owner), rejected or None)
+        if token and (token == rejected or github_refuses(token)):
+            # Dead: the laptop's current copy (it checks its own and falls back to gh's), and the host's
+            # own sign-in refreshed once more.
+            fresh_from_laptop(force=True)
+            token = github_token(pick_login(login, owner), token) or token
         if not token:
             return self.reply(404, "No GitHub token for this account on the host. Odin: Settings > Sessions > Remote host > GitHub accounts on the host.\\n")
         return self.reply(200, token)

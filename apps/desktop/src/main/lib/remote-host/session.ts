@@ -1,4 +1,9 @@
-import { voiceRuleWith } from "../../../shared/constants";
+import { readOdinConfig } from "../../../lib/trpc/routers/odin-config";
+import {
+	ODIN_TASK_RULE,
+	PR_SCREENSHOT_RULE,
+	voiceRuleWith,
+} from "../../../shared/constants";
 import { tmuxSession } from "../../../shared/remote-reconnect";
 import {
 	SLACK_ALLOW_RULES,
@@ -22,6 +27,8 @@ export { tmuxSession };
 
 export interface RemoteSessionSpec {
 	instanceId: string;
+	/** The host's name in Odin, shown to the user instead of the id. */
+	name?: string | null;
 	profile?: string | null;
 	region?: string | null;
 	user: string;
@@ -134,7 +141,9 @@ export const stashScript =
  * says Working. Mark them answered - the first two in ~/.claude.json, for
  * the folder the session starts in (argv[1]), the warning in
  * ~/.claude/settings.json, as Odin does on this computer. The same file gets
- * this computer's Slack rules: sending as the user is denied, drafts allowed.
+ * this computer's Slack rules: drafts allowed, and sending as the user denied
+ * unless argv[2] is "allow-send" (Settings > Personalization), which takes
+ * back only those deny rules.
  */
 export const SKIP_FIRST_RUN = `import json, os, sys
 def load(p):
@@ -153,9 +162,12 @@ s = load(p)
 before = json.dumps(s, sort_keys=True)
 s["skipDangerousModePermissionPrompt"] = True
 perms = s.get("permissions") if isinstance(s.get("permissions"), dict) else {}
-for key, rules in (("deny", ${JSON.stringify(SLACK_DENY_RULES)}), ("allow", ${JSON.stringify(SLACK_ALLOW_RULES)})):
-    current = perms.get(key) if isinstance(perms.get(key), list) else []
-    perms[key] = current + [r for r in rules if r not in current]
+send = len(sys.argv) > 2 and sys.argv[2] == "allow-send"
+deny_rules = ${JSON.stringify(SLACK_DENY_RULES)}
+deny = [r for r in (perms.get("deny") if isinstance(perms.get("deny"), list) else []) if r not in deny_rules]
+perms["deny"] = deny if send else deny + deny_rules
+allow = perms.get("allow") if isinstance(perms.get("allow"), list) else []
+perms["allow"] = allow + [r for r in ${JSON.stringify(SLACK_ALLOW_RULES)} if r not in allow]
 s["permissions"] = perms
 if json.dumps(s, sort_keys=True) != before:
     os.makedirs(os.path.dirname(p), exist_ok=True)
@@ -652,7 +664,7 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 			? `d=$(python3 -c ${sh(CONVERSATION_DIR)} ${sh(resumed)} 2>/dev/null) && [ -d "$d" ] && cd "$d"; true`
 			: "",
 		resumed ? placeConversation(resumed) : "",
-		`python3 -c ${sh(SKIP_FIRST_RUN)} "$PWD" 2>/dev/null || true`,
+		`python3 -c ${sh(SKIP_FIRST_RUN)} "$PWD"${readOdinConfig().slackSendAllowed ? " allow-send" : ""} 2>/dev/null || true`,
 		'export PATH="$HOME/.local/bin:$PATH"',
 		CLAUDE_LOGIN_SCRIPT,
 		ghInstallScript,
@@ -742,6 +754,12 @@ export function attachScript(
 		// latest. `largest` sizes the window to the biggest attached client, so
 		// the real wide viewer wins over a leftover 80x24 one.
 		"tmux set-option -g window-size largest 2>/dev/null",
+		// Claude Code owns the mouse, so a drag is its selection, and its copy is
+		// an OSC 52 that tmux drops by default. These pass it on to Odin, which
+		// puts it on the Mac clipboard. Set on the server, so a session the
+		// Night Agent started gets them at the next attach.
+		"tmux set-option -g set-clipboard on 2>/dev/null",
+		"tmux set-option -g allow-passthrough on 2>/dev/null",
 		spec.fresh ? `tmux kill-session -t ${session} 2>/dev/null` : "",
 		`if tmux has-session -t ${session} 2>/dev/null; then rm -rf ${sh(secretsDir)}; ${reply}exec tmux attach -t ${session}; fi`,
 		`cat > ${sh(secretsDir)}/run.sh <<'ODIN_RUN'`,
@@ -869,7 +887,13 @@ export function hostNote(spec: {
 		"",
 		`You run on ${spec.name}, a Linux server, not on my computer. Odin answers at http://127.0.0.1:$ODIN_PORT as usual, but its worktree action and its Shell work on my computer, so don't use them from here: make worktrees yourself, as below.`,
 		"A fenced block whose first line starts with `!` runs here, on this server, in your session. A command I must run on my computer instead (a login, a file on my Mac, an app there) goes in its own fenced block whose first line starts with `!local `, e.g. `!local open ~/Downloads`: Odin shows a Run on my computer button that runs it in my Shell there. When it ends, its output and exit code come back to you here as my next message.",
+		"A file you made here that I want on my computer (a CSV, a report, a log, an image) goes in its own fenced block whose first line is `!download <absolute path on this server>`, e.g. `!download /home/me/out/users.csv`: Odin shows a Download button that copies it to my Downloads folder. Offer one whenever you hand me a file, and never tell me to copy a file off this server myself.",
+		"An app with a screen that runs here on a virtual X display (an Electron app, say) and that I want to see and use on my computer: share that display with a VNC server on this server's localhost only, with a password, then give me a fenced block whose first line is `!view <port> <password>`: Odin shows a View on my computer button that tunnels to it over my connection and opens it in Screen Sharing.",
 		"Try a `!local` command first when something blocks you here. When one or two of them can't get it done - the work needs my computer turn after turn (an app or sign-in only there, files on my Mac you must keep editing, a tool this server lacks) - don't tell me to paste a prompt into Claude Code on my Mac. Make an action item that starts with \"Move this session to my computer\" and says in a few words what needs it: Odin puts a Move button on it that brings this conversation and your code to my computer and resumes it there.",
+		// A rule like "after the merge, pull main in /Users/.../repo" can't run
+		// here, and a session that made it an item parked a merged PR in Needs
+		// you instead of Final Review.
+		"A rule step that acts on my computer but doesn't block the work (pulling a checkout there after a merge, cleaning up a folder) is not an action item: say in one line above the section that it is left for my computer, and still end with ACTION ITEMS: none when nothing else needs me.",
 		spec.repoName
 			? `Your worktree of ${spec.repoName} is the folder you start in, on branch ${sessionBranch(spec.pane)}. Push it and open the PR from here with gh. If that folder is not a git repository, clone the repo into ${repos} yourself.`
 			: [
@@ -886,6 +910,10 @@ export function hostNote(spec: {
 		// that the host never has, so a host session would draft in its own voice and keep
 		// corrections out of Settings.
 		voiceRuleWith(spec.voiceGuide ?? ""),
+		// Same hook, same gap: the host sends /odin on to Odin on my computer.
+		ODIN_TASK_RULE,
+		// And /github/attach: the upload runs in Odin's browser on my computer.
+		PR_SCREENSHOT_RULE,
 	].join("\n");
 }
 

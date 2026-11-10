@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { usePaneMeta } from "./usePaneMeta";
+import { replyTodoText, usePaneMeta } from "./usePaneMeta";
 
 describe("forgetPane", () => {
 	it("drops every entry for the removed pane and keeps the others", () => {
@@ -135,5 +135,24 @@ describe("Done then resume", () => {
 		]);
 		expect(after.hiddenByPane.new).toEqual(["https://x.test/noise"]);
 		expect(after.keptBySession["sess-9"]).toBeUndefined();
+	});
+});
+
+describe("reply to-dos", () => {
+	it("saves a reply once, named after its first line", () => {
+		const s = usePaneMeta.getState();
+		const text = replyTodoText("## Test flow\n\n1. open the board");
+		s.addTodo("p9", text, "uuid-1");
+		s.addTodo("p9", "again", "uuid-1");
+		expect(usePaneMeta.getState().todosByPane.p9).toEqual([
+			{ text: "Test flow", reply: "uuid-1" },
+		]);
+	});
+
+	it("cuts a long first line and drops markdown", () => {
+		expect(replyTodoText("\n- run **bun test** in `apps`")).toBe(
+			"run bun test in apps",
+		);
+		expect(replyTodoText("x".repeat(200))).toHaveLength(80);
 	});
 });

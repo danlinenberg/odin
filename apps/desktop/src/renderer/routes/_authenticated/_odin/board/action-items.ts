@@ -79,6 +79,18 @@ export function isDoneItem(item: string): boolean {
  * them. The launch prompt asks for that shape; no brackets means no choices.
  */
 export function itemOptions(item: string): { text: string; options: string[] } {
+	// Claude sometimes writes the choices as separate brackets, "[A] [B] [C]": read
+	// two or more of them (not links) at the end as "[A | B | C]".
+	const run = item.match(
+		/((?:\[[^[\]|]+\](?!\()\s*){2,})(?=(?:\(you only\))?(?:\s*(?:https?:\/\/\S+|\[[^\]]*\]\([^)]*\)))?\W*$)/i,
+	);
+	if (run?.index !== undefined) {
+		const options = [...(run[1] ?? "").matchAll(/\[([^\]]*)\]/g)].map((m) =>
+			m[1]?.trim(),
+		);
+		item =
+			`${item.slice(0, run.index)}[${options.join(" | ")}] ${item.slice(run.index + (run[1] ?? "").length)}`.trim();
+	}
 	// An option may hold a link ("after [#826](url) merges"); a button shows its words.
 	// A trailing "(you only)" still counts: you pick, so the choices are buttons.
 	// So does the item's link after them - "Decide #903 [merge | close] <url>" - which stays in the text.
@@ -123,11 +135,65 @@ export function isYouOnly(item: string): boolean {
 	);
 }
 
+/** A `! command` block: the command without the `!`, where it starts, and a `#` label written inside it. */
+type BangBlock = { command: string; index: number; label?: string };
+
+/**
+ * Every `! command` block in `text`, in order. The asked-for shape is a block whose first line starts with `!`.
+ * Claude sometimes writes the `!` as the fence's language instead (```!), with `#` label lines above the command:
+ * that is the same intent, so it runs too, and the label lines name its button.
+ */
+function bangBlocks(text: string): BangBlock[] {
+	const blocks: BangBlock[] = [];
+	for (const match of text.matchAll(/```[^\n]*\n\s*!([\s\S]*?)\n?```/g))
+		blocks.push({
+			command: outdent(match[1] ?? "", fenceIndent(text, match.index)).trim(),
+			index: match.index ?? 0,
+		});
+	for (const match of text.matchAll(/```![ \t]*\n([\s\S]*?)\n?```/g)) {
+		const lines = outdent(match[1] ?? "", fenceIndent(text, match.index)).split(
+			"\n",
+		);
+		// A ```! block whose first line already starts with `!` is the asked-for shape: the first loop has it.
+		if ((lines.find((line) => line.trim()) ?? "").trim().startsWith("!"))
+			continue;
+		const labels: string[] = [];
+		while (lines.length && /^\s*(#|$)/.test(lines[0] ?? ""))
+			labels.push((lines.shift() ?? "").trim().replace(/^#+\s*/, ""));
+		blocks.push({
+			command: lines.join("\n").trim(),
+			index: match.index ?? 0,
+			label: labels.filter(Boolean).join(" ") || undefined,
+		});
+	}
+	return blocks
+		.filter((block) => block.command)
+		.sort((a, b) => a.index - b.index);
+}
+
+/** The spaces before the fence that opens at `index`: a block under a list item sits that far in. */
+function fenceIndent(text: string, index = 0): number {
+	const lineStart = text.lastIndexOf("\n", index - 1) + 1;
+	return text.slice(lineStart, index).match(/^[ \t]*/)?.[0].length ?? 0;
+}
+
+/**
+ * Each line without the block's own indent - up to `indent` leading spaces, no more. A block under
+ * a list item would otherwise run with the item's indent on every line after the first, and a
+ * heredoc's `EOF` then never ends it.
+ */
+function outdent(body: string, indent: number): string {
+	if (!indent) return body;
+	const margin = new RegExp(`^[ \\t]{0,${indent}}`);
+	return body
+		.split("\n")
+		.map((line) => line.replace(margin, ""))
+		.join("\n");
+}
+
 /** The `! command` blocks Claude hands you to run in the session, without the `!`. */
 export function bangCommands(text: string): string[] {
-	return [...text.matchAll(/```[^\n]*\n\s*!([\s\S]*?)\n?```/g)]
-		.map((match) => (match[1] ?? "").trim())
-		.filter(Boolean);
+	return bangBlocks(text).map((block) => block.command);
 }
 
 /**
@@ -160,6 +226,31 @@ export function localCommand(command: string): string | null {
 }
 
 /**
+ * The host file of a `!download <path>` block: one a remote session hands you
+ * to copy from its host to this computer's Downloads folder. Null for any
+ * other command.
+ */
+export function downloadPath(command: string): string | null {
+	const path = command.match(/^download\s+(.+)$/)?.[1]?.trim();
+	return path?.replace(/^(["'])(.*)\1$/, "$2") || null;
+}
+
+/**
+ * The screen of a `!view <port> <password>` block: a VNC server a remote
+ * session started on its host (localhost only), which Odin shows in Screen
+ * Sharing on this computer. Null for any other command.
+ */
+export function viewTarget(
+	command: string,
+): { port: number; password: string } | null {
+	const match = command.match(/^view\s+(\d{1,5})\s+(\S+)$/);
+	const port = Number(match?.[1]);
+	return match && port > 0 && port < 65536
+		? { port, password: match[2] ?? "" }
+		: null;
+}
+
+/**
  * What goes back to Claude once a `!local` command ran on this computer: the
  * command, its output and its exit code, fenced past any backticks inside.
  */
@@ -182,16 +273,18 @@ export function localRunMessage(
  */
 export function bangCommandNotes(text: string): Record<string, string> {
 	const notes: Record<string, string> = {};
-	for (const match of text.matchAll(/```[^\n]*\n\s*!([\s\S]*?)\n?```/g)) {
-		const command = (match[1] ?? "").trim();
+	for (const { command, index, label } of bangBlocks(text)) {
 		const above = text
-			.slice(0, match.index)
+			.slice(0, index)
 			.split("\n")
 			.map((line) => line.trim())
 			.filter(Boolean)
 			.at(-1);
-		if (!command || !above || above.startsWith("```")) continue;
-		notes[command] = above.replace(/^(?:[-*+]|\d+[.)])\s+/, "");
+		const note =
+			above && !above.startsWith("```")
+				? above.replace(/^(?:[-*+]|\d+[.)])\s+/, "")
+				: label;
+		if (note) notes[command] = note;
 	}
 	return notes;
 }
@@ -274,6 +367,17 @@ export function describeCommand(command: string): string {
 }
 
 /**
+ * A reply's `!` commands the phone shows: not `!download`, which puts a file
+ * in this computer's Downloads folder, not on the phone, nor `!view`, which
+ * opens Screen Sharing here.
+ */
+export function phoneCommands(text: string): string[] {
+	return bangCommands(text).filter(
+		(command) => !downloadPath(command) && !viewTarget(command),
+	);
+}
+
+/**
  * The `!` commands you can run from the phone: those of Claude's latest reply
  * that has any. The phone shows their Run buttons and the Mac runs only these.
  */
@@ -283,7 +387,7 @@ export function runnableCommands(
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const message = messages[i];
 		if (message.role !== "assistant") continue;
-		const commands = bangCommands(message.text);
+		const commands = phoneCommands(message.text);
 		if (commands.length) return commands;
 	}
 	return [];
@@ -476,4 +580,31 @@ export function placeCommands(
 		else foot.push(command);
 	}
 	return { under, foot };
+}
+
+const PR_URL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
+
+const MOVES_PR_ALONG = /^\W*(merge|review|approve|land|ship)\b/i;
+
+/** The GitHub PR links an item names, each once. */
+export function itemPullRequests(item: string): string[] {
+	return [...new Set(item.match(PR_URL) ?? [])];
+}
+
+/**
+ * How an item's PRs ended, when every one of them has: "Merge PR #12" for a PR
+ * you merged before the reply was written. Null while any is still open, or
+ * its state is not known yet - an unknown PR is never shown as done. Only an
+ * item asking you to move the PR along counts: "Revert PR #12" still has work
+ * in it after #12 merged.
+ */
+export function settledItem(
+	item: string,
+	states: Record<string, { state: string } | null | undefined> | undefined,
+): "MERGED" | "CLOSED" | null {
+	const urls = itemPullRequests(item);
+	if (urls.length === 0 || !states || !MOVES_PR_ALONG.test(item)) return null;
+	const ends = urls.map((url) => states[url]?.state);
+	if (!ends.every((end) => end === "MERGED" || end === "CLOSED")) return null;
+	return ends.includes("MERGED") ? "MERGED" : "CLOSED";
 }

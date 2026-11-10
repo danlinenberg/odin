@@ -38,6 +38,7 @@ import {
 	leavePhase,
 	localCommand,
 	messageAttachments,
+	modelAlias,
 	movedHere,
 	nextHostStep,
 	opensTerminalScreen,
@@ -427,7 +428,7 @@ describe("ChatView transcript", () => {
 			{ text: "Install the agent:", fences: [fence] },
 			{ text: "Approve the PR", fences: [] },
 		]);
-		expect(bangCommands(fence)).toEqual(["echo a\n   - not an item"]);
+		expect(bangCommands(fence)).toEqual(["echo a\n- not an item"]);
 	});
 
 	test("a command written under its item gets its Run button there, labelled by its line", () => {
@@ -516,6 +517,21 @@ describe("ChatView transcript", () => {
 			text: "Decide https://x/903",
 			options: ["merge", "close"],
 		});
+		expect(
+			itemOptions(
+				"Where the monitors post: [Keep #infra-alerts] [Odin switches them] [Both]",
+			),
+		).toEqual({
+			text: "Where the monitors post:",
+			options: ["Keep #infra-alerts", "Odin switches them", "Both"],
+		});
+		expect(itemOptions("Decide #903: [merge] [close] https://x/903")).toEqual({
+			text: "Decide #903: https://x/903",
+			options: ["merge", "close"],
+		});
+		expect(itemOptions("See [a](https://x) [b](https://y)").options).toEqual(
+			[],
+		);
 		expect(itemOptions("Tell me the seniority.").options).toEqual([]);
 		expect(
 			itemOptions("Pick a fix [extension | write around it] (you only)"),
@@ -1169,6 +1185,17 @@ describe("currentTurn - the turn the Working row shows", () => {
 		expect(currentTurn(items, false).prompt).toBe("second");
 	});
 
+	test("a message still on its way keeps the last turn's rows as the ones on screen", () => {
+		expect(currentTurn(items, false).onScreen.map((item) => item.id)).toEqual([
+			"t2",
+			"t3",
+		]);
+		expect(currentTurn(items, true).onScreen.map((item) => item.id)).toEqual([
+			"t2",
+			"t3",
+		]);
+	});
+
 	test("with no message of yours, the whole transcript is the turn", () => {
 		const turn = currentTurn(
 			items.filter((item) => item.kind !== "user"),
@@ -1276,6 +1303,19 @@ test("a Run label keeps the underscores inside a word", () => {
 	expect(
 		commandLabel("Delete the old venv, node_modules and _build_ folders:"),
 	).toBe("Delete the old venv, node_modules and build folders");
+});
+
+describe("modelAlias", () => {
+	test("a reply's model id gives the picker's alias", () => {
+		expect(modelAlias("claude-opus-5-5")).toBe("opus");
+		expect(modelAlias("us.anthropic.claude-sonnet-5-5")).toBe("sonnet");
+		expect(modelAlias("claude-fable-5-1")).toBe("fable");
+		expect(modelAlias("Sonnet 5.5")).toBe("sonnet");
+	});
+
+	test("an id with no alias stays as it is", () => {
+		expect(modelAlias("gpt-x")).toBe("gpt-x");
+	});
 });
 
 describe("opensTerminalScreen - commands finished in Claude's terminal", () => {

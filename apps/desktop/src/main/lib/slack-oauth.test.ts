@@ -10,6 +10,7 @@ import {
 	completeSlackOAuth,
 	isSlackOAuthCallback,
 	isSlackOAuthConfigured,
+	missingSlackScopes,
 	readSlackOAuthResult,
 	startSlackOAuth,
 } from "./slack-oauth";
@@ -214,3 +215,22 @@ describe("a sibling Odin handling the callback", () => {
 
 // Keep the temp config out of the developer's home directory.
 process.on("exit", () => rmSync(dir, { recursive: true, force: true }));
+
+describe("missingSlackScopes", () => {
+	test("names what a token from before a release lacks", () => {
+		expect(
+			missingSlackScopes(
+				"reactions:read,users:read,channels:read,groups:read,im:read,mpim:read,channels:history,groups:history,im:history,mpim:history",
+			),
+		).toEqual(["files:read", "search:read"]);
+	});
+
+	test("none when all are granted, or Slack sent no header", () => {
+		expect(
+			missingSlackScopes(
+				"reactions:read, users:read, channels:read, groups:read, im:read, mpim:read, channels:history, groups:history, im:history, mpim:history, files:read, search:read, chat:write",
+			),
+		).toEqual([]);
+		expect(missingSlackScopes(null)).toEqual([]);
+	});
+});

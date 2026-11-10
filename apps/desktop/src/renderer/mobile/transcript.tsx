@@ -3,9 +3,9 @@ import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { type BriefUrgency, freshTldr, latestReply } from "shared/latest-reply";
 import {
 	bangCommandNotes,
-	bangCommands,
 	describeCommand,
 	localCommand,
+	phoneCommands,
 	placeCommands,
 	splitActionItems,
 } from "../routes/_authenticated/_odin/board/action-items";
@@ -194,7 +194,7 @@ function RunCard({
 			<div className="text-[11px] font-semibold uppercase tracking-wide text-faint-foreground">
 				Commands to run
 			</div>
-			{bangCommands(text).map((command) => {
+			{phoneCommands(text).map((command) => {
 				const local = localCommand(command);
 				const status = state[command];
 				return (
@@ -343,7 +343,7 @@ export function Transcript({
 	// The Mac runs only the commands of the latest reply that has any.
 	const commandsAt = messages.findLastIndex(
 		(message) =>
-			message.role === "assistant" && bangCommands(message.text).length > 0,
+			message.role === "assistant" && phoneCommands(message.text).length > 0,
 	);
 	const bubble = ({ message, index }: { message: Message; index: number }) => {
 		if (message.shell) return <ShellCard key={index} shell={message.shell} />;
@@ -382,7 +382,7 @@ export function Transcript({
 						commands={
 							index === commandsAt && run
 								? {
-										...placeCommands(actions, bangCommands(message.text)),
+										...placeCommands(actions, phoneCommands(message.text)),
 										notes: bangCommandNotes(message.text),
 										run,
 									}

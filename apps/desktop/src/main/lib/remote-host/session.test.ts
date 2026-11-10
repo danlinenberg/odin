@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { VOICE_RULE } from "../../../shared/constants";
+import { ODIN_TASK_RULE, VOICE_RULE } from "../../../shared/constants";
 import {
 	SLACK_ALLOW_RULES,
 	SLACK_DENY_RULES,
@@ -142,6 +142,18 @@ describe("remote session scripts", () => {
 		expect(attachScript({ ...spec, fresh: true }, "/dev/shm/odin.X")).toContain(
 			"tmux kill-session -t 'odin-pane-1-x' 2>/dev/null\nif tmux has-session",
 		);
+	});
+
+	test("tmux passes Claude's copy (OSC 52) on to Odin, before the attach", () => {
+		const attach = attachScript(spec, "/d");
+		const attachAt = attach.indexOf("exec tmux attach");
+		for (const line of [
+			"tmux set-option -g set-clipboard on 2>/dev/null\n",
+			"tmux set-option -g allow-passthrough on 2>/dev/null\n",
+		]) {
+			expect(attach).toContain(line);
+			expect(attach.indexOf(line)).toBeLessThan(attachAt);
+		}
 	});
 
 	test("the run script starts over under its own memory cap, or runs uncapped without systemd", () => {
@@ -618,6 +630,7 @@ test("the host note tells a blocked agent to offer the move to my computer", () 
 		pane: "0d202ff3aa",
 	});
 	expect(note).toContain('starts with "Move this session to my computer"');
+	expect(note).toContain("is not an action item");
 });
 
 test("the host note tells the agent to write in my voice and record corrections", () => {
@@ -628,6 +641,16 @@ test("the host note tells the agent to write in my voice and record corrections"
 		pane: "0d202ff3aa",
 	});
 	expect(note).toContain(VOICE_RULE);
+});
+
+test("the host note tells the agent how to add an Odin task", () => {
+	const note = hostNote({
+		user: "ubuntu",
+		name: "odin-remote",
+		repoName: "odin",
+		pane: "0d202ff3aa",
+	});
+	expect(note).toContain(ODIN_TASK_RULE);
 });
 
 test("the host falls back to the API key only while the plan is limited", () => {
@@ -841,6 +864,27 @@ test("a host's first Claude skips onboarding, folder trust and the bypass-permis
 		skipDangerousModePermissionPrompt: true,
 		permissions: { deny: SLACK_DENY_RULES, allow: SLACK_ALLOW_RULES },
 	});
+});
+
+test("allow-send lifts only Odin's Slack deny rules on the host", () => {
+	const home = mkdtempSync(`${tmpdir()}/odin-slack-allow-`);
+	mkdirSync(`${home}/.claude`);
+	writeFileSync(
+		`${home}/.claude/settings.json`,
+		JSON.stringify({
+			permissions: { deny: ["Bash(rm *)", ...SLACK_DENY_RULES], allow: [] },
+		}),
+	);
+	execFileSync(
+		"python3",
+		["-c", SKIP_FIRST_RUN, "/home/u/repos/api", "allow-send"],
+		{ env: { HOME: home, PATH: "/usr/bin:/bin:/opt/homebrew/bin" } },
+	);
+	const { permissions } = JSON.parse(
+		readFileSync(`${home}/.claude/settings.json`, "utf8"),
+	);
+	expect(permissions.deny).toEqual(["Bash(rm *)"]);
+	expect(permissions.allow).toEqual(SLACK_ALLOW_RULES);
 });
 
 test("a host session can't send Slack as the user: the deny joins the host's own rules once", () => {

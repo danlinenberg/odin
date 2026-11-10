@@ -50,8 +50,12 @@ export const notificationsEmitter = new EventEmitter();
 
 const app = express();
 
-// Parse JSON request bodies
-app.use(express.json());
+// Parse JSON request bodies. /github/attach parses its own, with room for
+// screenshots: this one's 100kb default would refuse them first.
+const json = express.json();
+app.use((req, res, next) =>
+	req.path === "/github/attach" ? next() : json(req, res, next),
+);
 
 // CORS
 app.use((req, res, next) => {
@@ -206,7 +210,7 @@ app.post("/odin", express.urlencoded({ extended: false }), async (req, res) => {
 		return res
 			.status(400)
 			.send(
-				"Need action: guide, tasks, start, add, sessions, night, state, set, run, open, done, api, call, service or worktree.\n",
+				"Need action: guide, tasks, start, add, schedule, sessions, night, state, set, run, open, done, api, call, service or worktree.\n",
 			);
 	}
 	// Main's own operations answer here; the board's state is the renderer's.
@@ -261,11 +265,13 @@ app.post("/odin", express.urlencoded({ extended: false }), async (req, res) => {
 export async function askRenderer(
 	action: string,
 	args: Record<string, string>,
+	/** How long to wait for the window before the answer is null. */
+	waitMs = 30_000,
 ): Promise<string | null | undefined> {
 	const request: OdinActionRequest = { id: randomUUID(), action, args };
 	const reply = new Promise<string | null>((resolve) => {
 		pendingOdinActions.set(request.id, resolve);
-		setTimeout(() => resolve(null), 30_000);
+		setTimeout(() => resolve(null), waitMs);
 	});
 	if (!notificationsEmitter.emit(NOTIFICATION_EVENTS.ODIN_ACTION, request)) {
 		pendingOdinActions.delete(request.id);
@@ -448,6 +454,34 @@ app.post(
 		} catch (error) {
 			res
 				.status(502)
+				.send(`${error instanceof Error ? error.message : String(error)}\n`);
+		}
+	},
+);
+
+/**
+ * Uploads screenshots to a PR's comment box as me, through Odin's browser
+ * (github-attach). JSON `{ repo, number, files: [{ name, data }] }`, data
+ * base64; answers `{ markdown }`, the image Markdown to post in a comment.
+ */
+app.post(
+	"/github/attach",
+	express.json({ limit: "120mb" }),
+	async (req, res) => {
+		if (req.headers.origin) {
+			return res.status(403).send("Not from a browser.\n");
+		}
+		const { parseAttachRequest, attachToPr, AttachError } = await import(
+			"../browser/github-attach"
+		);
+		const parsed = parseAttachRequest(req.body);
+		if ("error" in parsed) return res.status(400).send(`${parsed.error}\n`);
+		try {
+			const links = await attachToPr(parsed.request, parsed.types);
+			res.json({ markdown: links.join("\n\n") });
+		} catch (error) {
+			res
+				.status(error instanceof AttachError ? error.status : 502)
 				.send(`${error instanceof Error ? error.message : String(error)}\n`);
 		}
 	},

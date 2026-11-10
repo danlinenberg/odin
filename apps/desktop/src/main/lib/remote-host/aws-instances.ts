@@ -1,6 +1,3 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import {
 	AssociateIamInstanceProfileCommand,
 	DescribeInstancesCommand,
@@ -69,36 +66,7 @@ export interface AwsInstance {
 	ssmOnline: boolean;
 }
 
-/** Profile names in the AWS config and credentials files - section names, nothing more. */
-export function profileNames(config: string, credentials: string): string[] {
-	const names = new Set<string>();
-	for (const [text, prefixed] of [
-		[config, true],
-		[credentials, false],
-	] as const)
-		for (const match of text.matchAll(/^\s*\[([^\]]+)\]\s*$/gm)) {
-			const section = (match[1] ?? "").trim();
-			if (section === "default") names.add("default");
-			else if (!prefixed) names.add(section);
-			else if (section.startsWith("profile "))
-				names.add(section.slice(8).trim());
-		}
-	return [...names].sort();
-}
-
-export function listAwsProfiles(home = os.homedir()): string[] {
-	const read = (file: string | undefined, fallback: string) => {
-		try {
-			return fs.readFileSync(file || path.join(home, ".aws", fallback), "utf8");
-		} catch {
-			return "";
-		}
-	};
-	return profileNames(
-		read(process.env.AWS_CONFIG_FILE, "config"),
-		read(process.env.AWS_SHARED_CREDENTIALS_FILE, "credentials"),
-	);
-}
+export { listAwsProfiles, profileNames } from "./aws-profile";
 
 /** Every key with its values across the account's instances; AWS's own `aws:` tags left out. */
 export function tagChoices(describeTags: unknown): TagChoice[] {

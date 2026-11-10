@@ -277,6 +277,8 @@ describe("parseDataUrl", () => {
 		expect(parseDataUrl("data:application/pdf;base64,GGG").extension).toBe(
 			"pdf",
 		);
+		expect(parseDataUrl("data:text/markdown;base64,HHH").extension).toBe("md");
+		expect(parseDataUrl("data:text/plain;base64,III").extension).toBe("txt");
 	});
 
 	it("falls back to png for a header it can't read", () => {

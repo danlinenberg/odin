@@ -59,7 +59,7 @@ const REMOTE_TMUX_BAR = /^\[odin-[A-Za-z0-9_-]+:/m;
 // Any of the helper's connect lines, not only the first: a pane retrying for
 // a while has scrolled "connecting to" off the screen.
 const REMOTE_CONNECTING =
-	/^Odin: (connecting to |connection lost|could not (re)?connect|AWS sign-in approved|(Still b|B)locked)/m;
+	/^Odin: (connecting to |connection lost|could not (re)?connect|could not attach|(Stopped|stopped) reconnecting|AWS sign-in approved|(Still b|B)locked)/m;
 
 /**
  * The spinner line, which is the only thing on screen that says "mid-turn":
@@ -223,12 +223,15 @@ export function remoteConnectLine(screen: string): string | undefined {
 	if (claudeDrawn(lines.slice(at + 1).join("\n"))) return undefined;
 	// The screen comes one row at a time, so a line wider than the pane goes on
 	// in the rows below it: they are unindented, and the line has not ended yet.
-	let text = lines[at].slice(6).trim();
-	for (let next = at + 1; !/[.!?]$/.test(text); next++) {
+	// A row the pane wrapped at a space ends with that space (the screen keeps
+	// it on wrapped rows) or the next row starts with it.
+	let text = lines[at].slice(6).trimStart();
+	for (let next = at + 1; !/[.!?]\s*$/.test(text); next++) {
 		const row = lines[next];
-		if (!row || /^\s/.test(row) || REMOTE_CONNECTING.test(row)) break;
+		if (!row || /^\s\s/.test(row) || REMOTE_CONNECTING.test(row)) break;
 		text += row;
 	}
+	text = text.trimEnd();
 	return text[0].toUpperCase() + text.slice(1);
 }
 
@@ -238,6 +241,38 @@ export function remoteConnectLine(screen: string): string | undefined {
  */
 export function awaitsAwsSignIn(connectLine: string | undefined): boolean {
 	return !!connectLine?.startsWith("Still blocked: the AWS sign-in");
+}
+
+/**
+ * The connect line once the helper gave up reconnecting (MAX_TRIES failed
+ * tries in a row): it says why and waits for Enter (try again), F (start
+ * Claude over on the host) or R (reboot the host).
+ */
+export function reconnectStopped(connectLine: string | undefined): boolean {
+	return !!connectLine?.startsWith("Stopped reconnecting");
+}
+
+/**
+ * The stopped-reconnecting line split for the chat view: "Stopped reconnecting
+ * to <host> after 6 tries" as the headline, why on its own line below, minus
+ * the "could not reconnect:" the headline already says, and the time the
+ * helper tries again by itself.
+ */
+export function stoppedParts(line: string): {
+	title: string;
+	reason?: string;
+	retryAt?: string;
+} {
+	const match = line.match(
+		/^(Stopped reconnecting to .+? after \d+ tries)(?: \(trying again by itself at ([^)]+)\))?: (.+)$/,
+	);
+	if (!match) return { title: line };
+	const reason = match[3].replace(/^could not (re)?connect:\s*/i, "");
+	return {
+		title: match[1],
+		reason: reason[0].toUpperCase() + reason.slice(1),
+		...(match[2] ? { retryAt: match[2] } : {}),
+	};
 }
 
 /**

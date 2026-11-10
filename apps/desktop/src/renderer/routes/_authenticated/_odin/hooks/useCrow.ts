@@ -39,12 +39,18 @@ import {
 import { CROW_TAG } from "shared/odin-tags";
 import stripAnsi from "strip-ansi";
 import { create } from "zustand";
+import { type AllItem, rowFinishedWith } from "../all/all-items";
+import { parseDueDay, parseQueuePlace, useTaskMeta } from "../all/task-meta";
+import { useSearchableItems } from "../all/use-all-items";
+import { paneWorksOn } from "../all/use-start-item";
 import { useCardFlags } from "../board/card-flags";
 import { phoneReply } from "../board/phone-resume";
 import { remindSession } from "../board/SessionReminders";
 import { type PromptImage, sessionTitle } from "../components/OdinPromptDialog";
+import { useReminders } from "../components/Reminders";
 import { unreadPing, useReplyWatch } from "../components/ReplyWatch";
 import { phoneNights } from "../night-agent/night-log";
+import { addSchedule } from "./crow-schedule";
 import { readState, runAction, writeState } from "./crow-state";
 import { endSession, useDone } from "./useDone";
 import { useOdinProfile } from "./useOdinProfile";
@@ -514,7 +520,8 @@ export function useCrow() {
 	// The crow's `/odin` calls. Read off a ref at call time, so the
 	// subscription isn't torn down on every store change.
 	const { todos, add, setPane } = useMyTasks();
-	const { isDone } = useDone();
+	const { isDone, set: setRowDone } = useDone();
+	const rows = useSearchableItems();
 	const { launch } = useLaunchTaskSession();
 	const odinReply = electronTrpc.notifications.odinReply.useMutation();
 	const router = useRouter();
@@ -525,6 +532,8 @@ export function useCrow() {
 		add,
 		setPane,
 		isDone,
+		setRowDone,
+		rows,
 		launch,
 		ensureWorkspace,
 		router,
@@ -535,9 +544,11 @@ export function useCrow() {
 		onData: (event) => {
 			if (event.type !== NOTIFICATION_EVENTS.ODIN_ACTION || !event.data) return;
 			const request = event.data as OdinActionRequest;
-			void Promise.resolve(runOdinAction(request, latest.current)).then(
-				(text) => odinReply.mutate({ id: request.id, text }),
-			);
+			// A throw still answers: main otherwise waits out its whole timeout.
+			void Promise.resolve()
+				.then(() => runOdinAction(request, latest.current))
+				.catch((error) => `Odin failed: ${error?.message ?? error}`)
+				.then((text) => odinReply.mutate({ id: request.id, text }));
 		},
 	});
 
@@ -661,10 +672,27 @@ type CrowDeps = {
 	add: ReturnType<typeof useMyTasks>["add"];
 	setPane: ReturnType<typeof useMyTasks>["setPane"];
 	isDone: ReturnType<typeof useDone>["isDone"];
+	setRowDone: ReturnType<typeof useDone>["set"];
+	/** Every feed row, Done'd ones included - what a session was started on. */
+	rows: AllItem[];
 	launch: ReturnType<typeof useLaunchTaskSession>["launch"];
 	ensureWorkspace: ReturnType<typeof useOdinWorkspace>["ensureWorkspace"];
 	router: ReturnType<typeof useRouter>;
 };
+
+/**
+ * End a session the way the board's Done does: the feed row it was started on
+ * is finished with it. The phone's Done and Remind me came here and only
+ * removed the pane, so the task went back to waiting, as if never started.
+ */
+function endSessionAndRow(pane: Pane, deps: CrowDeps) {
+	const row = deps.rows.find((item) => paneWorksOn(pane, item));
+	// Another session still open on the same task keeps it open.
+	const others = Object.values(useTabsStore.getState().panes);
+	if (row && !deps.isDone(row) && rowFinishedWith(others, pane.id, row))
+		deps.setRowDone(row, true);
+	endSession(pane.id);
+}
 
 /** One `/odin` call, answered as the text the crow reads back. */
 function runOdinAction(
@@ -702,20 +730,41 @@ function runOdinAction(
 		);
 	if (action === "add") {
 		if (!args.text?.trim()) return "Need text.";
+		const place = parseQueuePlace(args.up_next);
+		if (place === null)
+			return "up_next must be top, end or a place from 1 (1 is the top).";
+		const due = parseDueDay(args.due);
+		if (due === null) return "due must be a day as YYYY-MM-DD.";
+		const before = useOdinTasks.getState().tasks[0];
 		deps.add(args.text, undefined, args.repo || undefined);
 		const title = args.text.trim().split("\n")[0];
 		// The store puts a new task first: the one just added, as TaskBox's Start now reads it.
-		const task =
-			args.start === "true" ? useOdinTasks.getState().tasks[0] : undefined;
-		if (!task) return `Added "${title}" to the backlog.`;
+		// Text with no title adds nothing, and the old first task isn't this one.
+		const first = useOdinTasks.getState().tasks[0];
+		const added = first !== before ? first : undefined;
+		let lined = "";
+		// The same date the row's "+ Due" chip sets.
+		if (due && added) {
+			useReminders.getState().setDue(`task:${added.id}`, due, added.title);
+			lined += `, due ${due}`;
+		}
+		if (place !== undefined && added) {
+			const key = `task:${added.id}`;
+			useTaskMeta.getState().enqueueAt(key, place);
+			const at = useTaskMeta.getState().queue.indexOf(key) + 1;
+			lined += `, place ${at} on Up next`;
+		}
+		const task = args.start === "true" ? added : undefined;
+		if (!task) return `Added "${title}" to the backlog${lined}.`;
 		// The phone opens the new session: its paneId as JSON, once its card is up.
 		// The phone's Where pick; none keeps Settings' rule.
 		const onHost = args.host ? args.host === "true" : undefined;
 		if (args.open === "true") return openedPane(task, deps, onHost);
 		// Not awaited: a launch can sit behind the machine's capacity gate.
 		void launchTask(task, deps, undefined, onHost);
-		return `Added "${title}" and started it on the board.`;
+		return `Added "${title}"${lined} and started it on the board.`;
 	}
+	if (action === "schedule") return addSchedule(args, deps.add);
 	if (action === "profile") {
 		// The same switch as the profile menu: the window follows, feeds reload.
 		if (!args.id) return "Need id.";
@@ -927,7 +976,7 @@ function runOdinAction(
 	if (action === "done") {
 		if (!args.paneId || !panes[args.paneId])
 			return "No session with that paneId - list them with action=sessions.";
-		endSession(args.paneId);
+		endSessionAndRow(panes[args.paneId], deps);
 		return `Marked ${panes[args.paneId].odinTaskTitle ?? args.paneId} done.`;
 	}
 	// The phone's Resume on a session off the board: as Session History's,
@@ -967,7 +1016,7 @@ function runOdinAction(
 			{ sessionId, cwd, title, brief: meta.briefByPane[pane.id] },
 			args.day,
 		);
-		endSession(pane.id);
+		endSessionAndRow(pane, deps);
 		return `Reminding you ${args.day} - ${title}.`;
 	}
 	return `Unknown action "${action}" - use guide, tasks, start, add, star, sessions, night, done, remind, resume, state, set, open, api or call.`;

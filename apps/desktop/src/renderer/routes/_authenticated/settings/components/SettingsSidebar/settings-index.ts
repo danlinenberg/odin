@@ -36,13 +36,13 @@ export const SCREENS = [
 	{
 		to: "/settings/personalization",
 		label: "Personalization",
-		hint: "Your voice in Slack, Jira and GitHub drafts",
+		hint: "Your voice in drafts, Slack sending",
 		icon: LuUserPen,
 	},
 	{
 		to: "/settings/remote",
 		label: "Remote",
-		hint: "EC2 host, phone app, Remote Control",
+		hint: "EC2 host, auto-start, phone app, Remote Control",
 		icon: BsCloud,
 	},
 	{
@@ -236,6 +236,20 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "voice train learn style guide slack messages",
 	},
 	{
+		label: "Let sessions send Slack messages",
+		to: "/settings/personalization",
+		section: "Slack",
+		keywords:
+			"slack send post message draft schedule allow block permission deny",
+	},
+	{
+		label: "Auto-start new tasks",
+		to: "/settings/remote",
+		section: "Auto-start new tasks",
+		keywords:
+			"auto start automatic launch new task slack eyes jira github notion remote host",
+	},
+	{
 		label: "Rename sessions automatically",
 		to: "/settings/sessions",
 		section: "On the board",
@@ -246,19 +260,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		to: "/settings/sessions",
 		section: "On the board",
 		keywords: "compact context summary cache idle park parked waiting",
-	},
-	{
-		label: "Read replies aloud",
-		to: "/settings/sessions",
-		section: "On the board",
-		keywords:
-			"speak speech voice talk say tts text to speech audio reply tldr chat",
-	},
-	{
-		label: "Speech speed",
-		to: "/settings/sessions",
-		section: "On the board",
-		keywords: "speak voice talk rate faster slower read aloud",
 	},
 	{
 		label: "Close idle sessions after",

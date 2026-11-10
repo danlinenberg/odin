@@ -7,7 +7,7 @@ import {
 	statSync,
 	writeFileSync,
 } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { homedir, userInfo } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -42,6 +42,7 @@ import {
 	waitForHost,
 } from "main/lib/remote-host/aws-instances";
 import { isAwsProfileName } from "main/lib/remote-host/aws-on-host";
+import { fallbackAwsProfile } from "main/lib/remote-host/aws-profile";
 import {
 	bringMirrorHome,
 	bringSessionHome,
@@ -59,7 +60,12 @@ import {
 	requestClaudeSync,
 	syncClaudeSetup,
 } from "main/lib/remote-host/claude-sync";
-import { runClaudeLogin } from "main/lib/remote-host/claude-token";
+import {
+	claudeSignInPrompt,
+	runClaudeLogin,
+	submitClaudeCode,
+} from "main/lib/remote-host/claude-token";
+import { downloadTarget, hostPath } from "main/lib/remote-host/download";
 import {
 	pollHostGithubLogin,
 	startHostGithubLogin,
@@ -112,16 +118,19 @@ import {
 } from "main/lib/remote-host/session";
 import {
 	connectHost,
+	copyFileFromHost,
 	copyFilesToHost,
 	runOnHost,
 } from "main/lib/remote-host/ssh";
 import { awsClientConfig } from "main/lib/remote-host/ssm";
+import { viewOnMac } from "main/lib/remote-host/view-on-mac";
 import {
 	remoteFolderUri,
 	vscodeHost,
 } from "main/lib/remote-host/vscode-bridge";
 import { resolveElectronBinary } from "main/lib/terminal-host/electron-binary";
 import { readVoice, voiceText } from "main/lib/voice-profile";
+import { AUTO_START_SOURCES, newAutoStartRows } from "shared/auto-start";
 import {
 	awsSignInNeeded,
 	hostNameProblem,
@@ -485,6 +494,10 @@ export const createRemoteHostRouter = () =>
 				updateOdinConfig({ awsInstances: input });
 			}),
 		awsProfiles: publicProcedure.query(() => listAwsProfiles()),
+		/** The profile Odin signs in with when none is picked and the AWS config has no [default]; null when AWS's own default works. */
+		awsFallbackProfile: publicProcedure.query(
+			() => fallbackAwsProfile() ?? null,
+		),
 		/** Until when claude-auto keeps this computer on the API key, epoch seconds; 0 when it doesn't. */
 		planLimitedUntil: publicProcedure.query(() => planLimitedUntil()),
 		/** claude-auto's plan-limit note while it keeps sessions here on the API key; null when it doesn't. */
@@ -761,6 +774,40 @@ export const createRemoteHostRouter = () =>
 				await pushHostTokens(host, []).catch(() => {});
 			else if (input) void refreshHostTokens();
 		}),
+		/** Settings > Remote > Auto-start new tasks: the sources switched on. */
+		autoStart: publicProcedure.query(
+			() => readOdinConfig().autoStartSources ?? [],
+		),
+		setAutoStart: publicProcedure
+			.input(z.object({ sources: z.array(z.enum(AUTO_START_SOURCES)) }))
+			.mutation(({ input }) => {
+				updateOdinConfig({ autoStartSources: input.sources });
+				return input.sources;
+			}),
+		/**
+		 * The board's waiting rows, handed in on every look: answers the ones
+		 * to start now - new since the last look, from a source switched on,
+		 * while the host is on. Every row is recorded either way, so a source
+		 * switched on later starts only what arrives after. Here, not in the
+		 * window, so a reload can't start a row twice.
+		 */
+		claimNewTasks: publicProcedure
+			.input(
+				z.object({
+					rows: z.array(z.object({ source: z.string(), key: z.string() })),
+				}),
+			)
+			.mutation(({ input }) => {
+				const config = readOdinConfig();
+				const { fresh, seen, changed } = newAutoStartRows(
+					config.autoStartSeen,
+					input.rows,
+				);
+				if (changed) updateOdinConfig({ autoStartSeen: seen });
+				if (!config.remoteHost?.on) return [];
+				const on = new Set(config.autoStartSources ?? []);
+				return fresh.filter((row) => on.has(row.source)).map((row) => row.key);
+			}),
 		/**
 		 * The connectors whose tokens live on the host, so sessions there can
 		 * use them with this computer asleep. Written at once; Gmail never.
@@ -931,6 +978,12 @@ export const createRemoteHostRouter = () =>
 			}),
 		/** A fresh token from `claude setup-token`, replacing the saved one. */
 		renewClaudeToken: publicProcedure.mutation(() => ensureClaudeToken(true)),
+		/** A Claude sign-in for the host waiting on you (Windows): the page Odin opened and whether Claude asks for its code; null when none. */
+		claudeSignIn: publicProcedure.query(() => claudeSignInPrompt()),
+		/** The code the Claude sign-in page showed, typed at Claude's prompt. */
+		submitClaudeCode: publicProcedure
+			.input(z.object({ code: z.string().trim().min(1) }))
+			.mutation(({ input }) => submitClaudeCode(input.code)),
 
 		/**
 		 * A session on this computer, moved to the host: its branch goes to
@@ -1091,6 +1144,53 @@ export const createRemoteHostRouter = () =>
 			}),
 
 		/**
+		 * A `!view <port> <password>` block: the VNC screen a session started on
+		 * its host, shown here in Screen Sharing through an ssh tunnel over the
+		 * host's bridge (view-on-mac).
+		 */
+		viewOnMac: publicProcedure
+			.input(
+				z.object({
+					host: paneHost,
+					port: z.number().int().min(1).max(65535),
+					password: z.string().min(1).max(64),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				const host = hostNamed(input.host);
+				if (!host) throw new Error("No remote host is set up.");
+				await withAwsSignIn(host, () =>
+					viewOnMac(host, input.port, input.password),
+				);
+			}),
+
+		/**
+		 * A `!download` block's file: copied from the session's host to this
+		 * computer's Downloads folder (a new name when one is taken), and
+		 * shown in Finder. Returns where it landed.
+		 */
+		downloadFromHost: publicProcedure
+			.input(z.object({ host: paneHost, path: z.string().trim().min(1) }))
+			.mutation(async ({ input }) => {
+				const host = hostNamed(input.host);
+				if (!host) throw new Error("No remote host is set up.");
+				const remote = hostPath(input.path);
+				const local = downloadTarget(app.getPath("downloads"), remote);
+				try {
+					await withAwsSignIn(host, () =>
+						copyFileFromHost(host, remote, local),
+					);
+				} catch (error) {
+					// fastGet leaves what it wrote so far: no half file in Downloads.
+					await rm(local, { force: true });
+					const why = error instanceof Error ? error.message : String(error);
+					throw new Error(`Couldn't download ${input.path}: ${why}`);
+				}
+				shell.showItemInFolder(local);
+				return { path: local };
+			}),
+
+		/**
 		 * Each copy on the host and the laptop file it came from: the chat
 		 * view shows a remote session's screenshots from the files here.
 		 */
@@ -1212,11 +1312,19 @@ export const createRemoteHostRouter = () =>
 		/**
 		 * Where a session whose host is down can go instead: the remote host
 		 * new sessions run on, when that is another instance and it is up.
-		 * Null while the session's own host is up, when there is no other
+		 * Null while the session's own host is up (unless its pane stopped
+		 * reconnecting), when there is no other
 		 * host, or when AWS didn't answer.
 		 */
 		fallbackHost: publicProcedure
-			.input(z.object({ host: z.string().min(1) }))
+			.input(
+				z.object({
+					host: z.string().min(1),
+					// The session's pane stopped reconnecting: its host may be up
+					// and still not take it back, so the other host is offered anyway.
+					stuck: z.boolean().optional(),
+				}),
+			)
 			.query(async ({ input }) => {
 				const current = readOdinConfig().remoteHost;
 				if (!current) return null;
@@ -1233,7 +1341,12 @@ export const createRemoteHostRouter = () =>
 							? found
 							: null;
 					if (own?.instanceId === current.instanceId) return null;
-					if (own && (await hostUp(target(own), own.instanceId))) return null;
+					if (
+						own &&
+						!input.stuck &&
+						(await hostUp(target(own), own.instanceId))
+					)
+						return null;
 					return (await hostUp(target(current), current.instanceId))
 						? name
 						: null;

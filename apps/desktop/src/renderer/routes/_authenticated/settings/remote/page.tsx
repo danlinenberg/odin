@@ -15,6 +15,7 @@ import {
 	SettingsPage,
 	SettingsSection,
 } from "../components/SettingsPage";
+import { AutoStartSection } from "./components/AutoStartSection";
 import { PhoneSection } from "./components/PhoneSection";
 import { RemoteHostSection } from "./components/RemoteHostSection";
 
@@ -34,6 +35,7 @@ function RemoteSettingsPage() {
 			description="Your sessions when you're not at this computer: run them on a host that stays up, see the board from your phone, follow them in the Claude app."
 		>
 			<RemoteHostSection />
+			<AutoStartSection />
 			<PhoneSection />
 			<SettingsSection
 				title="Claude app"

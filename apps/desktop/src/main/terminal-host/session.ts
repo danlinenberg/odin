@@ -22,6 +22,7 @@ import { remoteShellArgv } from "shared/remote-shell-command";
 import {
 	getCommandShellArgs,
 	getShellArgs,
+	moveScriptToEnv,
 } from "../lib/agent-setup/shell-wrappers";
 import { raceWithAbort, throwIfAborted } from "../lib/terminal/abort";
 import { buildSafeEnv } from "../lib/terminal/env";
@@ -169,6 +170,7 @@ export class Session {
 	private subprocessStdoutPaused = false;
 	private lastAttachedAt: Date;
 	private exitCode: number | null = null;
+	private lastSubprocessError: string | null = null;
 	private disposed = false;
 	private terminatingAt: number | null = null;
 	private subprocessDecoder: PtySubprocessFrameDecoder | null = null;
@@ -288,11 +290,18 @@ export class Session {
 			process.platform === "win32" && this.command
 				? remoteShellArgv(this.command)
 				: null;
-		const shellArgs = direct
+		let shellArgs = direct
 			? direct.args
 			: this.command
 				? getCommandShellArgs(this.shell, this.command)
 				: getShellArgs(this.shell);
+		// Git Bash on Windows cuts a long quoted argument short: the command
+		// travels in the environment there (see moveScriptToEnv).
+		if (process.platform === "win32" && !direct && this.command) {
+			const moved = moveScriptToEnv(shellArgs);
+			shellArgs = moved.args;
+			Object.assign(processEnv, moved.env);
+		}
 		const subprocessPath = path.join(__dirname, "pty-subprocess.js");
 
 		// Spawn subprocess with filtered env to prevent leaking NODE_ENV etc.
@@ -460,6 +469,7 @@ export class Session {
 					`[Session ${this.sessionId}] Subprocess error:`,
 					errorMessage,
 				);
+				this.lastSubprocessError = errorMessage;
 
 				this.broadcastEvent("error", {
 					type: "error",
@@ -782,6 +792,16 @@ export class Session {
 	 */
 	get isAlive(): boolean {
 		return this.subprocess !== null && this.exitCode === null;
+	}
+
+	/**
+	 * Why the PTY is gone: the subprocess's own error (a bad cwd, a shell that
+	 * won't start), else the exit code. Spawn failures happen before any client
+	 * attaches, so the broadcast error event reaches no one.
+	 */
+	get exitReason(): string | null {
+		if (this.lastSubprocessError) return this.lastSubprocessError;
+		return this.exitCode === null ? null : `exit code ${this.exitCode}`;
 	}
 
 	/**

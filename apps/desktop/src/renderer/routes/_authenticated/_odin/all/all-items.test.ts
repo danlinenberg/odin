@@ -3,9 +3,12 @@ import {
 	type AllItem,
 	allItems,
 	bandOf,
+	livePanesOn,
 	matchesStatus,
+	paneWorksOn,
 	plainText,
 	previewPastTitle,
+	rowFinishedWith,
 	upcomingMeetings,
 	urgencyOf,
 } from "./all-items";
@@ -421,4 +424,64 @@ test("a meeting leaves the list once it ends", () => {
 	const end = Date.parse(meeting.end);
 	expect(upcomingMeetings([meeting], end - 1)).toHaveLength(1);
 	expect(upcomingMeetings([meeting], end)).toHaveLength(0);
+});
+
+test("a task's session is found by its pane id when the names differ", () => {
+	const [task] = allItems({
+		tasks: [
+			{
+				id: "t9",
+				title: "ship-status",
+				notes: "",
+				createdAt: 1,
+				paneId: "pane-9",
+				paneIds: ["pane-9"],
+			},
+		],
+		slack: [],
+		jira: [],
+		pulls: [],
+		notion: [],
+	});
+	if (!task) throw new Error("no row");
+	expect(task.paneIds).toEqual(["pane-9"]);
+	// New Session named it "/ship-status"; the task's title has no slash.
+	expect(
+		paneWorksOn({ id: "pane-9", odinTaskTitle: "/ship-status" }, task),
+	).toBe(true);
+	expect(
+		paneWorksOn({ id: "pane-1", odinTaskTitle: "/ship-status" }, task),
+	).toBe(false);
+	// The name still links a session started from the row itself.
+	expect(
+		paneWorksOn({ id: "pane-2", odinTaskTitle: "ship-status" }, task),
+	).toBe(true);
+});
+
+test("one task, many sessions: newest first, and Done waits for the last", () => {
+	const [task] = allItems({
+		tasks: [{ id: "t1", title: "Write the thing", notes: "", createdAt: 1 }],
+		slack: [],
+		jira: [],
+		pulls: [],
+		notion: [],
+	});
+	if (!task) throw new Error("no row");
+	const older = { id: "pane-1000-a", odinTaskTitle: "Write the thing" };
+	const newer = { id: "pane-2000-b", odinTaskTitle: "Write the thing" };
+	const ended = {
+		id: "pane-3000-c",
+		odinTaskTitle: "Write the thing",
+		completed: true,
+	};
+	const other = { id: "pane-4000-d", odinTaskTitle: "Something else" };
+	const panes = [older, newer, ended, other];
+	expect(livePanesOn(panes, task).map((pane) => pane.id)).toEqual([
+		"pane-2000-b",
+		"pane-1000-a",
+	]);
+	// Done on one leaves the task open while the other is still going.
+	expect(rowFinishedWith(panes, older.id, task)).toBe(false);
+	// Done on the last one open finishes it.
+	expect(rowFinishedWith([older, ended, other], older.id, task)).toBe(true);
 });

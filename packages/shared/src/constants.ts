@@ -21,7 +21,9 @@ export const COMPANY = {
 // this disagreed: the switch rendered off while the feature was on.
 export const ODIN_AUTO_RENAME_SESSIONS_DEFAULT = true;
 // The chat view's TL;DR of the latest reply, and the phone's. Same two readers.
-export const ODIN_REPLY_TLDR_DEFAULT = true;
+// Off by default: a long reply shows whole. Only a switch the user flipped is
+// stored, so everyone else gets this default.
+export const ODIN_REPLY_TLDR_DEFAULT = false;
 
 // Theme
 export const THEME_STORAGE_KEY = "odin-theme";

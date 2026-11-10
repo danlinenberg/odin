@@ -18,8 +18,13 @@ export interface OdinTask {
 	createdAt: number;
 	/** 1–3 - Low, Medium, High (PRIORITY_LABELS). Absent (or 0) reads as Medium. */
 	priority?: number;
-	/** The session started from this task, once there is one. */
+	/** The session started from this task, once there is one - the newest. */
 	paneId?: string;
+	/**
+	 * Every session started from it, oldest first, the newest PANE_KEEP: a task
+	 * can have several running at once. Absent on tasks started before.
+	 */
+	paneIds?: string[];
 	/**
 	 * The profile that wrote it. Work todos and personal todos are different
 	 * lists. Absent on tasks written before profiles - those read as default.
@@ -58,6 +63,9 @@ export interface OdinTask {
 	/** Runs on this computer even while the remote host takes new sessions. */
 	here?: boolean;
 }
+
+/** How many of a task's sessions it remembers (OdinTask.paneIds). */
+export const PANE_KEEP = 10;
 
 /** Scheduled, so it runs itself - the one thing automations don't share. */
 export const isAutomation = (task: OdinTask): boolean => !!task.cron;
@@ -148,9 +156,15 @@ export const useOdinTasks = create<{
 	seeded: string[];
 	/**
 	 * Newest first. Blank text is a no-op - Enter on an empty box. Pass a cron
-	 * and it lands as an automation instead of a one-shot task.
+	 * and it lands as an automation instead of a one-shot task. Returns the new
+	 * task's id, so the composer can set its Up next, due date and the rest.
 	 */
-	add: (text: string, profileId?: string, cron?: string, repo?: string) => void;
+	add: (
+		text: string,
+		profileId?: string,
+		cron?: string,
+		repo?: string,
+	) => string | undefined;
 	/** Run this task through a skill, or through none (empty). */
 	setSkill: (id: string, skill: string) => void;
 	/** 1-3, after the fact - the Tasks panel's picker, no retyping the "!"s. */
@@ -160,7 +174,10 @@ export const useOdinTasks = create<{
 	/** `repo` undefined keeps the task's repo; "" clears it. */
 	edit: (id: string, text: string, repo?: string) => void;
 	remove: (id: string) => void;
-	/** Remember which session this task launched, so the row can jump to it. */
+	/**
+	 * Remember a session this task launched, so the row can jump to it. Another
+	 * session on the same task adds to the list rather than replacing it.
+	 */
 	setPane: (id: string, paneId: string) => void;
 	/** Put a task on a schedule, or take it off one (null). */
 	setCron: (id: string, cron: string | null) => void;
@@ -184,27 +201,28 @@ export const useOdinTasks = create<{
 		(set) => ({
 			tasks: [],
 			seeded: [],
-			add: (text, profileId, cron, repo) =>
-				set((s) => {
-					const { title, notes, priority, skill } = parseTask(text);
-					if (!title) return s;
-					return {
-						tasks: [
-							{
-								id: crypto.randomUUID(),
-								title,
-								notes,
-								priority,
-								createdAt: Date.now(),
-								profileId: profileOf(profileId),
-								...(cron ? { cron } : {}),
-								...(skill ? { skill } : {}),
-								...(repo ? { repo } : {}),
-							},
-							...s.tasks,
-						],
-					};
-				}),
+			add: (text, profileId, cron, repo) => {
+				const { title, notes, priority, skill } = parseTask(text);
+				if (!title) return undefined;
+				const id = crypto.randomUUID();
+				set((s) => ({
+					tasks: [
+						{
+							id,
+							title,
+							notes,
+							priority,
+							createdAt: Date.now(),
+							profileId: profileOf(profileId),
+							...(cron ? { cron } : {}),
+							...(skill ? { skill } : {}),
+							...(repo ? { repo } : {}),
+						},
+						...s.tasks,
+					],
+				}));
+				return id;
+			},
 			edit: (id, text, repo) =>
 				set((s) => {
 					const { title, notes, priority, skill } = parseTask(text);
@@ -231,7 +249,18 @@ export const useOdinTasks = create<{
 				set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) })),
 			setPane: (id, paneId) =>
 				set((s) => ({
-					tasks: s.tasks.map((t) => (t.id === id ? { ...t, paneId } : t)),
+					tasks: s.tasks.map((t) =>
+						t.id === id
+							? {
+									...t,
+									paneId,
+									paneIds: [
+										...(t.paneIds ?? []).filter((p) => p !== paneId),
+										paneId,
+									].slice(-PANE_KEEP),
+								}
+							: t,
+					),
 				})),
 			setCron: (id, cron) =>
 				set((s) => ({

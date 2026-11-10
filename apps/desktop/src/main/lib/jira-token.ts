@@ -3,6 +3,7 @@ import {
 	resolveJiraOAuthApp,
 	updateOdinConfig,
 } from "../../lib/trpc/routers/odin-config";
+import { sharedRefresh } from "./shared-refresh";
 
 /**
  * Jira OAuth token upkeep, deliberately separate from the consent flow.
@@ -55,10 +56,20 @@ export function storeJiraTokens(json: TokenResponse): string | null {
 	return access;
 }
 
-async function refreshJiraAccessToken(): Promise<string | null> {
+/** Spend the refresh token now; null when Jira refuses it or isn't connected. */
+export function refreshJiraAccessToken(): Promise<string | null> {
 	const app = resolveJiraOAuthApp();
 	const refreshToken = readOdinConfig().jiraRefreshToken;
-	if (!app || !refreshToken) return null;
+	if (!app || !refreshToken) return Promise.resolve(null);
+	return sharedRefresh(`jira:${refreshToken}`, () =>
+		exchangeJiraRefreshToken(app, refreshToken),
+	);
+}
+
+async function exchangeJiraRefreshToken(
+	app: { clientId: string; clientSecret: string },
+	refreshToken: string,
+): Promise<string | null> {
 	try {
 		const res = await fetch(TOKEN_URL, {
 			method: "POST",

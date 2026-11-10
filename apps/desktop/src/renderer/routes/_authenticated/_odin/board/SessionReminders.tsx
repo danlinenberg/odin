@@ -239,13 +239,13 @@ export function SessionReminders() {
 				>
 					<span
 						dir="auto"
-						className="max-w-[320px] truncate font-medium text-foreground"
+						className="max-w-[320px] cursor-text select-text truncate font-medium text-foreground"
 					>
 						{w.title}
 					</span>
 					<span
 						dir="auto"
-						className="max-w-[260px] truncate text-[11px] text-attention"
+						className="max-w-[260px] cursor-text select-text truncate text-[11px] text-attention"
 					>
 						{w.event}: {w.reply}
 					</span>
@@ -283,14 +283,16 @@ export function SessionReminders() {
 						<HoverCardTrigger asChild>
 							<span
 								dir="auto"
-								className="max-w-[320px] cursor-default truncate font-medium text-foreground"
+								className="max-w-[320px] cursor-text select-text truncate font-medium text-foreground"
 							>
 								{r.title}
 							</span>
 						</HoverCardTrigger>
 						<HoverCardContent
 							align="start"
-							className="flex max-h-[70vh] w-[400px] flex-col gap-2 overflow-y-auto border-input bg-secondary p-3 shadow-[0_12px_40px_rgba(0,0,0,0.75)]"
+							// Selectable (the app is select-none): the whole reminder is
+							// here to copy, not only the truncated line in the bar.
+							className="flex max-h-[70vh] w-[400px] cursor-text select-text flex-col gap-2 overflow-y-auto border-input bg-secondary p-3 shadow-[0_12px_40px_rgba(0,0,0,0.75)]"
 						>
 							<div
 								dir="auto"

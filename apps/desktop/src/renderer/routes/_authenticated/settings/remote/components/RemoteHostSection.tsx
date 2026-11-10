@@ -23,7 +23,7 @@ import {
 	HiMinusCircle,
 	HiXCircle,
 } from "react-icons/hi2";
-import { LuLoaderCircle } from "react-icons/lu";
+import { LuCopy, LuLoaderCircle } from "react-icons/lu";
 import {
 	type ElectronRouterOutputs,
 	electronTrpc,
@@ -265,10 +265,31 @@ export function RemoteHostSection() {
 		renew.isPending ||
 		(setOn.isPending && setOn.variables === true && !current?.hasClaudeToken) ||
 		(use.isPending && !current?.hasClaudeToken);
+	// On Windows Claude waits for the code from its sign-in page: Odin opens
+	// the page, and this shows its link and takes the code.
+	const claudeSignIn = electronTrpc.remoteHost.claudeSignIn.useQuery(
+		undefined,
+		{ refetchInterval: signingIn ? 1000 : false },
+	);
+	const signInPrompt = signingIn ? claudeSignIn.data : null;
+	const [claudeCode, setClaudeCode] = useState("");
+	const sendClaudeCode = electronTrpc.remoteHost.submitClaudeCode.useMutation({
+		onSuccess: () => {
+			setClaudeCode("");
+			void claudeSignIn.refetch();
+		},
+		onError,
+	});
+	useEffect(() => {
+		if (!signingIn) sendClaudeCode.reset();
+	}, [signingIn, sendClaudeCode.reset]);
 
 	const { data: saved } = electronTrpc.remoteHost.awsSettings.useQuery();
 	const { data: profiles = [] } =
 		electronTrpc.remoteHost.awsProfiles.useQuery();
+	// No profile picked and no [default] in the AWS config: Odin uses this one.
+	const { data: fallbackProfile } =
+		electronTrpc.remoteHost.awsFallbackProfile.useQuery();
 	const save = electronTrpc.remoteHost.setAwsSettings.useMutation({
 		onSuccess: () => utils.remoteHost.awsSettings.invalidate(),
 		onError,
@@ -411,7 +432,73 @@ export function RemoteHostSection() {
 		<SettingsSection
 			title="Remote host"
 			description="Run new sessions on an EC2 instance in your AWS account, so they keep going with this computer shut. Odin connects with your AWS sign-in over Systems Manager: no open port or SSH key."
+			info={<SetUpYourOwnHost />}
 		>
+			{signInPrompt && (
+				<SettingRow
+					label="Sign in to Claude for the host"
+					stacked
+					description={
+						<span className="select-text cursor-text">
+							Odin opened Claude's sign-in page in your browser. Approve there,
+							then paste the code the page shows.
+							<span className="mt-2 flex items-start gap-2">
+								<span className="min-w-0 break-all font-mono text-xs">
+									{signInPrompt.url}
+								</span>
+								<Button
+									size="sm"
+									variant="outline"
+									className="shrink-0"
+									onClick={() =>
+										navigator.clipboard
+											.writeText(signInPrompt.url)
+											.then(() => toast.success("Link copied."))
+									}
+								>
+									<LuCopy className="size-3.5" />
+									Copy
+								</Button>
+							</span>
+						</span>
+					}
+				>
+					{sendClaudeCode.isSuccess && !signInPrompt.awaitingCode ? (
+						<span className="flex items-center gap-2 text-sm text-muted-foreground">
+							<LuLoaderCircle className="size-3.5 animate-spin" />
+							Checking the code...
+						</span>
+					) : (
+						<form
+							className="flex gap-2"
+							onSubmit={(event) => {
+								event.preventDefault();
+								if (claudeCode.trim())
+									sendClaudeCode.mutate({ code: claudeCode });
+							}}
+						>
+							<Input
+								value={claudeCode}
+								onChange={(event) => setClaudeCode(event.target.value)}
+								placeholder="Paste the code from the Claude page"
+								aria-label="Paste the code from the Claude page"
+								className="font-mono"
+							/>
+							<Button
+								type="submit"
+								size="sm"
+								disabled={
+									!claudeCode.trim() ||
+									!signInPrompt.awaitingCode ||
+									sendClaudeCode.isPending
+								}
+							>
+								Submit
+							</Button>
+						</form>
+					)}
+				</SettingRow>
+			)}
 			{current?.host && !changingHost && (
 				<SettingRow
 					label={
@@ -606,7 +693,7 @@ export function RemoteHostSection() {
 					{error && awsSignInNeeded(error.message) ? (
 						<SettingRow
 							label="Sign in to AWS"
-							description={`Your AWS sign-in for the ${profile || "default"} profile is missing or has run out. Odin opens the approval page in your browser.`}
+							description={`Your AWS sign-in for the ${profile || fallbackProfile || "default"} profile is missing or has run out. Odin opens the approval page in your browser.`}
 						>
 							<Button
 								size="sm"
@@ -635,7 +722,7 @@ export function RemoteHostSection() {
 					{loaded && (
 						<SettingRow
 							label="Hosts in this account"
-							description={`Instances tagged Odin = host in the ${profile || "default"} profile, ${region || DEFAULT_REGION}. A host made or tagged since the list loaded shows after Search again; one in another account shows after you change the profile under Advanced.`}
+							description={`Instances tagged Odin = host in the ${profile || fallbackProfile || "default"} profile, ${region || DEFAULT_REGION}. A host made or tagged since the list loaded shows after Search again; one in another account shows after you change the profile under Advanced.`}
 						>
 							<Button
 								size="sm"
@@ -926,10 +1013,14 @@ export function RemoteHostSection() {
 					)}
 					<SettingRow
 						label="AWS profile"
-						description="From your AWS config. Leave on Default to use the default profile."
+						description={
+							fallbackProfile
+								? `From your AWS config. It has no default profile, so Odin uses ${fallbackProfile} until you pick another.`
+								: "From your AWS config. Leave on Default to use the default profile."
+						}
 					>
 						<Select
-							value={profile || "__default"}
+							value={profile || fallbackProfile || "__default"}
 							onValueChange={(value) => {
 								const next = value === "__default" ? "" : value;
 								setProfile(next);
@@ -940,7 +1031,9 @@ export function RemoteHostSection() {
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="__default">Default</SelectItem>
+								{!fallbackProfile && (
+									<SelectItem value="__default">Default</SelectItem>
+								)}
 								{profiles.map((name) => (
 									<SelectItem key={name} value={name}>
 										{name}
@@ -1241,5 +1334,31 @@ function HostHealthRow({
 				</div>
 			</div>
 		</SettingRow>
+	);
+}
+
+/** The (i) on Remote host: how to make an instance of your own show up here. */
+function SetUpYourOwnHost() {
+	return (
+		<>
+			<p className="font-medium">Set up your own host</p>
+			<p>
+				1. Launch an Ubuntu or Amazon Linux EC2 instance that can reach the
+				internet. It needs no open port or SSH key.
+			</p>
+			<p>
+				2. Tag it Odin = host. An instance launched from the account's odin-host
+				launch template is tagged for you.
+			</p>
+			<p>
+				3. Under Advanced, pick the instance's AWS profile and region, then
+				select Use. The first setup takes a few minutes.
+			</p>
+			<p className="text-muted-foreground">
+				Your AWS role needs ssm:StartSession, ssm:SendCommand,
+				ssm:GetCommandInvocation and ec2-instance-connect:SendSSHPublicKey on
+				instances tagged Odin = host.
+			</p>
+		</>
 	);
 }

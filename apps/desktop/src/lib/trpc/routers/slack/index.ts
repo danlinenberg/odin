@@ -1,6 +1,7 @@
 import { slackReactions } from "@odin/local-db";
 import { TRPCError } from "@trpc/server";
 import { and, eq, isNull, sql } from "drizzle-orm";
+import { createClaudeSettingsJson } from "main/lib/agent-setup/agent-wrappers";
 import { localDb } from "main/lib/local-db";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
@@ -10,7 +11,7 @@ import {
 	resolveSlackToken,
 	updateOdinConfig,
 } from "../odin-config";
-import { createNameLookup } from "./name-lookup";
+import { createNameLookup, type SlackUser, slackUserName } from "./name-lookup";
 import {
 	buildPermalink,
 	channelLabel,
@@ -126,6 +127,52 @@ function slackRead<T extends SlackResponse>(
 	return value;
 }
 
+interface SlackMember {
+	deleted?: boolean;
+	is_bot?: boolean;
+	is_app_user?: boolean;
+	id?: string;
+	name?: string;
+	real_name?: string;
+	profile?: { display_name?: string; real_name?: string };
+}
+
+/** `users.list`, page by page. Kept an hour: people join a team rarely. */
+let peopleCache: { at: number; value: Promise<string[]> } | null = null;
+function workspacePeople(token: string): Promise<string[]> {
+	if (peopleCache && Date.now() - peopleCache.at < 60 * 60_000)
+		return peopleCache.value;
+	const value = (async () => {
+		const names = new Set<string>();
+		let cursor = "";
+		do {
+			const res = await slackApi<
+				SlackResponse & {
+					members?: SlackMember[];
+					response_metadata?: { next_cursor?: string };
+				}
+			>("users.list", { limit: "200", ...(cursor ? { cursor } : {}) }, token);
+			for (const m of res.members ?? []) {
+				if (m.deleted || m.is_bot || m.is_app_user || m.id === "USLACKBOT")
+					continue;
+				const name =
+					m.real_name ||
+					m.profile?.real_name ||
+					m.profile?.display_name ||
+					m.name;
+				if (name) names.add(name);
+			}
+			cursor = res.response_metadata?.next_cursor ?? "";
+		} while (cursor);
+		return [...names].sort((a, b) => a.localeCompare(b));
+	})();
+	peopleCache = { at: Date.now(), value };
+	value.catch(() => {
+		peopleCache = null;
+	});
+	return value;
+}
+
 interface Identity {
 	userId: string;
 	user: string;
@@ -211,12 +258,12 @@ async function lookupUserName(
 ): Promise<string | null> {
 	if (!userId) return null;
 	return userNames.get(userId, async () => {
-		const res = await slackApi<
-			SlackResponse & {
-				user?: { real_name?: string; name?: string };
-			}
-		>("users.info", { user: userId }, token);
-		return res.user?.real_name ?? res.user?.name ?? null;
+		const res = await slackApi<SlackResponse & { user?: SlackUser }>(
+			"users.info",
+			{ user: userId },
+			token,
+		);
+		return slackUserName(res.user);
 	});
 }
 
@@ -1179,6 +1226,15 @@ export const createSlackRouter = () => {
 				);
 			}),
 
+		/**
+		 * Everyone in the workspace by name, for the "Waiting on" suggestions.
+		 * Bots, apps and deactivated accounts are left out.
+		 */
+		people: publicProcedure.query(async () => {
+			const token = slackToken();
+			return token ? workspacePeople(token) : [];
+		}),
+
 		/** Each text with Slack's raw markup as names: `<@U123>` is "@Name". */
 		readable: publicProcedure
 			.input(z.object({ texts: z.array(z.string()) }))
@@ -1241,6 +1297,23 @@ export const createSlackRouter = () => {
 		claimLaunch: publicProcedure
 			.input(z.object({ id: z.string() }))
 			.mutation(({ input }) => ({ claimed: claimLaunch(input.id) })),
+
+		/**
+		 * Settings > Personalization: may sessions send Slack messages as me,
+		 * not only draft them? Off by default. Switching rewrites Claude's
+		 * settings on this computer at once; a remote host's are rewritten at
+		 * each session start there.
+		 */
+		sendAllowed: publicProcedure.query(
+			() => readOdinConfig().slackSendAllowed === true,
+		),
+		setSendAllowed: publicProcedure
+			.input(z.object({ allowed: z.boolean() }))
+			.mutation(({ input }) => {
+				updateOdinConfig({ slackSendAllowed: input.allowed || undefined });
+				createClaudeSettingsJson();
+				return input.allowed;
+			}),
 
 		/** Local-only handled marker - Slack is never written to. */
 		setDone: publicProcedure

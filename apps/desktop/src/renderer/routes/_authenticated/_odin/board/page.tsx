@@ -134,6 +134,7 @@ import { useReadableSlackTitles, useSlackReadable } from "./slack-titles";
 const PILL_TAGS = ["automation", "auto-started", "off-hours"];
 
 import { openUrl, useInAppBrowser } from "renderer/stores/in-app-browser";
+import { rowFinishedWith } from "../all/all-items";
 import { nextSelection, visibleSelection } from "../all/selection";
 import { useSearchableItems } from "../all/use-all-items";
 import { paneWorksOn } from "../all/use-start-item";
@@ -404,10 +405,13 @@ function visibleScreen(paneId: string): string {
 	if (!xterm) return "";
 	const buffer = xterm.buffer.active;
 	const lines: string[] = [];
-	for (let row = 0; row < xterm.rows; row++)
-		lines.push(
-			buffer.getLine(buffer.baseY + row)?.translateToString(true) ?? "",
-		);
+	for (let row = 0; row < xterm.rows; row++) {
+		const y = buffer.baseY + row;
+		// A row the pane wrapped at a space ends in that space: trimmed, the
+		// two words ran together ("tryingagain") in the card's status line.
+		const wraps = buffer.getLine(y + 1)?.isWrapped ?? false;
+		lines.push(buffer.getLine(y)?.translateToString(!wraps) ?? "");
+	}
 	return lines.join("\n");
 }
 
@@ -6082,7 +6086,7 @@ function DevBoardPage() {
 		}
 	}, [cardsByStatus, agentPaneIds]);
 
-	const { add: addTask } = useMyTasks();
+	const { add: addTask, setPane: setTaskPane } = useMyTasks();
 	const handleNewSession = async (
 		rawPrompt: string,
 		images: PromptImage[],
@@ -6132,6 +6136,10 @@ function DevBoardPage() {
 			usePaneMeta.getState().setBrief(result.paneId, prompt || title);
 			usePaneMeta.getState().setTitle(result.paneId, title);
 			usePaneMeta.getState().setSessionId(result.paneId, result.sessionId);
+			// Every session you start has a task: the same one Backlog would have
+			// added, linked as Start on a task links it, so Tasks shows it Working.
+			const taskId = addTask(prompt || title, undefined, repoPath);
+			if (taskId) setTaskPane(taskId, result.paneId);
 			toast.success(
 				`Session started in ${(repoPath || projectById.get(ensured.workspace.projectId)?.mainRepoPath || "").split("/").pop() || "your repo"}`,
 			);
@@ -6391,8 +6399,18 @@ function DevBoardPage() {
 		const cwd = sessionCwd(card.pane) ?? card.repoPath;
 		const title = cardTitle(card);
 		const brief = usePaneMeta.getState().briefByPane[card.pane.id];
-		// The feed row this session was started on is finished with it.
-		const row = allTasks.find((item) => paneWorksOn(card.pane, item));
+		// The feed row this session was started on is finished with it - unless
+		// another session on the same task is still open.
+		const found = allTasks.find((item) => paneWorksOn(card.pane, item));
+		const row =
+			found &&
+			rowFinishedWith(
+				Object.values(useTabsStore.getState().panes),
+				card.pane.id,
+				found,
+			)
+				? found
+				: undefined;
 		if (row) setRowDone(row, true);
 		endSession(card.pane.id);
 		if (!sessionId) return;
@@ -6411,6 +6429,9 @@ function DevBoardPage() {
 				brief,
 			});
 			if (!result.ok) return void toast.error(result.error);
+			// The resumed session is the task's again, whatever its name says.
+			if (found?.source === "Tasks")
+				setTaskPane(found.launch.key, result.paneId);
 			// Undoing Remind me: it's back now, no need to ping about it later.
 			useReminders.getState().clear(REMIND_PREFIX + sessionId);
 			toast.success(`Back on the board - ${title.slice(0, 50)}`);
@@ -6808,8 +6829,9 @@ function DevBoardPage() {
 	// overflow-hidden group, which clipped its tail (the status and the
 	// star) instead.
 	const drawerHeader = drawerCard && (
-		<div className="shrink-0 border-b border-border px-4 py-2">
-			<div className="flex items-center gap-2 whitespace-nowrap">
+		// h-10 matches SessionBrief's header beside it, so the two bottom borders meet.
+		<div className="flex h-10 shrink-0 items-center border-b border-border px-4">
+			<div className="flex min-w-0 flex-1 items-center gap-2 whitespace-nowrap">
 				{renameDraft === null ? (
 					<button
 						type="button"

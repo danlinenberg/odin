@@ -31,6 +31,7 @@ import {
 	machineLoad,
 } from "shared/machine-load";
 import { useApplyDropRules } from "./all/drop-rules";
+import { useWakeWaiting } from "./all/use-wake-waiting";
 import { ClaudeSignInBanner } from "./components/ClaudeSignInBanner";
 import { CrowButton } from "./components/CrowButton";
 import { FEED_TABS } from "./components/feed-counts";
@@ -59,6 +60,7 @@ import { useNightAgentRunner } from "./hooks/useNightAgentRunner";
 import { useOdinFeeds } from "./hooks/useOdinFeeds";
 import { useOdinProfile } from "./hooks/useOdinProfile";
 import { usePendingFocus } from "./hooks/usePendingFocus";
+import { useRemoteAutoStart } from "./hooks/useRemoteAutoStart";
 import { useSlackAutoLaunch } from "./hooks/useStartReaction";
 
 /**
@@ -229,6 +231,8 @@ const ShellRunners = memo(function ShellRunners({
 		if (!isProfileLoading) setReminderProfile(activeProfileId);
 	}, [isProfileLoading, activeProfileId, setReminderProfile]);
 	useDueReminders(jiraDue);
+	// Waiting on others: a row whose day came goes back on Up next.
+	useWakeWaiting();
 	// "Ping me on replies" - same reason: it pings whatever screen is open.
 	// Clicking the banner opens the session it was set on.
 	const navigate = useNavigate();
@@ -248,6 +252,8 @@ const ShellRunners = memo(function ShellRunners({
 	useTaskQueue();
 	// :robot_face: on a Slack message starts its session - see useStartReaction.
 	useSlackAutoLaunch();
+	// New tasks from the sources picked in Settings > Remote start on the host.
+	useRemoteAutoStart();
 	return null;
 });
 

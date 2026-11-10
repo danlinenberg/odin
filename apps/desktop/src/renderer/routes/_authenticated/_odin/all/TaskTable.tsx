@@ -8,11 +8,14 @@ import {
 	LuBan,
 	LuBookmark,
 	LuExternalLink,
+	LuHourglass,
 	LuListMinus,
 	LuListPlus,
+	LuPlus,
 } from "react-icons/lu";
 import { emojify } from "renderer/lib/emoji";
 import { openUrl } from "renderer/stores/in-app-browser";
+import { useTabsStore } from "renderer/stores/tabs/store";
 import { DoneButton } from "../components/DoneButton";
 import { DROP_LABEL, SweepDrop, useDropByHand } from "../components/DropHint";
 import {
@@ -28,6 +31,7 @@ import { PersonChip } from "../components/PersonChip";
 import { PILL } from "../components/pill";
 import {
 	DueChip,
+	dueLabel,
 	effectiveDue,
 	isDue,
 	OverdueMark,
@@ -36,10 +40,21 @@ import {
 import { TonightButton } from "../components/TonightButton";
 import { useDone } from "../hooks/useDone";
 import { usePendingFocus } from "../hooks/usePendingFocus";
+import { PANE_STATUS } from "../pane-status";
 import { type AllItem, bandOf, plainText, previewPastTitle } from "./all-items";
-import { DropRuleMenu } from "./DropRuleMenu";
-import { statusLabel, typeLabel, typeOf, useTaskMeta } from "./task-meta";
-import { useStartAllItem } from "./use-start-item";
+import { type BulkActions, TaskRowMenu } from "./TaskRowMenu";
+import {
+	statusLabel,
+	typeLabel,
+	typeOf,
+	useTaskMeta,
+	type Waiting,
+} from "./task-meta";
+import {
+	START_ANOTHER_TIP,
+	START_SESSION_TIP,
+	useStartAllItem,
+} from "./use-start-item";
 
 /**
  * The one task table. All and every feed tab - Tasks, Slack, Jira, GitHub,
@@ -101,9 +116,37 @@ export const COL = {
 	place: "block w-[112px] shrink-0 truncate @max-[1380px]:hidden",
 	date: "flex w-[52px] shrink-0 items-center tabular-nums text-muted-foreground @max-[860px]:hidden",
 	acts: "flex w-[154px] shrink-0 items-center justify-end gap-0.5",
-	start: "flex w-[84px] shrink-0 justify-end",
+	start: "flex w-[104px] shrink-0 justify-end",
 	done: "flex w-[72px] shrink-0",
 };
+
+/**
+ * A task with a session on it says so on its own row: Working, or Needs you
+ * when the session is stuck on a question. Hover names the board column.
+ * `count` is how many sessions are open on it; the chip names the newest.
+ */
+function WorkingChip({ paneId, count }: { paneId: string; count: number }) {
+	const status = useTabsStore((s) => s.panes[paneId]?.status ?? "idle");
+	const needsYou = status === "permission";
+	return (
+		<span
+			title={`A session is running on this task - ${PANE_STATUS[status].label} on the board`}
+			className={cn(
+				"flex shrink-0 items-center gap-1 text-[11px] font-semibold",
+				needsYou ? "text-attention-ink" : "text-working-ink",
+			)}
+		>
+			<span
+				className={cn("size-1.5 rounded-full", !needsYou && "animate-pulse")}
+				style={{
+					backgroundColor: PANE_STATUS[needsYou ? "permission" : "working"].dot,
+				}}
+			/>
+			{needsYou ? "Needs you" : "Working"}
+			{count > 1 && ` · ${count} sessions`}
+		</span>
+	);
+}
 
 /** A row: a line with a divider, not a card - cards spent a third of the height on chrome. */
 const TABLE_ROW =
@@ -176,7 +219,7 @@ export function useTaskRows(onSlackStarted?: () => void) {
 	const start = useStartAllItem(onSlackStarted);
 	const { markDone, markReading, undo, reading } = useDone();
 	const dropByHand = useDropByHand();
-	const { statuses, types, enqueue, dequeue } = useTaskMeta();
+	const { statuses, types, enqueue, dequeue, waiting, unwait } = useTaskMeta();
 	const reminders = useReminders((s) => s.reminders);
 	const readingKeys = useMemo(
 		() => new Set(reading.map((row) => row.key)),
@@ -190,6 +233,8 @@ export function useTaskRows(onSlackStarted?: () => void) {
 		readingKeys,
 		enqueue,
 		dequeue,
+		waiting,
+		unwait,
 		markReading,
 		undo,
 		/** Done, and off Up next too, so an Undo doesn't bring it back there. */
@@ -238,6 +283,16 @@ export function SortableRow({
 	});
 }
 
+/** A waiting row's second line: who it waits on, and when it comes back. */
+export function waitLine(wait: Waiting, now: number): string {
+	const back = dueLabel(wait.until, now);
+	// "Today", "Tomorrow" read as words in a sentence; a date takes "on".
+	const when = /^\w+day$|^Tomorrow$/.test(back)
+		? back.toLowerCase()
+		: `on ${back}`;
+	return `Waiting${wait.on ? ` on ${wait.on}` : ""} - back on Up next ${when}`;
+}
+
 /** One task, in the table's columns. */
 export function TaskRow({
 	item,
@@ -249,6 +304,7 @@ export function TaskRow({
 	open = false,
 	onOpen,
 	done = false,
+	bulk,
 }: {
 	item: AllItem;
 	rows: TaskRows;
@@ -265,20 +321,26 @@ export function TaskRow({
 	onOpen?: () => void;
 	/** Already done (Slack's Done view): Done reads as Undo. */
 	done?: boolean;
+	/** Ticked with others: its right-click acts on every ticked row. */
+	bulk?: BulkActions;
 }) {
 	const url = item.url;
 	const SourceIcon = SOURCE_ICON[item.to];
-	const activePaneId = rows.livePaneFor(item);
+	const livePanes = rows.livePanesFor(item);
+	const activePaneId = livePanes[0] ?? null;
 	const isReading = rows.readingKeys.has(item.key);
 	const due = effectiveDue(item.key, rows.reminders, item.dueDate);
 	const band = bandOf(item, isDue(due, now), now, isReading);
 	// The second line: the comment that put it here, else the body - always
 	// one line, so every row is the same height and the columns line up.
-	const preview = item.mention
-		? `${item.mention.author ?? "Someone"}: ${plainText(item.mention.text)}`
-		: item.body
-			? previewPastTitle(item.title, plainText(item.body))
-			: "";
+	const wait = rows.waiting[item.key];
+	const preview = wait
+		? waitLine(wait, now)
+		: item.mention
+			? `${item.mention.author ?? "Someone"}: ${plainText(item.mention.text)}`
+			: item.body
+				? previewPastTitle(item.title, plainText(item.body))
+				: "";
 	const at = created
 		? item.createdAt
 		: ASKS.has(item.ask.kind) && item.ask.at
@@ -289,7 +351,7 @@ export function TaskRow({
 		? "Back to Waiting on you"
 		: "Mark it Read later - it moves to Docs";
 	return (
-		<DropRuleMenu item={item}>
+		<TaskRowMenu item={item} rows={rows} done={done} bulk={bulk}>
 			<div
 				ref={drag?.setNodeRef}
 				style={drag?.style}
@@ -361,6 +423,22 @@ export function TaskRow({
 									</span>
 								)}
 							</button>
+							{activePaneId && (
+								<>
+									<WorkingChip paneId={activePaneId} count={livePanes.length} />
+									<IconTip label={START_ANOTHER_TIP}>
+										<button
+											type="button"
+											aria-label="Start another session"
+											disabled={rows.isLaunching}
+											onClick={() => void rows.start(item)}
+											className={cn(ROW_ICON_BUTTON, "size-5")}
+										>
+											<LuPlus className="size-3" aria-hidden />
+										</button>
+									</IconTip>
+								</>
+							)}
 							{item.also?.map((copy) => (
 								<AlsoIn key={copy.key} copy={copy} />
 							))}
@@ -458,7 +536,18 @@ export function TaskRow({
 							title={item.title}
 							upstream={item.dueDate}
 						/>
-						{drag ? (
+						{wait ? (
+							<IconTip label="Stop waiting - back on top of Up next">
+								<button
+									type="button"
+									onClick={() => rows.unwait(item.key, true)}
+									aria-label="Stop waiting - back on top of Up next"
+									className={cn(ROW_ICON_BUTTON, "text-primary")}
+								>
+									<LuHourglass className="size-3.5" aria-hidden />
+								</button>
+							</IconTip>
+						) : drag ? (
 							<IconTip label="Take it off Up next">
 								<button
 									type="button"
@@ -515,12 +604,13 @@ export function TaskRow({
 								onClick={() => rows.goToPane(activePaneId)}
 								className={cn(ROW_LIVE_BUTTON, "px-2.5")}
 							>
-								Session →
+								Go to session
 							</button>
 						) : (
 							<button
 								type="button"
 								aria-label="Start session"
+								title={START_SESSION_TIP}
 								disabled={rows.isLaunching}
 								onClick={() => void rows.start(item)}
 								className={cn(ROW_START_BUTTON, "px-2.5")}
@@ -537,6 +627,6 @@ export function TaskRow({
 					</span>
 				</div>
 			</div>
-		</DropRuleMenu>
+		</TaskRowMenu>
 	);
 }

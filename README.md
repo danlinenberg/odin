@@ -255,8 +255,8 @@ Re-entry is where the time actually goes, so it gets real machinery:
 
 - **Chat view** - each session reads as a conversation, not a terminal: your
   messages, the agent's replies folded to a TL;DR, its steps while it works, and
-  its subagents in their own tab. Paste a screenshot, drop a file, `@` a file
-  from the checkout, or have the reply read aloud. The terminal is one click away.
+  its subagents in their own tab. Paste a screenshot, drop a file, or `@` a file
+  from the checkout. The terminal is one click away.
 - **Briefs** - a model reads the transcript and answers "what did I walk into?",
   including the session's PRs, whether one has conflicts, and whether it runs on
   your plan or an API key.

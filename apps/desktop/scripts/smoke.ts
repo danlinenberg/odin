@@ -655,6 +655,33 @@ await step(
 	},
 );
 
+await step(
+	"Waiting on others parks a task off the list until its day",
+	async () => {
+		await rail("Tasks");
+		await waitForText(TASK);
+		await page(
+			`[...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(TASK)})?.click()`,
+		);
+		await waitForText("Tasks feed →");
+		await click("button", "Park it off Up next");
+		await waitForText("Waiting on others");
+		await waitForText("back on Up next");
+		await click("button", "Close details");
+		await waitForText("Tasks feed →", false);
+		// The row's hourglass brings it back early, on top of Up next.
+		if (!(await clickOnTaskRow("Stop waiting")))
+			throw new Error("no Stop waiting on the waiting task's row");
+		await waitForText("Waiting on others", false);
+		await waitForText("drag to reorder");
+		await page(
+			`document.querySelector('button[aria-label="Take it off Up next"]')?.click()`,
+		);
+		await waitForText("drag to reorder", false);
+		await waitForText(TASK);
+	},
+);
+
 await step("Tonight on a task row picks it for the Night Agent", async () => {
 	// Next in line is a column you open on the board; a fresh home has it shut.
 	const openNextInLine = () =>
@@ -698,6 +725,47 @@ await step("the Tasks page has its own composer", async () => {
 });
 
 await step(
+	"the composer's Up next puts a new task on the queue, and its panel labels the fields",
+	async () => {
+		const typed = `Queued task ${Date.now()}`;
+		await rail("Tasks");
+		await fill('textarea[placeholder="What needs doing?"]', typed);
+		const picked = await page<boolean>(`(() => {
+		const title = document.querySelector('textarea[placeholder="What needs doing?"]');
+		const select = title.closest("fieldset").parentElement.querySelector('select[aria-label="Up next"]');
+		if (!select) return false;
+		Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(select, "top");
+		select.dispatchEvent(new Event("change", { bubbles: true }));
+		return true;
+	})()`);
+		if (!picked) throw new Error("no Up next field under the composer");
+		await click("button", "Add task");
+		await waitForText(typed);
+		await waitForText("drag to reorder");
+		// Its side panel names each dropdown, and Start says what it does.
+		await page(
+			`[...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(typed)})?.click()`,
+		);
+		const panel = await page<string>(`(() => {
+		const aside = document.querySelector("[data-task-panel]");
+		if (!aside) return "no panel";
+		const labels = ["Status", "Type", "Priority"].filter((l) => ![...aside.querySelectorAll("span")].some((e) => e.textContent.trim() === l));
+		if (labels.length) return "missing labels " + labels.join(", ");
+		const start = [...aside.querySelectorAll("button")].find((e) => e.textContent.trim() === "Start session");
+		return start?.title ? "" : "Start session has no hover text";
+	})()`);
+		if (panel) throw new Error(panel);
+		await click("button", "Close details");
+		await page(`(() => {
+		let row = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(typed)});
+		while (row && !row.querySelector('button[aria-label="Take it off Up next"]')) row = row.parentElement;
+		row?.querySelector('button[aria-label="Take it off Up next"]').click();
+	})()`);
+		await waitForText("drag to reorder", false);
+	},
+);
+
+await step(
 	"the Tasks composer stays open when you click into Repo",
 	async () => {
 		await rail("Tasks");
@@ -734,6 +802,47 @@ await step("ticking two tasks marks both done at once", async () => {
 	await waitForText("2 selected", false);
 	await waitForText(TASK);
 });
+
+/** Right-click the row whose title is `title`; true when it was there. */
+async function rightClickTaskRow(title: string): Promise<boolean> {
+	return page<boolean>(`(() => {
+		const t = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(title)});
+		const row = t?.closest("[data-task-row]");
+		const at = row?.getBoundingClientRect();
+		row?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: at?.x, clientY: at?.y }));
+		return !!row;
+	})()`);
+}
+
+await step(
+	"right-click a task row: its actions, one row or every ticked one",
+	async () => {
+		await rail("Tasks");
+		await waitForText(TASK);
+		if (!(await rightClickTaskRow(TASK)))
+			throw new Error("no row for the task");
+		await click('[role="menuitem"]', "Line it up - top of Up next");
+		await waitForText("drag to reorder");
+		if (!(await rightClickTaskRow(TASK))) throw new Error("no row on Up next");
+		await click('[role="menuitem"]', "Take it off Up next");
+		await waitForText("drag to reorder", false);
+		const pair = [`Menu one ${Date.now()}`, `Menu two ${Date.now()}`];
+		for (const typed of pair) {
+			await fill('textarea[placeholder="What needs doing?"]', typed);
+			await click("button", "Add task");
+			await waitForText(typed);
+		}
+		for (const typed of pair)
+			await page(
+				`document.querySelector(${JSON.stringify(`input[aria-label="Select ${typed}"]`)}).click()`,
+			);
+		await waitForText("2 selected");
+		if (!(await rightClickTaskRow(pair[0]))) throw new Error("no ticked row");
+		await click('[role="menuitem"]', "Done - 2 tasks");
+		for (const typed of pair) await waitForText(typed, false);
+		await waitForText(TASK);
+	},
+);
 
 await step("A task's title opens its details beside the list", async () => {
 	await rail("Tasks");
@@ -901,6 +1010,35 @@ await step(
 	},
 );
 
+await step(
+	"New Session adds its task to Tasks, Working with Go to session and Start another",
+	async () => {
+		await rail("Tasks");
+		await waitForText(SESSION);
+		const row = await page<{
+			working: boolean;
+			goTo: boolean;
+			another: boolean;
+		} | null>(`(() => {
+		const title = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(SESSION)});
+		const row = title?.closest("[data-task-row]");
+		if (!row) return null;
+		return {
+			working: /Working|Needs you/.test(row.textContent),
+			goTo: !!row.querySelector('button[aria-label="Go to session"]'),
+			another: !!row.querySelector('button[aria-label="Start another session"]'),
+		};
+	})()`);
+		if (!row) throw new Error("no task row for the New Session session");
+		if (!row.working) throw new Error("the task's row doesn't say Working");
+		if (!row.goTo) throw new Error("the task's row has no Go to session");
+		if (!row.another)
+			throw new Error("the task's row has no Start another session");
+		await rail("Dev Board");
+		await waitForText("next in line");
+	},
+);
+
 await step("an agent's command runs in its session's own Shell", async () => {
 	// What the launch prompt tells the agent to do, done as the agent would.
 	const [port, paneId] = readFileSync(join(home, `pane-${sessionPid}`), "utf8")
@@ -930,6 +1068,37 @@ await step("an agent's command runs in its session's own Shell", async () => {
 		if (Date.now() > end)
 			throw new Error(`the card's Shell is ${shellOf()}, not ${shell}`);
 	}
+});
+
+await step("an agent adds an Odin task through Odin's API", async () => {
+	// What the SessionStart rule tells every session to do when asked to
+	// "open an Odin task", done as the agent would.
+	const [port] = readFileSync(join(home, `pane-${sessionPid}`), "utf8")
+		.trim()
+		.split(" ");
+	const title = "Smoke task from an agent";
+	const odin = async (args: Record<string, string>) => {
+		const response = await fetch(`http://127.0.0.1:${port}/odin`, {
+			method: "POST",
+			body: new URLSearchParams(args),
+		});
+		const text = await response.text();
+		if (!response.ok) throw new Error(`${response.status} ${text}`);
+		return text;
+	};
+	const added = await odin({
+		action: "add",
+		text: `${title}\nNotes from the agent`,
+		due: "2030-01-15",
+		up_next: "top",
+	});
+	if (!added.includes(`Added "${title}"`) || !added.includes("due 2030-01-15"))
+		throw new Error(`unexpected answer: ${added}`);
+	const tasks = JSON.parse(await odin({ action: "tasks" })) as {
+		title: string;
+	}[];
+	if (!tasks.some((task) => task.title === title))
+		throw new Error(`not in the backlog: ${JSON.stringify(tasks)}`);
 });
 
 await step(
