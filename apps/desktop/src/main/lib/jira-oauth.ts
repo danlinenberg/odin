@@ -4,7 +4,7 @@ import {
 	resolveJiraOAuthApp,
 } from "../../lib/trpc/routers/odin-config";
 import { type BrowserOpener, openInBrowser } from "./browser-opener";
-import { jiraSite, storeJiraTokens } from "./jira-token";
+import { firstJiraSite, jiraSite, storeJiraTokens } from "./jira-token";
 
 /**
  * "Connect Jira" as two clicks, on the same bounce-page pattern as Slack and
@@ -25,8 +25,31 @@ const SCOPES = ["read:jira-work", "read:jira-user", "offline_access"];
 
 const PENDING_TTL_MS = 10 * 60 * 1000;
 
+/**
+ * A Jira sign-in for a remote host, as its service keeps and refreshes it
+ * (host-service jira_own). It carries the OAuth app, secret included, since
+ * Atlassian's refresh needs both; the app already ships inside Odin.
+ */
+export interface HostJiraPair {
+	access_token: string;
+	refresh_token: string;
+	/** Epoch seconds. */
+	expires_at: number;
+	client_id: string;
+	client_secret: string;
+	cloud_id: string;
+}
+
+/** Where a sign-in for someone else goes instead of this computer's config. */
+export type JiraPairDelivery = (pair: HostJiraPair) => Promise<void>;
+
 type Pending =
-	| { status: "pending"; startedAt: number; tokenAtStart: string | null }
+	| {
+			status: "pending";
+			startedAt: number;
+			tokenAtStart: string | null;
+			deliver?: JiraPairDelivery;
+	  }
 	| { status: "connected"; startedAt: number; identity: string | null }
 	| { status: "failed"; startedAt: number; error: string };
 
@@ -42,8 +65,15 @@ export function isJiraOAuthConfigured(): boolean {
 	return resolveJiraOAuthApp() !== null;
 }
 
+/**
+ * Opens Atlassian's consent page. With `deliver`, the sign-in that comes back
+ * is handed to it (a remote host's own) and this computer keeps nothing: two
+ * holders of one rotating refresh token would sign each other out, while two
+ * consents give two independent ones.
+ */
 export async function startJiraOAuth(
 	open: BrowserOpener = openInBrowser,
+	deliver?: JiraPairDelivery,
 ): Promise<{ state: string; authorizeUrl: string }> {
 	const app = resolveJiraOAuthApp();
 	if (!app) throw new Error("Jira OAuth is not configured");
@@ -53,6 +83,7 @@ export async function startJiraOAuth(
 		status: "pending",
 		startedAt: Date.now(),
 		tokenAtStart: readOdinConfig().jiraRefreshToken ?? null,
+		deliver,
 	});
 	const url = new URL(AUTHORIZE_URL);
 	// Without this audience the token is for Atlassian's own APIs, not Jira's.
@@ -75,6 +106,7 @@ export function readJiraOAuthResult(state: string): Pending | null {
 	// Finished in a sibling Odin, which writes the same odin.json.
 	if (
 		entry.status === "pending" &&
+		!entry.deliver &&
 		(readOdinConfig().jiraRefreshToken ?? null) !== entry.tokenAtStart
 	) {
 		const connected: Pending = {
@@ -100,7 +132,9 @@ export async function completeJiraOAuth(url: string): Promise<void> {
 		console.error("[jira-oauth] Callback with unknown or expired state");
 		return;
 	}
-	const startedAt = pending.get(state)?.startedAt ?? Date.now();
+	const started = pending.get(state);
+	const startedAt = started?.startedAt ?? Date.now();
+	const deliver = started?.status === "pending" ? started.deliver : undefined;
 	const fail = (error: string) => {
 		console.error("[jira-oauth]", error);
 		pending.set(state, { status: "failed", startedAt, error });
@@ -132,6 +166,28 @@ export async function completeJiraOAuth(url: string): Promise<void> {
 			error?: string;
 			error_description?: string;
 		};
+		if (deliver) {
+			if (!json.access_token || !json.refresh_token)
+				return fail(
+					`Jira rejected the exchange: ${json.error_description ?? json.error ?? `HTTP ${res.status}`}`,
+				);
+			const site = await firstJiraSite(json.access_token);
+			if (!site) return fail("This Jira sign-in reaches no Jira site");
+			await deliver({
+				access_token: json.access_token,
+				refresh_token: json.refresh_token,
+				expires_at: Math.floor(Date.now() / 1000) + (json.expires_in ?? 3600),
+				client_id: app.clientId,
+				client_secret: app.clientSecret,
+				cloud_id: site.cloudId,
+			});
+			pending.set(state, {
+				status: "connected",
+				startedAt,
+				identity: site.siteUrl,
+			});
+			return;
+		}
 		const access = storeJiraTokens(json);
 		if (!access) {
 			return fail(

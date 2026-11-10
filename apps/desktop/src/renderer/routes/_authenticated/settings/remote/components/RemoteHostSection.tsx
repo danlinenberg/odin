@@ -207,6 +207,38 @@ export function RemoteHostSection() {
 			clearTimeout(timer);
 		};
 	}, [hostSignIn]);
+	// A Jira sign-in for the host: Atlassian's page opens in the browser, and
+	// this asks every 2s whether it came back, until it lands or fails.
+	const [jiraSignIn, setJiraSignIn] = useState<string | null>(null);
+	const startJiraSignIn =
+		electronTrpc.remoteHost.jiraHostSignInStart.useMutation({
+			onSuccess: ({ state }) => setJiraSignIn(state),
+			onError,
+		});
+	const jiraSignInResult =
+		electronTrpc.remoteHost.jiraHostSignInResult.useMutation();
+	const jiraSignInResultRef = useRef(jiraSignInResult);
+	jiraSignInResultRef.current = jiraSignInResult;
+	useEffect(() => {
+		if (!jiraSignIn) return;
+		const timer = setInterval(async () => {
+			const result = await jiraSignInResultRef.current
+				.mutateAsync({ state: jiraSignIn })
+				.catch((error: unknown) => ({
+					status: "failed" as const,
+					error: error instanceof Error ? error.message : String(error),
+				}));
+			if (result.status === "pending") return;
+			setJiraSignIn(null);
+			if (result.status === "connected") {
+				toast.success(
+					"Jira is signed in on the host. It refreshes its own token there now.",
+				);
+				void refreshRef.current();
+			} else toast.error(`Jira sign-in on the host: ${result.error}`);
+		}, 2000);
+		return () => clearInterval(timer);
+	}, [jiraSignIn]);
 	// A switch flips at once; writing on the host (an SSM connection, about
 	// 8 seconds) happens behind it. Flips made meanwhile go out as one write
 	// when it lands; a failed write puts the switches back and says why.
@@ -623,6 +655,31 @@ export function RemoteHostSection() {
 							}
 						/>
 					</SettingRow>
+					{onHost.has("jira") && (
+						<SettingRow
+							label="Jira on the host"
+							description={
+								<span className="select-text cursor-text">
+									{jiraSignIn
+										? "Approve in your browser..."
+										: current.host.jiraHostSignIn
+											? "Signed in on the host: it refreshes its own token."
+											: "Uses this computer's token, which runs out about an hour after this computer sleeps. Sign in on the host so Jira keeps working there."}
+								</span>
+							}
+						>
+							<Button
+								size="sm"
+								variant="outline"
+								disabled={!!jiraSignIn || startJiraSignIn.isPending}
+								onClick={() => startJiraSignIn.mutate()}
+							>
+								{current.host.jiraHostSignIn
+									? "Sign in again"
+									: "Sign in on the host"}
+							</Button>
+						</SettingRow>
+					)}
 					<SettingRow
 						label="Claude setup"
 						stacked

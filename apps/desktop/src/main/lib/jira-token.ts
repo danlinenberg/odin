@@ -124,6 +124,17 @@ export async function jiraSite(token: string): Promise<JiraSite | null> {
 	const { jiraCloudId, jiraSiteUrl } = readOdinConfig();
 	if (jiraCloudId)
 		return { cloudId: jiraCloudId, siteUrl: jiraSiteUrl ?? null };
+	const site = await firstJiraSite(token);
+	if (site)
+		updateOdinConfig({
+			jiraCloudId: site.cloudId,
+			jiraSiteUrl: site.siteUrl ?? undefined,
+		});
+	return site;
+}
+
+/** The first site a token reaches, asked of Atlassian; nothing is cached. */
+export async function firstJiraSite(token: string): Promise<JiraSite | null> {
 	try {
 		const res = await fetch(RESOURCES_URL, {
 			headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
@@ -135,7 +146,6 @@ export async function jiraSite(token: string): Promise<JiraSite | null> {
 		const resources = (await res.json()) as { id?: string; url?: string }[];
 		const first = resources[0];
 		if (!first?.id) return null;
-		updateOdinConfig({ jiraCloudId: first.id, jiraSiteUrl: first.url });
 		return { cloudId: first.id, siteUrl: first.url ?? null };
 	} catch (error) {
 		console.error("[jira-oauth] accessible-resources failed:", error);

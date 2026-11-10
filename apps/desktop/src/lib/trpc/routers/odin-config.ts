@@ -95,6 +95,11 @@ export interface OdinFileConfig {
 		 * and refreshes those; this computer's token goes for the others.
 		 */
 		githubHostSignIns?: string[];
+		/**
+		 * The host has a Jira sign-in of its own (jira-oauth for the host),
+		 * which it refreshes. Dropped with the Jira connector.
+		 */
+		jiraHostSignIn?: boolean;
 		/** AWS profile names defined on the host, signed in with its instance role (main/lib/remote-host/aws-on-host). */
 		awsProfiles?: string[];
 	};

@@ -5,7 +5,7 @@
  * - `action=service` (Slack, Notion, ClickUp, Jira, GitHub API calls) is
  *   answered here, with the tokens the user chose to keep on the host. So
  *   connector calls work with the laptop closed.
- * - `POST /tokens` and `POST /github-pair?login=` are how the user's own
+ * - `POST /tokens`, `POST /github-pair?login=` and `POST /jira-pair` are how the user's own
  *   Odin sends them: over that user's login, never root's, so a host user
  *   needs no sudo. Answered to the owning Linux user alone; the service
  *   writes the files itself, mode 0600.
@@ -104,6 +104,13 @@ CHECK_EVERY = 5 * 60
 checked = {}
 LOGIN = re.compile(r"[A-Za-z0-9-]{1,39}")
 github_lock = threading.Lock()
+# The host's own Jira sign-in (Atlassian 3LO), beside the tokens file: the access token, the rotating
+# refresh token, the expiry, the OAuth app and the site. Refreshed here, so Jira works with the laptop shut.
+JIRA_FILE = os.path.join(os.path.dirname(TOKENS), "jira.json")
+JIRA_TOKEN_URL = os.environ.get("ODIN_JIRA_TOKEN_URL") or "https://auth.atlassian.com/oauth/token"
+JIRA_API = os.environ.get("ODIN_JIRA_API") or "https://api.atlassian.com/ex/jira/"
+JIRA_MARGIN = 5 * 60
+jira_lock = threading.Lock()
 
 
 def peer_uid(peer_port):
@@ -268,6 +275,31 @@ def github_refuses(token):
 SLACK_API = os.environ.get("ODIN_SLACK_API") or "https://slack.com/api/"
 
 
+def jira_own():
+    """The host's own Jira sign-in as (base, access token), refreshed under the lock when it is within
+    JIRA_MARGIN of expiry; None when there is none or Atlassian refused the refresh."""
+    with jira_lock:
+        pair = read_json(JIRA_FILE)
+        if not isinstance(pair, dict) or not pair.get("access_token") or not pair.get("cloud_id"):
+            return None
+        if float(pair.get("expires_at") or 0) - time.time() < JIRA_MARGIN:
+            body = {"grant_type": "refresh_token", "client_id": pair.get("client_id") or "", "client_secret": pair.get("client_secret") or "", "refresh_token": pair.get("refresh_token") or ""}
+            req = urllib.request.Request(JIRA_TOKEN_URL, data=json.dumps(body).encode(), headers={"Content-Type": "application/json", "Accept": "application/json"}, method="POST")
+            try:
+                with urllib.request.urlopen(req, timeout=30) as res:
+                    got = json.loads(res.read().decode("utf-8", "replace"))
+            except Exception:
+                got = None
+            if not isinstance(got, dict) or not got.get("access_token"):
+                return None
+            pair = dict(pair, access_token=got["access_token"], refresh_token=got.get("refresh_token") or pair.get("refresh_token"), expires_at=time.time() + float(got.get("expires_in") or 3600))
+            try:
+                write_json(JIRA_FILE, pair)
+            except OSError:
+                pass
+        return JIRA_API + pair["cloud_id"] + "/", pair["access_token"]
+
+
 def service_base(name, t):
     if name == "slack" and t.get("slack"):
         return SLACK_API, {"Authorization": "Bearer " + t["slack"]}
@@ -279,6 +311,10 @@ def service_base(name, t):
         token = github_token(pick_login("", ""))
         if token:
             return "https://api.github.com/", {"Authorization": "Bearer " + token}
+    # The file is there only while the Jira connector is on (put_tokens drops it otherwise).
+    own = jira_own() if name == "jira" else None
+    if own:
+        return own[0], {"Authorization": "Bearer " + own[1]}
     if name == "jira" and t.get("jira") and t.get("jiraBase"):
         return t["jiraBase"].rstrip("/") + "/", {"Authorization": "Bearer " + t["jira"]}
     return None, None
@@ -443,6 +479,12 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(body, dict) or not isinstance(body.get("tokens"), dict):
             return self.reply(400, "Expected {\\"tokens\\": {...}}.\\n")
         keep = set(k.lower() for k in (body.get("githubKeep") or []) if isinstance(k, str))
+        if not body.get("jiraKeep"):
+            with jira_lock:
+                try:
+                    os.remove(JIRA_FILE)
+                except OSError:
+                    pass
         with github_lock:
             write_json(TOKENS, body["tokens"])
             try:
@@ -471,6 +513,20 @@ class Handler(BaseHTTPRequestHandler):
             write_json(pair_path(login.lower()), pair)
         return self.reply(200, "ok\\n")
 
+    def put_jira_pair(self, raw, uid):
+        """POST /jira-pair: the host's own Jira sign-in, from a consent flow run for the host."""
+        if not self.owner_only(uid):
+            return self.reply(403, "This is another user's Odin.\\n")
+        try:
+            pair = json.loads(raw.decode("utf-8"))
+        except Exception:
+            pair = None
+        if not isinstance(pair, dict) or not all(pair.get(k) for k in ("access_token", "refresh_token", "cloud_id")):
+            return self.reply(400, "Expected a sign-in with access_token, refresh_token and cloud_id.\\n")
+        with jira_lock:
+            write_json(JIRA_FILE, pair)
+        return self.reply(200, "ok\\n")
+
     def handle_any(self):
         if self.headers.get("Origin"):
             return self.reply(403, "Not from a browser.\\n")
@@ -488,6 +544,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.put_tokens(raw, uid)
         if path == "/github-pair" and self.command == "POST":
             return self.put_github_pair(query, raw, uid)
+        if path == "/jira-pair" and self.command == "POST":
+            return self.put_jira_pair(raw, uid)
         if self.command == "POST" and path == "/odin":
             form = {k: v[-1] for k, v in urllib.parse.parse_qs(raw.decode("utf-8", "replace")).items()}
             if form.get("action") == "service":

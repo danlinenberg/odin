@@ -22,6 +22,7 @@ import {
 import { getNotifyScriptPath } from "main/lib/agent-setup/notify-hook";
 import { ODIN_HOME_DIR } from "main/lib/app-environment";
 import { githubOwner, onGithubTokensChanged } from "main/lib/github-token";
+import { readJiraOAuthResult, startJiraOAuth } from "main/lib/jira-oauth";
 import {
 	activePlanLimit,
 	apiKeyFallbackOn,
@@ -89,6 +90,7 @@ import {
 } from "main/lib/remote-host/host-service";
 import {
 	pushHostGithubPair,
+	pushHostJiraPair,
 	pushHostTokens,
 } from "main/lib/remote-host/host-tokens";
 import { markHostUp } from "main/lib/remote-host/host-up";
@@ -826,10 +828,16 @@ export const createRemoteHostRouter = () =>
 			.mutation(async ({ input }) => {
 				const host = readOdinConfig().remoteHost;
 				if (!host) throw new Error("No remote host is set up.");
+				// Jira off drops the host's own Jira sign-in there too.
+				const next = {
+					...host,
+					connectors: input,
+					jiraHostSignIn: input.includes("jira") && host.jiraHostSignIn,
+				};
 				const kept = await withAwsSignIn(host, () =>
-					pushHostTokens(host, input),
+					pushHostTokens(next, input),
 				);
-				updateOdinConfig({ remoteHost: { ...host, connectors: input } });
+				updateOdinConfig({ remoteHost: next });
 				return { kept };
 			}),
 		/**
@@ -984,6 +992,38 @@ export const createRemoteHostRouter = () =>
 					},
 				});
 				return { state: "signed-in" as const, login: result.login };
+			}),
+		/**
+		 * A Jira sign-in of the host's own: Atlassian's consent page opens in
+		 * the browser, and the sign-in goes to the host and nowhere else. The
+		 * host refreshes it from then on (host-service), so Jira works there
+		 * with this computer shut.
+		 */
+		jiraHostSignInStart: publicProcedure.mutation(async () => {
+			const host = readOdinConfig().remoteHost;
+			if (!host) throw new Error("No remote host is set up.");
+			const { state } = await startJiraOAuth(
+				(url) => shell.openExternal(url),
+				async (pair) => {
+					// Marked first, so a token send meanwhile doesn't drop the new sign-in.
+					const current = readOdinConfig().remoteHost ?? host;
+					updateOdinConfig({
+						remoteHost: { ...current, jiraHostSignIn: true },
+					});
+					await withAwsSignIn(host, () => pushHostJiraPair(host, pair));
+				},
+			);
+			return { state };
+		}),
+		/** Where that sign-in stands: pending, connected or failed (with why). */
+		jiraHostSignInResult: publicProcedure
+			.input(z.object({ state: z.string().min(1) }))
+			.mutation(({ input }) => {
+				const result = readJiraOAuthResult(input.state);
+				if (!result) return { status: "failed" as const, error: "Timed out" };
+				return result.status === "failed"
+					? { status: "failed" as const, error: result.error }
+					: { status: result.status };
 			}),
 		/** A fresh token from `claude setup-token`, replacing the saved one. */
 		renewClaudeToken: publicProcedure.mutation(() => ensureClaudeToken(true)),
