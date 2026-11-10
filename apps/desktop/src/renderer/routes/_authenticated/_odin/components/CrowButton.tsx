@@ -56,9 +56,9 @@ const firstName = () => {
 const CROW_MODELS = CLAUDE_MODELS.filter((option) => option.value);
 
 /**
- * Which Claude the raven runs on. Opus by default; Haiku is quicker and
- * cheaper for a simple question. Kept for later chats; useCrow moves the
- * spare and an open conversation over.
+ * Which Claude a new raven chat starts on. Opus by default; Haiku is quicker
+ * and cheaper for a simple question. Only on the greeting: an open chat
+ * changes its model with the chat's own picker.
  */
 function CrowModelPicker() {
 	const model = useClaudeCommand((s) => s.crowModel);
@@ -67,7 +67,7 @@ function CrowModelPicker() {
 	return (
 		<select
 			aria-label="Model"
-			title="The model the raven runs on. Opus by default; Haiku is quicker and cheaper for a simple question. Kept for later chats, and an open chat continues on it."
+			title="The model a new chat with the raven starts on. Opus by default; Haiku is quicker and cheaper for a simple question. Kept for later chats."
 			value={known ? model : CROW_DEFAULT_MODEL}
 			onChange={(event) => setModel(event.target.value)}
 			className="h-6 shrink-0 cursor-pointer rounded-md bg-foreground/10 pl-1.5 pr-1 text-[11.5px] text-muted-foreground outline-none [color-scheme:inherit] hover:text-foreground"
@@ -177,7 +177,6 @@ function CrowPanel({
 				<div className="flex shrink-0 items-center justify-between px-2.5 pt-2.5">
 					{icon}
 					<div className="flex items-center gap-1.5">
-						<CrowModelPicker />
 						<button
 							type="button"
 							title="Start a fresh conversation - this one stays under Earlier chats"
