@@ -1347,8 +1347,8 @@ function SetUpYourOwnHost() {
 				internet. It needs no open port or SSH key.
 			</p>
 			<p>
-				2. Tag it Odin = host. An instance launched from the account's
-				odin-host launch template is tagged for you.
+				2. Tag it Odin = host. An instance launched from the account's odin-host
+				launch template is tagged for you.
 			</p>
 			<p>
 				3. Under Advanced, pick the instance's AWS profile and region, then
