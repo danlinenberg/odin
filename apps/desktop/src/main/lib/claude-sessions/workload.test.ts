@@ -4,6 +4,7 @@ import {
 	mkdtempSync,
 	readFileSync,
 	rmSync,
+	statSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -193,6 +194,24 @@ describe("scanSessions", () => {
 		expect(after.map((s) => [s.sessionId, s.activeMs])).toEqual([
 			["s1", 3 * MINUTE],
 		]);
+	});
+
+	test("a fresh launch takes an unchanged transcript's scan from disk, not the file", async () => {
+		const root = mkdtempSync(join(tmpdir(), "odin-scans-"));
+		mkdirSync(join(root, "p"));
+		const file = join(root, "p", "s1.jsonl");
+		writeFileSync(file, transcript);
+		const archive = join(root, "kept.json");
+		const info = statSync(file);
+		const scan = { ...scanTranscript(transcript), title: "from the cache" };
+		writeFileSync(
+			join(root, "kept-cache.json"),
+			JSON.stringify({
+				[file]: { mtimeMs: info.mtimeMs, bytes: info.size, scan },
+			}),
+		);
+		const [session] = await scanSessions({ root, archive });
+		expect(session?.title).toBe("from the cache");
 	});
 
 	test("an unreadable archive is left alone, not overwritten", async () => {

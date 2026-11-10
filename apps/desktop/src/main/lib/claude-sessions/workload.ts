@@ -333,11 +333,56 @@ export interface SessionWork extends TranscriptScan {
 	source: string | null;
 }
 
-/** path → last scan, so a re-open only re-reads transcripts that changed. */
-const cache = new Map<
-	string,
-	{ mtimeMs: number; bytes: number; scan: TranscriptScan | null }
->();
+type CachedScan = {
+	mtimeMs: number;
+	bytes: number;
+	scan: TranscriptScan | null;
+};
+
+/**
+ * path → last scan, so a re-open only re-reads transcripts that changed.
+ * Kept on disk beside the archive too: reading every transcript again on each
+ * launch took seconds per GB, and Insights sat on "Loading" for all of it.
+ */
+const cache = new Map<string, CachedScan>();
+/** Which cache files have been read into `cache` already. */
+const cacheLoaded = new Set<string>();
+/** Set when a scan had to read a transcript, so the cache is worth saving. */
+let cacheDirty = false;
+
+function cachePathFor(archive: string): string {
+	return archive.replace(/\.json$/, "") + "-cache.json";
+}
+
+async function loadCache(path: string): Promise<void> {
+	if (cacheLoaded.has(path)) return;
+	cacheLoaded.add(path);
+	try {
+		const saved = JSON.parse(await readFile(path, "utf-8")) as Record<
+			string,
+			CachedScan
+		>;
+		for (const [file, entry] of Object.entries(saved))
+			if (!cache.has(file)) cache.set(file, entry);
+	} catch {
+		// none yet, or unreadable: it's only a cache, the next scan rebuilds it
+	}
+}
+
+/** Only the files this scan saw, so deleted transcripts drop out. */
+async function saveCache(path: string, seen: Set<string>): Promise<void> {
+	const kept: Record<string, CachedScan> = {};
+	for (const file of seen) {
+		const entry = cache.get(file);
+		if (entry) kept[file] = entry;
+	}
+	try {
+		await writeFile(`${path}.tmp`, JSON.stringify(kept));
+		await rename(`${path}.tmp`, path);
+	} catch (error) {
+		console.warn("[insights] scan cache not saved:", error);
+	}
+}
 
 /** dir → repo name; a walk up the tree per directory, done once. */
 const repos = new Map<string, string | null>();
@@ -370,7 +415,11 @@ export function repoForDirs(
 }
 
 /** A transcript's scan, re-read only when the file changed. */
-async function scanCached(path: string): Promise<TranscriptScan | null> {
+async function scanCached(
+	path: string,
+	seen?: Set<string>,
+): Promise<TranscriptScan | null> {
+	seen?.add(path);
 	try {
 		const info = await stat(path);
 		if (!info.isFile()) return null;
@@ -379,6 +428,7 @@ async function scanCached(path: string): Promise<TranscriptScan | null> {
 			return hit.scan;
 		const scan = scanTranscript(await readFile(path, "utf-8"));
 		cache.set(path, { mtimeMs: info.mtimeMs, bytes: info.size, scan });
+		cacheDirty = true;
 		return scan;
 	} catch {
 		return null; // deleted mid-scan, or unreadable
@@ -488,6 +538,9 @@ export async function scanSessions({
 	archive?: string | null;
 } = {}): Promise<SessionWork[]> {
 	const kept = archive ? await readArchive(archive) : null;
+	const cacheFile = archive ? cachePathFor(archive) : null;
+	if (cacheFile) await loadCache(cacheFile);
+	const seen = new Set<string>();
 	let changed = false;
 	const live = (session: KeptSession): SessionWork => {
 		const who = people.get(session.sessionId);
@@ -518,7 +571,7 @@ export async function scanSessions({
 		for (const name of names) {
 			if (!name.endsWith(".jsonl")) continue;
 			const path = join(root, project, name);
-			const scan = await scanCached(path);
+			const scan = await scanCached(path, seen);
 			if (!scan) continue;
 			const sessionId = name.slice(0, -".jsonl".length);
 			// Subagents work alongside their parent, in transcripts of their own;
@@ -534,7 +587,7 @@ export async function scanSessions({
 			for (const sub of subNames)
 				if (sub.endsWith(".jsonl"))
 					subagents.push(
-						...((await scanCached(join(subDir, sub)))?.intervals ?? []),
+						...((await scanCached(join(subDir, sub), seen))?.intervals ?? []),
 					);
 			const session = { ...scan, subagents, sessionId, project };
 			const was = kept?.get(sessionId);
@@ -553,6 +606,10 @@ export async function scanSessions({
 	for (const [sessionId, session] of kept ?? [])
 		if (!onDisk.has(sessionId)) sessions.push(live(session));
 	if (archive && kept && changed) await writeArchive(archive, kept);
+	if (cacheFile && cacheDirty) {
+		cacheDirty = false;
+		await saveCache(cacheFile, seen);
+	}
 	return sessions;
 }
 
