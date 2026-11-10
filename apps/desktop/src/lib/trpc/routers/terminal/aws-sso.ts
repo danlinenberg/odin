@@ -21,6 +21,12 @@ export function awsProfile(
 	return shellProfile || undefined;
 }
 
+/** Whether an AWS call failed on an expired SSO sign-in, one Odin can renew. */
+export const isAwsSignInExpired = (error: unknown): boolean =>
+	/SSO session|token (has expired|is expired)|ExpiredToken/i.test(
+		String(error),
+	);
+
 type SsoLogin = {
 	/** The approval page, for a pane to show in case no tab came up. */
 	link: Promise<string>;

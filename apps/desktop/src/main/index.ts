@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { settings } from "@odin/local-db";
 import { app, BrowserWindow, dialog, net, protocol, session } from "electron";
 import { makeAppSetup } from "lib/electron-app/factories/app/setup";
+import { readOdinConfig } from "lib/trpc/routers/odin-config";
 import { slackFile } from "lib/trpc/routers/slack";
 import {
 	applyShellEnvToProcess,
@@ -42,6 +43,7 @@ import { ensureProjectIconsDir, getProjectIconPath } from "./lib/project-icons";
 import { startWorktreePruner } from "./lib/prune-worktrees";
 import { runQuitCleanup } from "./lib/quit-sequence";
 import { hostFileSources } from "./lib/remote-host/host-files";
+import { reopenVscodeBridges } from "./lib/remote-host/vscode-bridge";
 import { offerRestartOffOldSignature } from "./lib/restart-odin";
 import { initSentry } from "./lib/sentry";
 import { acquireSingleUiLock } from "./lib/single-ui-lock";
@@ -399,6 +401,13 @@ if (!gotTheLock) {
 		// A smoke run (scripts/smoke.ts) gets no Dock icon or app switcher entry.
 		if (process.env.ODIN_SMOKE) app.dock?.hide();
 		refreshNotificationIconCache();
+		// VS Code windows left open on a remote host reconnect without a click.
+		{
+			const { remoteHost, pastRemoteHosts } = readOdinConfig();
+			void reopenVscodeBridges(
+				[remoteHost, ...(pastRemoteHosts ?? [])].filter((h) => !!h),
+			);
+		}
 		// No permission is asked for up front: each macOS prompt (notifications,
 		// Automation, folders) shows the first time something actually needs it.
 

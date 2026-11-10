@@ -3,9 +3,14 @@ import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
 import { join } from "node:path";
+import {
+	awsSsoLogin,
+	isAwsSignInExpired,
+} from "lib/trpc/routers/terminal/aws-sso";
 import { utils } from "ssh2";
 import { ODIN_HOME_DIR } from "../app-environment";
-import type { HostLogin } from "./ssh";
+import { sh } from "./session";
+import { adminLogin, connectHost, type HostLogin, runOnHost } from "./ssh";
 import { openSsmStream, pushOneTimeKey } from "./ssm";
 
 /**
@@ -120,11 +125,20 @@ function startBridge(
 	};
 	const server = net.createServer((socket) => {
 		socket.pause();
-		void (async () => {
-			// Over SSM: the key line lasts 3 minutes and needs no lookup on the
-			// host, so it is there whatever the host's Instance Connect setup.
+		// Over SSM: the key line lasts 3 minutes and needs no lookup on the
+		// host, so it is there whatever the host's Instance Connect setup.
+		const connect = async () => {
 			await pushOneTimeKey(target, host.user, publicKey, { overSsm: true });
-			const stream = await openSsmStream(target);
+			return openSsmStream(target);
+		};
+		void (async () => {
+			// VS Code can't sign in to AWS itself: an expired sign-in opens
+			// Odin's approval page and the connection goes on once it's approved.
+			const stream = await connect().catch(async (error: unknown) => {
+				if (!isAwsSignInExpired(error)) throw error;
+				await awsSsoLogin(host.profile ?? null).done;
+				return connect();
+			});
 			socket.on("error", () => stream.destroy());
 			stream.on("error", () => socket.destroy());
 			socket.on("close", () => stream.destroy());
@@ -177,6 +191,147 @@ export async function vscodeHost(
 		await writeFile(configPath, next, { mode: 0o600 });
 	}
 	return alias;
+}
+
+/**
+ * Opens the local port again for each host `~/.ssh/config` still names, at
+ * Odin's start: a VS Code window left open on the host reconnects on its own
+ * instead of waiting for the next "Open in VS Code on the host".
+ */
+export async function reopenVscodeBridges(
+	hosts: (HostLogin & { name?: string | null })[],
+): Promise<void> {
+	const path = sshConfigPath();
+	if (!existsSync(path)) return;
+	const config = readFileSync(path, "utf8");
+	for (const host of hosts) {
+		if (entryPort(config, hostAlias(host.name || host.instanceId)) === null)
+			continue;
+		await vscodeHost(host).catch((error) =>
+			console.warn("[remote-host] VS Code bridge:", error),
+		);
+	}
+}
+
+/**
+ * VS Code's user settings set up for the host: Remote-SSH told it runs Linux,
+ * so the first connection doesn't stop to ask, and this computer's
+ * extensions listed in `remote.SSH.defaultExtensions`, so Remote-SSH installs
+ * them there too. Null when there is nothing to change, or the file isn't
+ * plain JSON (comments): it is left as it is then.
+ */
+export function withHostSettings(
+	settings: string,
+	alias: string,
+	extensions: string[] = [],
+): string | null {
+	let parsed: Record<string, unknown>;
+	try {
+		parsed = settings.trim() ? JSON.parse(settings) : {};
+	} catch {
+		return null;
+	}
+	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+		return null;
+	const platforms = parsed["remote.SSH.remotePlatform"] ?? {};
+	const listed = parsed["remote.SSH.defaultExtensions"] ?? [];
+	if (typeof platforms !== "object" || !Array.isArray(listed)) return null;
+	// The remote extensions themselves only belong on this computer.
+	const added = extensions.filter(
+		(id) => !id.startsWith("ms-vscode-remote.") && !listed.includes(id),
+	);
+	const hasPlatform = !!(platforms as Record<string, string>)[alias];
+	if (hasPlatform && !added.length) return null;
+	if (!hasPlatform)
+		parsed["remote.SSH.remotePlatform"] = { ...platforms, [alias]: "linux" };
+	if (added.length)
+		parsed["remote.SSH.defaultExtensions"] = [...listed, ...added];
+	return `${JSON.stringify(parsed, null, 4)}\n`;
+}
+
+/** Sets up VS Code's user settings for the host (see withHostSettings). */
+export async function setVsCodeHostSettings(
+	alias: string,
+	extensions: string[],
+): Promise<void> {
+	const dir =
+		process.platform === "darwin"
+			? join(os.homedir(), "Library", "Application Support", "Code", "User")
+			: join(os.homedir(), ".config", "Code", "User");
+	const path = join(dir, "settings.json");
+	const next = withHostSettings(
+		existsSync(path) ? await readFile(path, "utf8") : "",
+		alias,
+		extensions,
+	);
+	if (next === null) return;
+	await mkdir(dir, { recursive: true });
+	await writeFile(path, next);
+}
+
+/** This computer's zsh startup files, copied for VS Code's terminal on the host. */
+const ZSH_FILES = [".zshenv", ".zprofile", ".zshrc"];
+
+/**
+ * The host-side script that makes this computer's zsh setup VS Code's
+ * terminal there: zsh as its default profile, with ZDOTDIR on the copied
+ * startup files in `dir`, so the host's own home files stay as they are.
+ * Written to the VS Code server's machine settings, which only apply on this
+ * host; a file that isn't plain JSON is left alone.
+ */
+export function machineSettingsScript(dir: string): string {
+	const py = [
+		"import json, os, sys",
+		"p = os.path.expanduser('~/.vscode-server/data/Machine/settings.json')",
+		"os.makedirs(os.path.dirname(p), exist_ok=True)",
+		"try:",
+		"    s = json.load(open(p)) if os.path.exists(p) else {}",
+		"except Exception:",
+		"    sys.exit(0)",
+		"s['terminal.integrated.defaultProfile.linux'] = 'zsh'",
+		"env = s.get('terminal.integrated.env.linux') or {}",
+		`env['ZDOTDIR'] = ${JSON.stringify(dir)}`,
+		"s['terminal.integrated.env.linux'] = env",
+		"json.dump(s, open(p, 'w'), indent=4)",
+	].join("\n");
+	return `python3 -c ${sh(py)}`;
+}
+
+/**
+ * Brings this computer's zsh setup to VS Code's terminal on the host: zsh
+ * installed there (through the admin login's sudo) and the startup files
+ * copied to `~/.odin/mac-shell`. Skipped when the shell here isn't zsh or
+ * zsh can't be installed there.
+ */
+export async function bringShellToHost(host: HostLogin): Promise<void> {
+	if (!/zsh$/.test(process.env.SHELL ?? "")) return;
+	const files = ZSH_FILES.map((name) => join(os.homedir(), name)).filter(
+		(path) => existsSync(path),
+	);
+	if (!files.length) return;
+	const install =
+		"command -v zsh >/dev/null || { export DEBIAN_FRONTEND=noninteractive; if command -v apt-get >/dev/null; then sudo -n apt-get install -y -q zsh || { sudo -n apt-get update -q && sudo -n apt-get install -y -q zsh; }; else sudo -n dnf install -y -q zsh || sudo -n yum install -y -q zsh; fi; } >/dev/null 2>&1";
+	const admin = await connectHost(adminLogin(host));
+	try {
+		await runOnHost(admin, install).catch(() => {});
+	} finally {
+		admin.end();
+	}
+	const client = await connectHost(host);
+	try {
+		await runOnHost(client, "command -v zsh");
+		const dir = `/home/${host.user}/.odin/mac-shell`;
+		await runOnHost(client, `mkdir -p ${sh(dir)}`);
+		for (const path of files)
+			await runOnHost(
+				client,
+				`cat > ${sh(`${dir}/${path.split("/").pop()}`)}`,
+				await readFile(path, "utf8"),
+			);
+		await runOnHost(client, machineSettingsScript(dir));
+	} finally {
+		client.end();
+	}
 }
 
 /** VS Code's address for a folder on an ssh host. */
