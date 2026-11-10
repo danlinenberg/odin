@@ -369,7 +369,7 @@ export function describeCommand(command: string): string {
 /**
  * A reply's `!` commands the phone shows: not `!download`, which puts a file
  * in this computer's Downloads folder, not on the phone, nor `!view`, which
- * opens Screen Sharing here.
+ * opens a window here.
  */
 export function phoneCommands(text: string): string[] {
 	return bangCommands(text).filter(

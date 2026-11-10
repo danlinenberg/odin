@@ -55,6 +55,7 @@
 		"@dnd-kit/utilities": "3.2.2",
 		"@hono/node-server": "2.0.10",
 		"@lezer/highlight": "1.2.3",
+		"@novnc/novnc": "1.7.0",
 		"@odin/channel": "workspace:*",
 		"@odin/chat-legacy": "workspace:*",
 		"@odin/host-service": "workspace:*",

@@ -1145,7 +1145,7 @@ export const createRemoteHostRouter = () =>
 
 		/**
 		 * A `!view <port> <password>` block: the VNC screen a session started on
-		 * its host, shown here in Screen Sharing through an ssh tunnel over the
+		 * its host, shown here in an Odin window (noVNC) through an ssh tunnel over the
 		 * host's bridge (view-on-mac).
 		 */
 		viewOnMac: publicProcedure

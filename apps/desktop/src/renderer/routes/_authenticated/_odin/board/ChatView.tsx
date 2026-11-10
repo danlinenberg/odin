@@ -3778,7 +3778,7 @@ export function ChatView({
 			}
 			const view = viewTarget(command);
 			if (view) {
-				toast.info("Opening the app in Screen Sharing…");
+				toast.info("Opening the app running on the host…");
 				await electronTrpcClient.remoteHost.viewOnMac.mutate({
 					host: useTabsStore.getState().panes[paneId]?.odinRemote,
 					...view,
