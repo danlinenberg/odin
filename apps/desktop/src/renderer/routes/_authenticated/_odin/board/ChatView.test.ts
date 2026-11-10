@@ -1048,6 +1048,21 @@ describe("an earlier reply's commands in the action items card", () => {
 		).toBe(0);
 	});
 
+	test("an item naming View on my computer gets the latest earlier !view button, and only that", () => {
+		const viewer =
+			"Shared.\n\n```\n!view 43054 xzZdkOx6\n```\n\n```\n!local open ~/Downloads\n```\n\nACTION ITEMS\n1. Click View on my computer";
+		const older =
+			"First.\n\n```\n!view 37166 iydAXuDu\n```\n\nACTION ITEMS\n1. Click View on my computer";
+		const ask =
+			"Faster now.\n\nACTION ITEMS\n1. Click View on my computer and say how it is now (you only)";
+		const items = [text("o", older), text("v", viewer), text("q", ask)];
+		expect(earlierCommandsText(items, "q")).toBe(
+			"```\n!view 43054 xzZdkOx6\n```",
+		);
+		// No earlier viewer: nothing to borrow.
+		expect(earlierCommandsText([text("q", ask)], "q")).toBeUndefined();
+	});
+
 	test("each goes under the item that asks for it, and never to the card's foot", () => {
 		const items = [
 			"Run the two IAM checks from my earlier message and tell me the results (you only)",
