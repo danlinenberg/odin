@@ -1,19 +1,19 @@
-import { type ChildProcess, execFile, spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import net from "node:net";
-import { promisify } from "node:util";
-import { shell } from "electron";
+import { join } from "node:path";
+import { BrowserWindow } from "electron";
+import { env } from "shared/env.shared";
 import type { HostLogin } from "./ssh";
-import { viewUrl } from "./view-url";
 import { vscodeHost } from "./vscode-bridge";
 
 /**
  * A `!view <port> <password>` block: a VNC server a remote session started on
- * its host, on the host's localhost only, shown here in macOS Screen Sharing.
- * The tunnel is ssh through the same bridge VS Code on the host uses, so it
- * needs no open port; it closes once Screen Sharing quits.
+ * its host, on the host's localhost only, shown here in an Odin window running
+ * noVNC (renderer/vnc-viewer). noVNC takes tight encoding with JPEG, far less
+ * over the link than macOS Screen Sharing's lossless zlib. The tunnel is ssh
+ * through the same bridge VS Code on the host uses, so it needs no open port;
+ * it closes with the window.
  */
-
-const run = promisify(execFile);
 
 /** A port nothing on this computer listens on. */
 function freePort(): Promise<number> {
@@ -36,12 +36,6 @@ const answers = (port: number) =>
 		});
 		socket.once("error", () => resolve(false));
 	});
-
-const screenSharingRuns = () =>
-	run("pgrep", ["-x", "Screen Sharing"]).then(
-		() => true,
-		() => false,
-	);
 
 /** Tunnels by host port, so a second click on the same block reuses its tunnel. */
 const tunnels = new Map<number, { local: number; ssh: ChildProcess }>();
@@ -85,35 +79,45 @@ async function openTunnel(alias: string, port: number): Promise<number> {
 	);
 }
 
-/** Closes the tunnel once Screen Sharing has quit (checked every 10s, 8h at most). */
-function closeWhenDone(port: number) {
-	const tunnel = tunnels.get(port);
-	if (!tunnel) return;
-	let seen = false;
-	const started = Date.now();
-	const timer = setInterval(async () => {
-		const running = await screenSharingRuns();
-		seen ||= running;
-		if (
-			tunnel.ssh.exitCode !== null ||
-			(seen && !running) ||
-			Date.now() - started > 8 * 3600_000
-		) {
-			clearInterval(timer);
-			tunnel.ssh.kill();
-		}
-	}, 10_000);
-	timer.unref();
+/** The viewer page, from the dev server or the built renderer, like the main window. */
+function loadViewer(window: BrowserWindow, query: Record<string, string>) {
+	if (env.NODE_ENV === "development")
+		return window.loadURL(
+			`http://localhost:${env.DESKTOP_VITE_PORT}/vnc-viewer.html?${new URLSearchParams(query)}`,
+		);
+	return window.loadFile(join(__dirname, "../renderer/vnc-viewer.html"), {
+		query,
+	});
 }
 
-/** Shows the host's screen on `port` in Screen Sharing here. */
+/** One window per host port: a second click brings it to the front. */
+const windows = new Map<number, BrowserWindow>();
+
+/** Shows the host's screen on `port` in an Odin window here. */
 export async function viewOnMac(
 	host: HostLogin & { name?: string | null },
 	port: number,
 	password: string,
 ): Promise<void> {
+	const shown = windows.get(port);
+	if (shown && !shown.isDestroyed()) {
+		shown.show();
+		shown.focus();
+		return;
+	}
 	const alias = await vscodeHost(host);
 	const local = await openTunnel(alias, port);
-	await shell.openExternal(viewUrl(local, password));
-	closeWhenDone(port);
+	const window = new BrowserWindow({
+		width: 1200,
+		height: 790,
+		title: "View",
+		backgroundColor: "#111111",
+		webPreferences: { sandbox: true, contextIsolation: true },
+	});
+	windows.set(port, window);
+	window.on("closed", () => {
+		windows.delete(port);
+		tunnels.get(port)?.ssh.kill();
+	});
+	await loadViewer(window, { port: String(local), password });
 }
