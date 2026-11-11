@@ -95,6 +95,30 @@ const slackApi = Bun.serve({
 });
 // Atlassian: the token endpoint rotates the pair; the API answers who the token is.
 const jiraRefreshes: { refresh_token?: string; client_secret?: string }[] = [];
+// Notion: the token endpoint rotates the pair; the API refuses the old token with a 401.
+const notionRefreshes: { body: { refresh_token?: string }; auth: string }[] =
+	[];
+const notion = Bun.serve({
+	port: 0,
+	hostname: "127.0.0.1",
+	fetch: async (req) => {
+		const path = new URL(req.url).pathname;
+		if (path === "/v1/oauth/token") {
+			notionRefreshes.push({
+				body: await req.json(),
+				auth: req.headers.get("authorization") ?? "",
+			});
+			return Response.json({
+				access_token: `notion_new${notionRefreshes.length}`,
+				refresh_token: `notion_r${notionRefreshes.length + 1}`,
+			});
+		}
+		const auth = req.headers.get("authorization");
+		if (auth === "Bearer notion_old")
+			return new Response("expired", { status: 401 });
+		return new Response(`${path} ${auth}`);
+	},
+});
 const jira = Bun.serve({
 	port: 0,
 	hostname: "127.0.0.1",
@@ -148,6 +172,8 @@ beforeAll(async () => {
 				ODIN_SLACK_API: `http://127.0.0.1:${slackApi.port}/api/`,
 				ODIN_JIRA_TOKEN_URL: `http://127.0.0.1:${jira.port}/oauth/token`,
 				ODIN_JIRA_API: `http://127.0.0.1:${jira.port}/ex/jira/`,
+				ODIN_NOTION_TOKEN_URL: `http://127.0.0.1:${notion.port}/v1/oauth/token`,
+				ODIN_NOTION_API: `http://127.0.0.1:${notion.port}/v1/`,
 			},
 		},
 	);
@@ -169,6 +195,7 @@ afterAll(() => {
 	proc?.kill();
 	github.stop(true);
 	jira.stop(true);
+	notion.stop(true);
 });
 
 // The service is for Linux hosts. CI's macOS runners start python3 but never
@@ -489,6 +516,44 @@ describe.skipIf(!live)("Odin's host service", () => {
 		// Jira off on the host: the sign-in goes.
 		expect((await send("/tokens", tokens)).status).toBe(200);
 		expect(existsSync(jiraFile)).toBe(false);
+	});
+
+	test("the host's own Notion sign-in answers Notion calls, refreshes itself when Notion refuses it, and goes with the connector", async () => {
+		const send = (path: string, body: unknown) =>
+			fetch(`${url}${path}`, { method: "POST", body: JSON.stringify(body) });
+		const notionFile = join(dir, "notion.json");
+		const tokens = { tokens: { notion: "laptop_copy" } };
+		expect(
+			(await send("/tokens", { ...tokens, notionKeep: true })).status,
+		).toBe(200);
+		expect((await send("/notion-pair", { access_token: "x" })).status).toBe(
+			400,
+		);
+		const pair = {
+			access_token: "notion_old",
+			refresh_token: "notion_r1",
+			client_id: "cid",
+			client_secret: "secret",
+		};
+		expect((await send("/notion-pair", pair)).status).toBe(200);
+		expect(statSync(notionFile).mode & 0o777).toBe(0o600);
+		// Refused: refreshed with the app's Basic auth, the call goes again, the rotated pair kept.
+		const res = await post({
+			action: "service",
+			service: "notion",
+			path: "users/me",
+		});
+		expect(await res.text()).toContain("/v1/users/me Bearer notion_new1");
+		expect(notionRefreshes.at(-1)).toMatchObject({
+			body: { refresh_token: "notion_r1" },
+			auth: `Basic ${Buffer.from("cid:secret").toString("base64")}`,
+		});
+		expect(JSON.parse(readFileSync(notionFile, "utf8")).refresh_token).toBe(
+			"notion_r2",
+		);
+		// Notion off on the host: the sign-in goes, and the laptop's token is gone with it.
+		expect((await send("/tokens", { tokens: {} })).status).toBe(200);
+		expect(existsSync(notionFile)).toBe(false);
 	});
 });
 

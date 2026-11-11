@@ -5,7 +5,7 @@
  * - `action=service` (Slack, Notion, ClickUp, Jira, GitHub API calls) is
  *   answered here, with the tokens the user chose to keep on the host. So
  *   connector calls work with the laptop closed.
- * - `POST /tokens`, `POST /github-pair?login=` and `POST /jira-pair` are how the user's own
+ * - `POST /tokens`, `POST /github-pair?login=`, `POST /jira-pair` and `POST /notion-pair` are how the user's own
  *   Odin sends them: over that user's login, never root's, so a host user
  *   needs no sudo. Answered to the owning Linux user alone; the service
  *   writes the files itself, mode 0600.
@@ -83,7 +83,7 @@ export interface HostTokensFile {
 }
 
 /** argv: the host user it serves, their tokens file, its port (the tunnel's is next). */
-export const HOST_SERVICE_PY = `import json, os, pwd, re, sys, threading, time, urllib.request, urllib.parse, urllib.error
+export const HOST_SERVICE_PY = `import base64, json, os, pwd, re, sys, threading, time, urllib.request, urllib.parse, urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 OWNER = pwd.getpwnam(sys.argv[1]).pw_uid
@@ -111,6 +111,11 @@ JIRA_TOKEN_URL = os.environ.get("ODIN_JIRA_TOKEN_URL") or "https://auth.atlassia
 JIRA_API = os.environ.get("ODIN_JIRA_API") or "https://api.atlassian.com/ex/jira/"
 JIRA_MARGIN = 5 * 60
 jira_lock = threading.Lock()
+# The host's own Notion sign-in, the same way: Notion's access tokens expire, so the host refreshes its own.
+NOTION_FILE = os.path.join(os.path.dirname(TOKENS), "notion.json")
+NOTION_TOKEN_URL = os.environ.get("ODIN_NOTION_TOKEN_URL") or "https://api.notion.com/v1/oauth/token"
+NOTION_API = os.environ.get("ODIN_NOTION_API") or "https://api.notion.com/v1/"
+notion_lock = threading.Lock()
 
 
 def peer_uid(peer_port):
@@ -300,11 +305,41 @@ def jira_own():
         return JIRA_API + pair["cloud_id"] + "/", pair["access_token"]
 
 
+def notion_own(rejected=None):
+    """The host's own Notion access token; None when there is none. With rejected (the token Notion
+    just refused), the refresh token is spent once for a new pair, under the lock."""
+    with notion_lock:
+        pair = read_json(NOTION_FILE)
+        if not isinstance(pair, dict) or not pair.get("access_token"):
+            return None
+        due = pair.get("expires_at") and float(pair["expires_at"]) - time.time() < JIRA_MARGIN
+        if (rejected and rejected == pair["access_token"]) or due:
+            auth = base64.b64encode(((pair.get("client_id") or "") + ":" + (pair.get("client_secret") or "")).encode()).decode()
+            body = {"grant_type": "refresh_token", "refresh_token": pair.get("refresh_token") or ""}
+            req = urllib.request.Request(NOTION_TOKEN_URL, data=json.dumps(body).encode(), headers={"Authorization": "Basic " + auth, "Content-Type": "application/json", "Notion-Version": "2022-06-28"}, method="POST")
+            try:
+                with urllib.request.urlopen(req, timeout=30) as res:
+                    got = json.loads(res.read().decode("utf-8", "replace"))
+            except Exception:
+                got = None
+            if not isinstance(got, dict) or not got.get("access_token"):
+                return None
+            pair = dict(pair, access_token=got["access_token"], refresh_token=got.get("refresh_token") or pair.get("refresh_token"))
+            pair["expires_at"] = time.time() + float(got["expires_in"]) if got.get("expires_in") else None
+            try:
+                write_json(NOTION_FILE, pair)
+            except OSError:
+                pass
+        return pair["access_token"]
+
+
 def service_base(name, t):
     if name == "slack" and t.get("slack"):
         return SLACK_API, {"Authorization": "Bearer " + t["slack"]}
-    if name == "notion" and t.get("notion"):
-        return "https://api.notion.com/v1/", {"Authorization": "Bearer " + t["notion"], "Notion-Version": "2022-06-28"}
+    # The file is there only while the Notion connector is on (put_tokens drops it otherwise).
+    notion = (notion_own() or t.get("notion")) if name == "notion" else None
+    if notion:
+        return NOTION_API, {"Authorization": "Bearer " + notion, "Notion-Version": "2022-06-28"}
     if name == "clickup" and t.get("clickup"):
         return "https://api.clickup.com/api/v2/", {"Authorization": t["clickup"]}
     if name == "github" and t.get("githubConnector"):
@@ -347,6 +382,11 @@ def call_service(form):
             # GitHub refused the token: the host's own sign-in refreshes once, and the call goes again.
             token = github_token(pick_login("", ""), rejected=headers["Authorization"][7:])
             if token and "Bearer " + token != headers["Authorization"]:
+                status, text = send(url, dict(headers, Authorization="Bearer " + token), body, method)
+        if name == "notion" and status == 401:
+            # Notion refused the host's own token: it refreshes once, and the call goes again.
+            token = notion_own(rejected=headers["Authorization"][7:])
+            if token:
                 status, text = send(url, dict(headers, Authorization="Bearer " + token), body, method)
     except Exception as e:
         return 200, "Failed: " + str(e) + "\\n"
@@ -479,12 +519,13 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(body, dict) or not isinstance(body.get("tokens"), dict):
             return self.reply(400, "Expected {\\"tokens\\": {...}}.\\n")
         keep = set(k.lower() for k in (body.get("githubKeep") or []) if isinstance(k, str))
-        if not body.get("jiraKeep"):
-            with jira_lock:
-                try:
-                    os.remove(JIRA_FILE)
-                except OSError:
-                    pass
+        for keep_key, path, lock in (("jiraKeep", JIRA_FILE, jira_lock), ("notionKeep", NOTION_FILE, notion_lock)):
+            if not body.get(keep_key):
+                with lock:
+                    try:
+                        os.remove(path)
+                    except OSError:
+                        pass
         with github_lock:
             write_json(TOKENS, body["tokens"])
             try:
@@ -513,18 +554,18 @@ class Handler(BaseHTTPRequestHandler):
             write_json(pair_path(login.lower()), pair)
         return self.reply(200, "ok\\n")
 
-    def put_jira_pair(self, raw, uid):
-        """POST /jira-pair: the host's own Jira sign-in, from a consent flow run for the host."""
+    def put_own_pair(self, raw, uid, path, lock, needs):
+        """POST /jira-pair or /notion-pair: the host's own sign-in, from a consent flow run for the host."""
         if not self.owner_only(uid):
             return self.reply(403, "This is another user's Odin.\\n")
         try:
             pair = json.loads(raw.decode("utf-8"))
         except Exception:
             pair = None
-        if not isinstance(pair, dict) or not all(pair.get(k) for k in ("access_token", "refresh_token", "cloud_id")):
-            return self.reply(400, "Expected a sign-in with access_token, refresh_token and cloud_id.\\n")
-        with jira_lock:
-            write_json(JIRA_FILE, pair)
+        if not isinstance(pair, dict) or not all(pair.get(k) for k in needs):
+            return self.reply(400, "Expected a sign-in with " + ", ".join(needs) + ".\\n")
+        with lock:
+            write_json(path, pair)
         return self.reply(200, "ok\\n")
 
     def handle_any(self):
@@ -545,7 +586,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/github-pair" and self.command == "POST":
             return self.put_github_pair(query, raw, uid)
         if path == "/jira-pair" and self.command == "POST":
-            return self.put_jira_pair(raw, uid)
+            return self.put_own_pair(raw, uid, JIRA_FILE, jira_lock, ("access_token", "refresh_token", "cloud_id"))
+        if path == "/notion-pair" and self.command == "POST":
+            return self.put_own_pair(raw, uid, NOTION_FILE, notion_lock, ("access_token", "refresh_token"))
         if self.command == "POST" and path == "/odin":
             form = {k: v[-1] for k, v in urllib.parse.parse_qs(raw.decode("utf-8", "replace")).items()}
             if form.get("action") == "service":

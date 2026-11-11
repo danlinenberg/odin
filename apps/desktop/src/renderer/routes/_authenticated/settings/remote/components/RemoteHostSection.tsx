@@ -37,6 +37,17 @@ import { SettingRow, SettingsSection } from "../../components/SettingsPage";
 
 const DEFAULT_REGION = "us-east-1";
 /** What can be kept on the host (main/lib/remote-host/host-service HOST_CONNECTORS). */
+// The connectors whose tokens expire: the host gets a sign-in of its own.
+const OWN_SIGN_INS = ["jira", "notion"] as const;
+type OwnSignIn = (typeof OWN_SIGN_INS)[number];
+const OWN_SIGN_IN_NAMES: Record<OwnSignIn, string> = {
+	jira: "Jira",
+	notion: "Notion",
+};
+const OWN_SIGN_IN_FLAG = {
+	jira: "jiraHostSignIn",
+	notion: "notionHostSignIn",
+} as const;
 const CONNECTORS = [
 	["slack", "Slack"],
 	["notion", "Notion"],
@@ -217,57 +228,84 @@ export function RemoteHostSection() {
 			clearTimeout(timer);
 		};
 	}, [hostSignIn]);
-	// A Jira sign-in for the host: Atlassian's page opens in the browser, and
-	// this asks every 2s whether it came back, until it lands or fails.
-	const [jiraSignIn, setJiraSignIn] = useState<string | null>(null);
-	const startJiraSignIn =
-		electronTrpc.remoteHost.jiraHostSignInStart.useMutation({
-			onSuccess: ({ state }) => setJiraSignIn(state),
-			onError,
-		});
-	const jiraSignInResult =
-		electronTrpc.remoteHost.jiraHostSignInResult.useMutation();
-	const jiraSignInResultRef = useRef(jiraSignInResult);
-	jiraSignInResultRef.current = jiraSignInResult;
+	// A Jira or Notion sign-in for the host, one at a time: the service's
+	// page opens in the browser, and this asks every 2s whether it came
+	// back, until it lands or fails. The next one waiting starts after it.
+	const [ownSignIn, setOwnSignIn] = useState<{
+		service: OwnSignIn;
+		state: string;
+	} | null>(null);
+	const ownQueue = useRef<OwnSignIn[]>([]);
+	// The one running now, from its start until it lands or fails.
+	const ownBusy = useRef<OwnSignIn | null>(null);
+	const startOwnSignIn = electronTrpc.remoteHost.ownHostSignInStart.useMutation(
+		{
+			onSuccess: ({ state }, { service }) => setOwnSignIn({ service, state }),
+			onError: (error) => {
+				onError(error);
+				startNextOwnSignIn();
+			},
+		},
+	);
+	const startNextOwnSignIn = () => {
+		const service = ownQueue.current.shift() ?? null;
+		ownBusy.current = service;
+		if (service) startOwnSignIn.mutate({ service });
+	};
+	const queueOwnSignIn = (service: OwnSignIn) => {
+		if (ownQueue.current.includes(service) || ownBusy.current === service)
+			return;
+		ownQueue.current.push(service);
+		if (!ownBusy.current) startNextOwnSignIn();
+	};
+	const ownSignInResult =
+		electronTrpc.remoteHost.ownHostSignInResult.useMutation();
+	const ownSignInResultRef = useRef(ownSignInResult);
+	ownSignInResultRef.current = ownSignInResult;
+	const startNextRef = useRef(startNextOwnSignIn);
+	startNextRef.current = startNextOwnSignIn;
 	useEffect(() => {
-		if (!jiraSignIn) return;
+		if (!ownSignIn) return;
+		const name = OWN_SIGN_IN_NAMES[ownSignIn.service];
 		const timer = setInterval(async () => {
-			const result = await jiraSignInResultRef.current
-				.mutateAsync({ state: jiraSignIn })
+			const result = await ownSignInResultRef.current
+				.mutateAsync(ownSignIn)
 				.catch((error: unknown) => ({
 					status: "failed" as const,
 					error: error instanceof Error ? error.message : String(error),
 				}));
 			if (result.status === "pending") return;
-			setJiraSignIn(null);
+			setOwnSignIn(null);
 			if (result.status === "connected") {
 				toast.success(
-					"Jira is signed in on the host. It refreshes its own token there now.",
+					`${name} is signed in on the host. It refreshes its own token there now.`,
 				);
 				void refreshRef.current();
-			} else toast.error(`Jira sign-in on the host: ${result.error}`);
+			} else toast.error(`${name} sign-in on the host: ${result.error}`);
+			startNextRef.current();
 		}, 2000);
 		return () => clearInterval(timer);
-	}, [jiraSignIn]);
+	}, [ownSignIn]);
 	// A switch flips at once; writing on the host (an SSM connection, about
 	// 8 seconds) happens behind it. Flips made meanwhile go out as one write
 	// when it lands; a failed write puts the switches back and says why.
 	const [wanted, setWanted] = useState<string[] | null>(null);
 	const wantedRef = useRef<string[] | null>(null);
 	wantedRef.current = wanted;
-	// Jira turned on starts the host's own Jira sign-in once the token
-	// write lands, when this computer has Jira and the host has no sign-in.
-	const jiraTurnedOn = useRef(false);
+	// Jira or Notion turned on starts the host's own sign-in for it once the
+	// token write lands, when this computer has it and the host has none.
+	const turnedOn = useRef<OwnSignIn[]>([]);
 	const setConnectors = electronTrpc.remoteHost.setConnectors.useMutation({
 		onSuccess: ({ kept }, sent) => {
-			if (!jiraTurnedOn.current) return;
-			jiraTurnedOn.current = false;
-			if (
-				sent.includes("jira") &&
-				kept.includes("jira") &&
-				!current?.host?.jiraHostSignIn
-			)
-				startJiraSignIn.mutate();
+			const services = turnedOn.current;
+			turnedOn.current = [];
+			for (const service of services)
+				if (
+					sent.includes(service) &&
+					kept.includes(service) &&
+					!current?.host?.[OWN_SIGN_IN_FLAG[service]]
+				)
+					queueOwnSignIn(service);
 		},
 		onSettled: async (_data, error, sent) => {
 			await refresh();
@@ -313,8 +351,9 @@ export function RemoteHostSection() {
 		setConnectorList(CONNECTORS.map(([id]) => id).filter((id) => next.has(id)));
 	};
 	const setConnectorList = (list: HostConnectorId[]) => {
-		if (list.includes("jira") && !onHost.has("jira"))
-			jiraTurnedOn.current = true;
+		for (const service of OWN_SIGN_INS)
+			if (list.includes(service) && !onHost.has(service))
+				turnedOn.current.push(service);
 		setWanted(list);
 		if (!setConnectors.isPending) setConnectors.mutate(list);
 	};
@@ -658,29 +697,32 @@ export function RemoteHostSection() {
 						stacked
 						description={
 							<span className="select-text cursor-text">
-								Lets host sessions use them while this computer is off. Jira
-								signs in on the host of its own, so it keeps working there.
-								{onHost.has("jira") &&
-									(jiraSignIn ? (
-										<span className="mt-1 block">
-											Approve Jira in your browser...
-										</span>
-									) : (
-										!current.host.jiraHostSignIn && (
-											<span className="mt-1 block">
-												Jira uses this computer's token until you{" "}
-												<button
-													type="button"
-													className="underline underline-offset-2"
-													disabled={startJiraSignIn.isPending}
-													onClick={() => startJiraSignIn.mutate()}
-												>
-													approve it for the host
-												</button>
-												.
+								Lets host sessions use them while this computer is off. Jira and
+								Notion sign in on the host of their own, so they keep working
+								there.
+								{OWN_SIGN_INS.filter((service) => onHost.has(service)).map(
+									(service) =>
+										ownSignIn?.service === service ? (
+											<span key={service} className="mt-1 block">
+												Approve {OWN_SIGN_IN_NAMES[service]} in your browser...
 											</span>
-										)
-									))}
+										) : (
+											!current.host?.[OWN_SIGN_IN_FLAG[service]] && (
+												<span key={service} className="mt-1 block">
+													{OWN_SIGN_IN_NAMES[service]} uses this computer's
+													token until you{" "}
+													<button
+														type="button"
+														className="underline underline-offset-2"
+														onClick={() => queueOwnSignIn(service)}
+													>
+														approve it for the host
+													</button>
+													.
+												</span>
+											)
+										),
+								)}
 								{setConnectors.isPending && (
 									<span className="mt-1 block">Saving on the host...</span>
 								)}

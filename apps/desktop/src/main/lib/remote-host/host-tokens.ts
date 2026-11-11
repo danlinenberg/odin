@@ -10,6 +10,7 @@ import {
 import type { Client } from "ssh2";
 import type { HostJiraPair } from "../jira-oauth";
 import { jiraRequestContext } from "../jira-token";
+import type { HostNotionPair } from "../notion-oauth";
 import { awsHostConfigScript, localAwsProfiles } from "./aws-on-host";
 import type { HostGithubPair } from "./github-host-login";
 import {
@@ -205,6 +206,7 @@ export async function pushHostTokens(
 		awsProfiles?: string[];
 		name?: string;
 		jiraHostSignIn?: boolean;
+		notionHostSignIn?: boolean;
 	},
 	connectors: readonly HostConnector[],
 ): Promise<string[]> {
@@ -236,6 +238,12 @@ export async function pushHostTokens(
 					connectors.includes("jira") &&
 					Boolean(
 						host.jiraHostSignIn || readOdinConfig().remoteHost?.jiraHostSignIn,
+					),
+				notionKeep:
+					connectors.includes("notion") &&
+					Boolean(
+						host.notionHostSignIn ||
+							readOdinConfig().remoteHost?.notionHostSignIn,
 					),
 			}),
 		);
@@ -269,24 +277,26 @@ export async function pushHostTokens(
 }
 
 /**
- * Sends the host its own Jira sign-in (jira-oauth, for the host), which its
- * service refreshes from then on. This computer keeps no copy.
+ * Sends the host its own Jira or Notion sign-in (from a consent flow run for
+ * the host), which its service refreshes from then on. This computer keeps
+ * no copy.
  */
-export async function pushHostJiraPair(
+export async function pushHostOwnPair(
 	host: HostLogin,
-	pair: HostJiraPair,
+	service: "jira" | "notion",
+	pair: HostJiraPair | HostNotionPair,
 ): Promise<void> {
 	const client = await connectHost(host);
 	try {
 		await ensureHostService(host, client, false);
 		await runOnHost(
 			client,
-			postToServiceScript("/jira-pair"),
+			postToServiceScript(`/${service}-pair`),
 			JSON.stringify(pair),
 		);
 	} catch (error) {
 		throw new Error(
-			`Couldn't send the Jira sign-in to the host: ${error instanceof Error ? error.message : String(error)}. ${adminHint(host)}`,
+			`Couldn't send the ${service === "jira" ? "Jira" : "Notion"} sign-in to the host: ${error instanceof Error ? error.message : String(error)}. ${adminHint(host)}`,
 		);
 	} finally {
 		client.end();
