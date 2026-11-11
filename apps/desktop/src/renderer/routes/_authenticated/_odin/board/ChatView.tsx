@@ -5317,11 +5317,11 @@ function Composer({
 					)}
 					{!noTerminal && !onResume && <DangerModeToggle paneId={paneId} />}
 					{bash ? (
-						<span className="text-[11px] text-pink-500">
+						<span className="ml-auto text-[11px] text-pink-500">
 							Bash mode · Backspace on empty to exit
 						</span>
 					) : (
-						<span className="text-[11px] text-faint-foreground">
+						<span className="ml-auto text-right text-[11px] text-faint-foreground">
 							Enter to send · {sendNowKeys} to send now · Shift+Enter for a new
 							line · ! for bash · / for skills
 							{fileCwd && " · @ for files"}
@@ -5340,7 +5340,7 @@ function Composer({
 							onPointerUp={voice.release}
 							onPointerLeave={voice.release}
 							className={cn(
-								"ml-auto flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground",
+								"flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground",
 								voice.phase !== "idle" && "bg-primary/15 text-primary",
 							)}
 						>
@@ -5365,10 +5365,7 @@ function Composer({
 											paneId,
 										)
 							}
-							className={cn(
-								"flex size-7 shrink-0 items-center justify-center rounded-full bg-foreground text-background hover:opacity-85",
-								!canTalk && "ml-auto",
-							)}
+							className="flex size-7 shrink-0 items-center justify-center rounded-full bg-foreground text-background hover:opacity-85"
 						>
 							<span className="size-[9px] rounded-[2px] bg-background" />
 						</button>
@@ -5378,10 +5375,7 @@ function Composer({
 							title="Send (Enter)"
 							disabled={!draft.trim() && attached.length === 0}
 							onClick={() => void send()}
-							className={cn(
-								"flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-[14px] font-bold text-primary-foreground hover:brightness-110 disabled:opacity-40",
-								!canTalk && "ml-auto",
-							)}
+							className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-[14px] font-bold text-primary-foreground hover:brightness-110 disabled:opacity-40"
 						>
 							↑
 						</button>
