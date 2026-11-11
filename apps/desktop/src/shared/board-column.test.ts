@@ -90,10 +90,15 @@ describe("withWaiting", () => {
 	});
 
 	it("keeps a prompt on screen or a failure in Needs you", () => {
-		expect(withWaiting("permission", "permission", "waiting")).toBe(
+		expect(withWaiting("permission", "permission", "waiting", true)).toBe(
 			"permission",
 		);
 		expect(withWaiting("permission", "failed", "waiting")).toBe("permission");
+	});
+
+	it("keeps a compacted card in Idle while its transcript isn't read yet", () => {
+		// The screen scan writes Needs you after a /compact; no reply came in.
+		expect(withWaiting("permission", "permission", "waiting")).toBe("idle");
 	});
 
 	it("lets a reply with open action items wait - no question or plan on screen", () => {
