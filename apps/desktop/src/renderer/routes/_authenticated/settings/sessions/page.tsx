@@ -91,6 +91,10 @@ function SessionsSettingsPage() {
 				<IdleCompactRow />
 				<IdleCloseRow />
 			</SettingsSection>
+
+			<SettingsSection title="When they won't start">
+				<RestartCompletelyRow />
+			</SettingsSection>
 		</SettingsPage>
 	);
 }
@@ -185,6 +189,33 @@ function FullDiskAccessRow() {
 					Open System Settings
 				</Button>
 			)}
+		</SettingRow>
+	);
+}
+
+/**
+ * Terminals run in a daemon that outlives Odin's restarts and updates. One
+ * that broke stays broken until it is restarted. macOS also has this in the
+ * Odin menu; Windows and Linux have no app menu, so this is their only way.
+ */
+function RestartCompletelyRow() {
+	const restart = electronTrpc.settings.restartCompletely.useMutation({
+		onError: (error) => toast.error(error.message),
+	});
+	return (
+		<SettingRow
+			label="Restart Odin completely"
+			description="Every new session fails to start (for example 'PTY process exited immediately')? This closes every open session and restarts Odin with fresh terminals. Sessions on a remote host keep running there."
+		>
+			<Button
+				variant="outline"
+				size="sm"
+				className="h-8"
+				disabled={restart.isPending}
+				onClick={() => restart.mutate()}
+			>
+				Restart Completely
+			</Button>
 		</SettingRow>
 	);
 }
