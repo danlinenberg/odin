@@ -35,6 +35,7 @@ import {
 import {
 	actionItems,
 	artifactLink,
+	askedPullRequests,
 	byRepo,
 	claimOpened,
 	credentialFacts,
@@ -976,10 +977,12 @@ export function SessionBrief({
 			(previews?.[launchThread]?.full ??
 				postedMessage(transcript?.messages ?? [], launchThread)),
 	);
+	const asked = askedPullRequests(linkSource ?? []);
 	const ownPrs = prs.filter(
 		(pr) =>
 			pr.url === launchPr?.url ||
 			launchListed.has(pr.url) ||
+			asked.has(pr.url) ||
 			addedUrls.has(pr.url) ||
 			prStates?.[pr.url]?.mine !== false,
 	);
