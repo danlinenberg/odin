@@ -580,17 +580,20 @@ export function arrived(
 /**
  * Claude echoed the sent message: a user row that was not there at the send
  * holds its text. Older rows don't count - a photo sent alone has no text, and
- * every row "includes" the empty string.
+ * every row "includes" the empty string. A slash command's row shows only its
+ * name, so `/review fix the tests` is echoed by a `/review` row.
  */
 export function isEchoed(
 	items: { kind: string; id: string; text?: string }[],
 	sent: Pick<Sent, "text" | "seen">,
 ): boolean {
+	const command = sent.text.trim().match(/^\/[^\s]+/)?.[0];
 	return items.some(
 		(item) =>
 			item.kind === "user" &&
 			!sent.seen.has(item.id) &&
-			(item.text ?? "").includes(sent.text),
+			((item.text ?? "").includes(sent.text) ||
+				(command !== undefined && item.text?.trim() === command)),
 	);
 }
 
