@@ -1061,7 +1061,14 @@ export const useTabsStore = create<TabsStore>()(
 					if (!pane) return;
 
 					const tab = state.tabs.find((t) => t.id === pane.tabId);
-					if (!tab) return;
+					// A pane left behind by its tab: nothing to lay out, just drop it.
+					// Returning here kept it forever, in the phone's Idle after Done.
+					if (!tab) {
+						if (pane.type === "terminal") killTerminalForPane(paneId);
+						const { [paneId]: _removed, ...panes } = state.panes;
+						set({ panes });
+						return;
+					}
 
 					// Collect this pane + any devtools panes targeting it
 					const paneIdsToRemove = [paneId];
