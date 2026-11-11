@@ -32,6 +32,7 @@ import {
 	mergeClosed,
 	sinceDate,
 } from "./closed-upstream";
+import { type JiraIssueLinksPayload, jiraIssueLinks } from "./jira-links";
 
 /**
  * Odin fork: read-only "my work" feeds - Jira issues assigned to me and GitHub
@@ -832,6 +833,37 @@ export const createWorkRouter = () => {
 		 * brief's "open / done" chip. One search for all of them; empty when
 		 * Jira isn't connected, so the panel just shows no chip.
 		 */
+		/**
+		 * The links on a ticket - its description, people's comments and remote
+		 * links - for the brief of a session launched on it. Empty when Jira
+		 * isn't connected or the ticket can't be read.
+		 */
+		jiraIssueLinks: publicProcedure
+			.input(z.object({ key: z.string() }))
+			.query(async ({ input }): Promise<string[]> => {
+				if (!/^[A-Z][A-Z0-9_]+-\d+$/.test(input.key)) return [];
+				const request = await jiraRequestContext();
+				if (!request) return [];
+				const get = async <T>(path: string): Promise<T | null> => {
+					const response = await fetch(`${request.base}/rest/api/3/${path}`, {
+						headers: {
+							Authorization: request.authorization,
+							Accept: "application/json",
+						},
+					}).catch(() => null);
+					return response?.ok ? ((await response.json()) as T) : null;
+				};
+				const [issue, remote] = await Promise.all([
+					get<JiraIssueLinksPayload>(
+						`issue/${input.key}?fields=description,comment`,
+					),
+					get<{ object?: { url?: unknown } }[]>(
+						`issue/${input.key}/remotelink`,
+					),
+				]);
+				return issue ? jiraIssueLinks(issue, remote ?? [], input.key) : [];
+			}),
+
 		jiraIssueStates: publicProcedure
 			.input(z.object({ keys: z.array(z.string()) }))
 			.query(
