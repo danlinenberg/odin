@@ -70,7 +70,7 @@ ID.
 > The phone and Odin talk over a Noise protocol channel (the framework WireGuard is built on). On your Wi-Fi the phone connects to your Mac directly. Away from it, the connection goes through a relay that forwards encrypted bytes it cannot read. Pairing happens once, by scanning a QR code on your Mac. The app has no account, no analytics and no ads.
 >
 > Requirements
-> Odin on a Mac. Odin is free and open source: https://github.com/danlinenberg/odin
+> Odin on a Mac. Odin is free and source-available: https://github.com/danlinenberg/odin
 
 ## Keywords (100)
 
@@ -153,7 +153,7 @@ documentation is approved, so later uploads stop asking.
 
 ## App Review notes
 
-> Odin for iPhone is a companion to Odin, an open-source app that runs coding agents on the user's own Mac. The app pairs with that Mac by scanning a QR code and has no account system.
+> Odin for iPhone is a companion to Odin, a source-available app that runs coding agents on the user's own Mac. The app pairs with that Mac by scanning a QR code and has no account system.
 >
 > To review it without a Mac: on the Pair screen, tap "Try the demo". The app then shows a sample board with sessions that need attention, are working and are ready for review. Open "Fix HDR grouping test" to see a session as a chat, its action items (tap Approve), and its brief. Replies and new tasks in the demo stay on the device. "Pair with Odin" in the banner at the top leaves the demo.
 >
