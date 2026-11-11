@@ -254,23 +254,27 @@ void (
 /** The lock screen widget's tap: its Recently ended list. */
 const ENDED_LINK = "odin://ended";
 
+/**
+ * An odin:// link that opened the app: the widget's Recently ended, or a pair
+ * link, saved unless it's the one already saved. Android can hand the same
+ * link over twice (launch and appUrlOpen), and saving it again would reload
+ * the board a second time.
+ */
+function openLink(link: string | undefined) {
+	if (!link) return;
+	if (link.startsWith(ENDED_LINK)) {
+		location.hash = "#/ended";
+		return;
+	}
+	const next = parsePairLink(link);
+	if (next && next.link !== pairing?.link && next.link !== hostPairing?.link)
+		pairWith(link);
+}
+
 if (native?.Plugins?.App) {
 	const app = native.Plugins.App;
-	app.addListener("appUrlOpen", ({ url }) => {
-		if (url.startsWith(ENDED_LINK)) location.hash = "#/ended";
-		else pairWith(url);
-	});
-	void app.getLaunchUrl().then((launch) => {
-		const link = launch?.url;
-		if (link?.startsWith(ENDED_LINK)) {
-			location.hash = "#/ended";
-			return;
-		}
-		const next = link && parsePairLink(link);
-		// Opened by a pair link: save it unless it's the one already saved.
-		if (next && next.link !== pairing?.link && next.link !== hostPairing?.link)
-			pairWith(link);
-	});
+	app.addListener("appUrlOpen", ({ url }) => openLink(url));
+	void app.getLaunchUrl().then((launch) => openLink(launch?.url));
 }
 
 const POLL = 3_000;
