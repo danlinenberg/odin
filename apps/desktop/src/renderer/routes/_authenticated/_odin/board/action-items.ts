@@ -251,6 +251,15 @@ export function viewTarget(
 }
 
 /**
+ * The commands Danger Mode runs on its own from a reply: every `!`,
+ * `!local` and `!download` block, in the order written. A `!view` block opens
+ * a screen rather than doing work, so it keeps its button.
+ */
+export function autoRunCommands(text: string): string[] {
+	return bangCommands(text).filter((command) => !viewTarget(command));
+}
+
+/**
  * What goes back to Claude once a `!local` command ran on this computer: the
  * command, its output and its exit code, fenced past any backticks inside.
  */

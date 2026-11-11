@@ -34,6 +34,7 @@ import {
 	LuSquareTerminal,
 	LuWrench,
 	LuX,
+	LuZap,
 } from "react-icons/lu";
 import odinMarkDark from "renderer/assets/odin-mark/odin-mark-dark.png";
 import odinMarkLight from "renderer/assets/odin-mark/odin-mark-light.png";
@@ -48,6 +49,7 @@ import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { draftFor, useChatDrafts } from "renderer/stores/chat-drafts";
 import { CLAUDE_MODELS } from "renderer/stores/claude-command";
 import { useCompacting } from "renderer/stores/compacting";
+import { useDangerMode } from "renderer/stores/danger-mode";
 import {
 	isDismissed,
 	useDismissedActions,
@@ -94,6 +96,7 @@ import { replyTodoText, usePaneMeta } from "../hooks/usePaneMeta";
 import {
 	actionItemEntries,
 	actionItemList,
+	autoRunCommands,
 	bangCommandNotes,
 	bangCommands,
 	commandItem,
@@ -2848,6 +2851,9 @@ export function needsAwsSsoLogin(text: string): boolean {
 	return /run 'aws sso login'/i.test(text);
 }
 
+/** Replies Danger Mode already ran (`paneId:replyId`), so a remount doesn't run them twice. */
+const dangerRan = new Set<string>();
+
 /** Replies whose sign-in already ran on its own, so a remount doesn't open another tab. */
 const autoSsoTried = new Set<string>();
 
@@ -3831,6 +3837,79 @@ export function ChatView({
 	const lastText = items.findLast(
 		(item): item is Extract<Item, { kind: "text" }> => item.kind === "text",
 	);
+	// Danger Mode: once a turn ends, the reply's `!` blocks run one after
+	// another without a click, then their output goes to Claude in one
+	// message so it carries on. A `!local` run is awaited before the next;
+	// a `!` one typed into Claude gets a short pause instead, as the chat
+	// can't see it end. Each reply runs once, and only while it is still the
+	// last thing in the session - one you already answered or ran stays put.
+	const danger = useDangerMode((state) => !!state.on[paneId]);
+	const lastItemId = items.at(-1)?.id;
+	useEffect(() => {
+		if (!danger || working || !onShowTerminal || !lastText) return;
+		if (lastItemId !== lastText.id) return;
+		const key = `${paneId}:${lastText.id}`;
+		if (dangerRan.has(key)) return;
+		dangerRan.add(key);
+		const commands = autoRunCommands(lastText.text);
+		if (!commands.length) return;
+		void (async () => {
+			const outputs: string[] = [];
+			for (const command of commands) {
+				if (!useDangerMode.getState().on[paneId]) return;
+				try {
+					const local = localCommand(command);
+					if (!local) {
+						await runCommand(command);
+						if (!downloadPath(command))
+							await new Promise((resolve) => setTimeout(resolve, 1_500));
+						continue;
+					}
+					const run = await electronTrpcClient.terminal.startLocalRun.mutate({
+						command: local,
+					});
+					if (
+						!(await runInSessionShell(
+							paneId,
+							workspaceId,
+							run.command,
+							"local",
+						))
+					)
+						throw new Error("Odin couldn't find this session's Shell.");
+					onShellStarted?.("local");
+					const result = await localRunEnd(run.id);
+					if (!result) throw new Error(`\`${local}\` never ended.`);
+					outputs.push(localRunMessage(local, result));
+				} catch (error) {
+					const why = error instanceof Error ? error.message : String(error);
+					toast.error(`Danger Mode stopped: ${why}`);
+					outputs.push(`Danger Mode couldn't run \`${command}\`: ${why}`);
+					break;
+				}
+			}
+			onShellDoneRef.current?.();
+			sendToClaude(
+				[...outputs, "Danger Mode ran your commands. Carry on."].join("\n\n"),
+			);
+		})();
+	}, [
+		danger,
+		working,
+		onShowTerminal,
+		lastText,
+		lastItemId,
+		paneId,
+		workspaceId,
+		runCommand,
+		onShellStarted,
+		sendToClaude,
+	]);
+	// It goes off with the session.
+	useEffect(() => {
+		if (danger && !onShowTerminal)
+			useDangerMode.getState().toggle(paneId, false);
+	}, [danger, onShowTerminal, paneId]);
 	const lastTextId = lastText?.id;
 	// The brief's TL;DR of the latest reply. Asked for once the turn is over -
 	// mid-turn the latest reply is a moving target - and shown only while the
@@ -4522,6 +4601,22 @@ export function ChatView({
 				</div>
 				{onShowTerminal ? (
 					<>
+						{danger && (
+							<div className="flex items-center gap-2 border-t border-destructive/40 bg-destructive/15 px-5 py-1.5 text-[11.5px] text-destructive">
+								<LuZap className="size-3.5 shrink-0" />
+								<span className="min-w-0 flex-1">
+									Danger Mode: Odin runs this session's commands without asking,
+									on this computer too.
+								</span>
+								<button
+									type="button"
+									onClick={() => useDangerMode.getState().toggle(paneId, false)}
+									className="shrink-0 rounded-md px-1.5 py-0.5 font-medium hover:bg-destructive/20"
+								>
+									Turn off
+								</button>
+							</div>
+						)}
 						{/* While a menu, /btw or a sign-in waits, typed text would land in it - the card answers. */}
 						{!prompt && !screenMenu && !screenAside && !screenAuth && (
 							<Composer
@@ -4708,6 +4803,32 @@ async function hostPathsOf(paths: string[]): Promise<string[]> {
  * attachment and a video stays a path (Claude takes no video). Any other
  * file goes into the draft as its path, as the terminal does with a drop.
  */
+/** The composer's Danger Mode switch: on, the session's `!` commands run without a click. */
+function DangerModeToggle({ paneId }: { paneId: string }) {
+	const on = useDangerMode((state) => !!state.on[paneId]);
+	return (
+		<button
+			type="button"
+			aria-pressed={on}
+			title={
+				on
+					? "Danger Mode is on: Odin runs every command this session writes, without asking. Click to turn it off."
+					: "Danger Mode: Odin runs every command this session writes (Run, Run on my computer, Download) without asking, until you turn it off or the session ends. Questions still wait for you."
+			}
+			onClick={() => useDangerMode.getState().toggle(paneId, !on)}
+			className={cn(
+				"flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px]",
+				on
+					? "bg-destructive/15 text-destructive hover:bg-destructive/25"
+					: "text-muted-foreground hover:bg-secondary hover:text-foreground",
+			)}
+		>
+			<LuZap className="size-3.5" />
+			Danger Mode
+		</button>
+	);
+}
+
 function Composer({
 	paneId,
 	working,
@@ -5194,6 +5315,7 @@ function Composer({
 							))}
 						</select>
 					)}
+					{!noTerminal && !onResume && <DangerModeToggle paneId={paneId} />}
 					{bash ? (
 						<span className="text-[11px] text-pink-500">
 							Bash mode · Backspace on empty to exit
