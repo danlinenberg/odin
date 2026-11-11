@@ -70,8 +70,12 @@ export function withWaiting(
 	watch: "none" | "waiting" | "replied",
 	/**
 	 * A question or plan is on screen (`openPrompt`); undefined = not read yet.
-	 * False means a `permission` status only says the reply has open action
-	 * items - and you said you're waiting on someone else, so it waits too.
+	 * Only a question or plan read off the transcript keeps the card in Needs
+	 * you. A `permission` status alone says too little: open action items set
+	 * it, and so does the screen scan once a /compact ends - no Stop hook fires
+	 * after a compaction, so the scan unsticks the card from Working into
+	 * Needs you. Waiting on "not read yet" sent every compacted Ping me card
+	 * back to Needs you whenever its transcript wasn't in, with no reply.
 	 */
 	prompting?: boolean,
 ): PaneStatus {
@@ -79,6 +83,6 @@ export function withWaiting(
 		return column;
 	if (watch === "replied") return "permission";
 	if (status === "failed") return column;
-	if (status === "permission" && prompting !== false) return column;
+	if (status === "permission" && prompting === true) return column;
 	return "idle";
 }
