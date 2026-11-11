@@ -119,17 +119,27 @@ export function RemoteHostSection() {
 		},
 		onError,
 	});
+	// An account turned on starts its own sign-in on the host right away.
+	const signInOnTurnOn = useRef<string | null>(null);
 	const setGithubOnHost = electronTrpc.remoteHost.setGithubOnHost.useMutation({
-		onSuccess: refresh,
+		onSuccess: () => {
+			const login = signInOnTurnOn.current;
+			signInOnTurnOn.current = null;
+			if (login) startHostSignIn.mutate({ login });
+			return refresh();
+		},
 		onError,
 	});
 	const githubAccounts = current?.githubAccounts ?? [];
-	const toggleGithubAccount = (login: string, on: boolean) =>
+	const toggleGithubAccount = (login: string, on: boolean) => {
+		const account = githubAccounts.find((a) => a.login === login);
+		signInOnTurnOn.current = on && !account?.hostSignIn ? login : null;
 		setGithubOnHost.mutate(
 			githubAccounts
 				.filter((account) => (account.login === login ? on : account.onHost))
 				.map((account) => account.login),
 		);
+	};
 	const renew = electronTrpc.remoteHost.renewClaudeToken.useMutation({
 		onSuccess: () => {
 			void utils.remoteHost.health.invalidate();
@@ -245,7 +255,20 @@ export function RemoteHostSection() {
 	const [wanted, setWanted] = useState<string[] | null>(null);
 	const wantedRef = useRef<string[] | null>(null);
 	wantedRef.current = wanted;
+	// Jira turned on starts the host's own Jira sign-in once the token
+	// write lands, when this computer has Jira and the host has no sign-in.
+	const jiraTurnedOn = useRef(false);
 	const setConnectors = electronTrpc.remoteHost.setConnectors.useMutation({
+		onSuccess: ({ kept }, sent) => {
+			if (!jiraTurnedOn.current) return;
+			jiraTurnedOn.current = false;
+			if (
+				sent.includes("jira") &&
+				kept.includes("jira") &&
+				!current?.host?.jiraHostSignIn
+			)
+				startJiraSignIn.mutate();
+		},
 		onSettled: async (_data, error, sent) => {
 			await refresh();
 			const latest = wantedRef.current;
@@ -290,6 +313,8 @@ export function RemoteHostSection() {
 		setConnectorList(CONNECTORS.map(([id]) => id).filter((id) => next.has(id)));
 	};
 	const setConnectorList = (list: HostConnectorId[]) => {
+		if (list.includes("jira") && !onHost.has("jira"))
+			jiraTurnedOn.current = true;
 		setWanted(list);
 		if (!setConnectors.isPending) setConnectors.mutate(list);
 	};
@@ -633,7 +658,29 @@ export function RemoteHostSection() {
 						stacked
 						description={
 							<span className="select-text cursor-text">
-								Lets host sessions use them while this computer is off.
+								Lets host sessions use them while this computer is off. Jira
+								signs in on the host of its own, so it keeps working there.
+								{onHost.has("jira") &&
+									(jiraSignIn ? (
+										<span className="mt-1 block">
+											Approve Jira in your browser...
+										</span>
+									) : (
+										!current.host.jiraHostSignIn && (
+											<span className="mt-1 block">
+												Jira uses this computer's token until you{" "}
+												<button
+													type="button"
+													className="underline underline-offset-2"
+													disabled={startJiraSignIn.isPending}
+													onClick={() => startJiraSignIn.mutate()}
+												>
+													approve it for the host
+												</button>
+												.
+											</span>
+										)
+									))}
 								{setConnectors.isPending && (
 									<span className="mt-1 block">Saving on the host...</span>
 								)}
@@ -655,31 +702,6 @@ export function RemoteHostSection() {
 							}
 						/>
 					</SettingRow>
-					{onHost.has("jira") && (
-						<SettingRow
-							label="Jira on the host"
-							description={
-								<span className="select-text cursor-text">
-									{jiraSignIn
-										? "Approve in your browser..."
-										: current.host.jiraHostSignIn
-											? "Signed in on the host: it refreshes its own token."
-											: "Uses this computer's token, which runs out about an hour after this computer sleeps. Sign in on the host so Jira keeps working there."}
-								</span>
-							}
-						>
-							<Button
-								size="sm"
-								variant="outline"
-								disabled={!!jiraSignIn || startJiraSignIn.isPending}
-								onClick={() => startJiraSignIn.mutate()}
-							>
-								{current.host.jiraHostSignIn
-									? "Sign in again"
-									: "Sign in on the host"}
-							</Button>
-						</SettingRow>
-					)}
 					<SettingRow
 						label="Claude setup"
 						stacked
@@ -926,9 +948,10 @@ export function RemoteHostSection() {
 							description={
 								<span className="select-text cursor-text">
 									Sessions on the host use the account that owns the repo, else
-									the main one. Sign in on the host so pushes work with this
-									computer shut. Anyone with a shell on the instance can use
-									these tokens: keep personal accounts off a work host.
+									the main one. Turning an account on signs it in on the host,
+									so pushes work with this computer shut. Anyone with a shell on
+									the instance can use these tokens: keep personal accounts off
+									a work host.
 								</span>
 							}
 						>
