@@ -69,7 +69,8 @@ export async function localClaudeCredentials(): Promise<string> {
  * Run as the host user with the sign-ins on stdin: puts them in the host's
  * ~/.claude/.credentials.json next to its own Claude login, which stays as it
  * is. A connector the host signed in to itself (it has a refresh token there)
- * keeps the host's own sign-in.
+ * keeps the host's own sign-in; a new sign-in of the host's own (one with a
+ * refresh token, from mcp-host-login) replaces it.
  */
 export const MERGE_MCP_SIGN_INS_PY = `import json, os, sys
 incoming = json.load(sys.stdin)
@@ -81,7 +82,7 @@ except Exception:
     data = {}
 mine = data.get("mcpOAuth") or {}
 for key, entry in incoming.items():
-    if not (mine.get(key) or {}).get("refreshToken"):
+    if entry.get("refreshToken") or not (mine.get(key) or {}).get("refreshToken"):
         mine[key] = entry
 data["mcpOAuth"] = mine
 os.makedirs(os.path.dirname(path), exist_ok=True)

@@ -36,10 +36,11 @@ import {
 import { SettingRow, SettingsSection } from "../../components/SettingsPage";
 
 const DEFAULT_REGION = "us-east-1";
-/** What can be kept on the host (main/lib/remote-host/host-service HOST_CONNECTORS). */
 // The connectors whose tokens expire: the host gets a sign-in of its own.
 const OWN_SIGN_INS = ["jira", "notion"] as const;
 type OwnSignIn = (typeof OWN_SIGN_INS)[number];
+/** A sign-in of the host's own: Jira, Notion, or one of Claude Code's connectors by its key. */
+type SignInFor = OwnSignIn | `mcp:${string}`;
 const OWN_SIGN_IN_NAMES: Record<OwnSignIn, string> = {
 	jira: "Jira",
 	notion: "Notion",
@@ -48,6 +49,7 @@ const OWN_SIGN_IN_FLAG = {
 	jira: "jiraHostSignIn",
 	notion: "notionHostSignIn",
 } as const;
+/** What can be kept on the host (main/lib/remote-host/host-service HOST_CONNECTORS). */
 const CONNECTORS = [
 	["slack", "Slack"],
 	["notion", "Notion"],
@@ -102,6 +104,14 @@ export function RemoteHostSection() {
 			// setup, so its sessions work as they do here. Choose narrows it.
 			setConnectorList(CONNECTORS.map(([id]) => id));
 			syncSetup.mutate(SETUP_PARTS.map(([id]) => id));
+			// And Claude Code's connectors each get a sign-in of the host's own.
+			void utils.remoteHost.mcpConnectors.fetch().then(
+				(list) => {
+					for (const { key, hostSignIn } of list)
+						if (!hostSignIn) queueOwnSignIn(`mcp:${key}`);
+				},
+				() => {},
+			);
 			return refresh();
 		},
 		onError,
@@ -228,19 +238,31 @@ export function RemoteHostSection() {
 			clearTimeout(timer);
 		};
 	}, [hostSignIn]);
-	// A Jira or Notion sign-in for the host, one at a time: the service's
+	// Claude Code's connectors signed in here, and which the host has its own sign-in for.
+	const mcpConnectors = electronTrpc.remoteHost.mcpConnectors.useQuery(
+		undefined,
+		{ enabled: Boolean(current?.host) },
+	);
+	const mcpWaiting = (mcpConnectors.data ?? []).filter((c) => !c.hostSignIn);
+	const signInName = (service: SignInFor) =>
+		service.startsWith("mcp:")
+			? (mcpConnectors.data?.find((c) => `mcp:${c.key}` === service)?.name ??
+				"The connector")
+			: OWN_SIGN_IN_NAMES[service as OwnSignIn];
+	// A sign-in of the host's own (Jira, Notion, a Claude Code connector), one at a time: the service's
 	// page opens in the browser, and this asks every 2s whether it came
 	// back, until it lands or fails. The next one waiting starts after it.
 	const [ownSignIn, setOwnSignIn] = useState<{
-		service: OwnSignIn;
+		service: SignInFor;
 		state: string;
 	} | null>(null);
-	const ownQueue = useRef<OwnSignIn[]>([]);
+	const ownQueue = useRef<SignInFor[]>([]);
 	// The one running now, from its start until it lands or fails.
-	const ownBusy = useRef<OwnSignIn | null>(null);
+	const ownBusy = useRef<SignInFor | null>(null);
 	const startOwnSignIn = electronTrpc.remoteHost.ownHostSignInStart.useMutation(
 		{
-			onSuccess: ({ state }, { service }) => setOwnSignIn({ service, state }),
+			onSuccess: ({ state }, { service }) =>
+				setOwnSignIn({ service: service as SignInFor, state }),
 			onError: (error) => {
 				onError(error);
 				startNextOwnSignIn();
@@ -252,7 +274,7 @@ export function RemoteHostSection() {
 		ownBusy.current = service;
 		if (service) startOwnSignIn.mutate({ service });
 	};
-	const queueOwnSignIn = (service: OwnSignIn) => {
+	const queueOwnSignIn = (service: SignInFor) => {
 		if (ownQueue.current.includes(service) || ownBusy.current === service)
 			return;
 		ownQueue.current.push(service);
@@ -262,11 +284,16 @@ export function RemoteHostSection() {
 		electronTrpc.remoteHost.ownHostSignInResult.useMutation();
 	const ownSignInResultRef = useRef(ownSignInResult);
 	ownSignInResultRef.current = ownSignInResult;
+	const mcpRefreshRef = useRef(() =>
+		utils.remoteHost.mcpConnectors.invalidate(),
+	);
+	const signInNameRef = useRef(signInName);
+	signInNameRef.current = signInName;
 	const startNextRef = useRef(startNextOwnSignIn);
 	startNextRef.current = startNextOwnSignIn;
 	useEffect(() => {
 		if (!ownSignIn) return;
-		const name = OWN_SIGN_IN_NAMES[ownSignIn.service];
+		const name = signInNameRef.current(ownSignIn.service);
 		const timer = setInterval(async () => {
 			const result = await ownSignInResultRef.current
 				.mutateAsync(ownSignIn)
@@ -281,6 +308,7 @@ export function RemoteHostSection() {
 					`${name} is signed in on the host. It refreshes its own token there now.`,
 				);
 				void refreshRef.current();
+				void mcpRefreshRef.current();
 			} else toast.error(`${name} sign-in on the host: ${result.error}`);
 			startNextRef.current();
 		}, 2000);
@@ -697,9 +725,9 @@ export function RemoteHostSection() {
 						stacked
 						description={
 							<span className="select-text cursor-text">
-								Lets host sessions use them while this computer is off. Jira and
-								Notion sign in on the host of their own, so they keep working
-								there.
+								Lets host sessions use them while this computer is off. Jira,
+								Notion and Claude Code's connectors sign in on the host of their
+								own, so they keep working there.
 								{OWN_SIGN_INS.filter((service) => onHost.has(service)).map(
 									(service) =>
 										ownSignIn?.service === service ? (
@@ -722,6 +750,30 @@ export function RemoteHostSection() {
 												</span>
 											)
 										),
+								)}
+								{ownSignIn?.service.startsWith("mcp:") && (
+									<span className="mt-1 block">
+										Approve {signInName(ownSignIn.service)} in your browser...
+									</span>
+								)}
+								{mcpWaiting.length > 0 && (
+									<span className="mt-1 block">
+										Claude Code's {mcpWaiting.map((c) => c.name).join(", ")}{" "}
+										{mcpWaiting.length === 1 ? "uses" : "use"} this computer's
+										sign-in until you{" "}
+										<button
+											type="button"
+											className="underline underline-offset-2"
+											onClick={() => {
+												for (const { key } of mcpWaiting)
+													queueOwnSignIn(`mcp:${key}`);
+											}}
+										>
+											approve {mcpWaiting.length === 1 ? "it" : "them"} for the
+											host
+										</button>
+										.
+									</span>
 								)}
 								{setConnectors.isPending && (
 									<span className="mt-1 block">Saving on the host...</span>

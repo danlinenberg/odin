@@ -58,4 +58,17 @@ test("connector sign-ins go to the host without refresh tokens, next to its own 
 	// A connector the host signed in to itself keeps the host's sign-in.
 	expect(merged.mcpOAuth["plugin:y:y|d"].accessToken).toBe("own");
 	expect(statSync(file).mode & 0o777).toBe(0o600);
+	// A new sign-in of the host's own replaces it.
+	execFileSync(
+		"sh",
+		["-c", `HOME=${home} python3 -c "$0"`, MERGE_MCP_SIGN_INS_PY],
+		{
+			input: JSON.stringify({
+				"plugin:y:y|d": { accessToken: "own2", refreshToken: "own-r2" },
+			}),
+		},
+	);
+	expect(
+		JSON.parse(readFileSync(file, "utf8")).mcpOAuth["plugin:y:y|d"],
+	).toEqual({ accessToken: "own2", refreshToken: "own-r2" });
 });

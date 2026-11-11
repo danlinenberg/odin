@@ -277,6 +277,32 @@ export async function pushHostTokens(
 }
 
 /**
+ * Puts the host's own sign-in for one of Claude Code's connectors
+ * (mcp-host-login) in its Claude Code credentials, where its Claude Code
+ * refreshes it from then on. This computer keeps no copy.
+ */
+export async function pushHostMcpSignIn(
+	host: HostLogin,
+	key: string,
+	entry: Record<string, unknown>,
+): Promise<void> {
+	const client = await connectHost(host);
+	try {
+		await runOnHost(
+			client,
+			`python3 -c ${sh(MERGE_MCP_SIGN_INS_PY)}`,
+			JSON.stringify({ [key]: entry }),
+		);
+	} catch (error) {
+		throw new Error(
+			`Couldn't send the sign-in to the host: ${error instanceof Error ? error.message : String(error)}. ${adminHint(host)}`,
+		);
+	} finally {
+		client.end();
+	}
+}
+
+/**
  * Sends the host its own Jira or Notion sign-in (from a consent flow run for
  * the host), which its service refreshes from then on. This computer keeps
  * no copy.
