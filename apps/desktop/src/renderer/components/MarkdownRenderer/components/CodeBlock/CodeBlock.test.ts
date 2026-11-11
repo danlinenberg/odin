@@ -52,15 +52,15 @@ test("a drafted message is prose, commands and trees are not", () => {
 
 test("a Slack mention copies as a real mention, markup as formatting", () => {
 	expect(
-		JSON.parse(toSlackTexty("<@U0C62025C31> you're *right*, see `x`")),
+		JSON.parse(toSlackTexty("<@U0123456789> you're *right*, see `x`")),
 	).toEqual({
 		ops: [
 			{
-				insert: "@U0C62025C31",
+				insert: "@U0123456789",
 				attributes: {
 					slackmention: {
-						id: "U0C62025C31",
-						label: "@U0C62025C31",
+						id: "U0123456789",
+						label: "@U0123456789",
 						mention: false,
 						unverified: false,
 					},
@@ -93,10 +93,10 @@ test("a ``` fence copies as a Slack code block", () => {
 
 test("a known name labels the mention", () => {
 	const [mention] = JSON.parse(
-		toSlackTexty("<@U0C62025C31> hi", { U0C62025C31: "Ayelet Holtzman Ravid" }),
+		toSlackTexty("<@U0123456789> hi", { U0123456789: "Ayelet Holtzman Ravid" }),
 	).ops;
 	expect(mention.insert).toBe("@Ayelet Holtzman Ravid");
-	expect(mention.attributes.slackmention.id).toBe("U0C62025C31");
+	expect(mention.attributes.slackmention.id).toBe("U0123456789");
 });
 
 test("a copied Hebrew line starts with a right-to-left mark, English lines don't", () => {
@@ -110,10 +110,8 @@ test("a draft reads right-to-left when most of its letters are Hebrew, whatever 
 	expect(
 		isRtlText("btw כרגע בעמוד הbilling שלהם התשלום הבא מציג את כל החודשים"),
 	).toBe(true);
-	expect(isRtlText("<@U0C62025C31> יכול לבדוק שוב?")).toBe(true);
-	expect(isRtlText("Can you check the invoice for Zappwise? CC שירה")).toBe(
-		false,
-	);
+	expect(isRtlText("<@U0123456789> יכול לבדוק שוב?")).toBe(true);
+	expect(isRtlText("Can you check the invoice for Acme? CC שירה")).toBe(false);
 	expect(isRtlText("git status")).toBe(false);
 });
 

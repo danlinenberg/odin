@@ -75,10 +75,10 @@ const MCP_SERVER = `
  ▝▝   ▝▝   /…/scratchpad
   ⎿  SessionStart:startup says: AWS unreachable
 ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔ You're close to your usage credit limit ▔
-   Claude.ai Imagen Real Estate MCP Server
+   Claude.ai Acme Real Estate MCP Server
 
    Status:           ⚠ needs authentication
-   URL:              https://imagen-public-mcp.imagen-ai-op.com
+   URL:              https://mcp.acme.com
    Config location:  claude.ai
 
    ❯ 1. Authenticate
@@ -89,7 +89,7 @@ const MCP_SERVER = `
 
 const MCP_AUTH = `
 ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
-   Authenticating with claude.ai Imagen Real Estate…
+   Authenticating with claude.ai Acme Real Estate…
 
    ✶  A browser window will open for authentication
 
@@ -112,13 +112,13 @@ describe("/mcp", () => {
 		expect(menu?.options).toEqual(["Authenticate", "Disable"]);
 		expect(menu?.escape).toBe("Back");
 		expect(menu?.title.split("\n")[0]).toBe(
-			"Claude.ai Imagen Real Estate MCP Server",
+			"Claude.ai Acme Real Estate MCP Server",
 		);
 	});
 
 	it("reads the sign-in step, joining the wrapped URL", () => {
 		expect(parseScreenAuth(MCP_AUTH)).toEqual({
-			title: "Authenticating with claude.ai Imagen Real Estate",
+			title: "Authenticating with claude.ai Acme Real Estate",
 			url: "https://claude.ai/api/organizations/bb25/mcp/start-auth/mcpsrv_01PA?product_surface=cli",
 		});
 		expect(parseScreenAuth(MCP)).toBeNull();

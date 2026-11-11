@@ -86,7 +86,7 @@ describe("TaskBox", () => {
 		const html = renderToStaticMarkup(
 			<TaskBox
 				value="Ship the fix"
-				repos={["/dev/odin", "/dev/imagen"]}
+				repos={["/dev/odin", "/dev/acme"]}
 				repo="/dev/odin"
 				onRepoChange={() => {}}
 				onChange={() => {}}
@@ -103,17 +103,17 @@ describe("TaskBox", () => {
 		const html = renderToStaticMarkup(
 			<TaskBox
 				value="Ship the fix"
-				repos={["/dev/odin", "/dev/imagen"]}
+				repos={["/dev/odin", "/dev/acme"]}
 				repo="/dev/odin"
 				onRepoChange={() => {}}
-				recentRepos={["/dev/odin", "/dev/imagen"]}
+				recentRepos={["/dev/odin", "/dev/acme"]}
 				onChange={() => {}}
 				onSubmit={() => {}}
 			/>,
 		);
 		expect(html).toContain("Recent");
 		expect(html).toMatch(/aria-pressed="true"[^>]*>dev\/odin<\/button>/);
-		expect(html).toMatch(/aria-pressed="false"[^>]*>dev\/imagen<\/button>/);
+		expect(html).toMatch(/aria-pressed="false"[^>]*>dev\/acme<\/button>/);
 	});
 
 	it("offers saved docs by title, keyed by their path", () => {

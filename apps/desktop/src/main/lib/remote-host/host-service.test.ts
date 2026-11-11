@@ -390,9 +390,7 @@ describe.skipIf(!live)("Odin's host service", () => {
 		).toBe("gho_copy");
 		// An owner the host has no account for: the session's own.
 		expect(
-			await (
-				await token("service=github&login=dan-work&owner=imagenai")
-			).text(),
+			await (await token("service=github&login=dan-work&owner=acme")).text(),
 		).toBe("gho_new2");
 		// An account the host doesn't have: the default one's, as a launch picks.
 		expect(await (await token("service=github&login=nobody")).text()).toBe(

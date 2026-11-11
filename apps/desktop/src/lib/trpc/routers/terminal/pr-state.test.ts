@@ -15,12 +15,12 @@ import {
 	worktreeHolding,
 } from "./pr-state";
 
-const URL = "https://github.com/imagenai/app-web-server/pull/6409";
+const URL = "https://github.com/acme/web-server/pull/6409";
 
 const STATUS = `github.com
   ✓ Logged in to github.com account danlinenberg (keyring)
   - Active account: true
-  ✓ Logged in to github.com account dan-linenberg-imagenai (keyring)
+  ✓ Logged in to github.com account dan-acme (keyring)
   - Active account: false
 `;
 
@@ -209,7 +209,7 @@ describe("pullRequestState", () => {
 			if (args[1] === "status") return { stdout: STATUS };
 			if (args[1] === "token") return { stdout: `tok-${args[3]}\n` };
 			// Only the work account can resolve this org's repo.
-			if (env?.GH_TOKEN !== "tok-dan-linenberg-imagenai") {
+			if (env?.GH_TOKEN !== "tok-dan-acme") {
 				throw new Error("Could not resolve to a Repository");
 			}
 			return { stdout: '{"state":"CLOSED","statusCheckRollup":null}' };
@@ -220,7 +220,7 @@ describe("pullRequestState", () => {
 			"auth status",
 			"auth token --user danlinenberg",
 			`pr view ${URL} --json`,
-			"auth token --user dan-linenberg-imagenai",
+			"auth token --user dan-acme",
 			`pr view ${URL} --json`,
 		]);
 	});
@@ -231,7 +231,7 @@ describe("pullRequestState", () => {
 				throw new Error(
 					"GraphQL: API rate limit already exceeded for user ID 1.",
 				);
-			if (args[1] === "repos/imagenai/app-web-server/pulls/6409")
+			if (args[1] === "repos/acme/web-server/pulls/6409")
 				return {
 					stdout: JSON.stringify({
 						state: "open",
@@ -406,7 +406,7 @@ describe("mergedPullRequests", () => {
 									p2: { merged: false, mergedAt: null },
 									p3: merged("teammate"),
 								}
-							: { p7: merged("dan-linenberg-imagenai") },
+							: { p7: merged("dan-acme") },
 					},
 				}),
 			};
@@ -550,7 +550,7 @@ describe("closePullRequest", () => {
 	const NOT_FOUND =
 		"GraphQL: Could not resolve to a PullRequest with the number of 6409. (repository.pullRequest)\n";
 	const MERGED =
-		"X Pull request imagenai/app-web-server#6409 (Brief: close) can't be closed because it was already merged\n";
+		"X Pull request acme/web-server#6409 (Brief: close) can't be closed because it was already merged\n";
 	/** gh with two accounts; `close` answers per GH_TOKEN. */
 	const ghWith =
 		(close: (token: string | undefined) => { stdout: string }): GhExec =>
@@ -566,7 +566,7 @@ describe("closePullRequest", () => {
 		const exec: GhExec = async (args, env) => {
 			if (args[0] === "pr") calls.push(args);
 			return ghWith((token) => {
-				if (token === "dan-linenberg-imagenai-token") return { stdout: "" };
+				if (token === "dan-acme-token") return { stdout: "" };
 				throw ghFailure(NOT_FOUND);
 			})(args, env);
 		};
@@ -581,16 +581,14 @@ describe("closePullRequest", () => {
 		expect(await closePullRequest(URL, exec)).toEqual({
 			closed: false,
 			error:
-				"Pull request imagenai/app-web-server#6409 (Brief: close) can't be closed because it was already merged",
+				"Pull request acme/web-server#6409 (Brief: close) can't be closed because it was already merged",
 		});
 	});
 
 	test("the refusal from the account that sees the PR, not another's not-found", async () => {
 		// The active account can't see the repo; the work account can and refuses.
 		const exec = ghWith((token) => {
-			throw ghFailure(
-				token === "dan-linenberg-imagenai-token" ? MERGED : NOT_FOUND,
-			);
+			throw ghFailure(token === "dan-acme-token" ? MERGED : NOT_FOUND);
 		});
 		expect((await closePullRequest(URL, exec)).closed).toBe(false);
 		expect(await closePullRequest(URL, exec)).toMatchObject({

@@ -32,7 +32,7 @@ test("collectSkills finds personal, skills-dir-plugin and installed-plugin skill
 	);
 
 	// An installed plugin, located through the manifest.
-	const installPath = join(home, "cache", "imagen-core", "1.0.0");
+	const installPath = join(home, "cache", "hq-core", "1.0.0");
 	write(
 		join(installPath, "skills", "pr-iterate", "SKILL.md"),
 		skillFile("Poll CI"),
@@ -41,7 +41,7 @@ test("collectSkills finds personal, skills-dir-plugin and installed-plugin skill
 	write(
 		join(claude, "plugins", "installed_plugins.json"),
 		JSON.stringify({
-			plugins: { "imagen-core@imagen-internal": [{ installPath }] },
+			plugins: { "hq-core@hq-internal": [{ installPath }] },
 		}),
 	);
 
@@ -49,8 +49,8 @@ test("collectSkills finds personal, skills-dir-plugin and installed-plugin skill
 
 	expect(skills.map((skill) => skill.name)).toEqual([
 		"gdpr",
-		"imagen-core:data",
-		"imagen-core:pr-iterate",
+		"hq-core:data",
+		"hq-core:pr-iterate",
 		"odin:doctor",
 		"odin:standup",
 		"visualize",
@@ -95,7 +95,7 @@ test("collectSkills finds a single-skill plugin whose SKILL.md is at its root", 
 	write(
 		join(home, ".claude", "plugins", "installed_plugins.json"),
 		JSON.stringify({
-			plugins: { "get-pr-approved@imagen-skills": [{ installPath }] },
+			plugins: { "get-pr-approved@acme-skills": [{ installPath }] },
 		}),
 	);
 

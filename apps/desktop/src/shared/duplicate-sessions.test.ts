@@ -7,24 +7,24 @@ const pane = (p: Partial<Pane> & { id: string }): Pane =>
 
 it("pairs the same ask arriving twice, and nothing else", () => {
 	const found = duplicateSessions([
-		// The real pair: Richu's DM and Richu's channel post, two cards.
+		// The real pair: Riley's DM and Riley's channel post, two cards.
 		pane({
 			id: "dm",
 			odinTaskTitle: "Feature flag visibility for CS on TP",
-			odinContact: "Richu Joseph George",
+			odinContact: "Riley Jones George",
 			odinPageId: "D0ARNCW6DN1:1790165128.883119",
 		}),
 		pane({
 			id: "channel",
 			odinTaskTitle: "Feature flag removal and TP tag tracking",
-			odinContact: "Richu Joseph George",
+			odinContact: "Riley Jones George",
 			odinPageId: "C0B89CGHN48:1790171273.871159",
 		}),
 		// Same person, different job: one shared word isn't enough.
 		pane({
 			id: "abuse",
 			odinTaskTitle: "TouchPoint user abuse investigation",
-			odinContact: "Richu Joseph George",
+			odinContact: "Riley Jones George",
 		}),
 		// Same symptom, different customers and root causes - not a duplicate.
 		pane({
@@ -75,18 +75,18 @@ it("pairs two sessions on one Sentry issue", () => {
 			id: "channel",
 			odinTaskTitle: "Fix sell_profile crash",
 			odinBrief:
-				"AttributeError (https://imagenai.sentry.io/issues/7812764568/?referrer=slack)",
+				"AttributeError (https://acme.sentry.io/issues/7812764568/?referrer=slack)",
 		}),
 		pane({
 			id: "dm",
 			odinTaskTitle: "[web-server] AttributeError on update_successful",
 			odinBrief:
-				"AttributeError (https://imagenai.sentry.io/issues/7812764568/?referrer=issue_alert-slack)",
+				"AttributeError (https://acme.sentry.io/issues/7812764568/?referrer=issue_alert-slack)",
 		}),
 		pane({
 			id: "other",
 			odinTaskTitle: "Another error",
-			odinBrief: "https://imagenai.sentry.io/issues/1234/",
+			odinBrief: "https://acme.sentry.io/issues/1234/",
 		}),
 	]);
 	expect(Object.fromEntries(found)).toEqual({ channel: "dm", dm: "channel" });

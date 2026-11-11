@@ -4,11 +4,11 @@ import { linkSite, opensInOdin } from "./in-odin-links";
 describe("opensInOdin", () => {
 	it("keeps the task sources' links in Odin", () => {
 		for (const url of [
-			"https://imagenai.slack.com/archives/C03E00FMZT4/p1789567345867699",
+			"https://acme.slack.com/archives/C03E00FMZT4/p1789567345867699",
 			"https://app.slack.com/client/T01VC5US6L8/C03E00FMZT4",
-			"https://imagenai.atlassian.net/browse/BUGT-1",
+			"https://acme.atlassian.net/browse/BUGT-1",
 			"https://github.com/danlinenberg/odin/pull/595",
-			"https://www.notion.so/imagen/Page-abc123",
+			"https://www.notion.so/acme/Page-abc123",
 			"https://app.notion.com/p/3fc9a1b573ff8151895afe27ced0854b",
 			"https://mail.google.com/mail/u/0/#inbox/abc",
 		]) {
@@ -33,10 +33,8 @@ describe("opensInOdin", () => {
 
 describe("linkSite", () => {
 	it("names the site a link is on, so each can be sent to your browser", () => {
-		expect(linkSite("https://imagenai.slack.com/archives/C1/p1")).toBe("slack");
-		expect(linkSite("https://imagenai.atlassian.net/browse/BUGT-1")).toBe(
-			"jira",
-		);
+		expect(linkSite("https://acme.slack.com/archives/C1/p1")).toBe("slack");
+		expect(linkSite("https://acme.atlassian.net/browse/BUGT-1")).toBe("jira");
 		expect(linkSite("https://acme.notion.site/Page")).toBe("notion");
 		expect(linkSite("https://app.clickup.com/t/86c1ab2cd")).toBe("clickup");
 		expect(linkSite("https://www.google.com")).toBeNull();

@@ -917,7 +917,7 @@ export function computeWorkload(
 		})
 		.map((session) => {
 			// A hidden repo's PRs go too, whichever session opened them: an odin
-			// PR shipped from an app-web-server session still counted with odin hidden.
+			// PR shipped from an web-server session still counted with odin hidden.
 			const shown = session.prs.map(
 				(url) => !hide.includes(url.split("/")[4] ?? ""),
 			);

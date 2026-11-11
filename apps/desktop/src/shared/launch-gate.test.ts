@@ -117,7 +117,7 @@ describe("launchBlocker", () => {
 });
 
 describe("sessionInFlight", () => {
-	const REPO = "/Users/dan/dev/imagen";
+	const REPO = "/Users/dan/dev/acme";
 	const working = (over: Partial<Pane>): Pane =>
 		pane({
 			id: "p1",

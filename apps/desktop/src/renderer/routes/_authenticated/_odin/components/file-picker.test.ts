@@ -22,7 +22,7 @@ describe("fileToken", () => {
 		expect(fileToken("")).toBeUndefined();
 		expect(fileToken("look at @chat and fix it")).toBeUndefined();
 		// An email address, not a mention
-		expect(fileToken("mail dan@imagen")).toBeUndefined();
+		expect(fileToken("mail dan@acme")).toBeUndefined();
 		// Already picked: the space after it closes the picker
 		expect(fileToken("@README.md ")).toBeUndefined();
 	});

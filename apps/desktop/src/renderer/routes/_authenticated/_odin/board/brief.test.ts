@@ -130,15 +130,15 @@ describe("pullRequests", () => {
 				claude(
 					"Opened https://github.com/danlinenberg/odin/pull/12 for review.",
 				),
-				claude("Also https://github.com/imagenai/app-web-server/pull/5918"),
+				claude("Also https://github.com/acme/web-server/pull/5918"),
 				// The same PR quoted again later must not double up, and must not
 				// jump the queue - it was still opened first.
 				claude("Merged https://github.com/danlinenberg/odin/pull/12"),
 			]),
 		).toEqual([
 			{
-				url: "https://github.com/imagenai/app-web-server/pull/5918",
-				repo: "imagenai/app-web-server",
+				url: "https://github.com/acme/web-server/pull/5918",
+				repo: "acme/web-server",
 				number: 5918,
 			},
 			{
@@ -206,7 +206,7 @@ describe("projectSlug", () => {
 
 const BACKLOG = "https://app.notion.com/p/3dd9a1b573ff81eeab56d1a8065f87c7";
 const ADR =
-	"https://www.notion.so/imagen-ai/Spot-Instances-with-On-Demand-Fallback-3d19a1b573ff819b8237f88195e3780f";
+	"https://www.notion.so/acme/Example-Page-0123456789abcdef0123456789abcdef";
 
 describe("notionPage", () => {
 	it("keeps one page, titled from its slug", () => {
@@ -218,8 +218,8 @@ describe("notionPage", () => {
 			]),
 		).toEqual({
 			url: ADR,
-			id: "3d19a1b573ff819b8237f88195e3780f",
-			title: "Spot Instances with On Demand Fallback",
+			id: "0123456789abcdef0123456789abcdef",
+			title: "Example Page",
 		});
 	});
 
@@ -246,7 +246,7 @@ describe("notionPage", () => {
 			notionPage([
 				claude(`${ADR}`),
 				claude(
-					"https://app.notion.com/p/3d19a1b573ff819b8237f88195e3780f?pvs=204",
+					"https://app.notion.com/p/0123456789abcdef0123456789abcdef?pvs=204",
 				),
 			])?.url,
 		).toBe(ADR);
@@ -260,7 +260,7 @@ describe("notionPage", () => {
 
 	it("ignores a Notion url carrying no page id", () => {
 		expect(
-			notionPage([claude("https://www.notion.so/imagen-ai"), claude("done")]),
+			notionPage([claude("https://www.notion.so/acme"), claude("done")]),
 		).toBeNull();
 	});
 
@@ -274,23 +274,19 @@ describe("slackThread", () => {
 		expect(
 			slackThread([
 				user(
-					"This task comes from a Slack thread: https://imagen.slack.com/archives/C1/p1700000001000200?thread_ts=1700000000.123456&cid=C1",
+					"This task comes from a Slack thread: https://acme.slack.com/archives/C1/p1700000001000200?thread_ts=1700000000.123456&cid=C1",
 				),
-				claude(
-					"Also see https://imagen.slack.com/archives/C9/p1700000009000000",
-				),
+				claude("Also see https://acme.slack.com/archives/C9/p1700000009000000"),
 			]),
 		).toBe(
-			"https://imagen.slack.com/archives/C1/p1700000001000200?thread_ts=1700000000.123456&cid=C1",
+			"https://acme.slack.com/archives/C1/p1700000001000200?thread_ts=1700000000.123456&cid=C1",
 		);
 	});
 
 	it("strips the prose around a link", () => {
 		expect(
-			slackThread([
-				claude("(https://imagen.slack.com/archives/C1/p17000001)."),
-			]),
-		).toBe("https://imagen.slack.com/archives/C1/p17000001");
+			slackThread([claude("(https://acme.slack.com/archives/C1/p17000001).")]),
+		).toBe("https://acme.slack.com/archives/C1/p17000001");
 	});
 
 	it("finds nothing in a session that came from nowhere", () => {
@@ -383,17 +379,15 @@ describe("launchPullRequest", () => {
 	it("is the PR a PR row was launched on, and nothing for any other row", () => {
 		expect(
 			launchPullRequest(
-				"imagenai/submitter-app-electron#6012: fix: stale\nhttps://github.com/imagenai/submitter-app-electron/pull/6012",
+				"acme/submitter-app-electron#6012: fix: stale\nhttps://github.com/acme/submitter-app-electron/pull/6012",
 			),
 		).toEqual({
-			url: "https://github.com/imagenai/submitter-app-electron/pull/6012",
-			repo: "imagenai/submitter-app-electron",
+			url: "https://github.com/acme/submitter-app-electron/pull/6012",
+			repo: "acme/submitter-app-electron",
 			number: 6012,
 		});
 		expect(
-			launchPullRequest(
-				"CRR-862\nhttps://imagen-ai.atlassian.net/browse/CRR-862",
-			),
+			launchPullRequest("CRR-862\nhttps://acme.atlassian.net/browse/CRR-862"),
 		).toBeNull();
 		expect(launchPullRequest(null)).toBeNull();
 	});
@@ -403,19 +397,19 @@ describe("sourceLink", () => {
 	it("labels a Jira brief with its issue key", () => {
 		expect(
 			sourceLink(
-				"CRR-862: Remove all default in app banners\nhttps://imagen-ai.atlassian.net/browse/CRR-862",
+				"CRR-862: Remove all default in app banners\nhttps://acme.atlassian.net/browse/CRR-862",
 			),
 		).toEqual({
-			url: "https://imagen-ai.atlassian.net/browse/CRR-862",
+			url: "https://acme.atlassian.net/browse/CRR-862",
 			label: "CRR-862",
 		});
 	});
 
 	it("falls back to the host, and drops trailing prose", () => {
 		expect(
-			sourceLink("odin#78\nhttps://github.com/imagenai/odin/pull/78."),
+			sourceLink("odin#78\nhttps://github.com/acme/odin/pull/78."),
 		).toEqual({
-			url: "https://github.com/imagenai/odin/pull/78",
+			url: "https://github.com/acme/odin/pull/78",
 			label: "github.com",
 		});
 	});
@@ -430,7 +424,7 @@ describe("sourceLink", () => {
 describe("jiraKey", () => {
 	it("reads the key from a browse link, ignoring its query", () => {
 		expect(
-			jiraKey("https://imagen.atlassian.net/browse/CRR-905?atlOrigin=x"),
+			jiraKey("https://acme.atlassian.net/browse/CRR-905?atlOrigin=x"),
 		).toBe("CRR-905");
 		expect(jiraKey("https://example.com/CRR-905")).toBeNull();
 	});
@@ -447,22 +441,22 @@ describe("jiraIssue", () => {
 		const issue = jiraIssue([
 			turn(
 				"user",
-				"https://imagen-ai.atlassian.net/browse/SHIP-1063?atlOrigin=eyJpIjoi&issueKey=SHIP-1063 add this to brief",
+				"https://acme.atlassian.net/browse/SHIP-1063?atlOrigin=eyJpIjoi&issueKey=SHIP-1063 add this to brief",
 			),
 		]);
 
 		expect(issue).toEqual({
 			key: "SHIP-1063",
-			url: "https://imagen-ai.atlassian.net/browse/SHIP-1063",
+			url: "https://acme.atlassian.net/browse/SHIP-1063",
 		});
 	});
 
 	it("keeps the first ticket, not one quoted later", () => {
 		const issue = jiraIssue([
-			turn("user", "see https://imagen-ai.atlassian.net/browse/SHIP-1063"),
+			turn("user", "see https://acme.atlassian.net/browse/SHIP-1063"),
 			turn(
 				"assistant",
-				"related: https://imagen-ai.atlassian.net/browse/RND-14753.",
+				"related: https://acme.atlassian.net/browse/RND-14753.",
 			),
 		]);
 
@@ -914,8 +908,8 @@ describe("mergeReady", () => {
 describe("linkRefs", () => {
 	const prs = [
 		{
-			url: "https://github.com/o/imagen-public-mcp/pull/2",
-			repo: "o/imagen-public-mcp",
+			url: "https://github.com/o/acme-mcp/pull/2",
+			repo: "o/acme-mcp",
 			number: 2,
 		},
 		{
@@ -937,8 +931,8 @@ describe("linkRefs", () => {
 			);
 
 	it("links a repo-named PR whole, and picks that repo's #2", () => {
-		expect(links("Merge imagen-public-mcp #2.")).toEqual([
-			"imagen-public-mcp #2 -> imagen-public-mcp/pull/2",
+		expect(links("Merge acme-mcp #2.")).toEqual([
+			"acme-mcp #2 -> acme-mcp/pull/2",
 		]);
 		expect(links("Apply terraform#1455: ecr")).toEqual([
 			"terraform#1455 -> terraform/pull/1455",
@@ -1109,12 +1103,12 @@ describe("prLabel", () => {
 describe("byRepo", () => {
 	it("groups by repo, newest repo first, order kept inside", () => {
 		const prs = [
-			{ repo: "imagenai/skills", number: 55 },
+			{ repo: "acme/skills", number: 55 },
 			{ repo: "danlinenberg/odin", number: 893 },
-			{ repo: "imagenai/skills", number: 54 },
+			{ repo: "acme/skills", number: 54 },
 		];
 		expect(byRepo(prs)).toEqual([
-			["imagenai/skills", [prs[0], prs[2]]],
+			["acme/skills", [prs[0], prs[2]]],
 			["danlinenberg/odin", [prs[1]]],
 		]);
 	});

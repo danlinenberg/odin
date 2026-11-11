@@ -24,12 +24,12 @@ describe("siteMatch", () => {
 
 describe("answered", () => {
 	test("a 1Password call that never answers fails with what to do", async () => {
-		await expect(answered("Imagen", new Promise(() => {}), 10)).rejects.toThrow(
+		await expect(answered("Acme", new Promise(() => {}), 10)).rejects.toThrow(
 			/unlock it and approve Odin/,
 		);
 	});
 
 	test("an answer in time comes through", async () => {
-		expect(await answered("Imagen", Promise.resolve(3), 1000)).toBe(3);
+		expect(await answered("Acme", Promise.resolve(3), 1000)).toBe(3);
 	});
 });

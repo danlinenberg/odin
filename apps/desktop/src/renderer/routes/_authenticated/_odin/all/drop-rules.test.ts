@@ -8,7 +8,7 @@ const pr = (over: Partial<AllItem>) =>
 		source: "GitHub",
 		title: "fix(deps): update weekly-dependency-updates",
 		person: "renovate[bot]",
-		context: "imagenai/app-web-server",
+		context: "acme/web-server",
 		...over,
 	}) as AllItem;
 

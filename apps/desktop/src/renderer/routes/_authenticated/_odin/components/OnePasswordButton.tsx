@@ -200,7 +200,7 @@ export function OnePasswordButton({
 								id="one-password-account"
 								autoFocus
 								value={accountName}
-								placeholder="e.g. Imagen"
+								placeholder="e.g. Acme"
 								onChange={(event) => setAccountName(event.target.value)}
 							/>
 						</label>

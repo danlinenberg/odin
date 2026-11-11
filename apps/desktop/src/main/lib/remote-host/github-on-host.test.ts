@@ -97,7 +97,7 @@ describe("hostGithubLogin", () => {
 	});
 
 	test("else the main connection, else the first allowed", () => {
-		expect(hostGithubLogin(config, "imagenai")).toBe("dan-work");
+		expect(hostGithubLogin(config, "acme")).toBe("dan-work");
 		expect(hostGithubLogin(config)).toBe("dan-work");
 		expect(
 			hostGithubLogin({
@@ -131,7 +131,7 @@ describe("repoStaysLocal", () => {
 	});
 
 	test("anything else goes to the host", () => {
-		expect(repoStaysLocal(config, "imagenai")).toBe(false);
+		expect(repoStaysLocal(config, "acme")).toBe(false);
 		expect(repoStaysLocal(config, "dan-work")).toBe(false);
 		expect(repoStaysLocal(config, null)).toBe(false);
 	});

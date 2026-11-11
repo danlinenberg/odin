@@ -1,5 +1,5 @@
 /**
- * A Sentry issue link - `https://imagenai.sentry.io/issues/7812764568/?...`.
+ * A Sentry issue link - `https://acme.sentry.io/issues/7812764568/?...`.
  * Sentry posts one alert to a channel and DMs the same one, each with its own
  * query string, so the issue id is the only part the two share.
  */

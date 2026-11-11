@@ -53,13 +53,15 @@ which PR or commit has it, where the code lives (`file:line`), and how to reach
 it in the app. If only part of it exists, say which part and offer to build
 the rest. If the user insists after that, do the work as asked.
 
-## Built for everyone, not only Imagen
+## Built for everyone
 
-Odin is open source. Build every feature for people outside Imagen too: no
-code that only works with, or only exists for, Imagen's AWS accounts, plugins
-(imagen-core), repos, Slack or Jira. When a request only serves Imagen, put it
-where Imagen owns it (the imagen-core plugin, an Imagen repo) instead. If it
-must touch Odin, make it a general feature that Imagen is just one user of.
+Odin is open source. Build every feature for any user: no code that only works
+with, or only exists for, one company's AWS accounts, Claude plugins, repos,
+Slack or Jira. When a request only serves one team, put it where that team owns
+it (its own plugin or repo) instead. If it must touch Odin, make it a general
+feature that team is just one user of. Tests and examples use made-up names
+(`acme`, `example.com`, `123456789012`), never a real company, person, account
+ID, Slack link or customer.
 
 ## Nothing to install but Odin
 

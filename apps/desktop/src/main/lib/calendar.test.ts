@@ -40,7 +40,7 @@ function feed(events: string[]): string {
 const attendee = (email: string, name: string, partstat = "ACCEPTED") =>
 	`ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=${partstat};CN=${name}:mailto:${email}`;
 
-const ofek = attendee("ofek@example.com", "Ofek Azulay");
+const olivia = attendee("olivia@example.com", "Olivia Park");
 
 // Wednesday 2026-10-21, 06:00 UTC = 09:00 in Tel Aviv (IDT, +3).
 const NOW = Date.parse("2026-10-21T06:00:00Z");
@@ -57,8 +57,8 @@ test("a weekly series expands to the occurrences in the window, in their own tim
 		"RRULE:FREQ=WEEKLY;BYDAY=WE,TH",
 		"UID:weekly@google.com",
 		"SUMMARY:R&D sync",
-		`ORGANIZER;CN=Ofek Azulay:mailto:ofek@example.com`,
-		ofek,
+		`ORGANIZER;CN=Olivia Park:mailto:olivia@example.com`,
+		olivia,
 		attendee(ME, "Dan"),
 		"END:VEVENT",
 	]);
@@ -71,8 +71,8 @@ test("a weekly series expands to the occurrences in the window, in their own tim
 		id: "weekly@google.com@2026-10-21T07:00:00.000Z",
 		title: "R&D sync",
 		end: "2026-10-21T07:30:00.000Z",
-		organizer: "Ofek Azulay",
-		attendees: ["Ofek Azulay"],
+		organizer: "Olivia Park",
+		attendees: ["Olivia Park"],
 		recurring: true,
 	});
 });
@@ -86,7 +86,7 @@ test("a moved occurrence takes its new time, and a cancelled or excluded one is 
 		"EXDATE;TZID=Asia/Jerusalem:20261023T120000",
 		"UID:daily@google.com",
 		"SUMMARY:Standup",
-		ofek,
+		olivia,
 		attendee(ME, "Dan"),
 		"END:VEVENT",
 		"BEGIN:VEVENT",
@@ -95,7 +95,7 @@ test("a moved occurrence takes its new time, and a cancelled or excluded one is 
 		"DTEND;TZID=Asia/Jerusalem:20261021T160000",
 		"UID:daily@google.com",
 		"SUMMARY:Standup (moved)",
-		ofek,
+		olivia,
 		attendee(ME, "Dan"),
 		"END:VEVENT",
 		"BEGIN:VEVENT",
@@ -119,7 +119,7 @@ test("declined, solo, all-day and ended events are not meetings to prepare for",
 		"DTEND:20261021T140000Z",
 		"UID:declined@google.com",
 		"SUMMARY:Declined",
-		ofek,
+		olivia,
 		attendee(ME, "Dan", "DECLINED"),
 		"END:VEVENT",
 		"BEGIN:VEVENT",
@@ -133,28 +133,28 @@ test("declined, solo, all-day and ended events are not meetings to prepare for",
 		"DTEND;VALUE=DATE:20261023",
 		"UID:holiday@google.com",
 		"SUMMARY:Out of office",
-		ofek,
+		olivia,
 		"END:VEVENT",
 		"BEGIN:VEVENT",
 		"DTSTART:20261021T040000Z",
 		"DTEND:20261021T050000Z",
 		"UID:ended@google.com",
 		"SUMMARY:Already over",
-		ofek,
+		olivia,
 		"END:VEVENT",
 		"BEGIN:VEVENT",
 		"DTSTART:20261021T053000Z",
 		"DTEND:20261021T063000Z",
 		"UID:running@google.com",
 		"SUMMARY:Running now",
-		ofek,
+		olivia,
 		"END:VEVENT",
 		"BEGIN:VEVENT",
 		"DTSTART:20261030T090000Z",
 		"DTEND:20261030T100000Z",
 		"UID:later@google.com",
 		"SUMMARY:Next week",
-		ofek,
+		olivia,
 		"END:VEVENT",
 	]);
 	expect(titles(ics)).toEqual(["Running now"]);
@@ -169,7 +169,7 @@ test("the join link comes from Google's conference field, else the location or t
 		"SUMMARY:Roadmap review",
 		"X-GOOGLE-CONFERENCE:https://meet.google.com/abc-defg-hij",
 		"DESCRIPTION:Agenda: Q4 plan\\n\\n-::~:~::~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~::~:~::-\\nJoin with Google Meet: https://meet.google.com/abc-defg-hij\\n-::~:~::~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~::~:~::-",
-		ofek,
+		olivia,
 		"END:VEVENT",
 		"BEGIN:VEVENT",
 		"DTSTART:20261021T150000Z",
@@ -177,7 +177,7 @@ test("the join link comes from Google's conference field, else the location or t
 		"UID:zoom@example.com",
 		"SUMMARY:Vendor call",
 		"LOCATION:https://acme.zoom.us/j/123456?pwd=xyz",
-		ofek,
+		olivia,
 		"END:VEVENT",
 	]);
 	const [meet, zoom] = parseMeetings(ics, WINDOW);
@@ -202,13 +202,13 @@ test("an organizer who is you isn't named, and extra addresses count as you", ()
 		"SUMMARY:1:1",
 		`ORGANIZER;CN=Dan:mailto:${ME}`,
 		attendee("dan@work.example", "Dan (work)"),
-		ofek,
+		olivia,
 		"END:VEVENT",
 	]);
 	const [meeting] = parseMeetings(ics, WINDOW, ["DAN@work.example"]);
 	expect(meeting).toMatchObject({
 		organizer: null,
-		attendees: ["Ofek Azulay"],
+		attendees: ["Olivia Park"],
 	});
 });
 
@@ -241,7 +241,7 @@ test("API events make the same rows: meetings only, ids by iCalUID and start", (
 		organizer: { email: ME, self: true },
 		attendees: [
 			{ email: ME, self: true, responseStatus: "accepted" },
-			{ email: "ofek@example.com", displayName: "Ofek" },
+			{ email: "olivia@example.com", displayName: "Olivia" },
 			{ email: "room@resource.calendar.google.com", resource: true },
 		],
 		hangoutLink: "https://meet.google.com/abc-defg-hij",
@@ -257,7 +257,7 @@ test("API events make the same rows: meetings only, ids by iCalUID and start", (
 				iCalUID: "declined",
 				attendees: [
 					{ email: ME, self: true, responseStatus: "declined" },
-					{ email: "ofek@example.com" },
+					{ email: "olivia@example.com" },
 				],
 			}),
 			meet({ iCalUID: "solo", attendees: [{ email: ME, self: true }] }),
@@ -276,7 +276,7 @@ test("API events make the same rows: meetings only, ids by iCalUID and start", (
 			start: "2026-10-22T06:00:00.000Z",
 			end: "2026-10-22T06:15:00.000Z",
 			organizer: null,
-			attendees: ["Ofek"],
+			attendees: ["Olivia"],
 			location: null,
 			joinUrl: "https://meet.google.com/abc-defg-hij",
 			description: "Agenda\n1. & more",

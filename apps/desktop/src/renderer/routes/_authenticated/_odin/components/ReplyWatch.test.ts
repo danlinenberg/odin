@@ -142,13 +142,11 @@ test("a condition happened when Claude says so on a line of its own", () => {
 		conditionOutcome(
 			[
 				said("Checking the deploy now."),
-				said(
-					"Deploy finished.\n**ODIN PING: HAPPENED** - app-web-server is live",
-				),
+				said("Deploy finished.\n**ODIN PING: HAPPENED** - web-server is live"),
 			],
 			SINCE,
 		),
-	).toEqual({ event: "Happened", detail: "app-web-server is live" });
+	).toEqual({ event: "Happened", detail: "web-server is live" });
 	expect(
 		conditionOutcome(
 			[said("ODIN PING: GAVE UP - no access to Datadog")],

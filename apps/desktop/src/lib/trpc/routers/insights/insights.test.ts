@@ -76,7 +76,7 @@ describe("computeInsights", () => {
 			[
 				ask({ authorName: "Maya" }),
 				ask({ authorName: "Maya" }),
-				ask({ authorName: "Ofek" }),
+				ask({ authorName: "Olivia" }),
 				ask({ authorName: null }),
 			],
 			[
@@ -87,7 +87,7 @@ describe("computeInsights", () => {
 		);
 		expect(result.askers).toEqual([
 			{ name: "Maya", asks: 2 },
-			{ name: "Ofek", asks: 1 },
+			{ name: "Olivia", asks: 1 },
 		]);
 		expect(result.bySource).toEqual([
 			{ source: "jira", count: 2 },
@@ -98,19 +98,19 @@ describe("computeInsights", () => {
 
 	test("gaps: untouched areas first, DMs folded, singletons ignored", () => {
 		const gaps = findGaps([
-			ask({ channelName: "bugs", authorName: "Richu" }),
-			ask({ channelName: "bugs", authorName: "Richu" }),
-			ask({ channelName: "rnd", authorName: "Ofek", startedAt: 1 }),
-			ask({ channelName: "rnd", authorName: "Ofek" }),
-			ask({ channelName: "rnd", authorName: "Ofek" }),
+			ask({ channelName: "bugs", authorName: "Riley" }),
+			ask({ channelName: "bugs", authorName: "Riley" }),
+			ask({ channelName: "rnd", authorName: "Olivia", startedAt: 1 }),
+			ask({ channelName: "rnd", authorName: "Olivia" }),
+			ask({ channelName: "rnd", authorName: "Olivia" }),
 			ask({ channelId: "D1", authorName: "Maya", doneAt: 1 }),
 			ask({ channelId: "D2", authorName: "Noa", doneAt: 1 }),
 			ask({ channelName: "solo", authorName: "Solo" }),
 		]);
 		expect(gaps).toEqual([
 			{ kind: "channel", name: "bugs", seen: 2, handled: 0, waiting: 2 },
-			{ kind: "person", name: "Richu", seen: 2, handled: 0, waiting: 2 },
-			{ kind: "person", name: "Ofek", seen: 3, handled: 1, waiting: 2 },
+			{ kind: "person", name: "Riley", seen: 2, handled: 0, waiting: 2 },
+			{ kind: "person", name: "Olivia", seen: 3, handled: 1, waiting: 2 },
 			{ kind: "channel", name: "rnd", seen: 3, handled: 1, waiting: 2 },
 		]);
 	});

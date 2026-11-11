@@ -600,7 +600,7 @@ export async function slackThreadReplies(
 	isDirect: boolean;
 	/**
 	 * Someone else the message tagged alongside me, when theirs is the newest
-	 * reply and it came after the ask - "@Idan @Dan can you help" that Idan
+	 * reply and it came after the ask - "@Ian @Dan can you help" that Ian
 	 * answered. Their name, or null.
 	 */
 	answeredBy: string | null;

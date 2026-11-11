@@ -53,7 +53,7 @@ describe("screenSteps", () => {
 			screenSteps(
 				screen(
 					"  ⎿  PreToolUse:Bash hook error",
-					"  ⎿  Failed with non-blocking status code: /bin/sh: 1: /home/ubuntu/dev/imagen/i",
+					"  ⎿  Failed with non-blocking status code: /bin/sh: 1: /home/ubuntu/dev/acme/i",
 					"     nternal-claude/scripts/hooks/dedup-triage-comment.py: not found",
 					"",
 					"● I'll show Claude's live narration and the running command under the Working…",
@@ -133,14 +133,14 @@ describe("screenSteps", () => {
 			"",
 			"Standing rules - follow each one whenever its situation comes up, and say when it is done.",
 			"The repos on my computer:",
-			"- https://github.com/imagenai/translations-utils.git",
-			"- https://github.com/imagenai/video-editing-service.git",
+			"- https://github.com/acme/translations-utils.git",
+			"- https://github.com/acme/video-editing-service.git",
 			"git and gh are signed in to GitHub with my account.",
 		].join("\n");
 		const read = screenSteps(
 			screen(
-				"  - https://github.com/imagenai/translations-utils.git",
-				"  - https://github.com/imagenai/video-editing-service.git",
+				"  - https://github.com/acme/translations-utils.git",
+				"  - https://github.com/acme/video-editing-service.git",
 				"  git and gh are signed in to GitHub with my account.",
 				"",
 				"● I'll look at the screenshot first to see which text is unclear and where it lives.",
@@ -162,7 +162,7 @@ describe("screenSteps", () => {
 		expect(read).toEqual([
 			{
 				kind: "text",
-				text: "- https://github.com/imagenai/translations-utils.git\n- https://github.com/imagenai/video-editing-service.git\ngit and gh are signed in to GitHub with my account.",
+				text: "- https://github.com/acme/translations-utils.git\n- https://github.com/acme/video-editing-service.git\ngit and gh are signed in to GitHub with my account.",
 			},
 			line,
 			command,
@@ -416,12 +416,12 @@ describe("unrecordedSteps", () => {
 			"",
 			"Standing rules - follow each one whenever its situation comes up, and say when it is done.",
 			"The repos on my computer:",
-			"- https://github.com/imagenai/video-editing-service.git",
+			"- https://github.com/acme/video-editing-service.git",
 			"git and gh are signed in to GitHub with my account.",
 		].join("\n");
 		const tail = {
 			kind: "text" as const,
-			text: "- https://github.com/imagenai/video-editing-service.git\ngit and gh are signed in to GitHub with my account.",
+			text: "- https://github.com/acme/video-editing-service.git\ngit and gh are signed in to GitHub with my account.",
 		};
 		expect(unrecordedSteps([tail, line], [{ kind: "user" }], prompt)).toEqual([
 			line,

@@ -197,7 +197,7 @@ describe("messageBody", () => {
 				type: "section",
 				text: {
 					type: "mrkdwn",
-					text: ":red_circle: <https://imagenai.sentry.io/issues/7812764568/?referrer=slack&amp;environment=prod|*AttributeError*>",
+					text: ":red_circle: <https://acme.sentry.io/issues/7812764568/?referrer=slack&amp;environment=prod|*AttributeError*>",
 				},
 			},
 		];
@@ -207,10 +207,10 @@ describe("messageBody", () => {
 				blocks,
 			}),
 		).toBe(
-			"[web-server] AttributeError: 'NoneType' object has no attribute\nhttps://imagenai.sentry.io/issues/7812764568",
+			"[web-server] AttributeError: 'NoneType' object has no attribute\nhttps://acme.sentry.io/issues/7812764568",
 		);
 		// Already in the text: not repeated. No Sentry link: unchanged.
-		const linked = "see https://imagenai.sentry.io/issues/7812764568";
+		const linked = "see https://acme.sentry.io/issues/7812764568";
 		expect(messageBody({ text: linked, blocks })).toBe(linked);
 		expect(messageBody({ text: "hi", blocks: [{ type: "divider" }] })).toBe(
 			"hi",
@@ -284,24 +284,24 @@ describe("buildPermalink", () => {
 	test("channel message", () => {
 		expect(
 			buildPermalink({
-				teamUrl: "https://imagen.slack.com/",
+				teamUrl: "https://acme.slack.com/",
 				channelId: "C1",
 				messageTs: "1700000000.123456",
 				threadTs: null,
 			}),
-		).toBe("https://imagen.slack.com/archives/C1/p1700000000123456");
+		).toBe("https://acme.slack.com/archives/C1/p1700000000123456");
 	});
 
 	test("thread reply carries the parent, so the link opens the thread", () => {
 		expect(
 			buildPermalink({
-				teamUrl: "https://imagen.slack.com",
+				teamUrl: "https://acme.slack.com",
 				channelId: "C1",
 				messageTs: "1700000001.000200",
 				threadTs: "1700000000.123456",
 			}),
 		).toBe(
-			"https://imagen.slack.com/archives/C1/p1700000001000200?thread_ts=1700000000.123456&cid=C1",
+			"https://acme.slack.com/archives/C1/p1700000001000200?thread_ts=1700000000.123456&cid=C1",
 		);
 	});
 });

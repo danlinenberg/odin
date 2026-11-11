@@ -137,10 +137,16 @@ if (!onBoard) {
 	finish();
 }
 
+// The repo the e2e task runs in (Odin's default repo on the test machine).
+const PROOF_PATH = join(
+	process.env.ODIN_E2E_REPO ?? join(homedir(), "dev/odin"),
+	"ODIN_E2E.txt",
+);
+
 // --- 4. type a task ----------------------------------------------------------
 // Clear the proof artifact BEFORE the agent starts (see step 6)
 try {
-	execSync(`rm -f "$HOME/dev/imagen/internal-claude/ODIN_E2E.txt"`);
+	execSync(`rm -f "${PROOF_PATH}"`);
 } catch {}
 await ev(`(() => {
 	const input = document.querySelector('input[placeholder^="New task"]');
@@ -175,7 +181,7 @@ check(
 // the file appearing proves prompt delivery + correct cwd + auto mode in one
 // observable outcome. (xterm paints to canvas - reading its DOM text lies.)
 await ev(`document.querySelector('[role="button"][tabindex]')?.click()`);
-const proofPath = join(homedir(), "dev/imagen/internal-claude/ODIN_E2E.txt");
+const proofPath = PROOF_PATH;
 let proof = false;
 for (let i = 0; i < 60; i++) {
 	await wait(4000);
