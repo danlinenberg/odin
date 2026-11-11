@@ -1478,6 +1478,10 @@ await step(
 			);
 		}
 		if (!link) throw new Error("Phone access showed no pair link");
+		// The window answers the phone only from the board, not from Settings.
+		await click("a", "Back");
+		await rail("Dev Board");
+		await waitForText("next in line");
 		const params = new URL(link).searchParams;
 		// The runner may not resolve its own .local name: the same port here.
 		const lan = new URL(params.get("l") ?? "");
@@ -1521,7 +1525,6 @@ await step(
 		} finally {
 			channel.close();
 		}
-		await click("a", "Back");
 	},
 );
 
