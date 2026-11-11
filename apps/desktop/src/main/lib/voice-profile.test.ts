@@ -10,6 +10,7 @@ import {
 	LEARN_EVERY,
 	learnFromDrafts,
 	learnPrompt,
+	modelFailure,
 	myLines,
 	noteConversation,
 	readVoice,
@@ -281,5 +282,32 @@ describe("learnFromDrafts", () => {
 	test("NONE adds no correction", () => {
 		expect(draftCorrections("NONE")).toEqual([]);
 		expect(draftCorrections("- a\n- b\n- c\n- d")).toEqual(["a", "b", "c"]);
+	});
+});
+
+describe("modelFailure", () => {
+	test("a timeout says so, without the prompt", () => {
+		const msg = modelFailure({
+			killed: true,
+			signal: "SIGTERM",
+			message: "Command failed: claude -p You write a style guide...",
+		});
+		expect(msg).toContain("took too long");
+		expect(msg).not.toContain("style guide");
+	});
+	test("an exit gives the last line the CLI printed", () => {
+		expect(
+			modelFailure({
+				code: 1,
+				stderr: "",
+				stdout: "API Error: 429 rate limited\n",
+				message: "Command failed: claude -p huge prompt",
+			}),
+		).toBe("The model failed: API Error: 429 rate limited");
+	});
+	test("a silent exit gives the code", () => {
+		expect(modelFailure({ code: 2, stdout: "", stderr: "" })).toBe(
+			"The model failed (exit code 2).",
+		);
 	});
 });
