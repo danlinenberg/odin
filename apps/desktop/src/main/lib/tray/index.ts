@@ -166,8 +166,14 @@ export async function loadSessions(
 		const alive = new Set(
 			sessions.filter((s) => s.isAlive).map((s) => s.sessionId),
 		);
+		// Only panes in a tab: the board skips one its tab left behind, and so
+		// does the phone, whose Done couldn't put such a card away.
+		const { tabs = [], panes = {} } = appState.data.tabsState;
+		const tabIds = new Set(tabs.map((tab) => tab.id));
 		return activeSessions(
-			appState.data.tabsState.panes ?? {},
+			Object.fromEntries(
+				Object.entries(panes).filter(([, pane]) => tabIds.has(pane.tabId)),
+			),
 			alive,
 			profileId,
 			withEnded,
