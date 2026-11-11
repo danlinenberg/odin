@@ -320,7 +320,9 @@ export function modelFailure(error: unknown): string {
 		.pop();
 	if (said) return `The model failed: ${said.slice(0, 300)}`;
 	if (e?.code != null) return `The model failed (exit code ${e.code}).`;
-	return String(e?.message ?? error).split("\n")[0].slice(0, 120);
+	return String(e?.message ?? error)
+		.split("\n")[0]
+		.slice(0, 120);
 }
 
 /** Rewrite the guide with a model, from the store as it is now. */
