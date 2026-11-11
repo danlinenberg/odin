@@ -836,11 +836,36 @@ function runOdinAction(
 		}
 		if (args.open === "true" && tasks.length === 1)
 			return openedPane(tasks[0], deps);
+		// A task that already has an open session (Remote auto-start may have
+		// started it a moment ago) gets no second one: Start another session
+		// on the board is how you ask for that.
+		const open = Object.values(useTabsStore.getState().panes).filter(
+			(pane) => !pane.completed,
+		);
+		const running = (task: (typeof tasks)[number]) =>
+			open.some(
+				(pane) =>
+					pane.id === task.paneId ||
+					!!task.paneIds?.includes(pane.id) ||
+					pane.odinTaskTitle === task.title ||
+					pane.odinBrief === taskPrompt(task),
+			);
+		const todo = tasks.filter((task) => !running(task));
+		const skipped = tasks.filter(running);
 		// Not awaited: a launch can sit behind the machine's capacity gate.
 		void (async () => {
-			for (const task of tasks) await launchTask(task, deps);
+			for (const task of todo) await launchTask(task, deps);
 		})();
-		return `Starting ${tasks.length} on the board: ${tasks.map((task) => task.title).join("; ")}`;
+		return [
+			todo.length
+				? `Starting ${todo.length} on the board: ${todo.map((task) => task.title).join("; ")}`
+				: "",
+			skipped.length
+				? `Already running, not started again: ${skipped.map((task) => task.title).join("; ")}`
+				: "",
+		]
+			.filter(Boolean)
+			.join("\n");
 	}
 	// The backlog row's Done: off every feed, back from All tasks' Done list.
 	if (action === "drop") {

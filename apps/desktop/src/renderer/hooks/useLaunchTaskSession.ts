@@ -164,6 +164,14 @@ export function parseDataUrl(dataUrl: string): {
 	};
 }
 
+/**
+ * Rows whose launch is under way, across every caller: Start, the API's
+ * action=start, Remote auto-start and the Night Agent each hold their own
+ * hook, and a launch takes seconds before its card can be matched to the row.
+ * Two of them reaching the same new task in that window opened two sessions.
+ */
+const launchesInFlight = new Set<string>();
+
 /** How the Tasks editor and the phone link an image in ~/.odin/attachments (useOdinTasks's ATTACHMENT_URL). */
 const ATTACHMENT_FILE_URL = "odin-attachment://file/";
 
@@ -345,6 +353,14 @@ export function useLaunchTaskSession() {
 				plan?: { prompt: string; sessionId: string };
 		  }
 	> => {
+		// A resume or a plan is not a second session on the row.
+		const guarded = !planOnly && !resumeSessionId && key ? key : null;
+		if (guarded && launchesInFlight.has(guarded))
+			return {
+				ok: false,
+				error: `"${title}" is already starting - not opening a second session`,
+			};
+		if (guarded) launchesInFlight.add(guarded);
 		// Planning starts nothing, so no row says "Starting...".
 		if (!planOnly) {
 			setIsLaunching(true);
@@ -803,6 +819,7 @@ export function useLaunchTaskSession() {
 				error: error instanceof Error ? error.message : String(error),
 			};
 		} finally {
+			if (guarded) launchesInFlight.delete(guarded);
 			if (created) useStartingPanes.getState().remove(created.paneId);
 			if (!planOnly) {
 				setIsLaunching(false);
