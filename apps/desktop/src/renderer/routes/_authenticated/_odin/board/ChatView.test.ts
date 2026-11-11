@@ -887,6 +887,14 @@ describe("ChatView sent bubble", () => {
 		const sent = { text: "ok", seen: new Set(["a"]) };
 		expect(isEchoed([{ ...old, text: "ok then" }], sent)).toBe(false);
 	});
+	test("a slash command with args is echoed by its name's row", () => {
+		const sent = { text: "/review\n\nfix the tests", seen: new Set(["a"]) };
+		expect(isEchoed([old], sent)).toBe(false);
+		expect(isEchoed([{ ...old, id: "b", text: "/review-all" }], sent)).toBe(
+			false,
+		);
+		expect(isEchoed([{ ...old, id: "b", text: "/review" }], sent)).toBe(true);
+	});
 });
 
 describe("arrived - Claude took the sent message", () => {
