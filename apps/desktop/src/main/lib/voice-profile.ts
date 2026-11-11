@@ -290,10 +290,37 @@ async function askModel(
 			{ cwd: tmpdir(), timeout: 240_000, maxBuffer: 2_000_000 },
 		);
 		return stdout.trim();
+	} catch (error) {
+		throw new Error(modelFailure(error));
 	} finally {
 		const litter = await transcriptOf(sessionId);
 		if (litter) await rm(litter.path, { force: true });
 	}
+}
+
+/**
+ * Why `claude -p` failed, in one line. execFile's own message starts with the
+ * whole command line - here the full prompt - and buries the reason under it.
+ */
+export function modelFailure(error: unknown): string {
+	const e = error as {
+		killed?: boolean;
+		signal?: string | null;
+		code?: number | string | null;
+		stdout?: string;
+		stderr?: string;
+		message?: string;
+	};
+	if (e?.killed || e?.signal === "SIGTERM")
+		return "The model took too long to answer (over 4 min). Try again.";
+	const said = `${e?.stderr ?? ""}\n${e?.stdout ?? ""}`
+		.split("\n")
+		.map((l) => l.trim())
+		.filter(Boolean)
+		.pop();
+	if (said) return `The model failed: ${said.slice(0, 300)}`;
+	if (e?.code != null) return `The model failed (exit code ${e.code}).`;
+	return String(e?.message ?? error).split("\n")[0].slice(0, 120);
 }
 
 /** Rewrite the guide with a model, from the store as it is now. */
