@@ -117,7 +117,7 @@ import {
 	settledItem,
 	splitActionItems,
 	viewTarget,
-	withoutLocalBlocks,
+	withoutButtonBlocks,
 } from "./action-items";
 import { useChatFind } from "./ChatFindBar";
 import {
@@ -3195,14 +3195,10 @@ const ItemView = memo(function ItemView({
 		);
 	// `!local` is for a session on the remote host: in one running here, its
 	// Run on my computer is the same computer, and only adds a button.
-	const runnable = (text: string) =>
-		bangCommands(text).filter(
-			(command) =>
-				remote ||
-				(!localCommand(command) &&
-					!downloadPath(command) &&
-					!viewTarget(command)),
-		);
+	const hasButton = (command: string) =>
+		remote ||
+		(!localCommand(command) && !downloadPath(command) && !viewTarget(command));
+	const runnable = (text: string) => bangCommands(text).filter(hasButton);
 	const commands = onRun ? runnable(item.text) : [];
 	const earlier = onRun && earlierText ? runnable(earlierText) : [];
 	const notes = onRun
@@ -3230,7 +3226,7 @@ const ItemView = memo(function ItemView({
 					>
 						<div ref={bodyRef}>
 							<MarkdownRenderer
-								content={remote ? withoutLocalBlocks(body) : body}
+								content={onRun ? withoutButtonBlocks(body, hasButton) : body}
 								style="default"
 								allowHtml={false}
 								className={COMPACT_MARKDOWN}

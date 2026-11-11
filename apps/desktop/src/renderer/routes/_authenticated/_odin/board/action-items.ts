@@ -610,12 +610,15 @@ export function settledItem(
 }
 
 /**
- * The reply with each `!local` block swapped for a one-line note: its Run on
- * my computer button shows the command, so the code itself is only noise.
+ * The reply without the `!` blocks that get a button (`hasButton`), and the
+ * label line right above each: the button shows both, so the code is only noise.
  */
-export function withoutLocalBlocks(text: string): string {
+export function withoutButtonBlocks(
+	text: string,
+	hasButton: (command: string) => boolean,
+): string {
 	return text.replace(
-		/```[^\n]*\n\s*!local\s[\s\S]*?\n?[ \t]*```/g,
-		"*Runs on your computer, not on the remote host - use its Run on my computer button.*",
+		/(?:^[^\n]*:[ \t]*\n(?:[ \t]*\n)*)?^[ \t]*```[^\n]*\n\s*!([\s\S]*?)\n?[ \t]*```/gm,
+		(block, command: string) => (hasButton(command.trim()) ? "" : block),
 	);
 }

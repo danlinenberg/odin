@@ -14,7 +14,7 @@ import {
 	runnableCommands,
 	settledItem,
 	viewTarget,
-	withoutLocalBlocks,
+	withoutButtonBlocks,
 } from "./action-items";
 import { actionItemEntries } from "./brief";
 
@@ -275,13 +275,21 @@ test("the phone leaves out !view: the app shows in the drawer on the computer", 
 	).toEqual(["git status"]);
 });
 
-describe("withoutLocalBlocks", () => {
-	test("swaps a !local block for a note and keeps other blocks", () => {
+describe("withoutButtonBlocks", () => {
+	const hasButton = (command: string) => !command.startsWith("local");
+	test("drops a block that has a button, and its label line", () => {
 		const text =
-			"Run it:\n\n```text\n!local\ncd ~/odin && scripts/release.sh\n```\n\nThen:\n\n```\n! ls\n```";
-		const out = withoutLocalBlocks(text);
-		expect(out).not.toContain("release.sh");
-		expect(out).toContain("Runs on your computer, not on the remote host");
-		expect(out).toContain("! ls");
+			"Done.\n\nThe script to attach:\n\n```\n!download /tmp/x.sh\n```\n\nThen:\n\n```text\n!local\ncd ~/odin\n```\n\n```sql\nselect 1\n```";
+		const out = withoutButtonBlocks(text, hasButton);
+		expect(out).not.toContain("x.sh");
+		expect(out).not.toContain("The script to attach");
+		expect(out).toContain("Done.");
+		expect(out).toContain("cd ~/odin");
+		expect(out).toContain("select 1");
+	});
+	test("drops an indented block", () => {
+		expect(
+			withoutButtonBlocks("1. Run:\n   ```\n   ! ls\n   ```", hasButton).trim(),
+		).toBe("");
 	});
 });
