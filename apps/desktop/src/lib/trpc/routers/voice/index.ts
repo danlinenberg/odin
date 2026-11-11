@@ -13,7 +13,9 @@ import {
 	trainingState,
 	trainVoice,
 	voicePath,
+	withoutPlace,
 } from "main/lib/voice-profile";
+import { messageLanguages } from "shared/message-languages";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import { slackMySentAfter, slackMySentMessages } from "../slack";
@@ -34,6 +36,13 @@ export const createVoiceRouter = () =>
 				...trainingState(),
 			};
 		}),
+		/**
+		 * The languages I write in, from my Slack messages, for the language
+		 * buttons under a draft. Just English until Your voice has messages.
+		 */
+		languages: publicProcedure.query(async () =>
+			messageLanguages((await readVoice()).samples.map(withoutPlace)),
+		),
 		setEnabled: publicProcedure
 			.input(z.object({ enabled: z.boolean() }))
 			.mutation(({ input }) => setVoiceEnabled(input.enabled)),

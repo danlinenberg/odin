@@ -2,7 +2,13 @@ import { ShowCode } from "@odin/ui/ai-elements/show-code";
 import { Button } from "@odin/ui/button";
 import { toast } from "@odin/ui/sonner";
 import { mermaid } from "@streamdown/mermaid";
-import { CheckIcon, CopyIcon, RefreshCwIcon, SparklesIcon } from "lucide-react";
+import {
+	CheckIcon,
+	CopyIcon,
+	LanguagesIcon,
+	RefreshCwIcon,
+	SparklesIcon,
+} from "lucide-react";
 import {
 	createContext,
 	type ReactNode,
@@ -13,6 +19,7 @@ import {
 } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTheme } from "renderer/stores";
+import { messageLanguage } from "shared/message-languages";
 import { Streamdown } from "streamdown";
 import {
 	isRtlText,
@@ -191,6 +198,11 @@ export function regenerateMessage(
 	return `Regenerate this draft ${why}\n\nThe draft:\n\n${draft}`;
 }
 
+/** Asks Claude to write the draft again in another language I write in. */
+export function redraftMessage(draft: string, language: string): string {
+	return `Redraft this in ${language}: same content, in my voice as I write in ${language}.\n\nThe draft:\n\n${draft}`;
+}
+
 /**
  * "Tune voice" under a draft: one line on how it should sound, kept as a
  * correction in Your voice so every later draft follows it. "Rewrite it" takes
@@ -200,6 +212,11 @@ export function regenerateMessage(
  */
 function TuneVoice({ draft }: { draft: () => string }) {
 	const send = useContext(SendToSession);
+	// Only the languages I write in on Slack, and not the one it's already in.
+	const languages = electronTrpc.voice.languages.useQuery(undefined, {
+		enabled: !!send,
+		staleTime: 5 * 60_000,
+	}).data;
 	const [mode, setMode] = useState<"closed" | "rule" | "rewrite">("closed");
 	const [note, setNote] = useState("");
 	const [rewrite, setRewrite] = useState("");
@@ -280,6 +297,25 @@ function TuneVoice({ draft }: { draft: () => string }) {
 						Regenerate
 					</button>
 				)}
+				{send &&
+					languages &&
+					languages.length > 1 &&
+					languages
+						.filter((language) => language !== messageLanguage(draft()))
+						.map((language) => (
+							<button
+								key={language}
+								type="button"
+								onClick={() => {
+									send(redraftMessage(draft(), language));
+									setSaved(`Redrafting in ${language}`);
+								}}
+								className={`flex items-center gap-1 ${linkClass}`}
+							>
+								<LanguagesIcon className="size-3" />
+								In {language}
+							</button>
+						))}
 			</div>
 		);
 	if (mode === "rewrite")
