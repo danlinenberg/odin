@@ -84,7 +84,9 @@ export function requestClaudeSync(
  * After a sync, on the host: hooks (settings.json's and plugins') and the
  * status line whose command names a file the host doesn't have - a Mac app,
  * a repo that isn't cloned there - are dropped from the host's copy, so they
- * don't fail on every tool call. Prints what it dropped, as JSON.
+ * don't fail on every tool call. A plugin whose MCP server is also one of the
+ * account's claude.ai connectors is turned off there, so the connector loads.
+ * Prints what it dropped, as JSON.
  */
 export const PRUNE_HOOKS_PY = `import glob, json, os, shlex
 home = os.path.expanduser("~")
@@ -147,6 +149,58 @@ def prune(path):
 root = os.path.expanduser("~/.claude")
 for path in [root + "/settings.json"] + glob.glob(root + "/plugins/**/hooks/hooks.json", recursive=True):
     prune(path)
+
+
+def connectors():
+    """The account's claude.ai connectors this host has loaded, lowercased: {"slack", ...}."""
+    try:
+        with open(os.path.join(home, ".claude.json")) as f:
+            names = json.load(f).get("claudeAiMcpEverConnected") or []
+    except Exception:
+        return set()
+    return {n[len("claude.ai "):].lower() for n in names if isinstance(n, str) and n.startswith("claude.ai ")}
+
+
+def plugin_servers(plugin):
+    """The MCP server names a plugin ("name@marketplace") declares in its .mcp.json."""
+    name, _, market = plugin.partition("@")
+    servers = set()
+    for path in glob.glob(root + "/plugins/cache/" + market + "/" + name + "/*/.mcp.json"):
+        try:
+            with open(path) as f:
+                servers |= {s.lower() for s in (json.load(f).get("mcpServers") or {})}
+        except Exception:
+            pass
+    return servers
+
+
+def dedupe_plugins(path):
+    """A plugin whose MCP server is also a claude.ai connector is turned off on the host:
+    Claude Code keeps one of the two, and the plugin's copy needs a sign-in on this
+    computer's localhost that a remote host can't finish, so a session sometimes
+    starts with neither."""
+    have = connectors()
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except Exception:
+        return
+    enabled = data.get("enabledPlugins")
+    if not have or not isinstance(enabled, dict):
+        return
+    changed = False
+    for plugin, on in enabled.items():
+        twins = sorted(plugin_servers(plugin) & have) if on else []
+        if twins:
+            enabled[plugin] = False
+            dropped.append("plugin " + plugin + ": the claude.ai " + ", ".join(twins) + " connector covers it")
+            changed = True
+    if changed:
+        with open(path, "w") as f:
+            json.dump(data, f, indent=2)
+
+
+dedupe_plugins(root + "/settings.json")
 print(json.dumps(sorted(set(dropped))))
 `;
 
