@@ -34,10 +34,14 @@ export interface AutoStartRow {
  * is kept, per source. The first rows a source ever shows are its baseline -
  * what already waited when Auto-start first saw it - and none of them is
  * new, so connecting a source or turning the feature on starts nothing old.
+ * `loaded` names the sources whose feed has answered: one that answered with
+ * nothing waiting gets an empty baseline, so its first row after that is new
+ * and starts, instead of becoming the baseline itself.
  */
 export function newAutoStartRows(
 	seen: Record<string, string[]> | undefined,
 	rows: AutoStartRow[],
+	loaded: readonly string[] = [],
 ): {
 	fresh: AutoStartRow[];
 	seen: Record<string, string[]>;
@@ -61,6 +65,11 @@ export function newAutoStartRows(
 			...(known ?? []),
 			...new Set(added.map((row) => row.key)),
 		].slice(-SEEN_CAP);
+	}
+	for (const source of loaded) {
+		if (next[source]) continue;
+		next[source] = [];
+		changed = true;
 	}
 	return { fresh, seen: next, changed };
 }
