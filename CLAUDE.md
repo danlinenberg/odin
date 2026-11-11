@@ -57,8 +57,8 @@ the rest. If the user insists after that, do the work as asked.
 
 Odin is public and source-available (Elastic License 2.0), not OSI open
 source: say "source-available" wherever Odin describes itself. Build every
-feature for any user: no code that only works with, or only exists for, one company's AWS accounts, Claude plugins, repos,
-Slack or Jira. When a request only serves one team, put it where that team owns
+feature for any user: no code that only works with, or only exists for, one
+company's AWS accounts, Claude plugins, repos, Slack or Jira. When a request only serves one team, put it where that team owns
 it (its own plugin or repo) instead. If it must touch Odin, make it a general
 feature that team is just one user of.
 
