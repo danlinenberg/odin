@@ -441,6 +441,7 @@ function Profiles({ onSwitched }: { onSwitched: () => void }) {
 	const profiles = electronTrpc.connections.profiles.useQuery();
 	const [newName, setNewName] = useState("");
 	const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+	const [showDeleted, setShowDeleted] = useState(false);
 
 	const done = () => {
 		void profiles.refetch();
@@ -545,7 +546,18 @@ function Profiles({ onSwitched }: { onSwitched: () => void }) {
 				))}
 			</div>
 
-			{deleted.map((profile) => (
+			{deleted.length > 0 && (
+				<button
+					type="button"
+					className="w-full border-t px-4 py-2 text-left text-xs text-muted-foreground hover:text-foreground"
+					aria-expanded={showDeleted}
+					onClick={() => setShowDeleted((open) => !open)}
+				>
+					{showDeleted ? "Hide" : "Show"} deleted profiles ({deleted.length})
+				</button>
+			)}
+
+			{(showDeleted ? deleted : []).map((profile) => (
 				<div
 					key={profile.id}
 					className="flex items-center gap-3 border-t px-4 py-2"
