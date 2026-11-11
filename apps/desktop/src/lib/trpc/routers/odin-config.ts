@@ -102,6 +102,8 @@ export interface OdinFileConfig {
 		jiraHostSignIn?: boolean;
 		/** The same for Notion (notion-oauth for the host). Dropped with the Notion connector. */
 		notionHostSignIn?: boolean;
+		/** Claude Code connectors (mcpOAuth keys) the host has a sign-in of its own for, which its Claude Code refreshes. */
+		mcpHostSignIns?: string[];
 		/** AWS profile names defined on the host, signed in with its instance role (main/lib/remote-host/aws-on-host). */
 		awsProfiles?: string[];
 	};

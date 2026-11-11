@@ -99,10 +99,18 @@ import {
 } from "main/lib/remote-host/host-service";
 import {
 	pushHostGithubPair,
+	pushHostMcpSignIn,
 	pushHostOwnPair,
 	pushHostTokens,
 } from "main/lib/remote-host/host-tokens";
 import { markHostUp } from "main/lib/remote-host/host-up";
+import {
+	mcpDisplayName,
+	mcpLoginEntries,
+	readMcpHostLoginResult,
+	startMcpHostLogin,
+} from "main/lib/remote-host/mcp-host-login";
+import { localClaudeCredentials } from "main/lib/remote-host/mcp-sign-ins";
 import {
 	clearNightPlan,
 	NIGHT_PANE_PLACEHOLDER,
@@ -495,6 +503,12 @@ onGithubTokensChanged(() => {
  * Sessions on an EC2 instance the user created: pick it by tags, and the
  * board's sessions run there in tmux, on the user's own Claude plan.
  */
+/** What a sign-in of the host's own is for: Jira, Notion, or `mcp:<key>` for a Claude Code connector. */
+const OWN_SIGN_IN = z.union([
+	z.enum(["jira", "notion"]),
+	z.string().regex(/^mcp:.+/),
+]);
+
 export const createRemoteHostRouter = () =>
 	router({
 		/** The profile, region and tags you picked, and what every host gets at setup, kept in odin.json. */
@@ -1017,24 +1031,62 @@ export const createRemoteHostRouter = () =>
 				return { state: "signed-in" as const, login: result.login };
 			}),
 		/**
-		 * A Jira or Notion sign-in of the host's own: the service's consent
-		 * page opens in the browser, and the sign-in goes to the host and
-		 * nowhere else. The host refreshes it from then on (host-service), so
-		 * the connector works there with this computer shut.
+		 * Claude Code's connectors signed in here (any MCP server with OAuth),
+		 * and whether the host has a sign-in of its own for each. Reading
+		 * Claude Code's credentials can ask for Keychain access once.
+		 */
+		mcpConnectors: publicProcedure.query(async () => {
+			const own = new Set(readOdinConfig().remoteHost?.mcpHostSignIns ?? []);
+			return Object.entries(
+				mcpLoginEntries(await localClaudeCredentials()),
+			).map(([key, entry]) => ({
+				key,
+				name: mcpDisplayName(key, entry),
+				hostSignIn: own.has(key),
+			}));
+		}),
+		/**
+		 * A sign-in of the host's own for Jira, Notion or one of Claude Code's
+		 * connectors (`mcp:<key>`): its consent page opens in the browser, and
+		 * the sign-in goes to the host and nowhere else. The host refreshes it
+		 * from then on, so the connector works there with this computer shut.
 		 */
 		ownHostSignInStart: publicProcedure
-			.input(z.object({ service: z.enum(["jira", "notion"]) }))
+			.input(z.object({ service: OWN_SIGN_IN }))
 			.mutation(async ({ input: { service } }) => {
 				const host = readOdinConfig().remoteHost;
 				if (!host) throw new Error("No remote host is set up.");
+				const open = (url: string) => shell.openExternal(url);
+				if (service.startsWith("mcp:")) {
+					const key = service.slice(4);
+					const entry = mcpLoginEntries(await localClaudeCredentials())[key];
+					if (!entry)
+						throw new Error("That connector isn't signed in here anymore.");
+					return startMcpHostLogin(entry, open, async (signIn) => {
+						await withAwsSignIn(host, () =>
+							pushHostMcpSignIn(host, key, signIn),
+						);
+						const current = readOdinConfig().remoteHost ?? host;
+						updateOdinConfig({
+							remoteHost: {
+								...current,
+								mcpHostSignIns: [
+									...(current.mcpHostSignIns ?? []).filter((k) => k !== key),
+									key,
+								],
+							},
+						});
+					});
+				}
 				const flag = service === "jira" ? "jiraHostSignIn" : "notionHostSignIn";
 				const deliver = async (pair: HostJiraPair | HostNotionPair) => {
 					// Marked first, so a token send meanwhile doesn't drop the new sign-in.
 					const current = readOdinConfig().remoteHost ?? host;
 					updateOdinConfig({ remoteHost: { ...current, [flag]: true } });
-					await withAwsSignIn(host, () => pushHostOwnPair(host, service, pair));
+					await withAwsSignIn(host, () =>
+						pushHostOwnPair(host, service === "jira" ? "jira" : "notion", pair),
+					);
 				};
-				const open = (url: string) => shell.openExternal(url);
 				const { state } =
 					service === "jira"
 						? await startJiraOAuth(open, deliver)
@@ -1043,15 +1095,11 @@ export const createRemoteHostRouter = () =>
 			}),
 		/** Where that sign-in stands: pending, connected or failed (with why). */
 		ownHostSignInResult: publicProcedure
-			.input(
-				z.object({
-					service: z.enum(["jira", "notion"]),
-					state: z.string().min(1),
-				}),
-			)
+			.input(z.object({ service: OWN_SIGN_IN, state: z.string().min(1) }))
 			.mutation(({ input }) => {
-				const result =
-					input.service === "jira"
+				const result = input.service.startsWith("mcp:")
+					? readMcpHostLoginResult(input.state)
+					: input.service === "jira"
 						? readJiraOAuthResult(input.state)
 						: readNotionOAuthResult(input.state);
 				if (!result) return { status: "failed" as const, error: "Timed out" };
