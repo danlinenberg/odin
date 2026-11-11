@@ -59,9 +59,26 @@ Odin is open source. Build every feature for any user: no code that only works
 with, or only exists for, one company's AWS accounts, Claude plugins, repos,
 Slack or Jira. When a request only serves one team, put it where that team owns
 it (its own plugin or repo) instead. If it must touch Odin, make it a general
-feature that team is just one user of. Tests and examples use made-up names
-(`acme`, `example.com`, `123456789012`), never a real company, person, account
-ID, Slack link or customer.
+feature that team is just one user of.
+
+## No company or personal data in the repo
+
+The repo is public and its history is permanent. Odin is built from inside a
+real job, so the bug reports, transcripts, Slack threads and terminal output you
+work from are full of a real company's data. None of it goes into a commit:
+code, tests, fixtures, comments, docs, commit messages or PR descriptions.
+
+- Never: a real company, product or customer name, a colleague's name, email or
+  GitHub handle, a work GitHub org or repo name, Slack/Jira/Sentry/Notion URLs
+  or IDs from a real workspace, AWS account IDs, ARNs, internal hostnames or
+  IPs, file paths from someone's machine, ticket keys, or any token, key or
+  password (even an expired one).
+- Turning a real report into a test? Rewrite every value first: `acme` for the
+  company and org, `example.com` for domains and emails, `123456789012` for an
+  AWS account, made-up names (`Alex`, `Riley Jones`), `C0123`/`U0123` for
+  Slack IDs, `/Users/me/dev/app` for paths.
+- Before you commit, grep your diff for the names of the company and people in
+  the task you came from, and fix each hit.
 
 ## Nothing to install but Odin
 
