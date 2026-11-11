@@ -744,7 +744,7 @@ function CatchUpCard({
 		);
 	// The agent's own list, verbatim; the brief's one-liner when it left none.
 	const todo = transcript ? actionItems(transcript.messages) : [];
-	// "Merge imagen-public-mcp #2" opens #2 - the PRs and ticket the session quoted.
+	// "Merge acme-mcp #2" opens #2 - the PRs and ticket the session quoted.
 	const quoted = transcript ? (transcript.links ?? transcript.messages) : [];
 	const prs = pullRequests(quoted);
 	const issue = jiraIssue(quoted);
@@ -2123,7 +2123,7 @@ function TagMenu({
 								rows={3}
 								value={condition}
 								aria-label="What to watch for"
-								placeholder="the deploy of app-web-server to prod is done"
+								placeholder="the deploy of web-server to prod is done"
 								onChange={(event) => setCondition(event.target.value)}
 								onKeyDown={(event) => {
 									if (event.key === "Enter" && !event.shiftKey) {

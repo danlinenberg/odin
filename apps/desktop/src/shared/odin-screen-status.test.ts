@@ -208,7 +208,7 @@ Now using node v23.8.0 (npm v10.9.2)
 ^C
 Powerlevel10k configuration file (~/.p10k.zsh) was not sourced.
   p10k configure
-dan@MacBook-Pro-5 ~/dev/imagen  main +
+dan@MacBook-Pro-5 ~/dev/acme  main +
 `;
 
 	it("sees Claude at its prompt", () => {

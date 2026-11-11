@@ -171,11 +171,11 @@ describe("verdicts", () => {
 		expect(answer.verdict).toBe("KEEP");
 	});
 
-	// Reported from the board: "@Idan @Dan will need your help here", and Idan
+	// Reported from the board: "@Ian @Dan will need your help here", and Ian
 	// answered all seven points. The ask was never waiting on me after that.
 	test("someone tagged with me answering the ask is a DROP", async () => {
 		const answer = await sweepItem(
-			item({ key: "slack:C1:123", title: "@Idan @Dan will need your help" }),
+			item({ key: "slack:C1:123", title: "@Ian @Dan will need your help" }),
 			deps({
 				slackThread: async () => ({
 					replies: 5,
@@ -186,13 +186,13 @@ describe("verdicts", () => {
 					channelLastTs: null,
 					channelLastByMe: false,
 					isDirect: false,
-					answeredBy: "Idan Dagan",
+					answeredBy: "Ian Drake",
 				}),
 			}),
 		);
 		expect(answer).toEqual({
 			verdict: "DROP",
-			evidence: "Idan Dagan, tagged with you, answered in the thread",
+			evidence: "Ian Drake, tagged with you, answered in the thread",
 		});
 	});
 
@@ -556,16 +556,12 @@ describe("rows the source already answered", () => {
 
 	test("an automated email drops; a colleague's doesn't", async () => {
 		expect(
-			(await sweepItem(item({ sender: "Imagen <info@imagen-ai.com>" }), deps()))
+			(await sweepItem(item({ sender: "Acme <info@acme.com>" }), deps()))
 				.verdict,
 		).toBe("DROP");
 		expect(
-			(
-				await sweepItem(
-					item({ sender: "Nir Bitan <nir.b@imagen-ai.com>" }),
-					deps(),
-				)
-			).verdict,
+			(await sweepItem(item({ sender: "Nina Bell <nina.b@acme.com>" }), deps()))
+				.verdict,
 		).toBe("KEEP");
 	});
 

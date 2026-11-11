@@ -110,7 +110,7 @@ describe("cookieDomains", () => {
 		const without = cookieDomains([...all]);
 		for (const host of [
 			".slack.com",
-			"imagen.atlassian.net",
+			"acme.atlassian.net",
 			".id.atlassian.com",
 			"github.com",
 			"www.notion.so",

@@ -555,7 +555,7 @@ export const MEMORY_LIMIT_SCRIPT = [
  * only at a login, and a tmux server started without one (a Night Agent run,
  * an SSM start) hands every later session its own environment instead. The
  * host's AWS_CONFIG_FILE (where its `prod` profile is) and
- * CLAUDE_CREDENTIALS_SECRET were then missing, so imagen-core's credentials
+ * CLAUDE_CREDENTIALS_SECRET were then missing, so acme-core's credentials
  * hook found no profile and a new host user got no CLAUDE_* credentials.
  * PATH is left alone: the session builds its own.
  */

@@ -61,10 +61,10 @@ test("a !local run goes back to Claude fenced past its own backticks", () => {
 test("a command with no note above it still says what it does", () => {
 	expect(
 		describeCommand(
-			"cd ~/dev && rm -rf imagen/editing-service/venv imagen/bifrost/src-tauri/target",
+			"cd ~/dev && rm -rf acme/editing-service/venv acme/bifrost/src-tauri/target",
 		),
 	).toBe("Delete 2 files or folders");
-	expect(describeCommand("rm -rf ~/dev/imagen/old/venv")).toBe("Delete venv");
+	expect(describeCommand("rm -rf ~/dev/acme/old/venv")).toBe("Delete venv");
 	expect(describeCommand("df -h /System/Volumes/Data | tail -1")).toBe(
 		"Show the free space left on the disk",
 	);
@@ -146,8 +146,8 @@ test("an item asking to move the session to my computer gets the Move button", (
 	expect(isMoveHereItem("Move it to the remote host")).toBe(false);
 });
 
-const PR = "https://github.com/imagenai/internal-claude/pull/1091";
-const OTHER = "https://github.com/imagenai/odin/pull/7";
+const PR = "https://github.com/acme/internal-claude/pull/1091";
+const OTHER = "https://github.com/acme/odin/pull/7";
 
 test("an item's PR links are found once each, inside markdown links too", () => {
 	expect(itemPullRequests(`Merge [PR #1091](${PR}): ${PR}`)).toEqual([PR]);

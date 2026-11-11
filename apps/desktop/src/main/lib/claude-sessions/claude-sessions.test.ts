@@ -231,7 +231,7 @@ describe("summarizeTranscript", () => {
 				[
 					"Task: Hi good morning :sunny:",
 					"",
-					"This task comes from a Slack thread: https://imagenai.slack.com/archives/C0B/p1789357218234749",
+					"This task comes from a Slack thread: https://acme.slack.com/archives/C0B/p1789357218234749",
 					"",
 					"What was posted there:",
 					"Hi good morning :sunny:",
@@ -251,7 +251,7 @@ describe("summarizeTranscript", () => {
 			[
 				"Hi good morning :sunny:",
 				"",
-				"This task comes from a Slack thread: https://imagenai.slack.com/archives/C0B/p1789357218234749",
+				"This task comes from a Slack thread: https://acme.slack.com/archives/C0B/p1789357218234749",
 				"",
 				"What was posted there:",
 				"Hi good morning :sunny:",
@@ -498,23 +498,23 @@ describe("searchSessions", () => {
 
 	test("finds a session by who asked, though the name is nowhere in it", async () => {
 		const root = fixtureRoot();
-		// Ofek's Slack message became the hotkey session. His name is in no
+		// Olivia's Slack message became the hotkey session. His name is in no
 		// transcript, only in what Odin recorded when it launched the session.
 		const people = new Map([
 			[
 				"aaaa1111-2222-3333-4444-555566667777",
-				{ person: "Ofek Azulay", source: "reactions" },
+				{ person: "Olivia Park", source: "reactions" },
 			],
 		]);
 		const { sessions, askers } = await searchSessions({
 			root,
-			query: "ofek",
+			query: "olivia",
 			people,
 		});
 		expect(sessions).toHaveLength(1);
 		expect(sessions[0]?.title).toBe("rebind the board hotkey");
-		expect(sessions[0]?.person).toBe("Ofek Azulay");
-		expect(askers).toEqual(["Ofek Azulay"]);
+		expect(sessions[0]?.person).toBe("Olivia Park");
+		expect(askers).toEqual(["Olivia Park"]);
 	});
 
 	test("the feed a session came from is searchable by the word you'd type", async () => {
@@ -526,7 +526,7 @@ describe("searchSessions", () => {
 			people: new Map([
 				[
 					"aaaa1111-2222-3333-4444-555566667777",
-					{ person: "Ofek Azulay", source: "reactions" },
+					{ person: "Olivia Park", source: "reactions" },
 				],
 			]),
 		});
@@ -541,18 +541,18 @@ describe("searchSessions", () => {
 		writeFileSync(
 			join(project, "ffff1111-2222-3333-4444-555566667777.jsonl"),
 			[
-				task("ofek ofek ofek ofek ofek"),
-				JSON.stringify({ type: "ai-title", aiTitle: "Talking about Ofek" }),
+				task("olivia olivia olivia olivia olivia"),
+				JSON.stringify({ type: "ai-title", aiTitle: "Talking about Olivia" }),
 			].join("\n"),
 		);
 		// What the chip puts in the box: the whole name.
 		const { sessions } = await searchSessions({
 			root,
-			query: "Ofek Azulay",
+			query: "Olivia Park",
 			people: new Map([
 				[
 					"aaaa1111-2222-3333-4444-555566667777",
-					{ person: "Ofek Azulay", source: "reactions" },
+					{ person: "Olivia Park", source: "reactions" },
 				],
 			]),
 		});
@@ -666,7 +666,7 @@ describe("parseTranscript / readTranscript", () => {
 				result("t1", "https://github.com/danlinenberg/odin/pull/232"),
 				// Reading someone else's PR isn't opening one.
 				bash("t2", "gh pr view 5760"),
-				result("t2", "https://github.com/imagenai/app/pull/5760"),
+				result("t2", "https://github.com/acme/app/pull/5760"),
 				// The REST fallback opens one too; a GET of the same endpoint doesn't.
 				bash("t3", "gh api repos/a/b/pulls -X POST -f base=main"),
 				result("t3", "https://github.com/a/b/pull/7"),
@@ -767,8 +767,8 @@ describe("repoNameOf", () => {
 
 	test("names a clone after its own directory", () => {
 		const root = tree();
-		mkdirSync(join(root, "app-web-server", ".git"), { recursive: true });
-		expect(repoNameOf(join(root, "app-web-server"))).toBe("app-web-server");
+		mkdirSync(join(root, "web-server", ".git"), { recursive: true });
+		expect(repoNameOf(join(root, "web-server"))).toBe("web-server");
 	});
 
 	test("names a worktree after the repo that owns it, not its branch", () => {
@@ -777,9 +777,9 @@ describe("repoNameOf", () => {
 		mkdirSync(worktree, { recursive: true });
 		writeFileSync(
 			join(worktree, ".git"),
-			`gitdir: ${root}/app-web-server/.git/worktrees/review-6460\n`,
+			`gitdir: ${root}/web-server/.git/worktrees/review-6460\n`,
 		);
-		expect(repoNameOf(worktree)).toBe("app-web-server");
+		expect(repoNameOf(worktree)).toBe("web-server");
 	});
 
 	test("falls back to the directory name for a submodule", () => {
@@ -904,13 +904,13 @@ describe("workingRepoOf", () => {
 		// `~/dev` is a repo of its own AND the directory every clone sits in, so
 		// tool calls that never cd anywhere pile votes onto it. The work is in
 		// the checkout it contains.
-		repos(tree, { dev: "clone", "dev/imagen/app": "clone" });
+		repos(tree, { dev: "clone", "dev/acme/app": "clone" });
 		transcript(root, [
-			...Array(9).fill(join(tree, "dev/imagen")),
-			...Array(4).fill(join(tree, "dev/imagen/app")),
+			...Array(9).fill(join(tree, "dev/acme")),
+			...Array(4).fill(join(tree, "dev/acme/app")),
 		]);
 		return expect(workingRepoOf(SESSION, root)).resolves.toBe(
-			join(tree, "dev/imagen/app"),
+			join(tree, "dev/acme/app"),
 		);
 	});
 

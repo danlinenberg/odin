@@ -50,7 +50,7 @@ const COMMENTS = [
 		body: body(ME, "the older ask"),
 	},
 	{
-		author: { displayName: "Richu Joseph" },
+		author: { displayName: "Riley Jones" },
 		created: "2026-09-12T09:00:00.000+0300",
 		body: body("633bc4c7", "asking someone else entirely"),
 	},

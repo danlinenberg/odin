@@ -233,8 +233,8 @@ function ReviewPage() {
 		() => new Map(backlog.map((item) => [item.key, item.createdAt])),
 		[backlog],
 	);
-	// Punctuation reads as a space on both sides, so "alon derfner" finds the
-	// GitHub handle alon-derfner-imagenai.
+	// Punctuation reads as a space on both sides, so "alex doe" finds the
+	// GitHub handle alex-doe-acme.
 	const words = (text: string) =>
 		text
 			.toLowerCase()

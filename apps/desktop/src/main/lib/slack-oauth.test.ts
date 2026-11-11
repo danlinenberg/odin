@@ -101,7 +101,7 @@ describe("completeSlackOAuth", () => {
 		const { state } = await startSlackOAuth(capture);
 		const calls = mockExchange({
 			ok: true,
-			team: { name: "Imagen" },
+			team: { name: "Acme" },
 			authed_user: { access_token: "xoxp-real", token_type: "user" },
 		});
 		await completeSlackOAuth(`odin-odin://oauth/slack?code=abc&state=${state}`);
@@ -114,7 +114,7 @@ describe("completeSlackOAuth", () => {
 		expect(readOdinConfig().slackToken).toBe("xoxp-real");
 		expect(readSlackOAuthResult(state)).toMatchObject({
 			status: "connected",
-			identity: "Imagen",
+			identity: "Acme",
 		});
 	});
 

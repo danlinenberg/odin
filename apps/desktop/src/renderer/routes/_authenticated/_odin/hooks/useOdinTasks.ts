@@ -41,7 +41,7 @@ export interface OdinTask {
 	/** The minute the schedule last fired, so one tick can't fire it twice. */
 	lastRunAt?: number;
 	/**
-	 * The skill this runs - `gdpr`, `imagen-core:triage`. The session opens by
+	 * The skill this runs - `gdpr`, `acme-core:triage`. The session opens by
 	 * invoking it, with the title as its argument, so a task that is really
 	 * "run /ship-status" says so on the card instead of hiding it in prose.
 	 */

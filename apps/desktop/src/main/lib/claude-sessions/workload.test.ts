@@ -446,11 +446,11 @@ describe("computeWorkload", () => {
 
 	test("a hidden repo's PRs drop out even from another repo's session", () => {
 		const odinPr = "https://github.com/danlinenberg/odin/pull/1";
-		const webPr = "https://github.com/imagenai/app-web-server/pull/2";
+		const webPr = "https://github.com/acme/web-server/pull/2";
 		const out = computeWorkload(
 			[
 				session({
-					repo: "app-web-server",
+					repo: "web-server",
 					prs: [odinPr, webPr],
 					prAt: [MON, MON],
 				}),
@@ -467,12 +467,12 @@ describe("computeWorkload", () => {
 			[
 				session({
 					sessionId: "a",
-					person: "Ofek",
+					person: "Olivia",
 					intervals: [[MON, MON + HOUR]],
 				}),
 				session({
 					sessionId: "b",
-					person: "Ofek",
+					person: "Olivia",
 					intervals: [[MON + 2 * HOUR, MON + 3 * HOUR]],
 				}),
 				session({
@@ -484,7 +484,7 @@ describe("computeWorkload", () => {
 			{ now: MON },
 		);
 		expect(out.byPerson).toEqual([
-			{ person: "Ofek", hours: 2, sessions: 2 },
+			{ person: "Olivia", hours: 2, sessions: 2 },
 			{ person: "Lior", hours: 0.5, sessions: 1 },
 		]);
 		expect(out.attributed).toBe(3);
@@ -639,13 +639,11 @@ describe("repoOfDir", () => {
 	test("a repo holding other clones is general, not a repo", () => {
 		const dev = mkdtempSync(join(tmpdir(), "repo-of-dir-"));
 		mkdirSync(join(dev, ".git"));
-		mkdirSync(join(dev, "imagen", "app-web-server", ".git"), {
+		mkdirSync(join(dev, "acme", "web-server", ".git"), {
 			recursive: true,
 		});
 		expect(repoOfDir(dev)).toBeNull();
-		expect(repoOfDir(join(dev, "imagen", "app-web-server"))).toBe(
-			"app-web-server",
-		);
+		expect(repoOfDir(join(dev, "acme", "web-server"))).toBe("web-server");
 	});
 });
 
@@ -676,12 +674,10 @@ describe("openingLine", () => {
 			type: "user",
 			message: {
 				content:
-					"Triage one bug report from Imagen Studio. A photographer hit Report.",
+					"Triage one bug report from Acme Studio. A photographer hit Report.",
 			},
 		});
-		expect(openingLine(jsonl)).toBe(
-			"Triage one bug report from Imagen Studio.",
-		);
+		expect(openingLine(jsonl)).toBe("Triage one bug report from Acme Studio.");
 	});
 });
 

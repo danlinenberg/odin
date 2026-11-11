@@ -237,7 +237,7 @@ export interface RefPart {
 	url?: string;
 }
 
-// "imagen-public-mcp #2", "terraform#1455", "PR #6670", "#12" - or a Jira key.
+// "acme-mcp #2", "terraform#1455", "PR #6670", "#12" - or a Jira key.
 const REF = /\b([A-Z][A-Z0-9]+-\d+)\b|(?:\b([A-Za-z][\w.-]*)( ?))?#(\d+)\b/g;
 
 /**

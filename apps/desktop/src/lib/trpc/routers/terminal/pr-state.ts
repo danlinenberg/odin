@@ -223,7 +223,7 @@ function statusOf(pr: PrJson): PullRequestStatus | null {
  * `gh` talks to github.com as its *active* account, so a repo only a second
  * logged-in account can see 404s - a work org while the personal account is
  * active, or the reverse. The owner in the url doesn't name the account that
- * can read it (`imagenai/...` is read by `dan-linenberg-imagenai`), so on a
+ * can read it (`acme/...` is read by `dan-acme`), so on a
  * miss try each of Odin's own GitHub connections (Settings > Connections can
  * hold a work and a personal account), then each logged-in gh account's token
  * in turn. The connections matter when gh's keyring token for the right
@@ -634,13 +634,13 @@ const mainCheckout = (porcelain: string) =>
  * has the PR's branch. The transcript's cwds can't say - Claude Code resets
  * its shell to the launch dir after every command and agents reach worktrees
  * with `git -C` - but a PR names its branch exactly. A PR in another repo is
- * found through that repo's clone: a sibling of `checkout`'s clone (~/dev/imagen/*
+ * found through that repo's clone: a sibling of `checkout`'s clone (~/dev/acme/*
  * sit together), else a path the transcript mentions. Newest first; a PR with
  * no checkout (worktree removed, repo not cloned) drops out.
  */
 /**
  * A checkout named like the PR's repo isn't necessarily its clone: a worktree
- * of another repo can share the name (k8s-app-layer/.worktrees/imagen-public-mcp),
+ * of another repo can share the name (k8s-app-layer/.worktrees/acme-mcp),
  * and picking it lists the wrong repo's worktrees, so the PR's branch is never
  * found. No origin to compare means no way to tell - keep it.
  */

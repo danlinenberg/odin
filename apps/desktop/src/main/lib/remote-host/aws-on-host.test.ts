@@ -11,10 +11,10 @@ test("reads profiles and their regions from an AWS config, skipping sso-session 
 			[
 				"[default]",
 				"region = eu-west-1",
-				"[sso-session imagen]",
+				"[sso-session acme]",
 				"region = us-west-2",
 				"[profile prod]",
-				"sso_session = imagen",
+				"sso_session = acme",
 				"region = us-east-1",
 				"[profile dev]",
 				"[profile bad name]",

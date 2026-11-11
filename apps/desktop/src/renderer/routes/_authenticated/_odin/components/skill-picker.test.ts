@@ -11,7 +11,7 @@ import {
 
 const SKILLS = [
 	{ name: "gdpr", description: "Audit deletion tickets" },
-	{ name: "imagen-core:data", description: "Query SQL and MongoDB" },
+	{ name: "acme-core:data", description: "Query SQL and MongoDB" },
 	{ name: "ship-status", description: "A/B test ship status from Mixpanel" },
 ];
 
@@ -19,7 +19,7 @@ describe("skillToken", () => {
 	test("opens on a slash token at the end", () => {
 		expect(skillToken("/")).toBe("");
 		expect(skillToken("/gd")).toBe("gd");
-		expect(skillToken("check the /imagen-core:da")).toBe("imagen-core:da");
+		expect(skillToken("check the /acme-core:da")).toBe("acme-core:da");
 	});
 
 	test("stays closed otherwise", () => {
@@ -34,7 +34,7 @@ describe("matchSkills", () => {
 	test("matches names, then descriptions", () => {
 		expect(matchSkills(SKILLS, "gdpr").map((s) => s.name)).toEqual(["gdpr"]);
 		expect(matchSkills(SKILLS, "mongo").map((s) => s.name)).toEqual([
-			"imagen-core:data",
+			"acme-core:data",
 		]);
 	});
 
@@ -57,8 +57,8 @@ describe("matchSkills", () => {
 
 test("insertSkill replaces the typed token", () => {
 	expect(insertSkill("/gd", "gdpr")).toBe("/gdpr ");
-	expect(insertSkill("audit tickets /imagen", "imagen-core:data")).toBe(
-		"audit tickets /imagen-core:data ",
+	expect(insertSkill("audit tickets /acme", "acme-core:data")).toBe(
+		"audit tickets /acme-core:data ",
 	);
 });
 
@@ -77,7 +77,7 @@ describe("taskSkillToken", () => {
 	test("opens on a slash token heading the title", () => {
 		expect(taskSkillToken("/")).toBe("");
 		expect(taskSkillToken("/odin-")).toBe("odin-");
-		expect(taskSkillToken("!!! /imagen-core:da")).toBe("imagen-core:da");
+		expect(taskSkillToken("!!! /acme-core:da")).toBe("acme-core:da");
 		expect(taskSkillToken("/gd\nthe brief")).toBe("gd");
 	});
 

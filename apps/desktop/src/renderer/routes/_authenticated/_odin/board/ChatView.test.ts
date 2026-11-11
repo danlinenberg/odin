@@ -437,12 +437,12 @@ describe("ChatView transcript", () => {
 			"1. Sign in again before 23:18 UTC (you only)",
 			"   Sign in to AWS SSO again (opens the browser):",
 			"   ```",
-			"   ! aws sso login --sso-session imagen",
+			"   ! aws sso login --sso-session acme",
 			"   ```",
 			"2. Test a remote session in the Windows VM [test now | skip]",
 		].join("\n");
 		const entries = actionItemEntries(block);
-		const command = "aws sso login --sso-session imagen";
+		const command = "aws sso login --sso-session acme";
 		expect(entries.map((e) => e.text)).toEqual([
 			"Sign in again before 23:18 UTC (you only)",
 			"Test a remote session in the Windows VM [test now | skip]",
@@ -983,7 +983,7 @@ describe("bashCommandOf", () => {
 describe("commandItem fallback", () => {
 	test("gives the button to the item that says to run it, not one that says apply", () => {
 		const items = [
-			"Approve terraform PR #1540, then comment `terrateam apply`: https://github.com/imagenai/terraform/pull/1540 (you only)",
+			"Approve terraform PR #1540, then comment `terrateam apply`: https://github.com/acme/terraform/pull/1540 (you only)",
 			"Run the reset command above after #1540 applies (you only)",
 		];
 		expect(commandItem("systemctl show user.slice", items)).toBe(1);
@@ -997,7 +997,7 @@ describe("commandItem fallback", () => {
 		];
 		for (const command of [
 			"local aws iam list-attached-role-policies --role-name OdinSsmHost --profile prod --output table",
-			"local aws iam simulate-principal-policy --profile prod --policy-source-arn arn:aws:iam::585680601546:role/OdinSsmHost --action-names secretsmanager:GetSecretValue --output text",
+			"local aws iam simulate-principal-policy --profile prod --policy-source-arn arn:aws:iam::123456789012:role/OdinSsmHost --action-names secretsmanager:GetSecretValue --output text",
 		])
 			expect(commandItem(command, items)).toBe(1);
 		expect(
@@ -1308,8 +1308,8 @@ test("commands go under the item that runs them, not one that shares loose words
 		"Free about 17 GB more [photos | Claude app data | Ubuntu VM | Library caches] (you only)",
 	];
 	for (const command of [
-		"cd ~/dev && du -shc imagen/app-design-prototype/node_modules 2>/dev/null | tail -1",
-		"cd ~/dev && rm -rf imagen/app-design-prototype/node_modules",
+		"cd ~/dev && du -shc acme/app-design-prototype/node_modules 2>/dev/null | tail -1",
+		"cd ~/dev && rm -rf acme/app-design-prototype/node_modules",
 		"df -h /System/Volumes/Data | tail -1",
 	])
 		expect(commandItem(command, items)).toBe(0);

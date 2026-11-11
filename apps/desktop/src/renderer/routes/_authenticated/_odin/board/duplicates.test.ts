@@ -57,7 +57,7 @@ describe("duplicateOf", () => {
 
 	it("matches a Slack row linking a ticket already worked, by key", () => {
 		const slack = item("Slack", "C1:2", "can you prioritize this?", {
-			body: "<https://imagen-ai.atlassian.net/browse/CRR-919|CS request> followed up again",
+			body: "<https://acme.atlassian.net/browse/CRR-919|CS request> followed up again",
 		});
 		expect(duplicateOf(slack, [jiraRun])).toBe(jiraRun);
 	});
@@ -89,21 +89,21 @@ describe("duplicateOf", () => {
 			odinPageId: "C03RZFXG2FQ:1793012184.474519",
 			odinTaskTitle: "Fix should_display_on_shop crash in sell_profile",
 			odinBrief:
-				"AttributeError (https://imagenai.sentry.io/issues/7812764568/?referrer=slack&environment=prod)",
+				"AttributeError (https://acme.sentry.io/issues/7812764568/?referrer=slack&environment=prod)",
 		} as Pane;
 		const dm = item(
 			"Slack",
 			"D099FEA5JKZ:1793012236.845379",
 			"[web-server] AttributeError: 'NoneType' object has no attribute",
 			{
-				body: "Alert triggered\nAttributeError (https://imagenai.sentry.io/issues/7812764568/?referrer=issue_alert-slack)",
+				body: "Alert triggered\nAttributeError (https://acme.sentry.io/issues/7812764568/?referrer=issue_alert-slack)",
 			},
 		);
 		const [live] = liveRows([channel], 1);
 		expect(duplicateOf(dm, [live])).toBe(live);
 		// Another Sentry issue is not the same ask.
 		const other = item("Slack", "D1:2", "KeyError somewhere else entirely", {
-			body: "https://imagenai.sentry.io/issues/7812764999/",
+			body: "https://acme.sentry.io/issues/7812764999/",
 		});
 		expect(duplicateOf(other, [live])).toBeNull();
 		// A finished session no longer counts.

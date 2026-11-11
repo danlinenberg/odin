@@ -328,8 +328,8 @@ describe("more than one GitHub account", () => {
 		String((init?.headers as Record<string, string>)?.Authorization);
 
 	test("the owner comes from an API or a web URL", () => {
-		expect(githubOwner("https://api.github.com/repos/ImagenAI/x/pulls/1")).toBe(
-			"imagenai",
+		expect(githubOwner("https://api.github.com/repos/Acme/x/pulls/1")).toBe(
+			"acme",
 		);
 		expect(githubOwner("https://github.com/danlinenberg/odin/pull/2")).toBe(
 			"danlinenberg",
@@ -343,10 +343,10 @@ describe("more than one GitHub account", () => {
 			{ login: "dan-work", token: "gho_work" },
 		];
 		const order = tokenOrder(
-			"https://api.github.com/repos/imagenai/x/pulls/1",
+			"https://api.github.com/repos/acme/x/pulls/1",
 			"gho_me",
 			accounts,
-			new Map([["imagenai", "dan-work"]]),
+			new Map([["acme", "dan-work"]]),
 		);
 		expect(order.map((a) => a.token)).toEqual(["gho_work", "gho_me"]);
 	});
@@ -371,7 +371,7 @@ describe("more than one GitHub account", () => {
 				status: auth(init).endsWith("work") ? 200 : 404,
 			});
 		}) as unknown as typeof fetch;
-		const url = "https://api.github.com/repos/imagenai/app/pulls/7";
+		const url = "https://api.github.com/repos/acme/app/pulls/7";
 		expect((await githubApiFetch(url, {}, "gho_me")).status).toBe(200);
 		expect((await githubApiFetch(url, {}, "gho_me")).status).toBe(200);
 		// The second call goes straight to the account that worked.

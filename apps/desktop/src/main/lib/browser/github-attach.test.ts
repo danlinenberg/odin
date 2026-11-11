@@ -12,7 +12,7 @@ describe("parseAttachRequest", () => {
 	test("a PR and its images, each with the type its extension says", () => {
 		expect(
 			parseAttachRequest({
-				repo: "imagenai/submitter-app-electron",
+				repo: "acme/submitter-app-electron",
 				number: "1234",
 				files: [
 					{ name: "home.png", data: png },
@@ -21,7 +21,7 @@ describe("parseAttachRequest", () => {
 			}),
 		).toEqual({
 			request: {
-				repo: "imagenai/submitter-app-electron",
+				repo: "acme/submitter-app-electron",
 				number: 1234,
 				files: [
 					{ name: "home.png", data: png },

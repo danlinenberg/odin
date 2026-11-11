@@ -10,7 +10,7 @@ describe("withSchemes", () => {
 
 	it("leaves file paths, full URLs, links and code alone", () => {
 		const text =
-			"Edited src/utils/a.ts and docs/x.md; see https://github.com/o/r/pull/1, [pr](github.com/o/r) and `api.imagen-ai.com/v1`.";
+			"Edited src/utils/a.ts and docs/x.md; see https://github.com/o/r/pull/1, [pr](github.com/o/r) and `api.acme.com/v1`.";
 		expect(withSchemes(text)).toBe(text);
 	});
 });

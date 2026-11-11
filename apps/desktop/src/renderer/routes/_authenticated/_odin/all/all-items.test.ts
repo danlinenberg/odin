@@ -375,8 +375,8 @@ const meeting = {
 	title: "Standup",
 	start: "2026-10-21T07:00:00.000Z",
 	end: "2026-10-21T07:30:00.000Z",
-	organizer: "Ofek Azulay",
-	attendees: ["Ofek Azulay", "Shahar", "Nati", "Sasha"],
+	organizer: "Olivia Park",
+	attendees: ["Olivia Park", "Shahar", "Nati", "Sasha"],
 	location: null,
 	joinUrl: "https://meet.google.com/abc-defg-hij",
 	description: "Agenda: Q4 plan",
@@ -404,17 +404,17 @@ test("a meeting is a task to prepare for, due the day it happens, that joins the
 		to: "/calendar",
 		title: "Standup",
 		url: meeting.joinUrl,
-		person: "Ofek Azulay",
+		person: "Olivia Park",
 		dueDate: day,
 		ask: { kind: "meeting", at: start.getTime() },
 	});
-	expect(item.body).toContain("with Ofek Azulay, Shahar, Nati +1");
+	expect(item.body).toContain("with Olivia Park, Shahar, Nati +1");
 	expect(item.body).toContain("Agenda: Q4 plan");
 	expect(item.launch.description).toContain(
 		"Prepare for this meeting: Standup",
 	);
 	expect(item.launch.description).toContain(
-		"Attendees: Ofek Azulay, Shahar, Nati, Sasha",
+		"Attendees: Olivia Park, Shahar, Nati, Sasha",
 	);
 	// Due today, so it sits in Now.
 	expect(bandOf(item, true, start.getTime() - 3_600_000)).toBe("now");

@@ -441,7 +441,7 @@ function scoreOf(
  * `people` maps a session id to who asked for it - Odin knows that for every
  * session it launched off a feed, and the name appears nowhere in the
  * transcript (the prompt is the ticket, not the reporter). So it's matched and
- * ranked alongside the prose: "ofek" finds the sessions Ofek asked for, even
+ * ranked alongside the prose: "olivia" finds the sessions Olivia asked for, even
  * though nobody ever typed his name into one.
  */
 /**
@@ -551,7 +551,7 @@ export async function searchSessions({
 				);
 			scored.push({
 				// Who asked outweighs a title word: a full name matching both its
-				// terms beats a session that merely says "Ofek" a lot, which is
+				// terms beats a session that merely says "Olivia" a lot, which is
 				// what clicking a person chip has to do.
 				score:
 					6 * whoTerms.size +
@@ -1628,7 +1628,7 @@ function repoRootOf(dir: string): string | null {
  * where the work landed. The tally needs it because a session that splits its
  * time between a repo and a worktree of that same repo is working in ONE repo,
  * and counting them separately splits the vote - that is how a session with
- * 259 entries in app-web-server came out labelled `dev`.
+ * 259 entries in web-server came out labelled `dev`.
  */
 export function ownerRepoOf(checkout: string): string {
 	const dotGit = join(checkout, ".git");
@@ -1663,7 +1663,7 @@ const containers = new Map<string, boolean>();
 /**
  * Whether a repo is a folder of other clones - `~/dev`, a repo of loose
  * scripts that also contains every checkout. Work run from there is general,
- * not work on it. Looks two levels down (`~/dev/imagen/<clone>`), skipping
+ * not work on it. Looks two levels down (`~/dev/acme/<clone>`), skipping
  * dot-folders so a repo's own `.worktrees` don't count against it.
  */
 function holdsClones(root: string): boolean {

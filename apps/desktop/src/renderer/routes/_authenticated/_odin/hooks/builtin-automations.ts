@@ -180,7 +180,7 @@ export function backlogOf(
 			...(page.slackUrl ? { detail: page.slackUrl } : {}),
 			...(page.status ? { status: page.status } : {}),
 			// The address can sit in either field - Contact often holds only the
-			// display name ("Imagen") and Point of Contact the "Imagen <info@…>".
+			// display name ("Acme") and Point of Contact the "Acme <info@…>".
 			...(page.channel === "Gmail" && senderOf(page.contact, page.assignee)
 				? { sender: senderOf(page.contact, page.assignee) }
 				: {}),

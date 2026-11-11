@@ -110,12 +110,12 @@ describe("answerKeys - a typed answer", () => {
 
 describe("chat links", () => {
 	const refs = collectRefs([
-		"opened https://github.com/danlinenberg/odin/pull/676 and https://imagenai.atlassian.net/browse/CRR-851",
+		"opened https://github.com/danlinenberg/odin/pull/676 and https://acme.atlassian.net/browse/CRR-851",
 	]);
 
 	test("links refs the session has URLs for", () => {
 		expect(linkify("Merge PR #676 then CRR-851.", refs)).toBe(
-			"Merge [PR #676](https://github.com/danlinenberg/odin/pull/676) then [CRR-851](https://imagenai.atlassian.net/browse/CRR-851).",
+			"Merge [PR #676](https://github.com/danlinenberg/odin/pull/676) then [CRR-851](https://acme.atlassian.net/browse/CRR-851).",
 		);
 	});
 
