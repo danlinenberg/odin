@@ -20,6 +20,17 @@ runs:
         git config --global user.name "Odin CI"
         git config --global user.email "ci@odin.local"
 
+    # The lint guards in scripts/ scan with ripgrep. From its GitHub release,
+    # not apt: the Linux runner's Ubuntu mirrors stopped resolving. With rg on
+    # the PATH, the workflow's own apt step is skipped.
+    - if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        command -v rg && exit 0
+        curl -fsSL --retry 3 https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz \
+          | sudo tar -xz -C /usr/local/bin --strip-components=1 ripgrep-14.1.1-x86_64-unknown-linux-musl/rg
+        rg --version
+
     # Electron's binary comes from GitHub releases, which answers 504 for
     # stretches at a time. Keep the download between runs, and fetch it apart
     # from the install so a 504 is retried, waiting longer each time.
