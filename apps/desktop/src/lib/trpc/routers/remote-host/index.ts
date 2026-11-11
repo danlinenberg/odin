@@ -841,7 +841,15 @@ export const createRemoteHostRouter = () =>
 				const kept = await withAwsSignIn(host, () =>
 					pushHostTokens(next, input),
 				);
-				updateOdinConfig({ remoteHost: next });
+				// The host as it is now: a Jira sign-in that landed meanwhile stays.
+				const now = readOdinConfig().remoteHost ?? host;
+				updateOdinConfig({
+					remoteHost: {
+						...now,
+						connectors: input,
+						jiraHostSignIn: input.includes("jira") && now.jiraHostSignIn,
+					},
+				});
 				return { kept };
 			}),
 		/**

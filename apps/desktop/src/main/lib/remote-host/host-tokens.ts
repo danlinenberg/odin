@@ -231,7 +231,12 @@ export async function pushHostTokens(
 				tokens,
 				githubKeep: allowed,
 				// The host's own Jira sign-in stays while the Jira connector does.
-				jiraKeep: connectors.includes("jira") && Boolean(host.jiraHostSignIn),
+				// Read again here: a sign-in that landed while this send ran stays.
+				jiraKeep:
+					connectors.includes("jira") &&
+					Boolean(
+						host.jiraHostSignIn || readOdinConfig().remoteHost?.jiraHostSignIn,
+					),
 			}),
 		);
 		// Claude Code's connector sign-ins (Slack, Notion...), so sessions there need none of their own.
