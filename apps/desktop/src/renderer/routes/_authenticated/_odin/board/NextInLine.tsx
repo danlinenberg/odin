@@ -200,8 +200,17 @@ function useNextInLineRows() {
 			instructions: prompt || undefined,
 		};
 	};
+	// Feeds that have answered, even with nothing in them: Auto-start's
+	// baseline for a source that had nothing waiting.
+	const loaded = [
+		reactions.data && "Slack",
+		jira.data && "Jira",
+		pulls.data && "GitHub",
+		notion.data && "Notion",
+	].filter((source): source is string => Boolean(source));
 	return {
 		rows,
+		loaded,
 		todos,
 		reminders,
 		prompt,
@@ -237,7 +246,7 @@ export function TonightCount() {
  * Night Agent runner, so the night works through exactly the list you see.
  */
 export function useNextInLineQueue(showHidden = false) {
-	const { rows, todos, reminders, prompt, rankInput, refetchSlack } =
+	const { rows, loaded, todos, reminders, prompt, rankInput, refetchSlack } =
 		useNextInLineRows();
 	const { ranking, applied } = useAiRanking();
 	const pinOverdueDays = useNextInLinePrompt((s) => s.pinOverdueDays);
@@ -316,6 +325,7 @@ export function useNextInLineQueue(showHidden = false) {
 		prompt,
 		rankInput,
 		waiting,
+		loaded,
 		isAiHidden,
 		aiHiddenCount,
 		duplicateFor,

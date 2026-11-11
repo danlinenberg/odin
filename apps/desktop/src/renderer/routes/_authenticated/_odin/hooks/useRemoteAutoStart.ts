@@ -30,12 +30,13 @@ export function useRemoteAutoStart(): void {
 			if (busy) return;
 			busy = true;
 			try {
-				const { waiting } = latest.current;
+				const { waiting, loaded } = latest.current;
 				const rows = waiting.filter((item) => SOURCES.has(item.source));
-				// A look on no rows at all is a feed still loading: nothing to learn.
-				if (rows.length === 0) return;
+				// No rows and no feed answered yet: still loading, nothing to learn.
+				if (rows.length === 0 && loaded.length === 0) return;
 				const keys = await electronTrpcClient.remoteHost.claimNewTasks.mutate({
 					rows: rows.map((item) => ({ source: item.source, key: item.key })),
+					loaded,
 				});
 				for (const key of keys) {
 					const item = latest.current.waiting.find((row) => row.key === key);

@@ -807,6 +807,8 @@ export const createRemoteHostRouter = () =>
 			.input(
 				z.object({
 					rows: z.array(z.object({ source: z.string(), key: z.string() })),
+					/** Sources whose feed has answered, even with no rows. */
+					loaded: z.array(z.string()).optional(),
 				}),
 			)
 			.mutation(({ input }) => {
@@ -814,6 +816,7 @@ export const createRemoteHostRouter = () =>
 				const { fresh, seen, changed } = newAutoStartRows(
 					config.autoStartSeen,
 					input.rows,
+					input.loaded,
 				);
 				if (changed) updateOdinConfig({ autoStartSeen: seen });
 				if (!config.remoteHost?.on) return [];
