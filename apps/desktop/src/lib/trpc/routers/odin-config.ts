@@ -100,6 +100,8 @@ export interface OdinFileConfig {
 		 * which it refreshes. Dropped with the Jira connector.
 		 */
 		jiraHostSignIn?: boolean;
+		/** The same for Notion (notion-oauth for the host). Dropped with the Notion connector. */
+		notionHostSignIn?: boolean;
 		/** AWS profile names defined on the host, signed in with its instance role (main/lib/remote-host/aws-on-host). */
 		awsProfiles?: string[];
 	};

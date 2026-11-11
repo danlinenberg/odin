@@ -23,8 +23,30 @@ import { type NotionTokenResponse, notionBasicAuth } from "./notion-token";
 /** A consent screen the person abandons shouldn't be resumable forever. */
 const PENDING_TTL_MS = 10 * 60 * 1000;
 
+/**
+ * A Notion sign-in for a remote host, as its service keeps and refreshes it
+ * (host-service notion_own). It carries the OAuth app, secret included, since
+ * Notion's refresh needs both; the app already ships inside Odin.
+ */
+export interface HostNotionPair {
+	access_token: string;
+	refresh_token: string;
+	/** Epoch seconds, when Notion says. */
+	expires_at?: number;
+	client_id: string;
+	client_secret: string;
+}
+
+/** Where a sign-in for someone else goes instead of this computer's config. */
+export type NotionPairDelivery = (pair: HostNotionPair) => Promise<void>;
+
 type Pending =
-	| { status: "pending"; startedAt: number; tokenAtStart: string | null }
+	| {
+			status: "pending";
+			startedAt: number;
+			tokenAtStart: string | null;
+			deliver?: NotionPairDelivery;
+	  }
 	| { status: "connected"; startedAt: number; identity: string | null }
 	| { status: "failed"; startedAt: number; error: string };
 
@@ -40,8 +62,14 @@ export function isNotionOAuthConfigured(): boolean {
 	return resolveNotionOAuthApp() !== null;
 }
 
+/**
+ * Opens Notion's consent page. With `deliver`, the sign-in that comes back is
+ * handed to it (a remote host's own) and this computer keeps nothing: two
+ * holders of one refresh token would sign each other out.
+ */
 export async function startNotionOAuth(
 	open: BrowserOpener = openInBrowser,
+	deliver?: NotionPairDelivery,
 ): Promise<{
 	state: string;
 	/** Returned so the caller can offer a "reopen" link, as GitHub's flow does. */
@@ -55,6 +83,7 @@ export async function startNotionOAuth(
 		status: "pending",
 		startedAt: Date.now(),
 		tokenAtStart: readOdinConfig().notionToken ?? null,
+		deliver,
 	});
 	const url = new URL("https://api.notion.com/v1/oauth/authorize");
 	url.searchParams.set("client_id", app.clientId);
@@ -76,6 +105,7 @@ export function readNotionOAuthResult(state: string): Pending | null {
 	// changed underneath means this succeeded elsewhere, so stop polling.
 	if (
 		entry.status === "pending" &&
+		!entry.deliver &&
 		(readOdinConfig().notionToken ?? null) !== entry.tokenAtStart
 	) {
 		const connected: Pending = {
@@ -103,7 +133,9 @@ export async function completeNotionOAuth(url: string): Promise<void> {
 		console.error("[notion-oauth] Callback with unknown or expired state");
 		return;
 	}
-	const startedAt = pending.get(state)?.startedAt ?? Date.now();
+	const started = pending.get(state);
+	const startedAt = started?.startedAt ?? Date.now();
+	const deliver = started?.status === "pending" ? started.deliver : undefined;
 	const fail = (error: string) => {
 		console.error("[notion-oauth]", error);
 		pending.set(state, { status: "failed", startedAt, error });
@@ -136,6 +168,25 @@ export async function completeNotionOAuth(url: string): Promise<void> {
 			return fail(
 				`Notion rejected the exchange: ${json.error_description ?? json.error ?? `HTTP ${res.status}`}`,
 			);
+		}
+		if (deliver) {
+			if (!json.refresh_token)
+				return fail("Notion gave no refresh token for the host");
+			await deliver({
+				access_token: json.access_token,
+				refresh_token: json.refresh_token,
+				...(json.expires_in && {
+					expires_at: Math.floor(Date.now() / 1000) + json.expires_in,
+				}),
+				client_id: app.clientId,
+				client_secret: app.clientSecret,
+			});
+			pending.set(state, {
+				status: "connected",
+				startedAt,
+				identity: json.workspace_name ?? null,
+			});
+			return;
 		}
 		updateOdinConfig({
 			notionToken: json.access_token,
