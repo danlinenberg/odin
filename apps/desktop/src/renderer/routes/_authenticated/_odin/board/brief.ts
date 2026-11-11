@@ -470,6 +470,20 @@ export function listedPullRequests(
 }
 
 /**
+ * The PR urls your own turns name. A task that hands the session a bot's PRs
+ * ("merge these: …/pull/12") is about them as much as one launched on a PR
+ * row, though GitHub says someone else wrote them.
+ */
+export function askedPullRequests(messages: BriefMessage[]): Set<string> {
+	return listedPullRequests(
+		messages
+			.filter((m) => m.role === "user")
+			.map((m) => m.text)
+			.join("\n"),
+	);
+}
+
+/**
  * The PRs "Ping me" waits on for approval: every PR the session's brief
  * lists. That is the one it launched on, every one it printed across the
  * whole session (`links`; `messages` is only the tail), and the ones you

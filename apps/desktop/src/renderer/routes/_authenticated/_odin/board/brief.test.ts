@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
 	actionItems,
 	artifactLink,
+	askedPullRequests,
 	type BriefMessage,
 	byRepo,
 	ciRunning,
@@ -372,6 +373,27 @@ describe("listedPullRequests", () => {
 
 	it("is empty with no message", () => {
 		expect(listedPullRequests(null).size).toBe(0);
+	});
+});
+
+describe("askedPullRequests", () => {
+	it("is every PR your own turns name, never one only Claude printed", () => {
+		const messages: BriefMessage[] = [
+			{
+				role: "user",
+				text: "Merge these: https://github.com/acme/api/pull/12 and https://github.com/acme/web/pull/7",
+				at: null,
+			},
+			{
+				role: "assistant",
+				text: "Both green. Also saw https://github.com/acme/api/pull/99",
+				at: null,
+			},
+		];
+		expect([...askedPullRequests(messages)].sort()).toEqual([
+			"https://github.com/acme/api/pull/12",
+			"https://github.com/acme/web/pull/7",
+		]);
 	});
 });
 

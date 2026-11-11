@@ -35,6 +35,7 @@ import {
 import {
 	actionItems,
 	artifactLink,
+	askedPullRequests,
 	byRepo,
 	claimOpened,
 	credentialFacts,
@@ -57,6 +58,7 @@ import {
 	pullRequests,
 	sessionBrief,
 	slackThread,
+	sourceLink,
 } from "./brief";
 import { phoneReply } from "./phone-resume";
 
@@ -830,6 +832,24 @@ export function SessionBrief({
 	const email = foundEmail && !isHidden(foundEmail) ? foundEmail : null;
 	// An <a> in the renderer would navigate the app window; PRs open in a browser.
 
+	// The links on the ticket the session is about - its PRs, thread, pages -
+	// listed beside yours, whoever wrote them. The launch row's ticket first.
+	const ticketKey =
+		jiraKey(sourceLink(launch)?.url ?? "") ?? foundIssue?.key ?? null;
+	const { data: ticketLinks = [] } = electronTrpc.work.jiraIssueLinks.useQuery(
+		{ key: ticketKey ?? "" },
+		{ enabled: !!ticketKey, retry: false, staleTime: 60_000 },
+	);
+	const yours = links.map((link) =>
+		typeof link === "string" ? { url: link } : (link as BriefLink),
+	);
+	const withTicket = [
+		...yours,
+		...ticketLinks
+			.filter((url) => !yours.some((link) => link.url === url))
+			.map((url) => ({ url }) as BriefLink),
+	];
+
 	// Links you added, filed under the section they belong to. One the
 	// transcript already surfaced isn't listed twice.
 	const surfaced = new Set(
@@ -842,11 +862,7 @@ export function SessionBrief({
 			...allPrs.map((pr) => pr.url),
 		].filter(Boolean),
 	);
-	const allAdded = links
-		.map((link) =>
-			typeof link === "string" ? { url: link } : (link as BriefLink),
-		)
-		.filter((link) => !surfaced.has(link.url));
+	const allAdded = withTicket.filter((link) => !surfaced.has(link.url));
 	const added = allAdded.filter((link) => !isHidden(link.url));
 	const mine = (kind: LinkKind) =>
 		added.filter((link) => linkKind(link.url) === kind);
@@ -964,11 +980,7 @@ export function SessionBrief({
 	// Someone else's PR the session only linked isn't one of its PRs. Listed
 	// until its author is known, so the section doesn't flash empty. One you
 	// added yourself stays: `added` skips it as already surfaced.
-	const addedUrls = new Set(
-		links.map((link) =>
-			typeof link === "string" ? link : (link as BriefLink).url,
-		),
-	);
+	const addedUrls = new Set(withTicket.map((link) => link.url));
 	// The PRs the Slack message it was launched on lists are its subject too:
 	// a review of a builder's "In review" post lists what it reviewed.
 	const launchListed = listedPullRequests(
@@ -976,10 +988,12 @@ export function SessionBrief({
 			(previews?.[launchThread]?.full ??
 				postedMessage(transcript?.messages ?? [], launchThread)),
 	);
+	const asked = askedPullRequests(linkSource ?? []);
 	const ownPrs = prs.filter(
 		(pr) =>
 			pr.url === launchPr?.url ||
 			launchListed.has(pr.url) ||
+			asked.has(pr.url) ||
 			addedUrls.has(pr.url) ||
 			prStates?.[pr.url]?.mine !== false,
 	);
@@ -1083,14 +1097,16 @@ export function SessionBrief({
 					</>
 				)}
 				<HideButton onClick={() => hide(url)} />
-				<button
-					type="button"
-					title="Remove link"
-					onClick={() => removeLink(paneId, url)}
-					className="text-[12px] text-faint-foreground opacity-0 hover:text-danger group-hover:opacity-100"
-				>
-					×
-				</button>
+				{yours.some((link) => link.url === url) && (
+					<button
+						type="button"
+						title="Remove link"
+						onClick={() => removeLink(paneId, url)}
+						className="text-[12px] text-faint-foreground opacity-0 hover:text-danger group-hover:opacity-100"
+					>
+						×
+					</button>
+				)}
 			</div>
 		);
 		return linkKind(url) === "pr" ? (
