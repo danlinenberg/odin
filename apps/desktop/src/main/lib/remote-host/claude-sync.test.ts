@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,6 +10,7 @@ import {
 	type ClaudeSetupPart,
 	claudeMdImports,
 	claudeSyncStatus,
+	PRUNE_HOOKS_PY,
 	partPaths,
 	requestClaudeSync,
 	streamToHost,
@@ -119,6 +121,46 @@ describe("Claude setup sync", () => {
 			["instructions", "skills", "commands", "plugins", "settings"] as const
 		).flatMap((part) => partPaths(part, root));
 		expect(every).not.toContain(".credentials.json");
+	});
+
+	test("on the host, a plugin a claude.ai connector duplicates is turned off; others stay", () => {
+		const home = mkdtempSync(join(tmpdir(), "claude-host-"));
+		const cache = join(home, ".claude", "plugins", "cache", "mkt");
+		for (const [plugin, server] of [
+			["slack", "slack"],
+			["tools", "other"],
+		]) {
+			mkdirSync(join(cache, plugin, "1.0"), { recursive: true });
+			writeFileSync(
+				join(cache, plugin, "1.0", ".mcp.json"),
+				JSON.stringify({ mcpServers: { [server]: {} } }),
+			);
+		}
+		const settings = join(home, ".claude", "settings.json");
+		writeFileSync(
+			settings,
+			JSON.stringify({
+				enabledPlugins: { "slack@mkt": true, "tools@mkt": true },
+			}),
+		);
+		writeFileSync(
+			join(home, ".claude.json"),
+			JSON.stringify({ claudeAiMcpEverConnected: ["claude.ai Slack"] }),
+		);
+		const run = () =>
+			JSON.parse(
+				spawnSync("python3", ["-c", PRUNE_HOOKS_PY], {
+					env: { PATH: process.env.PATH, HOME: home },
+				}).stdout.toString(),
+			);
+		expect(run()).toEqual([
+			"plugin slack@mkt: the claude.ai slack connector covers it",
+		]);
+		expect(JSON.parse(readFileSync(settings, "utf8")).enabledPlugins).toEqual({
+			"slack@mkt": false,
+			"tools@mkt": true,
+		});
+		expect(run()).toEqual([]);
 	});
 });
 
