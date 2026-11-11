@@ -268,6 +268,13 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "idle timeout hours close card",
 	},
 	{
+		label: "Restart Odin completely",
+		to: "/settings/sessions",
+		section: "When they won't start",
+		keywords:
+			"restart completely daemon terminal pty process exited immediately session spawn failed stuck windows linux",
+	},
+	{
 		label: "Remote host",
 		to: "/settings/remote",
 		section: "Remote host",

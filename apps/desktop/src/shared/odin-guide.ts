@@ -179,6 +179,7 @@ A session's life on this computer, top to bottom. Besides the launch gate limits
 - **On the board → Rename sessions automatically** (default on): renames each card once, after what it turned out to be about. Names you set are kept.
 - **On the board → Compact conversations moved to Idle** (default off): /compact the moment a card is parked in Idle or waits there on others, while Claude's cache of it is still warm.
 - **On the board → Close idle sessions after** (default 3 hours, 0 = never).
+- **When they won't start → Restart Odin completely**: when every new session fails to start (for example "PTY process exited immediately"), the Restart Completely button asks first, then closes every open session and restarts Odin with fresh terminals. Sessions on a remote host keep running. The only way to do this on Windows and Linux; on macOS it is also Odin menu > Restart Odin Completely.
 
 ## Advanced (Settings → Advanced)
 What a session runs, rarely changed:
