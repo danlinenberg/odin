@@ -260,6 +260,18 @@ export function autoRunCommands(text: string): string[] {
 }
 
 /**
+ * What Danger Mode is about to do with a reply, one line per command in the
+ * order it runs: Claude's note above the block, or what the command reads as.
+ */
+export function dangerPlan(text: string): string[] {
+	const notes = bangCommandNotes(text);
+	return autoRunCommands(text).map((command) => {
+		const note = notes[command];
+		return note ? commandLabel(note) : describeCommand(command);
+	});
+}
+
+/**
  * What goes back to Claude once a `!local` command ran on this computer: the
  * command, its output and its exit code, fenced past any backticks inside.
  */

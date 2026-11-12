@@ -3,6 +3,7 @@ import {
 	autoRunCommands,
 	bangCommandNotes,
 	bangCommands,
+	dangerPlan,
 	describeCommand,
 	downloadPath,
 	isMoveHereItem,
@@ -316,5 +317,26 @@ test("Danger Mode runs every block but a !view, in order", () => {
 		"local cd ~/dev/app && ./restart.sh",
 		"tail -n 50 /tmp/app.log",
 		"download /tmp/out.csv",
+	]);
+});
+
+test("Danger Mode's warning says what each command does, in order", () => {
+	const text = [
+		"ACTION ITEMS",
+		"1. Restart it.",
+		"   Restart the app on this computer:",
+		"   ```",
+		"   !local cd ~/dev/app && ./restart.sh",
+		"   ```",
+		"   ```",
+		"   ! rm -rf /tmp/cache",
+		"   ```",
+		"   ```",
+		"   !view 5901 secret",
+		"   ```",
+	].join("\n");
+	expect(dangerPlan(text)).toEqual([
+		"Restart the app on this computer",
+		"Delete cache",
 	]);
 });
