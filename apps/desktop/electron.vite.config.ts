@@ -314,6 +314,7 @@ export default defineConfig({
 
 				input: {
 					index: resolve("src/renderer/index.html"),
+					"vnc-viewer": resolve("src/renderer/vnc-viewer.html"),
 				},
 			},
 		},

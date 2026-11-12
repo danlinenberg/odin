@@ -270,6 +270,8 @@ const ON_HOST = new Set([
 	"host",
 	"repos",
 	"screens",
+	// A task the Mac left there (Tasks with the Mac closed).
+	"start",
 ]);
 
 /** The procedures a "/trpc/a,b?batch=1" path calls, or null for anything else. */

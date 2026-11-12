@@ -10,6 +10,7 @@ import {
 	transcriptTail,
 } from "../../claude-sessions/claude-sessions";
 import {
+	awayBacklog,
 	findSession,
 	type HostSession,
 	hostPaths,
@@ -33,8 +34,28 @@ const paneInput = z.object({ paneId: z.string().min(1) });
 /** The host's name, as the phone shows it. */
 const hostName = () => readSnapshot().host || "the remote host";
 
+/** The runner the laptop sent with its task list (remote-host/away). */
+const RUNNER = () => `${hostPaths.home}/.odin/night/runner.py`;
+
 /** Runs a shell script as this user; resolves with its exit code. */
 export const shell = {
+	/**
+	 * Starts the laptop's task `key` with the runner. The key goes as an
+	 * argument, never into a script, and only a task the laptop sent starts.
+	 */
+	startTask: (key: string): Promise<{ code: number; out: string }> =>
+		new Promise((resolve) => {
+			execFile(
+				"python3",
+				[RUNNER(), "start", key],
+				{ timeout: 30_000 },
+				(error, stdout) =>
+					resolve({
+						code: error ? (typeof error.code === "number" ? error.code : 1) : 0,
+						out: String(stdout).trim(),
+					}),
+			);
+		}),
 	run: (script: string): Promise<number> =>
 		new Promise((resolve) => {
 			execFile("bash", ["-c", script], { timeout: 30_000 }, (error) =>
@@ -73,7 +94,10 @@ async function sessionOrThrow(paneId: string) {
 }
 
 export const hostPhoneRouter = t.router({
-	/** The sessions running here, as board rows. No backlog: that lives on the laptop. */
+	/**
+	 * The sessions running here, as board rows. The backlog is what the
+	 * laptop sent with Tasks with the Mac closed on, else none: it lives there.
+	 */
 	board: t.procedure.query(async () => {
 		const sessions = await Promise.all(
 			(await hostSessions()).map(async (session) => {
@@ -97,7 +121,7 @@ export const hostPhoneRouter = t.router({
 		);
 		return {
 			sessions,
-			backlog: [] as { id: string; title: string; started: boolean }[],
+			backlog: awayBacklog(),
 			done: [] as {
 				key: string;
 				title: string;
@@ -183,6 +207,36 @@ export const hostPhoneRouter = t.router({
 					message: "The remote host couldn't type it in.",
 				});
 			return { via: { host: hostName() } };
+		}),
+
+	/**
+	 * Start on a task the laptop sent (Tasks with the Mac closed): its session
+	 * starts here in tmux, and the laptop puts it on the board when it wakes.
+	 */
+	start: t.procedure
+		.input(z.object({ id: z.string().min(1).max(500) }))
+		.mutation(async ({ input }) => {
+			const { code, out } = await shell.startTask(input.id);
+			if (code === 4)
+				throw new TRPCError({
+					code: "PRECONDITION_FAILED",
+					message:
+						"Your Mac is away and didn't leave this task on the remote host. Open Odin on your Mac to start it.",
+				});
+			if (code === 6)
+				throw new TRPCError({
+					code: "PRECONDITION_FAILED",
+					message: `Not now: ${out || "the remote host has no room"}. Try again in a minute.`,
+				});
+			if (code !== 0 || !out)
+				throw new TRPCError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "The remote host couldn't start it.",
+				});
+			return {
+				paneId: out.split("\n").pop() as string,
+				via: { host: hostName() },
+			};
 		}),
 
 	/** The laptop writes briefs and reads links; with it away, there are none. */

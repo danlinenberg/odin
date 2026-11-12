@@ -22,6 +22,7 @@ import {
 } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
+import { usePersistedDraft } from "renderer/stores/chat-drafts";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { DoneButton } from "../components/DoneButton";
 import { DROP_LABEL, SweepDrop } from "../components/DropHint";
@@ -279,7 +280,7 @@ function AllFeedPage() {
 	// Slack, Jira and the rest: your level over the source's, kept in Odin.
 	const priorityOverrides = useTitleOverrides((s) => s.priorities);
 	const setRowPriority = useTitleOverrides((s) => s.setPriority);
-	const [draft, setDraft] = useState("");
+	const [draft, setDraft, markSent] = usePersistedDraft("all-tasks-box");
 	const [draftRepo, setDraftRepo] = useState("");
 	const [draftFields, setDraftFields] = useState(NO_NEW_TASK_FIELDS);
 	const { data: skills } = electronTrpc.skills.list.useQuery();
@@ -822,6 +823,7 @@ function AllFeedPage() {
 								parseTask(draft).title,
 								draftFields,
 							);
+						markSent();
 						setDraft("");
 						setDraftRepo("");
 						setDraftFields(NO_NEW_TASK_FIELDS);

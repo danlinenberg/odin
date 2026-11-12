@@ -82,6 +82,8 @@ export interface NightStarted {
 	url?: string;
 	/** true: the host picked it, with no row of the laptop's behind it. */
 	picked?: boolean;
+	/** true: the phone started it on the host with the laptop closed (away.ts), not the night. */
+	away?: boolean;
 }
 
 export const NIGHT_RUNNER_PY = `import base64, json, os, re, shutil, subprocess, tempfile, time, urllib.parse, urllib.request, uuid
@@ -89,6 +91,8 @@ export const NIGHT_RUNNER_PY = `import base64, json, os, re, shutil, subprocess,
 HOME = os.path.expanduser("~/.odin/night")
 PLAN, STATE = HOME + "/plan.json", HOME + "/state.json"
 MISSED, LEDGER = HOME + "/missed.json", HOME + "/ran.jsonl"
+# Tasks the phone may start here with the laptop closed (away.ts).
+AWAY = HOME + "/away.json"
 DAY = 86400
 PANE = "${NIGHT_PANE_PLACEHOLDER}"
 PROMPT_B64 = "${NIGHT_PROMPT_B64_PLACEHOLDER}"
@@ -353,22 +357,56 @@ def main():
     if reason:
         print("holding " + task["title"] + ": this host " + reason)
         return
+    row = {"key": task["key"], "title": task["title"], "sessionId": task["sessionId"], "at": now, "night": night["from"]}
+    if task.get("picked"):
+        row.update({"url": task.get("url", ""), "picked": True})
+    started.append(row)
+    save(STATE, state)
+    launch(task, row)
+
+
+def launch(task, row):
+    """Starts a task's session in tmux. In the ledger before the start: a crash between the two never starts it twice."""
     secrets = tempfile.mkdtemp(prefix="odin.", dir="/dev/shm")
     shutil.copyfile(HOME + "/env", secrets + "/env")
     os.chmod(secrets + "/env", 0o600)
     with open(secrets + "/run.sh", "w") as f:
         f.write(task["script"].replace("${SECRETS_DIR_PLACEHOLDER}", secrets))
-    row = {"key": task["key"], "title": task["title"], "sessionId": task["sessionId"], "at": now, "night": night["from"]}
-    if task.get("picked"):
-        row.update({"url": task.get("url", ""), "picked": True})
-    # In the ledger before the start: a crash between the two never starts it twice.
     record(row)
-    started.append(row)
-    save(STATE, state)
     subprocess.run(["tmux", "new-session", "-d", "-s", session_name(task["sessionId"]), "bash " + secrets + "/run.sh"], check=True)
 
 
+def start_away(key, now=None):
+    """
+    The phone's Start on a task the laptop sent (away.json), with the laptop
+    closed. Prints the session id. Exits 4 when the task isn't in the list or
+    the list expired, 6 when the host has no room, with the reason. A task
+    already started here prints its session again.
+    """
+    now = now or time.time()
+    away = load(AWAY, None)
+    if not isinstance(away, dict) or now >= away.get("until", 0):
+        return 4
+    task = next((t for t in away.get("tasks", []) if t.get("key") == key), None)
+    if not task:
+        return 4
+    ran = next((r for r in ledger() if r.get("key") == key), None)
+    if ran:
+        print(ran["sessionId"])
+        return 0
+    reason = hold_reason(read("/proc/meminfo"), read("/proc/loadavg"), os.cpu_count())
+    if reason:
+        print("this host " + reason)
+        return 6
+    launch(task, {"key": key, "title": task["title"], "sessionId": task["sessionId"], "at": now, "away": True})
+    print(task["sessionId"])
+    return 0
+
+
 if __name__ == "__main__":
+    import sys
+    if len(sys.argv) == 3 and sys.argv[1] == "start":
+        sys.exit(start_away(sys.argv[2]))
     main()
 `;
 

@@ -409,8 +409,8 @@ async function offerUpdate(version: string): Promise<void> {
 		title: "Update Available",
 		message: `Odin ${version} is available.`,
 		detail: PLATFORM.IS_WINDOWS
-			? "Odin will download it, quit, install it and reopen. Open terminal sessions survive."
-			: "Odin will download it, quit, swap itself out and reopen. Open terminal sessions survive.",
+			? "Odin will download it, quit, install it and reopen. Open terminal sessions and unsent messages survive."
+			: "Odin will download it, quit, swap itself out and reopen. Open terminal sessions and unsent messages survive.",
 		buttons: ["Update Now", "Later"],
 		defaultId: 0,
 		cancelId: 1,
