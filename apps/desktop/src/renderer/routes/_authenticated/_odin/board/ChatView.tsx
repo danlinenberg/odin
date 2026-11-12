@@ -43,7 +43,7 @@ import {
 	PasteBlock,
 	SendToSession,
 } from "renderer/components/MarkdownRenderer";
-import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
+import { isHotkey, useBinding, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { usePersistedDraft } from "renderer/stores/chat-drafts";
@@ -4990,6 +4990,9 @@ function Composer({
 	});
 	const setChat = useSessionView((s) => s.setChat);
 	const sendNowKeys = useHotkeyDisplay("CHAT_SEND_NOW").text;
+	// "" when the stop is unassigned in Settings -> Keyboard.
+	const stopDisplay = useHotkeyDisplay("STOP_TURN").text;
+	const stopKeys = useBinding("STOP_TURN") ? stopDisplay : "";
 	// Type `/` and the agent's skills/commands are searchable, like the New
 	// Session dialog. Picking one fills in `/name `; Enter then sends it.
 	const { data: skillList = [] } = electronTrpc.skills.list.useQuery();
@@ -5397,7 +5400,7 @@ function Composer({
 					{working ? (
 						<button
 							type="button"
-							title="Stop Claude"
+							title={stopKeys ? `Stop Claude (${stopKeys})` : "Stop Claude"}
 							onClick={() =>
 								onStop
 									? onStop()

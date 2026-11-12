@@ -197,6 +197,14 @@ export const HOTKEYS_REGISTRY = {
 		category: "Navigation",
 		description: "Send a reply into Claude's running turn, in Chat or Terminal",
 	},
+	// Esc as inside Claude itself. Unassigned, Esc on the session screen only
+	// goes back to the board, as it did before.
+	STOP_TURN: {
+		key: { mac: "escape", windows: "escape", linux: "escape" },
+		label: "Stop the turn",
+		category: "Terminal",
+		description: "Stop Claude's running turn on the session screen",
+	},
 	ODIN_SEARCH_ROW_MENU: {
 		key: {
 			mac: L("meta+k"),
