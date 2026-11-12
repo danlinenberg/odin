@@ -62,7 +62,7 @@ export function useAwayTasksSync() {
 					for (const pane of Object.values(useTabsStore.getState().panes))
 						if (pane.claudeSessionId) onBoard.add(pane.claudeSessionId);
 					for (const entry of nightLog)
-						if (entry.started) onBoard.add(entry.started.sessionId);
+						if (entry.started?.sessionId) onBoard.add(entry.started.sessionId);
 					for (const run of started) {
 						if (!adoptable(run, onBoard)) continue;
 						const item = latest.current.waiting.find(
