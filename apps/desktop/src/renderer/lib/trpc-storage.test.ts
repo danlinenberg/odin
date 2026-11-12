@@ -35,3 +35,19 @@ it("a reload inside the write debounce keeps the unsaved state", async () => {
 	});
 	expect(await fresh.getItem("tabs")).toBe(doneState);
 });
+
+it("changes that never pause still save within a few debounces", async () => {
+	const { createTrpcStorageAdapter } = await import("./trpc-storage");
+	const saved: unknown[] = [];
+	const adapter = createTrpcStorageAdapter({
+		get: async () => null,
+		set: async (input) => void saved.push(input),
+		writeDebounceMs: 20,
+	});
+	// A change every 10ms for 200ms: a plain debounce never fires.
+	for (let i = 0; i < 20; i++) {
+		await adapter.setItem("tabs", JSON.stringify({ state: { i }, version: 1 }));
+		await new Promise((r) => setTimeout(r, 10));
+	}
+	expect(saved.length).toBeGreaterThan(1);
+});

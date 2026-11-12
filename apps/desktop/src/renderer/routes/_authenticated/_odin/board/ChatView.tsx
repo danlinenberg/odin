@@ -102,6 +102,7 @@ import {
 	commandItem,
 	commandLabel,
 	commandScore,
+	dangerPlan,
 	describeCommand,
 	downloadPath,
 	isAnswerItem,
@@ -2851,6 +2852,24 @@ export function needsAwsSsoLogin(text: string): boolean {
 	return /run 'aws sso login'/i.test(text);
 }
 
+/** How long Danger Mode shows what it's about to run before it runs it. */
+const DANGER_WARN_MS = 30_000;
+
+/** The Danger Mode warning's title, counting down to the run each second. */
+function DangerCountdown({ count }: { count: number }) {
+	const [left, setLeft] = useState(DANGER_WARN_MS / 1000);
+	useEffect(() => {
+		const timer = setInterval(() => setLeft((s) => Math.max(0, s - 1)), 1000);
+		return () => clearInterval(timer);
+	}, []);
+	return (
+		<>
+			Danger Mode runs {count === 1 ? "a command" : `${count} commands`} in{" "}
+			<span className="tabular-nums">{left}s</span>
+		</>
+	);
+}
+
 /** Replies Danger Mode already ran (`paneId:replyId`), so a remount doesn't run them twice. */
 const dangerRan = new Set<string>();
 
@@ -3844,6 +3863,13 @@ export function ChatView({
 	// can't see it end. Each reply runs once, and only while it is still the
 	// last thing in the session - one you already answered or ran stays put.
 	const danger = useDangerMode((state) => !!state.on[paneId]);
+	// What Danger Mode is doing right now, for its red line: the command it
+	// runs and since when, or where it stopped.
+	const [dangerStep, setDangerStep] = useState<DangerStep | null>(null);
+	// A new turn moves past where it stopped.
+	useEffect(() => {
+		if (working) setDangerStep((now) => (now?.stopped ? null : now));
+	}, [working]);
 	const lastItemId = items.at(-1)?.id;
 	useEffect(() => {
 		if (!danger || working || !onShowTerminal || !lastText) return;
@@ -3854,11 +3880,38 @@ export function ChatView({
 		const commands = autoRunCommands(lastText.text);
 		if (!commands.length) return;
 		void (async () => {
+			// Say what's about to run before it does, with a few seconds to stop it.
+			const stop = () => useDangerMode.getState().toggle(paneId, false);
+			setDangerStep({
+				text: `about to run ${commands.length === 1 ? "a command" : `${commands.length} commands`} - Stop in the warning cancels it`,
+				since: Date.now(),
+			});
+			toast.warning(<DangerCountdown count={commands.length} />, {
+				description: (
+					<ol className="list-decimal pl-4">
+						{dangerPlan(lastText.text).map((line, i) => (
+							// biome-ignore lint/suspicious/noArrayIndexKey: a fixed list, two commands can read the same
+							<li key={i}>{line}</li>
+						))}
+					</ol>
+				),
+				duration: DANGER_WARN_MS,
+				action: { label: "Stop", onClick: stop },
+			});
+			await new Promise((resolve) => setTimeout(resolve, DANGER_WARN_MS));
 			const outputs: string[] = [];
-			for (const command of commands) {
-				if (!useDangerMode.getState().on[paneId]) return;
+			for (const [index, command] of commands.entries()) {
+				if (!useDangerMode.getState().on[paneId]) {
+					setDangerStep(null);
+					return;
+				}
+				const step = `${index + 1} of ${commands.length}`;
 				try {
 					const local = localCommand(command);
+					setDangerStep({
+						text: `Running ${step}${local ? " on your computer" : ""}: ${local ?? command.replace(/^!\s*/, "")}`,
+						since: Date.now(),
+					});
 					if (!local) {
 						await runCommand(command);
 						if (!downloadPath(command))
@@ -3884,11 +3937,17 @@ export function ChatView({
 				} catch (error) {
 					const why = error instanceof Error ? error.message : String(error);
 					toast.error(`Danger Mode stopped: ${why}`);
+					setDangerStep({
+						text: `Stopped at ${step}: ${why}`,
+						since: Date.now(),
+						stopped: true,
+					});
 					outputs.push(`Danger Mode couldn't run \`${command}\`: ${why}`);
 					break;
 				}
 			}
 			onShellDoneRef.current?.();
+			setDangerStep((now) => (now?.stopped ? now : null));
 			sendToClaude(
 				[...outputs, "Danger Mode ran your commands. Carry on."].join("\n\n"),
 			);
@@ -4604,10 +4663,7 @@ export function ChatView({
 						{danger && (
 							<div className="flex items-center gap-2 border-t border-destructive/40 bg-destructive/15 px-5 py-1.5 text-[11.5px] text-destructive">
 								<LuZap className="size-3.5 shrink-0" />
-								<span className="min-w-0 flex-1">
-									Danger Mode: Odin runs this session's commands without asking,
-									on this computer too.
-								</span>
+								<DangerStatus step={dangerStep} working={working} />
 								<button
 									type="button"
 									onClick={() => useDangerMode.getState().toggle(paneId, false)}
@@ -5383,5 +5439,45 @@ function Composer({
 				</div>
 			</div>
 		</div>
+	);
+}
+
+type DangerStep = { text: string; since: number; stopped?: boolean };
+
+/**
+ * The Danger Mode line's text: the command running now and for how long,
+ * else Claude working, else where it stopped or that it waits for you. A run
+ * past 30 seconds may be waiting for input in the Shell, so it says so.
+ */
+function DangerStatus({
+	step,
+	working,
+}: {
+	step: DangerStep | null;
+	working: boolean;
+}) {
+	const running = step && !step.stopped ? step : null;
+	const [now, setNow] = useState(Date.now());
+	useEffect(() => {
+		if (!running) return;
+		const timer = setInterval(() => setNow(Date.now()), 1_000);
+		return () => clearInterval(timer);
+	}, [running]);
+	let text: string;
+	if (running) {
+		const seconds = Math.max(0, Math.round((now - running.since) / 1_000));
+		text = `Danger Mode: ${running.text} (${seconds}s)${seconds >= 30 ? " - if it asks for input, answer it in the Shell" : ""}`;
+	} else if (working)
+		text =
+			"Danger Mode: Claude is working. Its commands run when the turn ends.";
+	else if (step?.stopped) text = `Danger Mode: ${step.text}`;
+	else text = "Danger Mode: nothing left to run. Waiting for you.";
+	return (
+		<span
+			className="min-w-0 flex-1 truncate select-text cursor-text"
+			title={text}
+		>
+			{text}
+		</span>
 	);
 }

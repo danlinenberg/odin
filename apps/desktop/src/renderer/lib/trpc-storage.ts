@@ -14,6 +14,8 @@ interface TrpcStorageConfig {
 
 const PENDING_SNAPSHOT_TTL_MS = 5 * 60 * 1000;
 const LOCAL_SNAPSHOT_WRITE_DEBOUNCE_MS = 250;
+/** A write waits at most this many debounces, however often state changes. */
+const MAX_WAIT_DEBOUNCES = 3;
 
 export function createTrpcStorageAdapter(
 	config: TrpcStorageConfig,
@@ -22,6 +24,8 @@ export function createTrpcStorageAdapter(
 	let pendingValue: string | null = null;
 	let lastFlushedValue: string | null = null;
 	let flushTimer: ReturnType<typeof setTimeout> | null = null;
+	/** When the oldest unsaved change came in. */
+	let pendingSince = 0;
 	let isFlushing = false;
 	let pendingSnapshotValue: string | null = null;
 	let pendingSnapshotTimer: ReturnType<typeof setTimeout> | null = null;
@@ -220,8 +224,17 @@ export function createTrpcStorageAdapter(
 			}
 
 			storeName = name;
+			if (pendingValue === null) pendingSince = Date.now();
 			pendingValue = value;
 			schedulePendingSnapshotPersist(name, value);
+			// Changes that never pause (a session starting) kept pushing the
+			// write back, and the main process, which the phone asks, saw a new
+			// pane seconds late. Past MAX_WAIT_DEBOUNCES, the timer set stays.
+			if (
+				flushTimer &&
+				Date.now() - pendingSince >= debounceMs * MAX_WAIT_DEBOUNCES
+			)
+				return;
 			if (flushTimer) {
 				clearTimeout(flushTimer);
 				flushTimer = null;
