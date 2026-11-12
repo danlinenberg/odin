@@ -22,15 +22,21 @@ export function nextWindows(
 	return out;
 }
 
-/** Keys the host must never start: done here, or started on any host already. */
+/**
+ * Keys the host must never start: done here, started on any host already, or
+ * `taken` - rows a session runs or ran on, started by hand or auto-start. The
+ * host's own :eyes: picks know none of those, so without them it starts a
+ * message you already have a session on.
+ */
 export function nightExclude(
 	doneKeys: string[],
 	log: NightLogEntry[],
+	taken: string[] = [],
 ): string[] {
 	const started = log.flatMap((entry) =>
 		entry.started ? [entry.started.key] : [],
 	);
-	return [...new Set([...doneKeys, ...started])];
+	return [...new Set([...doneKeys, ...started, ...taken])];
 }
 
 /**

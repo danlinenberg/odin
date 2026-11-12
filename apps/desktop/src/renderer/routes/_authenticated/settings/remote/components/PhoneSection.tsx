@@ -56,6 +56,8 @@ export function PhoneSection() {
 					<img
 						src={data.qr}
 						alt="QR code that pairs the Odin iPhone app"
+						// The smoke test pairs a phone of its own from it.
+						data-pair-link={data.link}
 						className="size-32 shrink-0 rounded-lg bg-white p-1.5"
 					/>
 					<div className="flex min-w-0 flex-col gap-2">
