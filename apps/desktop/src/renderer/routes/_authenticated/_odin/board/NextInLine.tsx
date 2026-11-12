@@ -64,6 +64,7 @@ const LEDGER_FEED: Record<LedgerRow["source"], string> = {
 	jira: "Jira",
 	pr: "PR",
 	notion: "Notion",
+	tasks: "Task",
 };
 
 /**
