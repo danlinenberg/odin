@@ -453,6 +453,34 @@ describe("mergedPullRequests", () => {
 		);
 	});
 
+	test("a slow GitHub can't hold a caller with a budget; the answer lands next call", async () => {
+		let release = () => {};
+		const slow = new Promise<void>((done) => {
+			release = done;
+		});
+		let graphqlCalls = 0;
+		const exec: GhExec = async (args) => {
+			if (args[0] === "auth") return { stdout: STATUS };
+			graphqlCalls++;
+			await slow;
+			return {
+				stdout: JSON.stringify({
+					data: { repository: { p9: merged("danlinenberg") } },
+				}),
+			};
+		};
+		const url = "https://github.com/me/slow/pull/9";
+		expect(await mergedPullRequests([url], exec, 20)).toEqual(new Map());
+		// Still being asked: a second call doesn't ask again.
+		expect(await mergedPullRequests([url], exec, 20)).toEqual(new Map());
+		expect(graphqlCalls).toBe(1);
+		release();
+		await Bun.sleep(0);
+		expect(await mergedPullRequests([url], exec, 20)).toEqual(
+			new Map([[url, Date.parse("2026-10-04T10:00:00Z")]]),
+		);
+	});
+
 	test("a repo no account can read counts as unmerged", async () => {
 		const exec: GhExec = async () => {
 			throw new Error("Could not resolve to a Repository");

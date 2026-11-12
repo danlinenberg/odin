@@ -188,6 +188,17 @@ function Loading() {
 	return <div aria-busy="true" />;
 }
 
+/** A failed query shows why, instead of holding the page-wide spinner. */
+function Failed({ what, error }: { what: string; error: { message: string } }) {
+	return (
+		<Empty>
+			<span className="select-text cursor-text">
+				Couldn't load {what}: {error.message}
+			</span>
+		</Empty>
+	);
+}
+
 function Empty({ children }: { children: React.ReactNode }) {
 	return (
 		<Card>
@@ -964,7 +975,7 @@ function Workload() {
 			localStorage.setItem(EXCLUDED_KEY, JSON.stringify([...next]));
 		} catch {}
 	};
-	const { data, isLoading, isPlaceholderData } =
+	const { data, isLoading, isPlaceholderData, error } =
 		electronTrpc.insights.workload.useQuery(
 			{ only: repo, hide: [...excluded] },
 			{
@@ -975,6 +986,7 @@ function Workload() {
 			},
 		);
 
+	if (!data && error) return <Failed what="your history" error={error} />;
 	if (isLoading || !data) return <Loading />;
 	// `agentHeatmap` is absent until the main process restarts onto this build.
 	const grid = clock === "agents" ? (data.agentHeatmap ?? []) : data.heatmap;
@@ -1126,11 +1138,12 @@ function Legend({ color, label }: { color: string; label: string }) {
 }
 
 function Queue() {
-	const { data, isLoading } = electronTrpc.insights.summary.useQuery(
+	const { data, isLoading, error } = electronTrpc.insights.summary.useQuery(
 		undefined,
 		{ refetchInterval: 60_000 },
 	);
 
+	if (!data && error) return <Failed what="the counters" error={error} />;
 	if (isLoading || !data) return <Loading />;
 
 	// A main process started before `gaps` existed won't send it.
