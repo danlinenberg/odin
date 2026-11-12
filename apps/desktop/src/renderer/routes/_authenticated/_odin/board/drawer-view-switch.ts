@@ -1,13 +1,12 @@
 /**
- * Which view the drawer footer offers to switch to: "chat" (the Chat View
- * button), "terminal" (Terminal View) or null (none - the chat shows, and its
- * composer has Terminal View).
+ * Which view the drawer footer offers: "chat" (the Chat View button),
+ * "terminal" (Terminal View) or null (none - the chat shows, and its composer
+ * has Terminal View).
  *
- * The ▣ View tab covers the session the way the diff does, and with it the
- * chat's composer, so Terminal View went with it: with the app on screen there
- * was no way to the terminal but knowing ▣ View toggles back (and the footer's
- * Chat View did nothing you could see). While the app shows, the footer offers
- * Terminal View, which takes the app off screen.
+ * The ▣ View tab covers the session the way the diff does, and the chat's
+ * composer with it, so there was no way back but knowing ▣ View toggles.
+ * While the app shows, the footer names the view under it - the one last
+ * used - and its click only takes the app off screen, leaving the setting be.
  */
 export function drawerViewSwitch({
 	chat,
@@ -21,6 +20,7 @@ export function drawerViewSwitch({
 	/** The ▣ View tab shows the app the session runs on its host. */
 	hostScreenOpen: boolean;
 }): "chat" | "terminal" | null {
-	if (hostScreenOpen) return "terminal";
-	return !chat || peeking ? "chat" : null;
+	const under = chat && !peeking ? "chat" : "terminal";
+	if (hostScreenOpen) return under;
+	return under === "terminal" ? "chat" : null;
 }

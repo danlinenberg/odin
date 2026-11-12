@@ -8,30 +8,27 @@ describe("drawerViewSwitch", () => {
 		).toBeNull();
 	});
 
-	test("the app's screen covers the chat: the footer offers Terminal View", () => {
-		expect(
-			drawerViewSwitch({ chat: true, peeking: false, hostScreenOpen: true }),
-		).toBe("terminal");
-	});
-
-	test("the terminal is the choice: the footer offers Chat View", () => {
+	test("the terminal shows: the footer offers Chat View", () => {
 		expect(
 			drawerViewSwitch({ chat: false, peeking: false, hostScreenOpen: false }),
 		).toBe("chat");
+		expect(
+			drawerViewSwitch({ chat: true, peeking: true, hostScreenOpen: false }),
+		).toBe("chat");
 	});
 
-	test("the app's screen covers the terminal: the footer offers Terminal View, not Chat View", () => {
+	test("the app covers the chat: the footer goes back to Chat View", () => {
+		expect(
+			drawerViewSwitch({ chat: true, peeking: false, hostScreenOpen: true }),
+		).toBe("chat");
+	});
+
+	test("the app covers the terminal: the footer goes back to Terminal View", () => {
 		expect(
 			drawerViewSwitch({ chat: false, peeking: false, hostScreenOpen: true }),
 		).toBe("terminal");
 		expect(
 			drawerViewSwitch({ chat: true, peeking: true, hostScreenOpen: true }),
 		).toBe("terminal");
-	});
-
-	test("a question peek shows the terminal: the footer offers Chat View", () => {
-		expect(
-			drawerViewSwitch({ chat: true, peeking: true, hostScreenOpen: false }),
-		).toBe("chat");
 	});
 });
