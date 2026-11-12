@@ -819,7 +819,7 @@ export const phoneRouter = t.router({
 				...(input.start && { start: "true", open: "true" }),
 				...(input.onHost !== undefined && { host: String(input.onHost) }),
 			});
-			return input.start ? landedPane(text) : {};
+			return input.start ? await landedPane(text) : {};
 		}),
 
 	/** Odin's profiles, and the one it's in. */
