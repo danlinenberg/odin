@@ -622,15 +622,14 @@ async function attach(
 			client.end();
 			reject(new Error("opening the terminal timed out"));
 		}, 60_000);
+		const pty = {
+			term: process.env.TERM ?? "xterm-256color",
+			cols: paneCols(),
+			rows: paneRows(),
+		};
 		client.exec(
 			`bash -lc ${sh(attachScript(spec, dir))}`,
-			{
-				pty: {
-					term: process.env.TERM ?? "xterm-256color",
-					cols: paneCols(),
-					rows: paneRows(),
-				},
-			},
+			{ pty },
 			(err, stream) => {
 				clearTimeout(opening);
 				if (err) return reject(err);
@@ -643,6 +642,10 @@ async function attach(
 				stream.pipe(stdout, { end: false });
 				stream.stderr.pipe(process.stderr, { end: false });
 				stdout.on("resize", resize);
+				// A resize while the channel opened had no stream to go to, and the
+				// same size again never fires another one: send it now, or the host
+				// keeps drawing at the old width.
+				if (paneCols() !== pty.cols || paneRows() !== pty.rows) resize();
 				stream.on("exit", (code: number | null) => {
 					exited = code === 0;
 				});
