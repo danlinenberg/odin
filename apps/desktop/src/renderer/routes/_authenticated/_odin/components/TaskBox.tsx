@@ -13,6 +13,7 @@ import {
 import { HiOutlineClock, HiOutlineSparkles, HiXMark } from "react-icons/hi2";
 import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { usePersistedDraft } from "renderer/stores/chat-drafts";
 import { useClaudeCommand } from "renderer/stores/claude-command";
 import { describeCron, nextRun } from "shared/cron";
 import { getImageMimeType, isVideoFile } from "shared/file-types";
@@ -1106,7 +1107,9 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 	const { data: repos = [] } = electronTrpc.repos.list.useQuery();
 	const recentRepos = useClaudeCommand((state) => state.recentRepos);
 	const addRecentRepo = useClaudeCommand((state) => state.addRecentRepo);
-	const [draft, setDraft] = useState("");
+	// Kept until the task is added: closing the box, a reload or a restart
+	// brings it back the next time it opens.
+	const [draft, setDraft, markSent] = usePersistedDraft("quick-add-task");
 	const [repo, setRepo] = useState("");
 	const [fields, setFields] = useState(NO_NEW_TASK_FIELDS);
 	// This computer or the remote host, for the session Start now opens.
@@ -1175,6 +1178,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 		if (!parseTask(draft).title) return onClose();
 		const id = add(draft, undefined, repo);
 		if (id) applyNewTaskFields(`task:${id}`, parseTask(draft).title, fields);
+		markSent();
 		if (repo) addRecentRepo(repo);
 		onClose();
 		if (!startNow) return void toast.success("Added to My Tasks");

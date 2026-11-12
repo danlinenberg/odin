@@ -43,7 +43,7 @@ export function UpdateBanner() {
 						? "Restarting into the new version…"
 						: update?.error
 							? `Download failed: ${update.error}`
-							: "Open terminal sessions survive the restart."}
+							: "Open terminal sessions and unsent messages survive the restart."}
 			</span>
 			<div className="flex-1" />
 			{!busy && (
