@@ -7,6 +7,7 @@ export {
 	darkTheme,
 	getBuiltInTheme,
 	lightTheme,
+	molokaiTheme,
 	monokaiTheme,
 } from "./built-in";
 export { getEditorTheme } from "./editor-theme";
