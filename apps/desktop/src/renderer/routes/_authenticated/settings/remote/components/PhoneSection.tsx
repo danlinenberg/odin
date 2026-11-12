@@ -3,6 +3,7 @@ import { toast } from "@odin/ui/sonner";
 import { Switch } from "@odin/ui/switch";
 import { LuLock, LuServer, LuSmartphone, LuTrash2 } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { AWAY_TASKS } from "shared/away-tasks";
 import { SettingRow, SettingsSection } from "../../components/SettingsPage";
 
 /**
@@ -130,12 +131,46 @@ function HostNote() {
 	const host = electronTrpc.phone.remoteHost.useQuery();
 	if (!host.data) return null;
 	return (
-		<div className="flex items-center gap-3 border-t px-4 py-3 text-[13px] leading-relaxed text-muted-foreground">
-			<LuServer className="size-4 shrink-0" />
-			<span>
-				Phones paired here also reach the sessions on {host.data.name}, even
-				with this Mac closed or asleep.
-			</span>
-		</div>
+		<>
+			<div className="flex items-center gap-3 border-t px-4 py-3 text-[13px] leading-relaxed text-muted-foreground">
+				<LuServer className="size-4 shrink-0" />
+				<span>
+					Phones paired here also reach the sessions on {host.data.name}, even
+					with this Mac closed or asleep.
+				</span>
+			</div>
+			<AwayTasksRow name={host.data.name} />
+		</>
+	);
+}
+
+/**
+ * Tasks with the Mac closed (main/lib/remote-host/away): off by default,
+ * since it keeps task prompts and the sessions' sign-ins on the host.
+ */
+function AwayTasksRow({ name }: { name: string }) {
+	const remote = electronTrpc.remoteHost.get.useQuery();
+	const set = electronTrpc.remoteHost.setAwayTasks.useMutation({
+		onSuccess: () => void remote.refetch(),
+		onError: (error) => toast.error(error.message),
+	});
+	const on = !!remote.data?.host?.awayTasks;
+	return (
+		<SettingRow
+			label="Tasks with the Mac closed"
+			htmlFor="phone-away-tasks"
+			description={
+				on
+					? `The top ${AWAY_TASKS} of Next in line are kept on ${name}, so the phone lists them and Start runs one there while this Mac is asleep. The board picks it up when the Mac is back. Turn off to delete them from ${name}.`
+					: `Off: with this Mac asleep the phone shows only the sessions on ${name}. On keeps the top of Next in line there, encrypted on the way and readable only by your user on ${name}, so the phone can start them.`
+			}
+		>
+			<Switch
+				id="phone-away-tasks"
+				checked={on}
+				disabled={set.isPending || !remote.data?.host?.on}
+				onCheckedChange={(next) => set.mutate(next)}
+			/>
+		</SettingRow>
 	);
 }

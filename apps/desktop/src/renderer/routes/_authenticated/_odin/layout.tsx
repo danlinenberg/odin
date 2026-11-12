@@ -50,6 +50,7 @@ import { SessionContextDialog } from "./components/SessionContextDialog";
 import { QuickAddTask } from "./components/TaskBox";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { useAutomationRunner } from "./hooks/useAutomationRunner";
+import { useAwayTasksSync } from "./hooks/useAwayTasksSync";
 import { usePeriodicSweep } from "./hooks/useBacklogReview";
 import {
 	profileLabel,
@@ -245,6 +246,7 @@ const ShellRunners = memo(function ShellRunners({
 	// a schedule that only runs while you're looking at it isn't one.
 	useAutomationRunner();
 	useNightAgentRunner();
+	useAwayTasksSync();
 	// And the backlog sweep, on its interval, so Review is already filled in.
 	usePeriodicSweep();
 	// Same reason: tasks held back by the capacity gate wait in Idle → Queued,

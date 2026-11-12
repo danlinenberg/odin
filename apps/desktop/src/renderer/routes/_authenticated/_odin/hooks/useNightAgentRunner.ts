@@ -237,6 +237,8 @@ export function useNightAgentRunner() {
 				const oldest = Date.now() / 1000 - (PLAN_NIGHTS + 1) * 86_400;
 				for (const run of started) {
 					if (
+						// The phone's starts with the Mac closed are useAwayTasksSync's.
+						run.away ||
 						run.at < oldest ||
 						panes.some((pane) => pane.claudeSessionId === run.sessionId) ||
 						adoptedLog.some(

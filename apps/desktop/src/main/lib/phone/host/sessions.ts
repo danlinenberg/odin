@@ -148,3 +148,35 @@ export function hostStatus(
 	if (read === "review") return last && last !== "working" ? last : "review";
 	return read ?? last ?? "idle";
 }
+
+/** A task the laptop sent for the phone to start here (remote-host/away). */
+export type AwayTask = { id: string; title: string; started: boolean };
+
+/**
+ * The tasks the laptop left here, not started yet (the runner's ledger says
+ * which were), in its order. None once the list expired: the laptop has been
+ * away longer than it covers.
+ */
+export function awayBacklog(now = Date.now()): AwayTask[] {
+	const night = join(hostPaths.odin, "night");
+	let away: { tasks?: { key: string; title: string }[]; until?: number };
+	try {
+		away = JSON.parse(readFileSync(join(night, "away.json"), "utf8"));
+	} catch {
+		return [];
+	}
+	if (!away || now / 1000 >= (away.until ?? 0)) return [];
+	const ran = new Set<string>();
+	try {
+		for (const line of readFileSync(join(night, "ran.jsonl"), "utf8").split(
+			"\n",
+		)) {
+			try {
+				ran.add(JSON.parse(line).key);
+			} catch {}
+		}
+	} catch {}
+	return (away.tasks ?? [])
+		.filter((task) => !ran.has(task.key))
+		.map((task) => ({ id: task.key, title: task.title, started: false }));
+}
