@@ -294,20 +294,29 @@ async function start(config: Config): Promise<void> {
 		listenOn(lan, 0, "0.0.0.0"),
 	);
 	startPush();
+	// The smoke test (scripts/smoke.ts) plays the phone over loopback, in a
+	// throwaway home, and dials no relay from CI.
+	const smoke = !!process.env.ODIN_SMOKE;
+	if (smoke)
+		writeFileSync(
+			join(ODIN_HOME_DIR, "phone-smoke.json"),
+			JSON.stringify({ port: portOf(loopback), token }),
+		);
 	running = {
 		lan,
 		loopback,
 		lanUrl: `ws://${localName()}:${portOf(lan)}/channel`,
-		stopRelay: relayInUse(config)
-			? dialRelay(
-					relayInUse(config),
-					relayId(identity().publicKey),
-					(pipe) => serve(pipe, handle),
-					(state) => {
-						relayState = state;
-					},
-				)
-			: () => {},
+		stopRelay:
+			!smoke && relayInUse(config)
+				? dialRelay(
+						relayInUse(config),
+						relayId(identity().publicKey),
+						(pipe) => serve(pipe, handle),
+						(state) => {
+							relayState = state;
+						},
+					)
+				: () => {},
 	};
 }
 

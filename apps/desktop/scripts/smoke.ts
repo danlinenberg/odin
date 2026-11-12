@@ -62,6 +62,11 @@ delete env.ELECTRON_RUN_AS_NODE;
 // restart and take the next ask.
 const QUESTION = "Smoke question";
 mkdirSync(join(home, ".odin"));
+// The phone server on, so the phone steps can play a paired phone.
+writeFileSync(
+	join(home, ".odin", "phone.json"),
+	JSON.stringify({ enabled: true }),
+);
 writeFileSync(
 	join(home, ".odin", "app-state.json"),
 	JSON.stringify({
@@ -1448,6 +1453,53 @@ await macStep(
 		}
 	},
 );
+
+/** The phone's API as a paired phone calls it, over the loopback side of the channel. */
+async function phone<T>(path: string, input?: unknown, mutation = false) {
+	const file = join(home, ".odin", "phone-smoke.json");
+	for (const end = Date.now() + 15_000; !existsSync(file); await sleep(250))
+		if (Date.now() > end) throw new Error("the phone server never started");
+	const { port, token } = JSON.parse(readFileSync(file, "utf8"));
+	const body = JSON.stringify({ json: input ?? null });
+	const url = `http://127.0.0.1:${port}/trpc/${path}`;
+	const response = await fetch(
+		mutation ? url : `${url}?input=${encodeURIComponent(body)}`,
+		{
+			method: mutation ? "POST" : "GET",
+			headers: {
+				authorization: `Bearer ${token}`,
+				"content-type": "application/json",
+			},
+			...(mutation && { body }),
+		},
+	);
+	const text = await response.text();
+	if (!response.ok) throw new Error(`${path}: ${response.status} ${text}`);
+	return (JSON.parse(text) as { result: { data: { json: T } } }).result.data
+		.json;
+}
+
+await step("Phone: the board loads its sessions", async () => {
+	const board = await phone<{ sessions: { title: string }[] }>("board");
+	if (!board.sessions.some((s) => s.title.includes(SESSION)))
+		throw new Error(
+			`the New Session card isn't on it: ${board.sessions.map((s) => s.title).join(" | ")}`,
+		);
+});
+
+await step("Phone: Start now on a new task opens its session", async () => {
+	const title = `Phone task ${Date.now()}`;
+	const { paneId } = await phone<{ paneId?: string }>(
+		"add",
+		{ text: title, start: true },
+		true,
+	);
+	if (!paneId) throw new Error("add with start answered no paneId");
+	// Right away, as the phone opens it: this answered NOT_FOUND while the
+	// window hadn't saved the new pane yet.
+	await phone("session", { paneId });
+	await phone("done", { paneId }, true);
+});
 
 await step("no uncaught errors in the renderer", async () => {
 	if (exceptions.length) throw new Error(exceptions.join("\n     "));
