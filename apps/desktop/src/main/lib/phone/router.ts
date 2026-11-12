@@ -187,6 +187,20 @@ const MENU_KEYS = new Set(["\r", "\t", "\x1b", "\x1b[A", "\x1b[B"]);
 
 const pause = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
+/**
+ * The pane as the window last saved it. Start now and Resume answer a paneId
+ * the moment the card is up, before the window's save reaches this process,
+ * so a pane not here yet gets a few seconds to land.
+ */
+async function savedPane(paneId: string) {
+	for (let i = 0; i < 50; i++) {
+		const pane = appState.data.tabsState.panes?.[paneId];
+		if (pane) return pane;
+		await pause(100);
+	}
+	throw new TRPCError({ code: "NOT_FOUND", message: "No such session." });
+}
+
 /** How often the text's last characters show on Claude's screen. */
 async function drawCount(paneId: string, text: string): Promise<number> {
 	const squash = (value: string) => value.replace(/\s+/g, "");
@@ -305,8 +319,7 @@ export const phoneRouter = t.router({
 
 	/** The conversation, prose only, plus the brief's TL;DR when one is cached or quick. */
 	session: t.procedure.input(paneInput).query(async ({ input }) => {
-		const pane = appState.data.tabsState.panes?.[input.paneId];
-		if (!pane) throw new TRPCError({ code: "NOT_FOUND" });
+		const pane = await savedPane(input.paneId);
 		const sessionId = sessionOf(input.paneId);
 		// The log's end only: a long session's log runs to tens of MB.
 		const tail = sessionId
