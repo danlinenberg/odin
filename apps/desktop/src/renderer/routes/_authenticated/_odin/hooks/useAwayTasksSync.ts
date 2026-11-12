@@ -4,8 +4,9 @@ import { useDoneStore } from "renderer/stores/done";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { AWAY_TASKS, NIGHT_TASK_PLACEHOLDER } from "shared/away-tasks";
-import type { AllItem } from "../all/all-items";
+import { type AllItem, allItems } from "../all/all-items";
 import { useNextInLineQueue } from "../board/NextInLine";
+import { useMyTasks } from "./useOdinTasks";
 
 const TICK_MS = 60_000;
 /** Sent again this often while the Mac is awake, so the host's tokens stay fresh. */
@@ -37,10 +38,36 @@ export function adoptable(
  * Mac asleep or shut. When the Mac is back, what the
  * phone started there comes onto the board, attached to its host session.
  */
+/** A task typed on the phone there, as a Tasks row the board can adopt (phone/host/inbox). */
+export function typedItem(task: {
+	key: string;
+	title: string;
+	text: string;
+	at: number;
+}) {
+	return allItems({
+		tasks: [
+			{
+				id: task.key.slice("task:".length),
+				title: task.title,
+				notes: task.text.split("\n").slice(1).join("\n").trim(),
+				createdAt: task.at,
+			},
+		],
+		slack: [],
+		jira: [],
+		pulls: [],
+		notion: [],
+	})[0];
+}
+
 export function useAwayTasksSync() {
 	const queue = useNextInLineQueue();
 	const latest = useRef(queue);
 	latest.current = queue;
+	const myTasks = useMyTasks();
+	const mine = useRef(myTasks);
+	mine.current = myTasks;
 
 	useEffect(() => {
 		let running = false;
@@ -67,11 +94,35 @@ export function useAwayTasksSync() {
 						if (pane.claudeSessionId) onBoard.add(pane.claudeSessionId);
 					for (const entry of nightLog)
 						if (entry.started?.sessionId) onBoard.add(entry.started.sessionId);
+					// What the phone typed and put away there meanwhile.
+					const inbox = await electronTrpcClient.remoteHost.awayInbox.mutate();
+					for (const mark of inbox.done) {
+						// A session ended there isn't put on the board.
+						onBoard.add(mark.sessionId);
+						if (mark.key)
+							useDoneStore.getState().setDone(mark.key, {
+								title: mark.title,
+								source: "",
+								url: null,
+							});
+					}
+					const startedKeys = new Set(started.map((run) => run.key));
+					for (const task of inbox.added) {
+						if (startedKeys.has(task.key)) continue;
+						mine.current.add(task.text);
+						logNight(
+							`"${task.title}" was added from your phone - it's in Tasks now.`,
+						);
+					}
+					const typed = (key: string) => {
+						const task = inbox.added.find((row) => row.key === key);
+						return task ? typedItem(task) : undefined;
+					};
 					for (const run of started) {
 						if (!adoptable(run, onBoard)) continue;
-						const item = latest.current.waiting.find(
-							(row) => row.key === run.key,
-						);
+						const item =
+							latest.current.waiting.find((row) => row.key === run.key) ??
+							typed(run.key);
 						if (!item) continue;
 						const adopted = await latest.current.start(item, {
 							instructions: "",
@@ -92,6 +143,16 @@ export function useAwayTasksSync() {
 							},
 						);
 					}
+					// Taken in: the host forgets it.
+					const last = Math.max(
+						0,
+						...inbox.added.map((row) => row.at),
+						...inbox.done.map((row) => row.at),
+					);
+					if (last)
+						await electronTrpcClient.remoteHost.awayInbox.mutate({
+							before: last,
+						});
 				}
 				const { pinned, unpinned, duplicateFor, planOnHost } = latest.current;
 				const order = [...pinned, ...unpinned]
@@ -104,8 +165,20 @@ export function useAwayTasksSync() {
 						{ at: row.at, url: row.url },
 					]),
 				);
+				// My own Tasks, for the host's board.
+				const todos = mine.current.todos.map(
+					({ id, title, notes, createdAt, priority, skill }) => ({
+						id,
+						title,
+						notes,
+						createdAt,
+						priority,
+						skill,
+					}),
+				);
 				const signature = JSON.stringify([
 					order.map((row) => row.key),
+					todos.map((task) => [task.id, task.title, task.notes]),
 					Object.keys(done).length,
 					Math.max(0, ...Object.values(done).map((row) => row.at)),
 				]);
@@ -140,6 +213,7 @@ export function useAwayTasksSync() {
 					tasks,
 					template: template.prompt,
 					done,
+					todos,
 				});
 				sent = { signature, at: Date.now() };
 			} catch (error) {

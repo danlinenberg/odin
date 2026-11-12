@@ -7,6 +7,7 @@ import {
 	type AllItem,
 	allItems,
 } from "renderer/routes/_authenticated/_odin/all/all-items";
+import type { OdinTask } from "renderer/routes/_authenticated/_odin/hooks/odin-task";
 import { doneChecker } from "renderer/stores/done-check";
 import {
 	clickupTasks,
@@ -16,6 +17,7 @@ import {
 	pullRequests,
 } from "../../feeds";
 import { hostPorts } from "../../remote-host/host-service";
+import { addedTasks, asOdinTask, doneMarks } from "./inbox";
 import { hostPaths, readAway } from "./sessions";
 
 /**
@@ -102,6 +104,7 @@ export async function hostBoard(
 	feeds: HostFeeds,
 	done: HostDone,
 	call: typeof serviceCall = serviceCall,
+	tasks: OdinTask[] = [],
 ): Promise<AllItem[]> {
 	const quiet = <T>(what: string, run: () => Promise<T[]>) =>
 		run().catch((error) => {
@@ -138,7 +141,7 @@ export async function hostBoard(
 			]),
 		),
 	);
-	return allItems({ tasks: [], slack, jira, pulls, notion, clickup }).filter(
+	return allItems({ tasks, slack, jira, pulls, notion, clickup }).filter(
 		(item) => !isDone(item),
 	);
 }
@@ -170,7 +173,9 @@ export function saveBoard(rows: BoardRow[]): void {
 
 /** How long the host's board stands before the next fetch: the Mac's poll. */
 const FRESH_MS = 120_000;
-let latest: { at: number; rows: BoardRow[] } | null = null;
+let latest: { at: number; rows: BoardRow[]; inbox: number } | null = null;
+/** A typed task or a Done on the phone shows at once, not on the next fetch. */
+const inboxSize = () => addedTasks().length + doneMarks().length;
 let fetching: Promise<void> | null = null;
 
 /**
@@ -182,13 +187,18 @@ let fetching: Promise<void> | null = null;
 export async function hostRows(now = Date.now()): Promise<BoardRow[]> {
 	const away = readAway(now);
 	if (!away?.feeds) return [];
-	const { feeds, done = {} } = away;
-	if (!latest || now - latest.at > FRESH_MS)
-		fetching ??= hostBoard(feeds, done)
+	const { feeds, todos = [] } = away;
+	// What the phone typed or put away here counts as the laptop's own.
+	const done: HostDone = { ...away.done };
+	for (const mark of doneMarks())
+		if (mark.key) done[mark.key] = { at: mark.at, url: null };
+	const tasks = [...addedTasks().map(asOdinTask), ...todos];
+	if (!latest || now - latest.at > FRESH_MS || latest.inbox !== inboxSize())
+		fetching ??= hostBoard(feeds, done, serviceCall, tasks)
 			.then((items) => {
 				const rows = items.map(boardRow);
 				saveBoard(rows);
-				latest = { at: Date.now(), rows };
+				latest = { at: Date.now(), rows, inbox: inboxSize() };
 			})
 			.catch((error) => console.warn("[host board]", error))
 			.finally(() => {
