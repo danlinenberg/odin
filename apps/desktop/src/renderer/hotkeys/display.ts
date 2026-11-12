@@ -19,7 +19,7 @@ const KEY_DISPLAY: Record<string, string> = {
 	enter: "↵",
 	backspace: "⌫",
 	delete: "⌦",
-	escape: "⎋",
+	escape: "Esc",
 	tab: "⇥",
 	arrowup: "↑",
 	arrowdown: "↓",
