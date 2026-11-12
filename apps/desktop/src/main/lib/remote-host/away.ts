@@ -13,6 +13,7 @@
  * When this computer wakes, the board adopts what the phone started, from
  * the runner's ledger.
  */
+import type { HostDone, HostFeeds } from "../phone/host/feeds";
 import { NIGHT_RUNNER_PY, type NightTask } from "./night";
 import { connectHost, type HostLogin, runOnHost } from "./ssh";
 
@@ -21,6 +22,14 @@ export interface AwayTasks {
 	tasks: NightTask[];
 	/** Epoch seconds after which the host lists and starts none of them. */
 	until: number;
+	/**
+	 * The host's own board (phone/host/feeds): a session template any row it
+	 * fetched starts in (only the row's text goes in), what it fetches with,
+	 * and what is done here. Absent: the host lists `tasks` alone.
+	 */
+	template?: { script: string; prompt: string };
+	feeds?: HostFeeds;
+	done?: HostDone;
 }
 
 /** How long a sent list stays good with this computer away: the night plan's reach. */
@@ -63,7 +72,7 @@ export async function pushAwayTasks(
  * still needs them. The ledger stays, so nothing it started runs twice.
  */
 export const clearAwayScript =
-	"rm -f ~/.odin/night/away.json ~/.odin/night/runner.py; [ -f ~/.odin/night/plan.json ] || rm -f ~/.odin/night/env";
+	"rm -f ~/.odin/night/away.json ~/.odin/night/board.json ~/.odin/night/runner.py; [ -f ~/.odin/night/plan.json ] || rm -f ~/.odin/night/env";
 
 export async function clearAwayTasks(host: HostLogin): Promise<void> {
 	const client = await connectHost(host);
