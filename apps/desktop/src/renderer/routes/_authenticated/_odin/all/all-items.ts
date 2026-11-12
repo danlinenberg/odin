@@ -1,13 +1,13 @@
 import type { OdinSource } from "renderer/hooks/useLaunchTaskSession";
 import type { FeedPath } from "../components/feed-counts";
-import { isBot } from "../components/feed-counts";
+import { isBot } from "../components/is-bot";
 import { buildIssuePrompt, buildReviewPrompt } from "../feed-prompts";
 import {
 	type OdinTask,
 	PRIORITY_LABELS,
 	priorityOf,
 	taskPrompt,
-} from "../hooks/useOdinTasks";
+} from "../hooks/odin-task";
 import { buildRowPrompt, type NotionRow } from "../notion/rows";
 import { buildThreadPrompt } from "../thread-prompt";
 

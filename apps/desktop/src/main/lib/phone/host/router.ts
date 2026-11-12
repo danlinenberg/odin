@@ -9,6 +9,7 @@ import {
 	tailTurn,
 	transcriptTail,
 } from "../../claude-sessions/claude-sessions";
+import { hostRows } from "./feeds";
 import {
 	awayBacklog,
 	findSession,
@@ -96,7 +97,8 @@ async function sessionOrThrow(paneId: string) {
 export const hostPhoneRouter = t.router({
 	/**
 	 * The sessions running here, as board rows. The backlog is what the
-	 * laptop sent with Tasks with the Mac closed on, else none: it lives there.
+	 * laptop sent with Tasks with the Mac closed on, then what the host
+	 * fetched itself (feeds.ts); else none: it lives on the laptop.
 	 */
 	board: t.procedure.query(async () => {
 		const sessions = await Promise.all(
@@ -121,7 +123,7 @@ export const hostPhoneRouter = t.router({
 		);
 		return {
 			sessions,
-			backlog: awayBacklog(),
+			backlog: awayBacklog(Date.now(), await hostRows()),
 			done: [] as {
 				key: string;
 				title: string;

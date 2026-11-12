@@ -152,31 +152,62 @@ export function hostStatus(
 /** A task the laptop sent for the phone to start here (remote-host/away). */
 export type AwayTask = { id: string; title: string; started: boolean };
 
-/**
- * The tasks the laptop left here, not started yet (the runner's ledger says
- * which were), in its order. None once the list expired: the laptop has been
- * away longer than it covers.
- */
-export function awayBacklog(now = Date.now()): AwayTask[] {
-	const night = join(hostPaths.odin, "night");
-	let away: { tasks?: { key: string; title: string }[]; until?: number };
+/** What the laptop left here with Tasks with the Mac closed on (remote-host/away). */
+export interface AwayList {
+	tasks?: { key: string; title: string }[];
+	/** Epoch seconds: after it, the host lists and starts nothing. */
+	until?: number;
+	/** What the host fetches the board with (feeds.ts); absent from older laptops. */
+	feeds?: import("./feeds").HostFeeds;
+	/** Done on the laptop, so the host's board leaves it out. */
+	done?: import("./feeds").HostDone;
+}
+
+/** The laptop's list, or null when there is none or it expired. */
+export function readAway(now = Date.now()): AwayList | null {
 	try {
-		away = JSON.parse(readFileSync(join(night, "away.json"), "utf8"));
+		const away = JSON.parse(
+			readFileSync(join(hostPaths.odin, "night", "away.json"), "utf8"),
+		) as AwayList;
+		return away && now / 1000 < (away.until ?? 0) ? away : null;
 	} catch {
-		return [];
+		return null;
 	}
-	if (!away || now / 1000 >= (away.until ?? 0)) return [];
+}
+
+/** The task keys the runner started here (its ledger). */
+export function ranKeys(): Set<string> {
 	const ran = new Set<string>();
 	try {
-		for (const line of readFileSync(join(night, "ran.jsonl"), "utf8").split(
-			"\n",
-		)) {
+		for (const line of readFileSync(
+			join(hostPaths.odin, "night", "ran.jsonl"),
+			"utf8",
+		).split("\n")) {
 			try {
 				ran.add(JSON.parse(line).key);
 			} catch {}
 		}
 	} catch {}
-	return (away.tasks ?? [])
-		.filter((task) => !ran.has(task.key))
-		.map((task) => ({ id: task.key, title: task.title, started: false }));
+	return ran;
+}
+
+/**
+ * The tasks the laptop left here, then the host's own board rows (feeds.ts),
+ * not started yet (the runner's ledger says which were), in that order. None
+ * once the list expired: the laptop has been away longer than it covers.
+ */
+export function awayBacklog(
+	now = Date.now(),
+	board: { key: string; title: string }[] = [],
+): AwayTask[] {
+	const away = readAway(now);
+	if (!away) return [];
+	const skip = ranKeys();
+	const rows: AwayTask[] = [];
+	for (const task of [...(away.tasks ?? []), ...board]) {
+		if (skip.has(task.key)) continue;
+		skip.add(task.key);
+		rows.push({ id: task.key, title: task.title, started: false });
+	}
+	return rows;
 }

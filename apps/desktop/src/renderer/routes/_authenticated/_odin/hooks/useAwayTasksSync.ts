@@ -1,8 +1,10 @@
 import { useEffect, useRef } from "react";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
+import { useDoneStore } from "renderer/stores/done";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
 import { useTabsStore } from "renderer/stores/tabs/store";
-import { AWAY_TASKS } from "shared/away-tasks";
+import { AWAY_TASKS, NIGHT_TASK_PLACEHOLDER } from "shared/away-tasks";
+import type { AllItem } from "../all/all-items";
 import { useNextInLineQueue } from "../board/NextInLine";
 
 const TICK_MS = 60_000;
@@ -29,8 +31,10 @@ export function adoptable(
 /**
  * Tasks with the Mac closed (Settings > Remote > Phone): while it is on and
  * the remote host is in use, the top of Next in line goes to the host as
- * ready session scripts (main/lib/remote-host/away), so the phone can start
- * one there with this Mac asleep or shut. When the Mac is back, what the
+ * ready session scripts (main/lib/remote-host/away), with a session template
+ * and what is done here, so the host also fetches the board itself
+ * (main/lib/phone/host/feeds) and the phone can start any row there with this
+ * Mac asleep or shut. When the Mac is back, what the
  * phone started there comes onto the board, attached to its host session.
  */
 export function useAwayTasksSync() {
@@ -93,7 +97,18 @@ export function useAwayTasksSync() {
 				const order = [...pinned, ...unpinned]
 					.filter((row) => !duplicateFor(row))
 					.slice(0, AWAY_TASKS);
-				const signature = JSON.stringify(order.map((row) => row.key));
+				// Done here, so the host's own board leaves it out too.
+				const done = Object.fromEntries(
+					Object.entries(useDoneStore.getState().done).map(([key, row]) => [
+						key,
+						{ at: row.at, url: row.url },
+					]),
+				);
+				const signature = JSON.stringify([
+					order.map((row) => row.key),
+					Object.keys(done).length,
+					Math.max(0, ...Object.values(done).map((row) => row.at)),
+				]);
 				if (sent?.signature === signature && Date.now() - sent.at < RESEND_MS)
 					return;
 				const tasks = [];
@@ -107,7 +122,25 @@ export function useAwayTasksSync() {
 						prompt: plan.prompt,
 					});
 				}
-				await electronTrpcClient.remoteHost.awayPush.mutate({ tasks });
+				// The session any row the host fetches itself starts in: your
+				// rules and instructions, its text in place of the placeholder.
+				const template = await planOnHost(
+					{
+						launch: {
+							key: "host-board",
+							title: NIGHT_TASK_PLACEHOLDER,
+							description: null,
+							contact: null,
+							brief: "",
+						},
+					} as AllItem,
+					"",
+				);
+				await electronTrpcClient.remoteHost.awayPush.mutate({
+					tasks,
+					template: template.prompt,
+					done,
+				});
 				sent = { signature, at: Date.now() };
 			} catch (error) {
 				console.warn("[away-tasks]", error);
