@@ -63,6 +63,19 @@ const spec: RemoteSessionSpec = {
 };
 
 describe("remote session scripts", () => {
+	test("every Claude the host starts skips permission prompts, like a session on this computer", () => {
+		const run = runScript(
+			{ ...spec, claudeArgs: "--resume abc" },
+			"/dev/shm/odin.X",
+		);
+		const starts = run.match(/\bclaude --[^\s]+/g) ?? [];
+		// The first start, the idle watcher's three resumes and the plan-limit resume.
+		expect(starts.length).toBe(5);
+		for (const start of starts) {
+			expect(start).toBe("claude --dangerously-skip-permissions");
+		}
+	});
+
 	test("tokens become sourced KEY='value' lines, quotes escaped, empty ones dropped", () => {
 		expect(
 			secretsFile({
@@ -76,13 +89,13 @@ describe("remote session scripts", () => {
 		const run = runScript(spec, "/dev/shm/odin.X");
 		expect(run).not.toContain("sk-");
 		expect(run.indexOf("rm -rf '/dev/shm/odin.X'")).toBeLessThan(
-			run.indexOf("claude --settings"),
+			run.indexOf("claude --dangerously-skip-permissions --settings"),
 		);
 		expect(run).toContain(
 			`git clone 'https://github.com/danlinenberg/odin.git' "$HOME"/'repos'/'odin'`,
 		);
 		expect(run).toContain(
-			`\np=()\np=("$(printf %s '${Buffer.from("Fix it's bug").toString("base64")}' | base64 -d)")\nclaude --settings ${sh(hostSettings)} --session-id abc "\${p[@]}"\n`,
+			`\np=()\np=("$(printf %s '${Buffer.from("Fix it's bug").toString("base64")}' | base64 -d)")\nclaude --dangerously-skip-permissions --settings ${sh(hostSettings)} --session-id abc "\${p[@]}"\n`,
 		);
 	});
 
@@ -108,7 +121,9 @@ describe("remote session scripts", () => {
 	test("an idle Claude is stopped and resumed on a key, inside the same tmux session", () => {
 		const run = runScript(spec, "/d");
 		const watcher = run.indexOf("#{window_activity}");
-		const start = run.indexOf("claude --settings");
+		const start = run.indexOf(
+			"claude --dangerously-skip-permissions --settings",
+		);
 		expect(watcher).toBeGreaterThan(-1);
 		expect(watcher).toBeLessThan(start);
 		expect(run.indexOf("read -e -r", start)).toBeGreaterThan(start);
@@ -123,7 +138,9 @@ describe("remote session scripts", () => {
 		expect(lock).toBeLessThan(run.indexOf("git clone"));
 		const unlock = run.indexOf("\nexec 9>&-\n");
 		expect(unlock).toBeGreaterThan(run.indexOf("turn-end.py"));
-		expect(unlock).toBeLessThan(run.indexOf("claude --settings"));
+		expect(unlock).toBeLessThan(
+			run.indexOf("claude --dangerously-skip-permissions --settings"),
+		);
 	});
 
 	test("an existing tmux session is reattached; a new one runs the script", () => {
@@ -526,7 +543,9 @@ test("a Resume starts Claude in the folder its conversation is filed under", () 
 	expect(run.indexOf(line)).toBeGreaterThan(
 		run.indexOf("cd \"$HOME\"/'repos'/'odin'/.worktrees"),
 	);
-	expect(run.indexOf(line)).toBeLessThan(run.indexOf("claude --settings"));
+	expect(run.indexOf(line)).toBeLessThan(
+		run.indexOf("claude --dangerously-skip-permissions --settings"),
+	);
 	expect(runScript(spec, "/d")).not.toContain(sh(CONVERSATION_DIR));
 	const home = mkdtempSync(join(tmpdir(), "odin-dir-"));
 	try {
@@ -659,9 +678,11 @@ test("the host falls back to the API key only while the plan is limited", () => 
 		'then export ANTHROPIC_API_KEY="$ODIN_FALLBACK_API_KEY"; else unset ANTHROPIC_API_KEY; fi',
 	);
 	expect(run.indexOf("unset ODIN_FALLBACK_API_KEY")).toBeLessThan(
-		run.indexOf("claude --settings"),
+		run.indexOf("claude --dangerously-skip-permissions --settings"),
 	);
-	expect(run).toContain('ANTHROPIC_API_KEY="$fallback" exec claude --settings');
+	expect(run).toContain(
+		'ANTHROPIC_API_KEY="$fallback" exec claude --dangerously-skip-permissions --settings',
+	);
 	// The limit note lands whole: the laptop's plan-limit hook, synced to the
 	// host, writes the same file at the same moment.
 	const hook = run.match(
