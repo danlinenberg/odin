@@ -136,6 +136,9 @@ describe("remote session scripts", () => {
 		expect(attach).toContain(
 			"if tmux has-session -t 'odin-pane-1-x' 2>/dev/null; then",
 		);
+		// The live viewer is the only client: an older, wider one left attached
+		// would size the window past the terminal and garble it.
+		expect(attach).toContain("exec tmux attach -d -t 'odin-pane-1-x'; fi");
 		expect(attach).toEndWith(
 			`exec tmux new-session -s 'odin-pane-1-x' "bash '/dev/shm/odin.X'/run.sh"`,
 		);
@@ -738,7 +741,7 @@ test("a reconnect keeps a reply the first try never delivered, and the host skip
 		`${taken} || { printf %s '${b64}' | base64 -d | tmux load-buffer`,
 	);
 	expect(attach).toContain(
-		") >/dev/null 2>&1 & exec tmux attach -t 'odin-abc'",
+		") >/dev/null 2>&1 & exec tmux attach -d -t 'odin-abc'",
 	);
 	expect(
 		attachScript(

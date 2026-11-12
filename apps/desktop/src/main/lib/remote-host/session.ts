@@ -754,7 +754,13 @@ export function attachScript(
 		// at the spawn default (80x24), so that stale client, not the live
 		// viewer, pins Claude's TUI to 80 columns the moment it becomes the
 		// latest. `largest` sizes the window to the biggest attached client, so
-		// the real wide viewer wins over a leftover 80x24 one.
+		// the real wide viewer wins over a leftover 80x24 one. The attach below
+		// also detaches every other client (-d): a leftover client wider than
+		// the live viewer (the drawer before the brief took 340px off it, a
+		// connection that dropped without sshd noticing) made tmux draw the
+		// window at that width into the narrower terminal, and lines piled
+		// over each other there. Each pane has its own tmux session, so the
+		// only other client is an older connection of the same pane.
 		"tmux set-option -g window-size largest 2>/dev/null",
 		// Claude Code owns the mouse, so a drag is its selection, and its copy is
 		// an OSC 52 that tmux drops by default. These pass it on to Odin, which
@@ -763,7 +769,7 @@ export function attachScript(
 		"tmux set-option -g set-clipboard on 2>/dev/null",
 		"tmux set-option -g allow-passthrough on 2>/dev/null",
 		spec.fresh ? `tmux kill-session -t ${session} 2>/dev/null` : "",
-		`if tmux has-session -t ${session} 2>/dev/null; then rm -rf ${sh(secretsDir)}; ${reply}exec tmux attach -t ${session}; fi`,
+		`if tmux has-session -t ${session} 2>/dev/null; then rm -rf ${sh(secretsDir)}; ${reply}exec tmux attach -d -t ${session}; fi`,
 		`cat > ${sh(secretsDir)}/run.sh <<'ODIN_RUN'`,
 		run,
 		"ODIN_RUN",
