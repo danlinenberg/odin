@@ -26,6 +26,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
+import {
+	connectChannel,
+	connectSocket,
+	generateKeyPair,
+	websocketPipe,
+} from "@odin/channel";
 import electronBinary from "electron";
 
 const APP_DIR = join(import.meta.dir, "..");
@@ -87,6 +93,13 @@ writeFileSync(
 			},
 		},
 	}),
+);
+
+// Phone access off, and a relay on a dead local port: the phone step must
+// not dial Odin's real relay from CI.
+writeFileSync(
+	join(home, ".odin", "phone.json"),
+	JSON.stringify({ enabled: false, relay: "ws://127.0.0.1:9" }),
 );
 
 // A checkout for sessions to start in, and a stand-in for Claude Code: it
@@ -1445,6 +1458,72 @@ await macStep(
 			);
 		} finally {
 			rmSync(join(home, "no-git"), { force: true });
+		}
+	},
+);
+
+await step(
+	"the phone starts a task and opens its session at once",
+	async () => {
+		// Settings > Remote > Phone access, then pair as the iPhone app does:
+		// the QR code's link, over the encrypted channel on the Wi-Fi socket.
+		await rail("Settings");
+		await click("a", "Remote");
+		await page(`document.querySelector("#phone-access")?.click()`);
+		let link = "";
+		for (let i = 0; i < 30 && !link; i++) {
+			await sleep(500);
+			link = await page<string>(
+				`document.querySelector("img[data-pair-link]")?.dataset.pairLink ?? ""`,
+			);
+		}
+		if (!link) throw new Error("Phone access showed no pair link");
+		// The window answers the phone only from the board, not from Settings.
+		await click("a", "Back");
+		await rail("Dev Board");
+		await waitForText("next in line");
+		const params = new URL(link).searchParams;
+		// The runner may not resolve its own .local name: the same port here.
+		const lan = new URL(params.get("l") ?? "");
+		lan.hostname = "127.0.0.1";
+		const socket = await connectSocket(lan.toString());
+		const channel = await connectChannel(websocketPipe(socket), {
+			me: generateKeyPair(),
+			host: Buffer.from(params.get("k") ?? "", "base64url"),
+			hello: { v: 1, code: params.get("c") ?? "", name: "Smoke phone" },
+		});
+		// The phone's router speaks superjson: the input and answer sit under json.
+		const call = async <T>(path: string, input: object, post = false) => {
+			const wire = JSON.stringify({ json: input });
+			const body = new TextEncoder().encode(wire);
+			const answer = await channel.request({
+				method: post ? "POST" : "GET",
+				path: post
+					? `/trpc/${path}`
+					: `/trpc/${path}?input=${encodeURIComponent(wire)}`,
+				headers: { "content-type": "application/json" },
+				body: post ? body : new Uint8Array(0),
+			});
+			const text = new TextDecoder().decode(answer.body);
+			if (answer.status !== 200)
+				throw new Error(`${path}: ${answer.status} ${text}`);
+			return (JSON.parse(text) as { result: { data: { json: T } } }).result.data
+				.json;
+		};
+		try {
+			const title = `Phone task ${Date.now()}`;
+			// The phone's New task > Start now: it opens the paneId it gets back.
+			const { paneId } = await call<{ paneId?: string }>(
+				"add",
+				{ text: title, start: true, onHost: false },
+				true,
+			);
+			if (!paneId) throw new Error("add with start answered no paneId");
+			const session = await call<{ title: string }>("session", { paneId });
+			if (session.title !== title)
+				throw new Error(`session is titled "${session.title}"`);
+		} finally {
+			channel.close();
 		}
 	},
 );

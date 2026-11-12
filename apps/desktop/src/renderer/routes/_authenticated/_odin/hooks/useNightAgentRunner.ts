@@ -293,6 +293,7 @@ export function useNightAgentRunner() {
 			const exclude = nightExclude(
 				Object.keys(useDoneStore.getState().done),
 				useNextInLinePrompt.getState().nightLog,
+				latest.current.taken,
 			);
 			// A night of picks only stays that way on the host too.
 			const picksOnly =

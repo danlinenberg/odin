@@ -288,6 +288,12 @@ export function useNextInLineQueue(showHidden = false) {
 		[panes, ledger],
 	);
 	const duplicateFor = (item: AllItem) => duplicateOf(item, known);
+	// Rows not waiting (a session on them, now or ever, or Done) and waiting
+	// rows that repeat one: the host's Night Agent must skip these too.
+	const waitingKeys = new Set(waiting.map((item) => item.key));
+	const taken = rows
+		.filter((item) => !waitingKeys.has(item.key) || duplicateFor(item))
+		.map((item) => item.key);
 	// Rows your instructions say not to show, per the model. They count as
 	// hidden and come back, dimmed, under the same "show hidden" as yours.
 	const aiHidden = new Set(applied ? ranking?.hidden : []);
@@ -326,6 +332,7 @@ export function useNextInLineQueue(showHidden = false) {
 		rankInput,
 		waiting,
 		loaded,
+		taken,
 		isAiHidden,
 		aiHiddenCount,
 		duplicateFor,

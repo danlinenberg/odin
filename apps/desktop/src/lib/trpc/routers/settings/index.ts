@@ -41,6 +41,7 @@ import { app } from "electron";
 import { exitImmediately } from "main/index";
 import { setupSingleAgent } from "main/lib/agent-setup";
 import { localDb } from "main/lib/local-db";
+import { confirmAndRestartCompletely } from "main/lib/restart-odin";
 import {
 	DEFAULT_AUTO_APPLY_DEFAULT_PRESET,
 	DEFAULT_CONFIRM_ON_QUIT,
@@ -703,6 +704,12 @@ export const createSettingsRouter = () => {
 		restartApp: publicProcedure.mutation(() => {
 			app.relaunch();
 			exitImmediately();
+			return { success: true };
+		}),
+
+		/** Asks first, then restarts Odin with a fresh terminal daemon. */
+		restartCompletely: publicProcedure.mutation(async () => {
+			await confirmAndRestartCompletely();
 			return { success: true };
 		}),
 

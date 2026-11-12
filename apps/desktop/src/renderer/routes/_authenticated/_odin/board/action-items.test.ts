@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
+	autoRunCommands,
 	bangCommandNotes,
 	bangCommands,
+	dangerPlan,
 	describeCommand,
 	downloadPath,
 	isMoveHereItem,
@@ -292,4 +294,49 @@ describe("withoutButtonBlocks", () => {
 			withoutButtonBlocks("1. Run:\n   ```\n   ! ls\n   ```", hasButton).trim(),
 		).toBe("");
 	});
+});
+
+test("Danger Mode runs every block but a !view, in order", () => {
+	const text = [
+		"ACTION ITEMS",
+		"1. Restart it.",
+		"   ```",
+		"   !local cd ~/dev/app && ./restart.sh",
+		"   ```",
+		"   ```",
+		"   ! tail -n 50 /tmp/app.log",
+		"   ```",
+		"   ```",
+		"   !view 5901 secret",
+		"   ```",
+		"   ```",
+		"   !download /tmp/out.csv",
+		"   ```",
+	].join("\n");
+	expect(autoRunCommands(text)).toEqual([
+		"local cd ~/dev/app && ./restart.sh",
+		"tail -n 50 /tmp/app.log",
+		"download /tmp/out.csv",
+	]);
+});
+
+test("Danger Mode's warning says what each command does, in order", () => {
+	const text = [
+		"ACTION ITEMS",
+		"1. Restart it.",
+		"   Restart the app on this computer:",
+		"   ```",
+		"   !local cd ~/dev/app && ./restart.sh",
+		"   ```",
+		"   ```",
+		"   ! rm -rf /tmp/cache",
+		"   ```",
+		"   ```",
+		"   !view 5901 secret",
+		"   ```",
+	].join("\n");
+	expect(dangerPlan(text)).toEqual([
+		"Restart the app on this computer",
+		"Delete cache",
+	]);
 });
