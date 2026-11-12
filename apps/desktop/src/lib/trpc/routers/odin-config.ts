@@ -106,6 +106,12 @@ export interface OdinFileConfig {
 		mcpHostSignIns?: string[];
 		/** AWS profile names defined on the host, signed in with its instance role (main/lib/remote-host/aws-on-host). */
 		awsProfiles?: string[];
+		/**
+		 * Settings > Remote > Phone, "Tasks with the Mac closed": the top of
+		 * Next in line is kept on the host, for the phone to start there with
+		 * this computer away (main/lib/remote-host/away). Unset: off.
+		 */
+		awayTasks?: boolean;
 	};
 	/**
 	 * The secret a remote host's service sends with every request through the

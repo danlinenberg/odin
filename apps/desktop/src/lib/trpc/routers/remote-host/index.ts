@@ -39,6 +39,11 @@ import {
 	planLimitedUntil,
 } from "main/lib/remote-host/api-key-fallback";
 import {
+	AWAY_DAYS,
+	clearAwayTasks,
+	pushAwayTasks,
+} from "main/lib/remote-host/away";
+import {
 	bringUpHost,
 	hostUp,
 	launchHost,
@@ -283,6 +288,40 @@ async function buildSessionSpec(
 		// the host service at each use, so it never goes stale.
 		githubLogin: hostGithubLogin(readOdinConfig(), githubOwner(origin ?? "")),
 	};
+}
+
+/** A task as the renderer plans it for the host (use-start-item's planOnHost). */
+const plannedTask = z.object({
+	key: z.string(),
+	title: z.string(),
+	sessionId: z.string().min(1),
+	repoPath: z.string().nullable(),
+	prompt: z.string(),
+});
+
+/** Each task as a ready session script for the host, and the files their prompts name. */
+async function readyTasks(
+	host: RemoteHost,
+	planned: z.infer<typeof plannedTask>[],
+) {
+	const files: { local: string; remote: string }[] = [];
+	const tasks = [];
+	for (const task of planned) {
+		const spec = await buildSessionSpec(host, {
+			pane: task.sessionId,
+			repoPath: task.repoPath,
+			claudeArgs: `--session-id ${task.sessionId}`,
+			prompt: task.prompt,
+		});
+		files.push(...(spec.files ?? []));
+		tasks.push({
+			key: task.key,
+			title: task.title,
+			sessionId: task.sessionId,
+			script: runScript(spec, SECRETS_DIR_PLACEHOLDER),
+		});
+	}
+	return { tasks, files };
 }
 
 /** What a session on the host starts with, as KEY='value' lines. */
@@ -1627,15 +1666,7 @@ export const createRemoteHostRouter = () =>
 					from: z.number(),
 					to: z.number(),
 					cap: z.number().int().min(0),
-					tasks: z.array(
-						z.object({
-							key: z.string(),
-							title: z.string(),
-							sessionId: z.string().min(1),
-							repoPath: z.string().nullable(),
-							prompt: z.string(),
-						}),
-					),
+					tasks: z.array(plannedTask),
 					nights: z
 						.array(z.object({ from: z.number(), to: z.number() }))
 						.optional(),
@@ -1666,23 +1697,7 @@ export const createRemoteHostRouter = () =>
 							),
 					);
 				}
-				const files: { local: string; remote: string }[] = [];
-				const tasks = [];
-				for (const task of input.tasks) {
-					const spec = await buildSessionSpec(host, {
-						pane: task.sessionId,
-						repoPath: task.repoPath,
-						claudeArgs: `--session-id ${task.sessionId}`,
-						prompt: task.prompt,
-					});
-					files.push(...(spec.files ?? []));
-					tasks.push({
-						key: task.key,
-						title: task.title,
-						sessionId: task.sessionId,
-						script: runScript(spec, SECRETS_DIR_PLACEHOLDER),
-					});
-				}
+				const { tasks, files } = await readyTasks(host, input.tasks);
 				let fallback: NightFallback | undefined;
 				if (input.fallback) {
 					// A session like the tasks', no repo, its id and message left blank for the host.
@@ -1722,6 +1737,40 @@ export const createRemoteHostRouter = () =>
 					files,
 				);
 				return { sent: tasks.length };
+			}),
+		/**
+		 * Tasks with the Mac closed: the top of Next in line, sent to the host
+		 * as ready session scripts, for the phone to start there while this
+		 * computer is away (main/lib/remote-host/away). Only while the switch is on.
+		 */
+		awayPush: publicProcedure
+			.input(z.object({ tasks: z.array(plannedTask).max(30) }))
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host?.on || !host.awayTasks)
+					throw new Error("Tasks with the Mac closed is off.");
+				const { tasks, files } = await readyTasks(host, input.tasks);
+				await pushAwayTasks(
+					host,
+					{
+						tasks,
+						until: Math.floor(Date.now() / 1000) + AWAY_DAYS * 86_400,
+					},
+					await sessionSecrets(),
+					files,
+				);
+				return { sent: tasks.length };
+			}),
+		/** The switch; off deletes the list and its secrets from the host. */
+		setAwayTasks: publicProcedure
+			.input(z.boolean())
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host) throw new Error("No remote host is set up.");
+				updateOdinConfig({
+					remoteHost: { ...host, awayTasks: input || undefined },
+				});
+				if (!input) await withAwsSignIn(host, () => clearAwayTasks(host));
 			}),
 		/**
 		 * What the host's runner started tonight, for the board to adopt; which
