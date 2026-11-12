@@ -5377,7 +5377,7 @@ function Composer({
 					{working ? (
 						<button
 							type="button"
-							title="Stop Claude"
+							title="Stop Claude (Esc)"
 							onClick={() =>
 								onStop
 									? onStop()

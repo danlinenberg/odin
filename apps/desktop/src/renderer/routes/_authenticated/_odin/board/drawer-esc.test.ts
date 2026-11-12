@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+	drawerEscAction,
 	escStaysWithTarget,
 	replyBoxOwnsEsc,
 	targetOwnsEsc,
@@ -39,6 +40,10 @@ describe("escStaysWithTarget", () => {
 	test("a box opened over the pane keeps the Esc", () => {
 		expect(escStaysWithTarget(el({}, el({ role: "dialog" })))).toBe(true);
 	});
+	test("an open menu or list keeps the Esc", () => {
+		expect(escStaysWithTarget(el({}, el({ role: "menu" })))).toBe(true);
+		expect(escStaysWithTarget(el({ role: "listbox" }))).toBe(true);
+	});
 	test("the reply box with nothing open hands the Esc to the drawer", () => {
 		expect(escStaysWithTarget(el({}, el({ "data-chat": "" })))).toBe(false);
 	});
@@ -76,6 +81,35 @@ describe("replyBoxOwnsEsc", () => {
 		);
 		expect(replyBoxOwnsEsc({ menuOpen: false, bash: true, draft: "ls" })).toBe(
 			false,
+		);
+	});
+});
+
+describe("drawerEscAction", () => {
+	const idle = {
+		selecting: false,
+		renaming: false,
+		working: false,
+		interrupting: false,
+	};
+	test("mid-turn, Esc stops the turn and the screen stays open", () => {
+		expect(drawerEscAction({ ...idle, working: true })).toBe("interrupt");
+	});
+	test("with nothing running, Esc goes back to the board", () => {
+		expect(drawerEscAction(idle)).toBe("close");
+	});
+	test("a second Esc while the stop is on its way does nothing", () => {
+		expect(
+			drawerEscAction({ ...idle, working: true, interrupting: true }),
+		).toBe("wait");
+		expect(drawerEscAction({ ...idle, interrupting: true })).toBe("wait");
+	});
+	test("select mode and a rename still take Esc first, even mid-turn", () => {
+		expect(drawerEscAction({ ...idle, working: true, selecting: true })).toBe(
+			"leave-select",
+		);
+		expect(drawerEscAction({ ...idle, working: true, renaming: true })).toBe(
+			"cancel-rename",
 		);
 	});
 });
