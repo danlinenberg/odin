@@ -109,4 +109,25 @@ describe("duplicateOf", () => {
 		// A finished session no longer counts.
 		expect(liveRows([{ ...channel, completed: true }], 1)).toEqual([]);
 	});
+
+	it("a session on my own task makes the ticket it names a duplicate", () => {
+		const [live] = liveRows(
+			[
+				{
+					type: "terminal",
+					id: "pane-7",
+					name: "pane",
+					odinTaskTitle: "ACME-12: Delete button for notes",
+					odinBrief: "Drive https://acme.atlassian.net/browse/ACME-12 to done.",
+				} as Pane,
+			],
+			1,
+		);
+		const jira = item(
+			"Jira",
+			"jira:ACME-12",
+			"ACME-12: CS request: Delete button for notes",
+		);
+		expect(duplicateOf(jira, [live])).toBe(live);
+	});
 });

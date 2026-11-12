@@ -5,8 +5,10 @@ import type { AllItem } from "../all/all-items";
 
 export type LedgerRow = Pick<
 	SelectWorkLog,
-	"source" | "externalId" | "title" | "startedAt"
+	"externalId" | "title" | "startedAt"
 > & {
+	/** The ledger's feed, or "tasks" for a live session on one of my own tasks. */
+	source: SelectWorkLog["source"] | "tasks";
 	/** The whole ask, for its refs: a live session's brief. The ledger keeps none. */
 	text?: string;
 };
@@ -73,17 +75,22 @@ export function duplicateOf(
 }
 
 /**
- * The feed sessions still running, as ledger rows that carry their brief. A
+ * The task sessions still running, as ledger rows that carry their brief. A
  * session's ledger row has only its title, so two Sentry alerts for one issue
  * - titled by whatever each message said - only match on the brief's link.
+ * Sessions on my own tasks count too: they never reach the ledger, so a task
+ * "ACME-12: ..." with its session open left the Jira row ACME-12 looking new.
  */
 export function liveRows(panes: Pane[], now: number): LedgerRow[] {
 	return panes.flatMap((pane) =>
-		!pane.completed && pane.odinSource && pane.odinPageId
+		!pane.completed && (pane.odinPageId || pane.odinTaskTitle)
 			? [
 					{
-						source: pane.odinSource === "slack" ? "reactions" : pane.odinSource,
-						externalId: pane.odinPageId,
+						source:
+							pane.odinSource === "slack"
+								? "reactions"
+								: (pane.odinSource ?? "tasks"),
+						externalId: pane.odinPageId ?? pane.id,
 						title: pane.odinTaskTitle ?? pane.name,
 						startedAt: now,
 						text: pane.odinBrief,
