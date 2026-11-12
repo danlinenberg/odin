@@ -1479,11 +1479,12 @@ async function phone<T>(path: string, input?: unknown, mutation = false) {
 		.json;
 }
 
-await step("Phone: the board loads its sessions", async () => {
+await step("Phone: the board loads the desktop's sessions", async () => {
+	// The New Session card is Done by now; the Drawer list ones are still up.
 	const board = await phone<{ sessions: { title: string }[] }>("board");
-	if (!board.sessions.some((s) => s.title.includes(SESSION)))
+	if (!board.sessions.some((s) => s.title.startsWith("Drawer list")))
 		throw new Error(
-			`the New Session card isn't on it: ${board.sessions.map((s) => s.title).join(" | ")}`,
+			`the board's cards aren't on it: ${board.sessions.map((s) => s.title).join(" | ")}`,
 		);
 });
 

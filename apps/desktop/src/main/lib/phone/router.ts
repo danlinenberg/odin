@@ -107,6 +107,27 @@ function startedPane(text: string): { paneId?: string } {
 	}
 }
 
+/**
+ * The window answers a new card's paneId the moment the card is up, but this
+ * side reads panes from appState, which the window saves a beat later. The
+ * phone opens the session at once, so answer only once the pane landed here:
+ * before, a new session opened on NOT_FOUND. Gives up after 10s and answers
+ * anyway; the session screen keeps polling.
+ */
+async function landedPane(text: string): Promise<{ paneId?: string }> {
+	const started = startedPane(text);
+	if (started.paneId) await paneLanded(started.paneId);
+	return started;
+}
+
+async function paneLanded(paneId: string): Promise<void> {
+	for (
+		const end = Date.now() + 10_000;
+		!appState.data.tabsState.panes?.[paneId] && Date.now() < end;
+	)
+		await new Promise((resolve) => setTimeout(resolve, 50));
+}
+
 /** The window's Done shelf; [] from a window that doesn't know the action. */
 async function doneShelf(): Promise<
 	{
@@ -656,6 +677,7 @@ export const phoneRouter = t.router({
 					code: "INTERNAL_SERVER_ERROR",
 					message: answer.error ?? "Odin couldn't resume it.",
 				});
+			await paneLanded(answer.paneId);
 			return { paneId: answer.paneId };
 		}),
 
@@ -797,7 +819,7 @@ export const phoneRouter = t.router({
 				...(input.start && { start: "true", open: "true" }),
 				...(input.onHost !== undefined && { host: String(input.onHost) }),
 			});
-			return input.start ? startedPane(text) : {};
+			return input.start ? landedPane(text) : {};
 		}),
 
 	/** Odin's profiles, and the one it's in. */
@@ -821,7 +843,7 @@ export const phoneRouter = t.router({
 	start: t.procedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) =>
-			startedPane(await board("start", { ids: input.id, open: "true" })),
+			landedPane(await board("start", { ids: input.id, open: "true" })),
 		),
 
 	done: t.procedure
