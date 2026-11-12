@@ -74,7 +74,12 @@ import {
 	moveQueuedToMac,
 	startQueuedPane,
 } from "renderer/hooks/useTaskQueue";
-import { useHotkey } from "renderer/hotkeys";
+import {
+	isHotkey,
+	useBinding,
+	useHotkey,
+	useHotkeyDisplay,
+} from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { canClaimKeyboard } from "renderer/lib/keyboard";
@@ -3214,7 +3219,22 @@ function DevBoardPage() {
 	useEffect(() => {
 		if (!drawerCard) return;
 		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key !== "Escape") return;
+			// "Stop the turn" (Settings -> Keyboard) is Esc by default. Bound to
+			// another key, that key stops a running turn and Esc only closes.
+			const stopKey = isHotkey("STOP_TURN", event);
+			if (event.key !== "Escape") {
+				const paneId = drawerCard.pane.id;
+				if (
+					!stopKey ||
+					!drawerEscRef.current.working(paneId) ||
+					drawerEscRef.current.interrupting.has(paneId)
+				)
+					return;
+				event.preventDefault();
+				event.stopImmediatePropagation();
+				drawerEscRef.current.interrupt(paneId);
+				return;
+			}
 			// A link open over the drawer takes this Esc and closes alone.
 			if (useInAppBrowser.getState().url) return;
 			// Huginn open over the drawer closes first, on its own listener.
@@ -3240,8 +3260,8 @@ function DevBoardPage() {
 			const action = drawerEscAction({
 				selecting: !!pickedCountRef.current || selectingRef.current,
 				renaming: renameDraft !== null,
-				working: drawerEscRef.current.working(paneId),
-				interrupting: drawerEscRef.current.interrupting.has(paneId),
+				working: stopKey && drawerEscRef.current.working(paneId),
+				interrupting: stopKey && drawerEscRef.current.interrupting.has(paneId),
 			});
 			if (action === "leave-select") {
 				setPickedIds(new Set());
@@ -6660,6 +6680,9 @@ function DevBoardPage() {
 		catchUpNext(true);
 	};
 	// One key per card: Enter takes the suggestion, → skips, E is Done.
+	// "" when the stop is unassigned in Settings -> Keyboard.
+	const stopDisplay = useHotkeyDisplay("STOP_TURN").text;
+	const stopKeys = useBinding("STOP_TURN") ? stopDisplay : "";
 	const catchUpKeys = {
 		enabled: !!catchUpCall,
 		enableOnFormTags: false,
@@ -8300,7 +8323,7 @@ function DevBoardPage() {
 										disabled={!isWorkingNow(drawerCard.pane.id)}
 										title={
 											isWorkingNow(drawerCard.pane.id)
-												? "Stop the agent (Esc, or this button, sends Ctrl+C to the session)"
+												? `Stop the agent (${stopKeys ? `${stopKeys}, or ` : ""}this button, sends Ctrl+C to the session)`
 												: "Nothing to interrupt - the agent isn't working"
 										}
 										onClick={() => void interruptPane(drawerCard.pane.id)}
