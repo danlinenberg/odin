@@ -46,7 +46,7 @@ import {
 import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
-import { draftFor, useChatDrafts } from "renderer/stores/chat-drafts";
+import { usePersistedDraft } from "renderer/stores/chat-drafts";
 import { CLAUDE_MODELS } from "renderer/stores/claude-command";
 import { useCompacting } from "renderer/stores/compacting";
 import { useDangerMode } from "renderer/stores/danger-mode";
@@ -4883,22 +4883,9 @@ function Composer({
 	/** The model of the session's latest reply; none before its first. */
 	model?: string;
 }) {
-	const [draft, setDraft] = useState(() => draftFor(paneId));
-	// Saved once typing pauses, and on the way out: a save rewrites every
-	// draft to localStorage, too much to do on each keystroke.
-	const savedDraft = useRef(draft);
-	savedDraft.current = draft;
-	useEffect(() => {
-		const timer = setTimeout(
-			() => useChatDrafts.getState().save(paneId, draft),
-			400,
-		);
-		return () => clearTimeout(timer);
-	}, [paneId, draft]);
-	useEffect(
-		() => () => useChatDrafts.getState().save(paneId, savedDraft.current),
-		[paneId],
-	);
+	// Kept per pane until it is sent, through a remount, a window reload and
+	// a restart.
+	const [draft, setDraft, markSent] = usePersistedDraft(paneId);
 	// "!" on an empty box switches to bash mode, like the terminal's prompt.
 	const [bash, setBash] = useState(false);
 	// A pasted screenshot shows at once; its path comes when its save lands.
@@ -5047,8 +5034,7 @@ function Composer({
 			setDraft("");
 			// Now, not via the effect: sending can remount this box (a resume, a
 			// menu), and the new one would read the sent text back as a draft.
-			savedDraft.current = "";
-			useChatDrafts.getState().save(paneId, "");
+			markSent();
 			setBash(false);
 			if (!bash) setAttached([]);
 		}

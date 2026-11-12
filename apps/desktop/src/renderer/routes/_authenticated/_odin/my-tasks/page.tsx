@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { usePersistedDraft } from "renderer/stores/chat-drafts";
 import {
 	TABLE_LIST,
 	TaskRow,
@@ -34,7 +35,7 @@ function MyTasksPage() {
 	const items = useFeedItems({ tasks });
 	const rows = useTaskRows();
 	const now = Date.now();
-	const [draft, setDraft] = useState("");
+	const [draft, setDraft, markSent] = usePersistedDraft("my-tasks-box");
 	const [draftRepo, setDraftRepo] = useState("");
 	const { data: skills } = electronTrpc.skills.list.useQuery();
 	const { data: docs } = electronTrpc.system.listDocs.useQuery();
@@ -62,6 +63,7 @@ function MyTasksPage() {
 					onChange={setDraft}
 					onSubmit={() => {
 						add(draft, undefined, draftRepo);
+						markSent();
 						setDraft("");
 						setDraftRepo("");
 					}}

@@ -8389,6 +8389,7 @@ function DevBoardPage() {
 				<OdinPromptDialog
 					heading="New Session"
 					placeholder="What should the agent do? (it picks the repo)"
+					draftKey="new-session"
 					repoPicker
 					defaultRepo={composerRepo}
 					modelPicker
