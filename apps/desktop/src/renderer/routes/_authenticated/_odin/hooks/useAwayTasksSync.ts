@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
+import { useDoneStore } from "renderer/stores/done";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
 import { useTabsStore } from "renderer/stores/tabs/store";
-import { useDoneStore } from "renderer/stores/done";
 import { AWAY_TASKS, NIGHT_TASK_PLACEHOLDER } from "shared/away-tasks";
 import type { AllItem } from "../all/all-items";
 import { useNextInLineQueue } from "../board/NextInLine";
