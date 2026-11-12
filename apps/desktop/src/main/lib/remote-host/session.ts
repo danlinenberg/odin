@@ -512,6 +512,14 @@ export const hostSettings = JSON.stringify({
 });
 
 /**
+ * How every session on the host starts Claude: with Odin's hooks and, like a
+ * session on this computer (claudeLaunch), --dangerously-skip-permissions.
+ * Without it the host's Claude ran in the user's default mode and stopped on
+ * "Do you want to make this edit?" in a session nobody watches.
+ */
+export const hostClaude = `claude --dangerously-skip-permissions --settings ${sh(hostSettings)}`;
+
+/**
  * The host's own Claude sign-in. A new one from the laptop (ODIN_CLAUDE_LOGIN_ID
  * not seen before) signs Claude in with its refresh token once; after that the
  * host refreshes its own. A host signed in that way drops the inference-only
@@ -686,12 +694,12 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 			idleWatcher(spec.pane),
 		`command -v flock >/dev/null && ${pruneLoop(root)}`,
 		...promptLines,
-		`claude --settings ${sh(hostSettings)} ${spec.claudeArgs} "\${p[@]}"`,
+		`${hostClaude} ${spec.claudeArgs} "\${p[@]}"`,
 		// Stopped for being idle: the next prompt, typed here or a board reply
 		// (left in idlePrompt), resumes the conversation with it. Enter alone
 		// resumes it as it was.
-		`while [ -e ${idleMarker(spec.pane)} ]; do clear; printf '\\nOdin stopped Claude here after 2 hours with no output, to free memory on this host.\\nType a message to pick the conversation up with it, or press Enter.\\n\\n'; IFS= read -e -r -p '> ' m; rm -f ${idleMarker(spec.pane)};${spec.repoName ? ` [ -d "$PWD" ] || { ${addWorktree}; cd ${worktree} 2>/dev/null || cd ${repo}; };` : ""} if [ -s ${idlePrompt(spec.pane)} ]; then m=$(cat ${idlePrompt(spec.pane)}); fi; rm -f ${idlePrompt(spec.pane)}; if [ -n "$m" ]; then claude --settings ${sh(hostSettings)} --resume ${sh(spec.pane)} "$m"; elif python3 -c ${sh(CUT_OFF_TURN)} ${sh(spec.pane)} 2>/dev/null; then claude --settings ${sh(hostSettings)} --resume ${sh(spec.pane)} Continue; else claude --settings ${sh(hostSettings)} --resume ${sh(spec.pane)}; fi; done`,
-		`if [ -s "$HOME/.odin/resume-$$" ]; then s=$(cat "$HOME/.odin/resume-$$"); rm -f "$HOME/.odin/resume-$$"; ODIN_FALLBACK_API_KEY="$fallback" python3 -c ${sh(USE_API_KEY_IF_LIMITED)}; ANTHROPIC_API_KEY="$fallback" exec claude --settings ${sh(hostSettings)} --resume "$s" "Continue where you left off."; fi`,
+		`while [ -e ${idleMarker(spec.pane)} ]; do clear; printf '\\nOdin stopped Claude here after 2 hours with no output, to free memory on this host.\\nType a message to pick the conversation up with it, or press Enter.\\n\\n'; IFS= read -e -r -p '> ' m; rm -f ${idleMarker(spec.pane)};${spec.repoName ? ` [ -d "$PWD" ] || { ${addWorktree}; cd ${worktree} 2>/dev/null || cd ${repo}; };` : ""} if [ -s ${idlePrompt(spec.pane)} ]; then m=$(cat ${idlePrompt(spec.pane)}); fi; rm -f ${idlePrompt(spec.pane)}; if [ -n "$m" ]; then ${hostClaude} --resume ${sh(spec.pane)} "$m"; elif python3 -c ${sh(CUT_OFF_TURN)} ${sh(spec.pane)} 2>/dev/null; then ${hostClaude} --resume ${sh(spec.pane)} Continue; else ${hostClaude} --resume ${sh(spec.pane)}; fi; done`,
+		`if [ -s "$HOME/.odin/resume-$$" ]; then s=$(cat "$HOME/.odin/resume-$$"); rm -f "$HOME/.odin/resume-$$"; ODIN_FALLBACK_API_KEY="$fallback" python3 -c ${sh(USE_API_KEY_IF_LIMITED)}; ANTHROPIC_API_KEY="$fallback" exec ${hostClaude} --resume "$s" "Continue where you left off."; fi`,
 	]
 		.filter(Boolean)
 		.join("\n");
