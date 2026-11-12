@@ -95,6 +95,7 @@ MISSED, LEDGER = HOME + "/missed.json", HOME + "/ran.jsonl"
 # Tasks the phone may start here with the laptop closed (away.ts).
 AWAY = HOME + "/away.json"
 BOARD = HOME + "/board.json"
+ADDED = HOME + "/added.jsonl"
 DAY = 86400
 PANE = "${NIGHT_PANE_PLACEHOLDER}"
 PROMPT_B64 = "${NIGHT_PROMPT_B64_PLACEHOLDER}"
@@ -378,6 +379,23 @@ def launch(task, row):
     subprocess.run(["tmux", "new-session", "-d", "-s", session_name(task["sessionId"]), "bash " + secrets + "/run.sh"], check=True)
 
 
+def jsonl(path):
+    try:
+        with open(path) as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return []
+    rows = []
+    for line in lines:
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows
+
+
 def board_task(away, key):
     """
     A row the host fetched itself (phone/host/feeds), started in the template
@@ -387,6 +405,9 @@ def board_task(away, key):
     tpl = away.get("template")
     rows = load(BOARD, [])
     row = next((r for r in rows if isinstance(r, dict) and r.get("key") == key), None) if isinstance(rows, list) else None
+    if not row:
+        # A task typed on the phone a moment ago, before the board's next fetch.
+        row = next((r for r in jsonl(ADDED) if r.get("key") == key), None)
     if not isinstance(tpl, dict) or not row:
         return None
     sid = str(uuid.uuid4())

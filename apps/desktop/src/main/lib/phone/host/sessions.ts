@@ -161,6 +161,8 @@ export interface AwayList {
 	feeds?: import("./feeds").HostFeeds;
 	/** Done on the laptop, so the host's board leaves it out. */
 	done?: import("./feeds").HostDone;
+	/** My own Tasks on the laptop (not automations), for the host's board. */
+	todos?: import("renderer/routes/_authenticated/_odin/hooks/odin-task").OdinTask[];
 }
 
 /** The laptop's list, or null when there is none or it expired. */
@@ -175,21 +177,25 @@ export function readAway(now = Date.now()): AwayList | null {
 	}
 }
 
-/** The task keys the runner started here (its ledger). */
-export function ranKeys(): Set<string> {
-	const ran = new Set<string>();
+/** What the runner started here (its ledger). */
+export function ranRows(): { key: string; sessionId: string }[] {
 	try {
-		for (const line of readFileSync(
-			join(hostPaths.odin, "night", "ran.jsonl"),
-			"utf8",
-		).split("\n")) {
-			try {
-				ran.add(JSON.parse(line).key);
-			} catch {}
-		}
-	} catch {}
-	return ran;
+		return readFileSync(join(hostPaths.odin, "night", "ran.jsonl"), "utf8")
+			.split("\n")
+			.flatMap((line) => {
+				try {
+					return line ? [JSON.parse(line)] : [];
+				} catch {
+					return [];
+				}
+			});
+	} catch {
+		return [];
+	}
 }
+
+/** The task keys the runner started here. */
+export const ranKeys = () => new Set(ranRows().map((row) => row.key));
 
 /**
  * The tasks the laptop left here, then the host's own board rows (feeds.ts),
@@ -199,10 +205,13 @@ export function ranKeys(): Set<string> {
 export function awayBacklog(
 	now = Date.now(),
 	board: { key: string; title: string }[] = [],
+	/** Put away on the phone here (inbox.ts). */
+	done: Iterable<string> = [],
 ): AwayTask[] {
 	const away = readAway(now);
 	if (!away) return [];
 	const skip = ranKeys();
+	for (const key of done) skip.add(key);
 	const rows: AwayTask[] = [];
 	for (const task of [...(away.tasks ?? []), ...board]) {
 		if (skip.has(task.key)) continue;

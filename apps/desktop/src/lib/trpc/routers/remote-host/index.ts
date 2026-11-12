@@ -41,6 +41,7 @@ import {
 } from "main/lib/remote-host/api-key-fallback";
 import {
 	AWAY_DAYS,
+	awayInbox,
 	clearAwayTasks,
 	pushAwayTasks,
 } from "main/lib/remote-host/away";
@@ -1782,6 +1783,20 @@ export const createRemoteHostRouter = () =>
 					tasks: z.array(plannedTask).max(30),
 					/** The prompt any other row starts with on the host, NIGHT_TASK_PLACEHOLDER for its text. */
 					template: z.string().max(200_000).optional(),
+					/** My own Tasks, for the host's board. */
+					todos: z
+						.array(
+							z.object({
+								id: z.string(),
+								title: z.string(),
+								notes: z.string(),
+								createdAt: z.number(),
+								priority: z.number().optional(),
+								skill: z.string().optional(),
+							}),
+						)
+						.max(500)
+						.optional(),
 					/** Done here, so the host's own board leaves it out. */
 					done: z
 						.record(
@@ -1809,12 +1824,24 @@ export const createRemoteHostRouter = () =>
 							template: { script: template.script, prompt: template.prompt },
 							feeds: hostFeeds(),
 							done: input.done ?? {},
+							todos: input.todos ?? [],
 						}),
 					},
 					await sessionSecrets(),
 					files,
 				);
 				return { sent: tasks.length };
+			}),
+		/**
+		 * What the phone typed and marked Done on the host with this computer
+		 * away; with `before`, what this computer already took in is dropped.
+		 */
+		awayInbox: publicProcedure
+			.input(z.object({ before: z.number().optional() }).optional())
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host?.on || !host.awayTasks) return { added: [], done: [] };
+				return awayInbox(host, input?.before);
 			}),
 		/** The switch; off deletes the list and its secrets from the host. */
 		setAwayTasks: publicProcedure
