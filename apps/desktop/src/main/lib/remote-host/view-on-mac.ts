@@ -1,5 +1,8 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import net from "node:net";
+import { join } from "node:path";
+import { BrowserWindow } from "electron";
+import { env } from "shared/env.shared";
 import type { HostLogin } from "./ssh";
 import { vscodeHost } from "./vscode-bridge";
 
@@ -85,4 +88,46 @@ export async function viewOnMac(
 	port: number,
 ): Promise<number> {
 	return openTunnel(await vscodeHost(host), port);
+}
+
+/** The viewer page, from the dev server or the built renderer, like the main window. */
+function loadViewer(window: BrowserWindow, query: Record<string, string>) {
+	if (env.NODE_ENV === "development")
+		return window.loadURL(
+			`http://localhost:${env.DESKTOP_VITE_PORT}/vnc-viewer.html?${new URLSearchParams(query)}`,
+		);
+	return window.loadFile(join(__dirname, "../renderer/vnc-viewer.html"), {
+		query,
+	});
+}
+
+/** One window per host port: a second click brings it to the front. */
+const windows = new Map<number, BrowserWindow>();
+
+/**
+ * The View tab's Open in window: the host's screen on `port` in its own
+ * resizable Odin window, over the same tunnel the drawer uses.
+ */
+export async function viewInWindow(
+	host: HostLogin & { name?: string | null },
+	port: number,
+	password: string,
+): Promise<void> {
+	const shown = windows.get(port);
+	if (shown && !shown.isDestroyed()) {
+		shown.show();
+		shown.focus();
+		return;
+	}
+	const local = await viewOnMac(host, port);
+	const window = new BrowserWindow({
+		width: 1200,
+		height: 790,
+		title: "View",
+		backgroundColor: "#111111",
+		webPreferences: { sandbox: true, contextIsolation: true },
+	});
+	windows.set(port, window);
+	window.on("closed", () => windows.delete(port));
+	await loadViewer(window, { port: String(local), password });
 }
