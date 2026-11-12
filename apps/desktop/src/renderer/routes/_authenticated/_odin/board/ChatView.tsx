@@ -102,6 +102,7 @@ import {
 	commandItem,
 	commandLabel,
 	commandScore,
+	dangerPlan,
 	describeCommand,
 	downloadPath,
 	isAnswerItem,
@@ -2851,6 +2852,9 @@ export function needsAwsSsoLogin(text: string): boolean {
 	return /run 'aws sso login'/i.test(text);
 }
 
+/** How long Danger Mode shows what it's about to run before it runs it. */
+const DANGER_WARN_MS = 5_000;
+
 /** Replies Danger Mode already ran (`paneId:replyId`), so a remount doesn't run them twice. */
 const dangerRan = new Set<string>();
 
@@ -3861,6 +3865,28 @@ export function ChatView({
 		const commands = autoRunCommands(lastText.text);
 		if (!commands.length) return;
 		void (async () => {
+			// Say what's about to run before it does, with a few seconds to stop it.
+			const stop = () => useDangerMode.getState().toggle(paneId, false);
+			setDangerStep({
+				text: `about to run ${commands.length === 1 ? "a command" : `${commands.length} commands`} - Stop in the warning cancels it`,
+				since: Date.now(),
+			});
+			toast.warning(
+				`Danger Mode runs ${commands.length === 1 ? "a command" : `${commands.length} commands`} in ${DANGER_WARN_MS / 1000}s`,
+				{
+					description: (
+						<ol className="list-decimal pl-4">
+							{dangerPlan(lastText.text).map((line, i) => (
+								// biome-ignore lint/suspicious/noArrayIndexKey: a fixed list, two commands can read the same
+								<li key={i}>{line}</li>
+							))}
+						</ol>
+					),
+					duration: DANGER_WARN_MS,
+					action: { label: "Stop", onClick: stop },
+				},
+			);
+			await new Promise((resolve) => setTimeout(resolve, DANGER_WARN_MS));
 			const outputs: string[] = [];
 			for (const [index, command] of commands.entries()) {
 				if (!useDangerMode.getState().on[paneId]) {
