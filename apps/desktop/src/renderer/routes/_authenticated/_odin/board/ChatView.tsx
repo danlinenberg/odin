@@ -2853,7 +2853,22 @@ export function needsAwsSsoLogin(text: string): boolean {
 }
 
 /** How long Danger Mode shows what it's about to run before it runs it. */
-const DANGER_WARN_MS = 5_000;
+const DANGER_WARN_MS = 30_000;
+
+/** The Danger Mode warning's title, counting down to the run each second. */
+function DangerCountdown({ count }: { count: number }) {
+	const [left, setLeft] = useState(DANGER_WARN_MS / 1000);
+	useEffect(() => {
+		const timer = setInterval(() => setLeft((s) => Math.max(0, s - 1)), 1000);
+		return () => clearInterval(timer);
+	}, []);
+	return (
+		<>
+			Danger Mode runs {count === 1 ? "a command" : `${count} commands`} in{" "}
+			<span className="tabular-nums">{left}s</span>
+		</>
+	);
+}
 
 /** Replies Danger Mode already ran (`paneId:replyId`), so a remount doesn't run them twice. */
 const dangerRan = new Set<string>();
@@ -3860,21 +3875,18 @@ export function ChatView({
 		void (async () => {
 			// Say what's about to run before it does, with a few seconds to stop it.
 			const stop = () => useDangerMode.getState().toggle(paneId, false);
-			toast.warning(
-				`Danger Mode runs ${commands.length === 1 ? "a command" : `${commands.length} commands`} in ${DANGER_WARN_MS / 1000}s`,
-				{
-					description: (
-						<ol className="list-decimal pl-4">
-							{dangerPlan(lastText.text).map((line, i) => (
-								// biome-ignore lint/suspicious/noArrayIndexKey: a fixed list, two commands can read the same
-								<li key={i}>{line}</li>
-							))}
-						</ol>
-					),
-					duration: DANGER_WARN_MS,
-					action: { label: "Stop", onClick: stop },
-				},
-			);
+			toast.warning(<DangerCountdown count={commands.length} />, {
+				description: (
+					<ol className="list-decimal pl-4">
+						{dangerPlan(lastText.text).map((line, i) => (
+							// biome-ignore lint/suspicious/noArrayIndexKey: a fixed list, two commands can read the same
+							<li key={i}>{line}</li>
+						))}
+					</ol>
+				),
+				duration: DANGER_WARN_MS,
+				action: { label: "Stop", onClick: stop },
+			});
 			await new Promise((resolve) => setTimeout(resolve, DANGER_WARN_MS));
 			const outputs: string[] = [];
 			for (const command of commands) {
