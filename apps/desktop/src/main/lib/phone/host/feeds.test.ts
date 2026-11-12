@@ -136,6 +136,22 @@ describe("the host's own board: Start", () => {
 	});
 });
 
+test("a task typed on the phone starts before the board's next fetch", () => {
+	sendList();
+	writeFileSync(join(night(), "board.json"), "[]");
+	writeFileSync(
+		join(night(), "added.jsonl"),
+		`${JSON.stringify({ key: "task:t1", title: "Ship it", text: "Ship it\ntoday", at: 1 })}\n`,
+	);
+	const { code } = start("task:t1");
+	expect(code).toBe(0);
+	const script = readFileSync(join(night(), "launched.sh"), "utf8");
+	const b64 = /echo (\S+) \| base64/.exec(script)?.[1] ?? "";
+	expect(Buffer.from(b64, "base64").toString()).toBe(
+		"Task: Ship it\ntoday\n\nmy rules",
+	);
+});
+
 describe("the host's own board: fetch", () => {
 	test("reads the service's answer as the API's", async () => {
 		const call = serviceCall("slack", async (form) =>

@@ -10,6 +10,7 @@ import {
 	transcriptTail,
 } from "../../claude-sessions/claude-sessions";
 import { hostRows } from "./feeds";
+import { addTask, doneMarks, markDone } from "./inbox";
 import {
 	awayBacklog,
 	findSession,
@@ -17,8 +18,11 @@ import {
 	hostPaths,
 	hostSessions,
 	hostStatus,
+	ranRows,
+	readAway,
 	readScreen,
 	readSnapshot,
+	tmux,
 } from "./sessions";
 
 /**
@@ -94,6 +98,31 @@ async function sessionOrThrow(paneId: string) {
 	return session;
 }
 
+/** The runner's start of a task here, as the phone's answer. */
+async function startHere(id: string) {
+	const { code, out } = await shell.startTask(id);
+	if (code === 4)
+		throw new TRPCError({
+			code: "PRECONDITION_FAILED",
+			message:
+				"Your Mac is away and didn't leave this task on the remote host. Open Odin on your Mac to start it.",
+		});
+	if (code === 6)
+		throw new TRPCError({
+			code: "PRECONDITION_FAILED",
+			message: `Not now: ${out || "the remote host has no room"}. Try again in a minute.`,
+		});
+	if (code !== 0 || !out)
+		throw new TRPCError({
+			code: "INTERNAL_SERVER_ERROR",
+			message: "The remote host couldn't start it.",
+		});
+	return {
+		paneId: out.split("\n").pop() as string,
+		via: { host: hostName() },
+	};
+}
+
 export const hostPhoneRouter = t.router({
 	/**
 	 * The sessions running here, as board rows. The backlog is what the
@@ -123,7 +152,11 @@ export const hostPhoneRouter = t.router({
 		);
 		return {
 			sessions,
-			backlog: awayBacklog(Date.now(), await hostRows()),
+			backlog: awayBacklog(
+				Date.now(),
+				await hostRows(),
+				doneMarks().flatMap((mark) => (mark.key ? [mark.key] : [])),
+			),
 			done: [] as {
 				key: string;
 				title: string;
@@ -217,29 +250,68 @@ export const hostPhoneRouter = t.router({
 	 */
 	start: t.procedure
 		.input(z.object({ id: z.string().min(1).max(500) }))
+		.mutation(({ input }) => startHere(input.id)),
+
+	/**
+	 * New task on the phone with the Mac away: kept here for the Mac to add to
+	 * Tasks when it wakes (inbox.ts), and with Start, started now in the
+	 * session template the Mac left. The text goes in as the task's text, as
+	 * a reply does. Files need the Mac: they're copied from it.
+	 */
+	add: t.procedure
+		.input(
+			z.object({
+				text: z.string().max(20_000),
+				paths: z.array(z.unknown()).max(10).default([]),
+				repo: z.string().optional(),
+				start: z.boolean().default(false),
+				onHost: z.boolean().optional(),
+			}),
+		)
 		.mutation(async ({ input }) => {
-			const { code, out } = await shell.startTask(input.id);
-			if (code === 4)
+			if (input.paths.length)
 				throw new TRPCError({
 					code: "PRECONDITION_FAILED",
 					message:
-						"Your Mac is away and didn't leave this task on the remote host. Open Odin on your Mac to start it.",
+						"Files need your Mac. Send the task without them, or open Odin on your Mac.",
 				});
-			if (code === 6)
+			if (!input.text.trim())
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "Type the task first.",
+				});
+			if (!readAway())
 				throw new TRPCError({
 					code: "PRECONDITION_FAILED",
-					message: `Not now: ${out || "the remote host has no room"}. Try again in a minute.`,
+					message:
+						"Your Mac is away and Tasks with the Mac closed is off. Open Odin on your Mac to add it.",
 				});
-			if (code !== 0 || !out)
-				throw new TRPCError({
-					code: "INTERNAL_SERVER_ERROR",
-					message: "The remote host couldn't start it.",
-				});
-			return {
-				paneId: out.split("\n").pop() as string,
-				via: { host: hostName() },
-			};
+			const task = addTask(input.text);
+			return input.start ? startHere(task.key) : { via: { host: hostName() } };
 		}),
+
+	/**
+	 * Done on a session here with the Mac away: the session ends, and the Mac
+	 * marks its task done when it wakes (inbox.ts).
+	 */
+	done: t.procedure.input(paneInput).mutation(async ({ input }) => {
+		if (!readAway())
+			throw new TRPCError({
+				code: "PRECONDITION_FAILED",
+				message:
+					"Your Mac is away and Tasks with the Mac closed is off. Open Odin on your Mac to mark it done.",
+			});
+		const session = await sessionOrThrow(input.paneId);
+		const ran = ranRows().find((row) => row.sessionId === session.sessionId);
+		markDone({
+			key: ran?.key ?? null,
+			sessionId: session.sessionId,
+			title: await titleOf(session),
+			at: Date.now(),
+		});
+		await tmux.run(["kill-session", "-t", session.tmux]).catch(() => "");
+		return { via: { host: hostName() } };
+	}),
 
 	/** The laptop writes briefs and reads links; with it away, there are none. */
 	brief: t.procedure.input(paneInput).query(() => null),
