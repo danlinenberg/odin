@@ -143,7 +143,7 @@ import {
 	runOnHost,
 } from "main/lib/remote-host/ssh";
 import { awsClientConfig } from "main/lib/remote-host/ssm";
-import { viewOnMac } from "main/lib/remote-host/view-on-mac";
+import { viewInWindow, viewOnMac } from "main/lib/remote-host/view-on-mac";
 import {
 	bringShellToHost,
 	remoteFolderUri,
@@ -1292,6 +1292,23 @@ export const createRemoteHostRouter = () =>
 				return {
 					port: await withAwsSignIn(host, () => viewOnMac(host, input.port)),
 				};
+			}),
+
+		/** The View tab's Open in window: the host's screen in its own Odin window. */
+		viewInWindow: publicProcedure
+			.input(
+				z.object({
+					host: paneHost,
+					port: z.number().int().min(1).max(65535),
+					password: z.string(),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				const host = hostNamed(input.host);
+				if (!host) throw new Error("No remote host is set up.");
+				await withAwsSignIn(host, () =>
+					viewInWindow(host, input.port, input.password),
+				);
 			}),
 
 		/**
