@@ -42,7 +42,7 @@ export const SCREENS = [
 	{
 		to: "/settings/remote",
 		label: "Remote",
-		hint: "EC2 host, auto-start, iPhone app, Remote Control",
+		hint: "EC2 host, auto-start, phone app, Remote Control",
 		icon: BsCloud,
 	},
 	{

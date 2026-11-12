@@ -165,7 +165,7 @@ export function createTrust(files: TrustFiles) {
 			.slice(0, 60);
 		saveDevices([
 			...devices(),
-			{ key, name: name || "iPhone", added: new Date(now).toISOString() },
+			{ key, name: name || "Phone", added: new Date(now).toISOString() },
 		]);
 		return true;
 	}

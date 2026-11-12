@@ -1,7 +1,7 @@
 # Every PR and every push to main: lint, typecheck, the unit and integration
 # suites, the app build, then a smoke test that boots the built app in a
 # throwaway home and clicks through its main flows (apps/desktop/scripts/smoke.ts).
-# Four jobs run side by side, so a run takes as long as the app build and
+# Five jobs run side by side, so a run takes as long as the app build and
 # smoke, not the sum of every step.
 name: CI
 
@@ -113,11 +113,52 @@ jobs:
           path: ${{ runner.temp }}/smoke
           if-no-files-found: ignore
 
+  # The Android app (apps/mobile/android): builds the debug APK, then pairs it
+  # in an emulator with fake-odin through the odin://pair link and waits for
+  # the board (apps/mobile/scripts/android-test.sh). Linux runners have KVM.
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      SKIP_ENV_VALIDATION: "true"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - working-directory: apps/mobile
+        run: bun run android
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: cd apps/mobile && bun run android:test
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: ${{ runner.temp }}/android
+          if-no-files-found: ignore
+
   # Branch protection requires one check named `check`. It passes only when all
-  # four jobs passed: a skipped required check would count as green.
+  # five jobs passed: a skipped required check would count as green.
   check:
     if: always()
-    needs: [static, test, app, windows]
+    needs: [static, test, app, windows, android]
     runs-on: ubuntu-latest
     steps:
       - run: ${{ !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && !contains(needs.*.result, 'skipped') }}

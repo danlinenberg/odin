@@ -5,6 +5,12 @@ const config: CapacitorConfig = {
 	appName: "Odin",
 	webDir: "dist",
 	backgroundColor: "#0e0e11",
+	android: {
+		// The screens load from https://localhost and reach Odin on the Wi-Fi
+		// over ws:// (the channel is end to end encrypted either way); Android's
+		// web view blocks that mixed content unless allowed.
+		allowMixedContent: true,
+	},
 	plugins: {
 		// The web view shrinks above the keyboard, so the header stays on screen
 		// instead of iOS scrolling the whole page up under the status bar.
