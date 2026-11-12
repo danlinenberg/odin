@@ -242,6 +242,7 @@ import {
 } from "./ci-wake";
 import { DiffView } from "./DiffView";
 import { drawerEscAction, escStaysWithTarget } from "./drawer-esc";
+import { drawerViewSwitch } from "./drawer-view-switch";
 import { HostScreenView } from "./HostScreenView";
 import { deliverOnHost } from "./host-delivery";
 import { hostStartDelay } from "./host-start-gap";
@@ -4461,6 +4462,15 @@ function DevBoardPage() {
 	// Catch up has no Diff or Shell - one left open in a normal drawer doesn't
 	// follow you in, since there'd be no button to close it.
 	const catchUpLean = inCatchUp && catchUpFull !== drawerCard?.pane.id;
+	// The footer's Chat View / Terminal View button. The ▣ View tab covers the
+	// chat's own Terminal View, so while the app shows the footer goes back to
+	// the view under it.
+	const hostScreenOpen = isViewOpen && !inCatchUp;
+	const viewSwitch = drawerViewSwitch({
+		chat: chatView,
+		peeking: !!drawerCard && terminalPaneId === drawerCard.pane.id,
+		hostScreenOpen,
+	});
 	useEffect(() => {
 		import.meta.hot?.send("odin:session-pane", drawerOpen);
 		return () => import.meta.hot?.send("odin:session-pane", false);
@@ -8335,25 +8345,36 @@ function DevBoardPage() {
 										■ Interrupt
 									</button>
 								)}
-							{/* Back from Terminal View: out of a question peek, or the
-							    setting itself when the terminal is the choice. */}
-							{drawerCard.pane.type === "terminal" &&
-								(!chatView || terminalPaneId === drawerCard.pane.id) && (
-									<button
-										type="button"
-										title="Show sessions as a chat (Settings > Appearance)"
-										onClick={() =>
-											chatView ? setTerminalPaneId(null) : setChatView(true)
-										}
-										className={cn(
-											"flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-xs font-semibold",
-											BUTTON.secondary,
-										)}
-									>
+							{/* Chat View back from the terminal (a question peek, or the
+							    terminal set as the view). While the ▣ View app covers the
+							    session it names the view under it, the last one used, and
+							    only takes the app off screen. */}
+							{drawerCard.pane.type === "terminal" && viewSwitch && (
+								<button
+									type="button"
+									title={
+										hostScreenOpen
+											? `Back to the session's ${viewSwitch}`
+											: "Show sessions as a chat (Settings > Appearance)"
+									}
+									onClick={() => {
+										if (hostScreenOpen) closeHostScreen();
+										else if (chatView) setTerminalPaneId(null);
+										else setChatView(true);
+									}}
+									className={cn(
+										"flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+										BUTTON.secondary,
+									)}
+								>
+									{viewSwitch === "chat" ? (
 										<LuMessageSquare className="size-3.5" />
-										Chat View
-									</button>
-								)}
+									) : (
+										<LuSquareTerminal className="size-3.5" />
+									)}
+									{viewSwitch === "chat" ? "Chat View" : "Terminal View"}
+								</button>
+							)}
 							{/* Done, Remind and Minimize sit right; RemindButton wraps its button
 							    in a span, so the gap is a spacer rather than ml-auto. */}
 							<div className="flex-1" />
