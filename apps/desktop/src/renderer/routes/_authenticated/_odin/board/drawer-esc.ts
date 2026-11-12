@@ -14,10 +14,13 @@ export function targetOwnsEsc(target: EventTarget | null): boolean {
 	return closestOf(target, "[data-owns-esc]");
 }
 
-/** The drawer's rule: a box opened over the pane cancels itself on Esc, and
- * so does anything that owns Esc. */
+/** The drawer's rule: a box or menu opened over the pane closes itself on
+ * Esc, and so does anything that owns Esc. */
 export function escStaysWithTarget(target: EventTarget | null): boolean {
-	return closestOf(target, "[role=dialog], [data-owns-esc]");
+	return closestOf(
+		target,
+		"[role=dialog], [role=menu], [role=listbox], [data-owns-esc]",
+	);
 }
 
 /** The chat view's reply box closes its @ or / list on Esc, and leaves bash
@@ -28,4 +31,29 @@ export function replyBoxOwnsEsc(box: {
 	draft: string;
 }): boolean {
 	return box.menuOpen || (box.bash && !box.draft);
+}
+
+/** What an Esc that reached the open session screen does. Selecting in the
+ * session list or renaming, it cancels that. With the agent mid-turn it stops
+ * the turn, as the stop button does and as Esc does inside Claude itself, and
+ * the screen stays open. Only with nothing running does it go back to the
+ * board. While a stop it sent is still on its way, a second Esc waits. */
+export type DrawerEscAction =
+	| "leave-select"
+	| "cancel-rename"
+	| "interrupt"
+	| "wait"
+	| "close";
+
+export function drawerEscAction(state: {
+	selecting: boolean;
+	renaming: boolean;
+	working: boolean;
+	interrupting: boolean;
+}): DrawerEscAction {
+	if (state.selecting) return "leave-select";
+	if (state.renaming) return "cancel-rename";
+	if (state.interrupting) return "wait";
+	if (state.working) return "interrupt";
+	return "close";
 }
