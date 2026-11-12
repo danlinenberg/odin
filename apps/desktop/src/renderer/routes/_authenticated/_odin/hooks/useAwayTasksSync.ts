@@ -16,6 +16,23 @@ const ADOPT_EVERY_TICKS = 5;
 /** A phone start older than the list's reach isn't put on the board. */
 const ADOPT_DAYS = 4;
 
+/**
+ * What the host's own board leaves out: what is Done here, and every row a
+ * session here took (now or ever), which Next in line hides the same way.
+ * A taken row never comes back on a newer mention, as here.
+ */
+export function hostDone(
+	done: Record<string, { at: number; url: string | null }>,
+	taken: string[],
+): Record<string, { at: number; url: string | null }> {
+	const out: Record<string, { at: number; url: string | null }> = {};
+	for (const key of taken)
+		out[key] = { at: Number.MAX_SAFE_INTEGER, url: null };
+	for (const [key, row] of Object.entries(done))
+		out[key] = { at: row.at, url: row.url };
+	return out;
+}
+
 /** A run the board should adopt: the phone's, not on the board, not adopted before. */
 export function adoptable(
 	run: { away?: boolean; sessionId: string; at: number },
@@ -154,17 +171,14 @@ export function useAwayTasksSync() {
 							before: last,
 						});
 				}
-				const { pinned, unpinned, duplicateFor, planOnHost } = latest.current;
+				const { pinned, unpinned, duplicateFor, planOnHost, taken } =
+					latest.current;
 				const order = [...pinned, ...unpinned]
 					.filter((row) => !duplicateFor(row))
 					.slice(0, AWAY_TASKS);
-				// Done here, so the host's own board leaves it out too.
-				const done = Object.fromEntries(
-					Object.entries(useDoneStore.getState().done).map(([key, row]) => [
-						key,
-						{ at: row.at, url: row.url },
-					]),
-				);
+				// Done or started here, so the host's own board leaves it out too.
+				const doneHere = useDoneStore.getState().done;
+				const done = hostDone(doneHere, taken);
 				// My own Tasks, for the host's board.
 				const todos = mine.current.todos.map(
 					({ id, title, notes, createdAt, priority, skill }) => ({
@@ -179,8 +193,9 @@ export function useAwayTasksSync() {
 				const signature = JSON.stringify([
 					order.map((row) => row.key),
 					todos.map((task) => [task.id, task.title, task.notes]),
-					Object.keys(done).length,
-					Math.max(0, ...Object.values(done).map((row) => row.at)),
+					Object.keys(doneHere).length,
+					Math.max(0, ...Object.values(doneHere).map((row) => row.at)),
+					taken.toSorted(),
 				]);
 				if (sent?.signature === signature && Date.now() - sent.at < RESEND_MS)
 					return;
