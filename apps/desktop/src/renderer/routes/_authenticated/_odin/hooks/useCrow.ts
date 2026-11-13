@@ -619,10 +619,13 @@ async function launchTask(
 	deps: CrowDeps,
 	onCreated?: (paneId: string) => void,
 	onHost?: boolean,
+	/** Why it failed, for a caller that answers someone not looking at the toast. */
+	onFailed?: (error: string) => void,
 ): Promise<string | null> {
 	const ensured = await deps.ensureWorkspace(null, { askForFolder: false });
 	if (!ensured.ok) {
 		toast.error(ensured.error);
+		onFailed?.(ensured.error);
 		return null;
 	}
 	const result = await deps.launch({
@@ -638,6 +641,7 @@ async function launchTask(
 	});
 	if (!result.ok) {
 		toast.error(`${task.title}: ${result.error}`);
+		onFailed?.(result.error);
 		return null;
 	}
 	deps.setPane(task.id, result.paneId);
@@ -654,11 +658,12 @@ function openedPane(
 	onHost?: boolean,
 ): Promise<string> {
 	return new Promise((resolve) => {
+		let error = "Couldn't start it.";
 		const answer = (paneId: string | null) =>
-			resolve(
-				JSON.stringify(paneId ? { paneId } : { error: "Couldn't start it." }),
-			);
-		void launchTask(task, deps, answer, onHost).then(answer);
+			resolve(JSON.stringify(paneId ? { paneId } : { error }));
+		void launchTask(task, deps, answer, onHost, (why) => {
+			error = why;
+		}).then(answer);
 	});
 }
 
