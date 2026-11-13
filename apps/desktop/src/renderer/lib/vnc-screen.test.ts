@@ -1,6 +1,13 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 import type RFB from "@novnc/novnc";
 import { tuneForLink } from "./vnc-screen";
+
+// Every test file shares one process: put the real navigator back.
+const realNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+afterEach(() => {
+	if (realNavigator)
+		Object.defineProperty(globalThis, "navigator", realNavigator);
+});
 
 function setup(platform: string, clipboardText = "from this computer") {
 	const written: string[] = [];
