@@ -296,7 +296,7 @@ describe("withoutButtonBlocks", () => {
 	});
 });
 
-test("Danger Mode runs every block but a !view, in order", () => {
+test("GSD Mode runs every block but a !view, in order", () => {
 	const text = [
 		"ACTION ITEMS",
 		"1. Restart it.",
@@ -320,7 +320,7 @@ test("Danger Mode runs every block but a !view, in order", () => {
 	]);
 });
 
-test("Danger Mode's warning says what each command does, in order", () => {
+test("GSD Mode's warning says what each command does, in order", () => {
 	const text = [
 		"ACTION ITEMS",
 		"1. Restart it.",

@@ -2852,10 +2852,10 @@ export function needsAwsSsoLogin(text: string): boolean {
 	return /run 'aws sso login'/i.test(text);
 }
 
-/** How long Danger Mode shows what it's about to run before it runs it. */
+/** How long GSD Mode shows what it's about to run before it runs it. */
 const DANGER_WARN_MS = 30_000;
 
-/** The Danger Mode warning's title, counting down to the run each second. */
+/** The GSD Mode warning's title, counting down to the run each second. */
 function DangerCountdown({ count }: { count: number }) {
 	const [left, setLeft] = useState(DANGER_WARN_MS / 1000);
 	useEffect(() => {
@@ -2864,14 +2864,21 @@ function DangerCountdown({ count }: { count: number }) {
 	}, []);
 	return (
 		<>
-			Danger Mode runs {count === 1 ? "a command" : `${count} commands`} in{" "}
+			GSD Mode runs {count === 1 ? "a command" : `${count} commands`} in{" "}
 			<span className="tabular-nums">{left}s</span>
 		</>
 	);
 }
 
-/** Replies Danger Mode already ran (`paneId:replyId`), so a remount doesn't run them twice. */
+/** Replies GSD Mode already ran (`paneId:replyId`), so a remount doesn't run them twice. */
 const dangerRan = new Set<string>();
+
+/** Sessions GSD Mode already told what it means, since it was last turned on. */
+const gsdBriefed = new Set<string>();
+
+/** What GSD Mode tells Claude when it goes on, so it gets the job done without waiting. */
+const GSD_BRIEF =
+	"GSD Mode is on (Get-Shit-Done): I'm not here to answer until I turn it off. Don't wait for me. For every open action item or choice, pick the one you'd recommend and do it. Decide anything you would ask me yourself, and keep working until the job is done. Put any command I'd run in a `!` block (`!local` for my computer, `!download` for a file) - Odin runs them for you and sends you their output. Stop only for something only I can do, and say why.";
 
 /** Replies whose sign-in already ran on its own, so a remount doesn't open another tab. */
 const autoSsoTried = new Set<string>();
@@ -3856,14 +3863,14 @@ export function ChatView({
 	const lastText = items.findLast(
 		(item): item is Extract<Item, { kind: "text" }> => item.kind === "text",
 	);
-	// Danger Mode: once a turn ends, the reply's `!` blocks run one after
+	// GSD Mode: once a turn ends, the reply's `!` blocks run one after
 	// another without a click, then their output goes to Claude in one
 	// message so it carries on. A `!local` run is awaited before the next;
 	// a `!` one typed into Claude gets a short pause instead, as the chat
 	// can't see it end. Each reply runs once, and only while it is still the
 	// last thing in the session - one you already answered or ran stays put.
 	const danger = useDangerMode((state) => !!state.on[paneId]);
-	// What Danger Mode is doing right now, for its red line: the command it
+	// What GSD Mode is doing right now, for its red line: the command it
 	// runs and since when, or where it stopped.
 	const [dangerStep, setDangerStep] = useState<DangerStep | null>(null);
 	// A new turn moves past where it stopped.
@@ -3872,13 +3879,24 @@ export function ChatView({
 	}, [working]);
 	const lastItemId = items.at(-1)?.id;
 	useEffect(() => {
+		if (!danger) gsdBriefed.delete(paneId);
 		if (!danger || working || !onShowTerminal || !lastText) return;
 		if (lastItemId !== lastText.id) return;
 		const key = `${paneId}:${lastText.id}`;
-		if (dangerRan.has(key)) return;
+		// Just turned on: tell Claude what it means, with the commands' output
+		// when the reply has some, else right away.
+		const brief = !gsdBriefed.has(paneId);
+		gsdBriefed.add(paneId);
+		if (dangerRan.has(key)) {
+			if (brief) sendToClaude(GSD_BRIEF);
+			return;
+		}
 		dangerRan.add(key);
 		const commands = autoRunCommands(lastText.text);
-		if (!commands.length) return;
+		if (!commands.length) {
+			if (brief) sendToClaude(GSD_BRIEF);
+			return;
+		}
 		void (async () => {
 			// Say what's about to run before it does, with a few seconds to stop it.
 			const stop = () => useDangerMode.getState().toggle(paneId, false);
@@ -3943,20 +3961,23 @@ export function ChatView({
 					outputs.push(localRunMessage(local, result));
 				} catch (error) {
 					const why = error instanceof Error ? error.message : String(error);
-					toast.error(`Danger Mode stopped: ${why}`);
+					toast.error(`GSD Mode stopped: ${why}`);
 					setDangerStep({
 						text: `Stopped at ${step}: ${why}`,
 						since: Date.now(),
 						stopped: true,
 					});
-					outputs.push(`Danger Mode couldn't run \`${command}\`: ${why}`);
+					outputs.push(`GSD Mode couldn't run \`${command}\`: ${why}`);
 					break;
 				}
 			}
 			onShellDoneRef.current?.();
 			setDangerStep((now) => (now?.stopped ? now : null));
 			sendToClaude(
-				[...outputs, "Danger Mode ran your commands. Carry on."].join("\n\n"),
+				[
+					...outputs,
+					brief ? GSD_BRIEF : "GSD Mode ran your commands. Carry on.",
+				].join("\n\n"),
 			);
 		})();
 	}, [
@@ -4866,7 +4887,7 @@ async function hostPathsOf(paths: string[]): Promise<string[]> {
  * attachment and a video stays a path (Claude takes no video). Any other
  * file goes into the draft as its path, as the terminal does with a drop.
  */
-/** The composer's Danger Mode switch: on, the session's `!` commands run without a click. */
+/** The composer's GSD Mode switch: on, the session's `!` commands run without a click. */
 function DangerModeToggle({ paneId }: { paneId: string }) {
 	const on = useDangerMode((state) => !!state.on[paneId]);
 	return (
@@ -4875,8 +4896,8 @@ function DangerModeToggle({ paneId }: { paneId: string }) {
 			aria-pressed={on}
 			title={
 				on
-					? "Danger Mode is on: Odin runs every command this session writes, without asking. Click to turn it off."
-					: "Danger Mode: Odin runs every command this session writes (Run, Run on my computer, Download) without asking, until you turn it off or the session ends. Questions still wait for you."
+					? "GSD (Get-Shit-Done) Mode is on: Claude makes the calls itself and Odin runs every command this session writes, without asking. Click to turn it off."
+					: "GSD (Get-Shit-Done) Mode: Claude stops waiting for you - it picks its own answers and keeps going - and Odin runs every command this session writes (Run, Run on my computer, Download) without asking, until you turn it off or the session ends. Only runs this session's commands on your computer, so use it on a session you trust."
 			}
 			onClick={() => useDangerMode.getState().toggle(paneId, !on)}
 			className={cn(
@@ -4887,7 +4908,7 @@ function DangerModeToggle({ paneId }: { paneId: string }) {
 			)}
 		>
 			<LuZap className="size-3.5" />
-			Danger Mode
+			GSD Mode
 		</button>
 	);
 }
@@ -5441,7 +5462,7 @@ function Composer({
 type DangerStep = { text: string; since: number; stopped?: boolean };
 
 /**
- * The Danger Mode line's text: the command running now and for how long,
+ * The GSD Mode line's text: the command running now and for how long,
  * else Claude working, else where it stopped or that it waits for you. A run
  * past 30 seconds may be waiting for input in the Shell, so it says so.
  */
@@ -5462,12 +5483,13 @@ function DangerStatus({
 	let text: string;
 	if (running) {
 		const seconds = Math.max(0, Math.round((now - running.since) / 1_000));
-		text = `Danger Mode: ${running.text} (${seconds}s)${seconds >= 30 ? " - if it asks for input, answer it in the Shell" : ""}`;
+		text = `GSD Mode: ${running.text} (${seconds}s)${seconds >= 30 ? " - if it asks for input, answer it in the Shell" : ""}`;
 	} else if (working)
+		text = "GSD Mode: Claude is working. Its commands run when the turn ends.";
+	else if (step?.stopped) text = `GSD Mode: ${step.text}`;
+	else
 		text =
-			"Danger Mode: Claude is working. Its commands run when the turn ends.";
-	else if (step?.stopped) text = `Danger Mode: ${step.text}`;
-	else text = "Danger Mode: nothing left to run. Waiting for you.";
+			"GSD Mode: nothing left to run. Claude stopped - tell it what's next.";
 	return (
 		<span
 			className="min-w-0 flex-1 truncate select-text cursor-text"

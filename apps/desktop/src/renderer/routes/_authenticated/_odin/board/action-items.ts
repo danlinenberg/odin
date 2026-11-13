@@ -251,7 +251,7 @@ export function viewTarget(
 }
 
 /**
- * The commands Danger Mode runs on its own from a reply: every `!`,
+ * The commands GSD Mode runs on its own from a reply: every `!`,
  * `!local` and `!download` block, in the order written. A `!view` block opens
  * a screen rather than doing work, so it keeps its button.
  */
@@ -260,7 +260,7 @@ export function autoRunCommands(text: string): string[] {
 }
 
 /**
- * What Danger Mode is about to do with a reply, one line per command in the
+ * What GSD Mode is about to do with a reply, one line per command in the
  * order it runs: Claude's note above the block, or what the command reads as.
  */
 export function dangerPlan(text: string): string[] {
