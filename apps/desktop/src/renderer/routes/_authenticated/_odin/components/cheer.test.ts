@@ -53,4 +53,28 @@ describe("cheerFor", () => {
 			cheerFor([week(twoAgo - 7 * DAY, 1), week(lastWeek, 5)], now),
 		).toBeNull();
 	});
+
+	test("calls a new best week an all-time high", () => {
+		const history = [
+			week(twoAgo - 14 * DAY, 5),
+			week(twoAgo - 7 * DAY, 8),
+			week(twoAgo, 3),
+			week(lastWeek, 9),
+		];
+		expect(cheerFor(history, now)).toContain("all-time high");
+		expect(cheerFor(history, now)).toContain("record was 8");
+	});
+
+	test("no all-time high without a few weeks, or when it only ties", () => {
+		expect(cheerFor([week(twoAgo, 3), week(lastWeek, 9)], now)).not.toContain(
+			"all-time high",
+		);
+		const tie = [
+			week(twoAgo - 14 * DAY, 5),
+			week(twoAgo - 7 * DAY, 9),
+			week(twoAgo, 3),
+			week(lastWeek, 9),
+		];
+		expect(cheerFor(tie, now)).not.toContain("all-time high");
+	});
 });

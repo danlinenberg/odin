@@ -20,8 +20,8 @@ export function weekStart(at: number): number {
 const NEXT_WEEK_MS = 8 * 86_400_000;
 
 /**
- * Huginn's "good job" for last week, or null when last week didn't beat the
- * one before it. Only finished weeks count - a week still going is never
+ * Huginn's "good job" for last week: a new all-time high first, else a beat
+ * over the week before, or null when last week beat neither. Only finished weeks count - a week still going is never
  * held up against a full one.
  */
 export function cheerFor(weeks: CheerWeek[], now: number): string | null {
@@ -32,6 +32,11 @@ export function cheerFor(weeks: CheerWeek[], now: number): string | null {
 	// Last week must be the one just ended, and follow its rival directly.
 	if (weekStart(now) - last.start > NEXT_WEEK_MS) return null;
 	if (last.start - before.start > NEXT_WEEK_MS) return null;
+	// A new best week beats every other note. Needs a few weeks of history,
+	// or the second week anyone uses Odin would already be a record.
+	const best = Math.max(...done.slice(0, -1).map((week) => week.shipped));
+	if (done.length >= 4 && last.shipped > best && last.shipped >= 3)
+		return `You merged ${last.shipped} PRs last week, your best week yet (the record was ${best}). New all-time high.`;
 	if (last.shipped > before.shipped && before.shipped > 0) {
 		const up = Math.round((last.shipped / before.shipped - 1) * 100);
 		return `You merged ${last.shipped} PRs last week, ${up}% more than the week before. Good job.`;
