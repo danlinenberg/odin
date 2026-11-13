@@ -51,26 +51,38 @@ export function serveChannel(
 export type RelayState = "connecting" | "connected";
 
 /**
+ * How often the control connection is opened again. Nothing travels on it
+ * between phones, so one the relay dropped while this computer slept or
+ * changed network never closes here: the relay then tells every phone there
+ * is no such host, with Odin open and "connected".
+ */
+const REDIAL_MS = 60_000;
+
+/**
  * Keeps a control connection open to the relay under `id` and hands each
- * phone it announces to `onPhone`. Backs off and dials again after sleep or
- * a dropped network. Returns the stop.
+ * phone it announces to `onPhone`. Backs off and dials again after a close,
+ * and opens a new connection every `redialMs`: the relay keeps the newest,
+ * and the old one stays until the new one is up. Returns the stop.
  */
 export function dialRelay(
 	url: string,
 	id: string,
 	onPhone: (pipe: Pipe) => void,
 	onState: (state: RelayState) => void = () => {},
+	redialMs = REDIAL_MS,
 ): () => void {
 	let stopped = false;
 	let control: WebSocket | null = null;
 	let delay = 1000;
-	const connect = () => {
+	const connect = (redial = false) => {
 		if (stopped) return;
-		onState("connecting");
+		if (!redial) onState("connecting");
+		const old = redial ? control : null;
 		const socket = new WebSocket(`${url}/host/${id}`);
 		control = socket;
 		socket.addEventListener("open", () => {
-			onState("connected");
+			old?.close();
+			if (!redial) onState("connected");
 			delay = 1000;
 		});
 		socket.addEventListener("message", async (event) => {
@@ -88,6 +100,9 @@ export function dialRelay(
 			if (session) onPhone(websocketPipe(session));
 		});
 		socket.addEventListener("close", () => {
+			// One a newer connection took over from: that one is the state now.
+			if (control !== socket) return;
+			old?.close();
 			onState("connecting");
 			if (stopped) return;
 			setTimeout(connect, delay);
@@ -95,8 +110,13 @@ export function dialRelay(
 		});
 	};
 	connect();
+	// Only over an open one: a closed one is already dialing again above.
+	const redial = setInterval(() => {
+		if (control?.readyState === WebSocket.OPEN) connect(true);
+	}, redialMs);
 	return () => {
 		stopped = true;
+		clearInterval(redial);
 		control?.close();
 	};
 }
