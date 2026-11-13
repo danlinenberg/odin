@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -72,21 +72,50 @@ export const tmux = {
 		(await promisify(execFile)("tmux", args, { timeout: 10_000 })).stdout,
 };
 
-/** The live `odin-*` tmux sessions: name, and whether Claude is the pane's command. */
+/** What runs on this host; a test swaps it. */
+export const procs = {
+	/** The pids with a `claude` child: one `ps` for every session. */
+	claudeParents: async (): Promise<Set<string>> => {
+		const out = await promisify(execFile)(
+			"ps",
+			["-o", "ppid=", "-C", "claude"],
+			{ timeout: 10_000 },
+		).then(
+			(ran) => ran.stdout,
+			// ps exits 1 when no claude runs.
+			() => "",
+		);
+		return new Set(out.split("\n").map((pid) => pid.trim()));
+	},
+};
+
+/**
+ * The live `odin-*` tmux sessions: name, when it started (epoch seconds),
+ * and whether its Claude runs. Claude is a child of the pane's run script
+ * (session.ts), so tmux names the pane's command `bash` either way.
+ */
 export async function liveSessions(): Promise<
-	{ name: string; sessionId: string; claude: boolean }[]
+	{ name: string; sessionId: string; claude: boolean; created: number }[]
 > {
-	const out = await tmux
-		.run(["list-sessions", "-F", "#{session_name}\t#{pane_current_command}"])
-		.catch(() => "");
+	const [out, parents] = await Promise.all([
+		tmux
+			.run([
+				"list-sessions",
+				"-F",
+				"#{session_name}\t#{pane_pid}\t#{session_created}",
+			])
+			.catch(() => ""),
+		procs.claudeParents(),
+	]);
 	return out
 		.split("\n")
 		.map((line) => line.split("\t"))
 		.filter(([name]) => name?.startsWith("odin-") && name.length > 5)
-		.map(([name = "", command = ""]) => ({
+		.map(([name = "", pid = "", created = ""]) => ({
 			name,
 			sessionId: name.slice(5),
-			claude: command === "claude",
+			claude: parents.has(pid),
+			created: Number(created),
 		}));
 }
 
@@ -103,16 +132,40 @@ export type HostSession = {
 	card: SnapshotCard | null;
 };
 
-/** Every Odin session alive in tmux here, with the laptop card it belongs to. */
+/**
+ * A session started this long before the laptop sent its board can be
+ * missing from it: its card has no Claude session yet.
+ */
+const NEW_CARD_SECONDS = 600;
+
+/** When the laptop last sent its board (epoch seconds); 0 when it never did. */
+function snapshotSentAt(): number {
+	try {
+		return statSync(join(hostPaths.dir, "board.json")).mtimeMs / 1000;
+	} catch {
+		return 0;
+	}
+}
+
+/**
+ * Every Odin session alive in tmux here, with the laptop card it belongs to.
+ * Done on the laptop takes the card off its board and leaves the tmux
+ * session, so one with no card on the board the laptop sent is listed only
+ * when it started after that board: the runner's, or one the laptop started
+ * since. A host the laptop never sent a board lists them all.
+ */
 export async function hostSessions(): Promise<HostSession[]> {
 	const live = await liveSessions();
 	const files = readPaneFiles();
-	const cards = readSnapshot().sessions ?? [];
-	return live.map((session) => {
+	const cards = readSnapshot().sessions;
+	const sentAt = snapshotSentAt();
+	return live.flatMap((session) => {
 		const card =
-			cards.find((c) => c.sessionId === session.sessionId) ??
-			cards.find((c) => c.paneId === files.get(session.name)) ??
+			cards?.find((c) => c.sessionId === session.sessionId) ??
+			cards?.find((c) => c.paneId === files.get(session.name)) ??
 			null;
+		if (!card && cards && session.created < sentAt - NEW_CARD_SECONDS)
+			return [];
 		return {
 			paneId: card?.paneId ?? files.get(session.name) ?? session.sessionId,
 			sessionId: session.sessionId,

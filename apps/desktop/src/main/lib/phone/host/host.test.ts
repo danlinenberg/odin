@@ -1,5 +1,12 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, statSync, writeFileSync } from "node:fs";
+import {
+	mkdirSync,
+	mkdtempSync,
+	rmSync,
+	statSync,
+	utimesSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -12,7 +19,7 @@ import {
 import { startRelay } from "@odin/relay";
 import { shell } from "./router";
 import { hostFiles, hostLink, pairingLink, startHostServer } from "./server";
-import { hostPaths, hostStatus, tmux } from "./sessions";
+import { hostPaths, hostSessions, hostStatus, procs, tmux } from "./sessions";
 
 const home = mkdtempSync(join(tmpdir(), "odin-phone-host-"));
 hostPaths.home = home;
@@ -21,10 +28,12 @@ const SESSION = "11111111-2222-3333-4444-555555555555";
 const OTHER = "99999999-2222-3333-4444-555555555555";
 
 // Two of Odin's sessions in tmux, one of them stopped for being idle, and a
-// tmux session that isn't Odin's.
+// tmux session that isn't Odin's. Each pane's command is the run script's
+// bash: Claude is its child.
+let listed = `odin-${SESSION}\t101\t1000\nodin-${OTHER}\t102\t1000\nscratch\t103\t1000\n`;
+procs.claudeParents = async () => new Set(["101"]);
 tmux.run = async (args) => {
-	if (args[0] === "list-sessions")
-		return `odin-${SESSION}\tclaude\nodin-${OTHER}\tbash\nscratch\tbash\n`;
+	if (args[0] === "list-sessions") return listed;
 	if (args[0] === "capture-pane")
 		return "✻ Cogitating… (5s · esc to interrupt)\n";
 	return "";
@@ -237,4 +246,28 @@ test("status: the screen's dialog or spinner wins; at the prompt the laptop's la
 	);
 	expect(hostStatus("? for shortcuts", true, "permission")).toBe("permission");
 	expect(hostStatus("? for shortcuts", true, "working")).toBe("review");
+});
+
+test("a session the Mac's board no longer has is left out, unless it started after the board was sent", async () => {
+	const before = listed;
+	const board = join(hostPaths.dir, "board.json");
+	const sent = 2_000_000;
+	const DONE = "aaaaaaaa-2222-3333-4444-555555555555";
+	const NEW = "bbbbbbbb-2222-3333-4444-555555555555";
+	// On the Mac's board, marked Done there (tmux still has it), started since.
+	listed = `odin-${SESSION}\t101\t1000\nodin-${DONE}\t104\t${sent - 3600}\nodin-${NEW}\t105\t${sent + 60}\n`;
+	writeFileSync(
+		board,
+		JSON.stringify({ sessions: [{ paneId: "pane-abc", sessionId: SESSION }] }),
+	);
+	utimesSync(board, sent, sent);
+	try {
+		expect((await hostSessions()).map((s) => s.sessionId)).toEqual([
+			SESSION,
+			NEW,
+		]);
+	} finally {
+		listed = before;
+		rmSync(board);
+	}
 });
