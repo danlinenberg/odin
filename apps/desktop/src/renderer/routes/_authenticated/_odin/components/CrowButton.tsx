@@ -19,6 +19,7 @@ import { ChatView, interruptClaude } from "../board/ChatView";
 import { targetOwnsEsc } from "../board/drawer-esc";
 import { endSession } from "../hooks/useDone";
 import { CrowIcon } from "./CrowIcon";
+import { cheerFor, weekStart } from "./cheer";
 import { type PromptImage, readFile } from "./OdinPromptDialog";
 
 /** Set once the raven's panel has been opened; until then its tooltip says how to use it. */
@@ -30,6 +31,49 @@ const wasSeen = () => {
 		return true;
 	}
 };
+
+/** The week Huginn last cheered, so he says it once a week at most. */
+const CHEERED_KEY = "odin-huginn-cheered";
+const cheeredWeek = () => {
+	try {
+		return Number(localStorage.getItem(CHEERED_KEY)) || 0;
+	} catch {
+		return 0;
+	}
+};
+
+/**
+ * Once a week, a pat on the back when last week's Insights beat the week
+ * before: more merged PRs, or more agents running at once. Silent otherwise.
+ */
+function useCheer() {
+	const week = weekStart(Date.now());
+	// Asked a while after launch, and not at all once this week is done.
+	const [due, setDue] = useState(false);
+	useEffect(() => {
+		if (cheeredWeek() === week) return;
+		const timer = setTimeout(() => setDue(true), 60_000);
+		return () => clearTimeout(timer);
+	}, [week]);
+	const { data } = electronTrpc.insights.workload.useQuery(undefined, {
+		enabled: due,
+		staleTime: Number.POSITIVE_INFINITY,
+		refetchOnWindowFocus: false,
+	});
+	useEffect(() => {
+		if (!data || cheeredWeek() === week) return;
+		try {
+			localStorage.setItem(CHEERED_KEY, String(week));
+		} catch {}
+		setDue(false);
+		const message = cheerFor(data.weeks, Date.now());
+		if (message)
+			toast(message, {
+				icon: <CrowIcon className="size-5" />,
+				duration: 15_000,
+			});
+	}, [data, week]);
+}
 
 /** A rail icon's size, so it sits in the rail like one. */
 const SIZE = 36;
@@ -412,6 +456,7 @@ export function CrowButton({
 	/** The hotkey, for the tooltip. */
 	keys?: string;
 }) {
+	useCheer();
 	// Same query and interval as useCrow's, so a cache hit.
 	const { data: daemon } = electronTrpc.terminal.listDaemonSessions.useQuery(
 		undefined,
