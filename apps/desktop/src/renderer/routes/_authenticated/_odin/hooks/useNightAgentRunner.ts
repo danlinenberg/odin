@@ -305,7 +305,7 @@ export function useNightAgentRunner() {
 				offHours.maxSessions,
 				offHours.instructions,
 				order.map((row) => row.key),
-				exclude.length,
+				exclude,
 				picksOnly,
 			]);
 			if (
