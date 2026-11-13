@@ -7033,6 +7033,8 @@ function DevBoardPage() {
 	// and the toggles keep their full width. Chips used to sit in their own
 	// overflow-hidden group, which clipped its tail (the status and the
 	// star) instead.
+	// Beside the Inbox the drawer is a preview: the list keeps at least 40%.
+	const drawerWidth = `max(${MIN_DRAWER_W}px, calc((100vw - ${RAIL_W}px) * ${inboxOpen ? Math.min(drawerFraction, 0.6) : drawerFraction}))`;
 	const drawerHeader = drawerCard && (
 		// h-10 matches SessionBrief's header beside it, so the two bottom borders meet.
 		<div className="flex h-10 shrink-0 items-center border-b border-border px-4">
@@ -7532,18 +7534,23 @@ function DevBoardPage() {
 			)}
 
 			{inboxOpen && (
-				<InboxView
-					sessions={inboxSessions}
-					onOpen={(paneId) => {
-						const card = inboxCard(paneId);
-						if (card) openDrawer(card);
-					}}
-					onSend={sendFromInbox}
-					onResume={(paneId) => {
-						const card = inboxCard(paneId);
-						if (card) void resumeCard(card);
-					}}
-				/>
+				<div
+					className="flex min-h-0 flex-1 flex-col"
+					style={drawerCard ? { paddingRight: drawerWidth } : undefined}
+				>
+					<InboxView
+						sessions={inboxSessions}
+						onOpen={(paneId) => {
+							const card = inboxCard(paneId);
+							if (card) openDrawer(card);
+						}}
+						onSend={sendFromInbox}
+						onResume={(paneId) => {
+							const card = inboxCard(paneId);
+							if (card) void resumeCard(card);
+						}}
+					/>
+				</div>
 			)}
 			<div
 				className={cn(
@@ -7740,15 +7747,19 @@ function DevBoardPage() {
 			{/* session drawer */}
 			{drawerCard && (
 				<>
-					<button
-						type="button"
-						aria-label="Close drawer"
-						className={cn(
-							"fixed inset-0 z-40 cursor-default bg-none",
-							inCatchUp ? "bg-black/70" : "bg-black/35",
-						)}
-						onClick={() => setDrawerCard(null)}
-					/>
+					{/* Beside the Inbox nothing covers the list: clicking another row
+					    switches the preview. */}
+					{!(inboxOpen && !inCatchUp) && (
+						<button
+							type="button"
+							aria-label="Close drawer"
+							className={cn(
+								"fixed inset-0 z-40 cursor-default bg-none",
+								inCatchUp ? "bg-black/70" : "bg-black/35",
+							)}
+							onClick={() => setDrawerCard(null)}
+						/>
+					)}
 					{/* Catch up (Slack mobile's): the drawer becomes the top card of a
 					    stack, with how many are left above it and Next / Done below. */}
 					{inCatchUp && catchUp && catchUpCall && (
@@ -7823,7 +7834,7 @@ function DevBoardPage() {
 							inCatchUp
 								? undefined
 								: {
-										width: `max(${MIN_DRAWER_W}px, calc((100vw - ${RAIL_W}px) * ${drawerFraction}))`,
+										width: drawerWidth,
 									}
 						}
 					>
