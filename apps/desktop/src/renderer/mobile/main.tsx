@@ -63,7 +63,13 @@ import { channelFetch, type OdinFetch, routedFetch } from "./odin-fetch";
 import { type Pairing, parsePairLink } from "./pair-link";
 import { MenuCard, PlanCard, QuestionCard } from "./prompt-cards";
 import { markStarted, useScreensUpdate } from "./screens-update";
-import { SearchBox, SearchResults, titleMatches, useSettled } from "./search";
+import {
+	mergeHits,
+	SearchBox,
+	SearchResults,
+	titleMatches,
+	useSettled,
+} from "./search";
 import { NEW_TASK_EVENT, SharePicker, useSharedFiles } from "./share";
 import {
 	boardWords,
@@ -576,11 +582,13 @@ function Home() {
 		{ query: settled },
 		{ enabled: settled.length >= 2, retry: false, staleTime: 30_000 },
 	);
-	// The Mac's answer once it's for what's typed; the board's titles till then.
+	// The board's titles at once; the Mac's answer joins them once it's for
+	// what's typed.
+	const onBoard = titleMatches(sessions, typed);
 	const hits =
 		settled === typed && search.data
-			? search.data
-			: titleMatches(sessions, typed);
+			? mergeHits(search.data, onBoard)
+			: onBoard;
 	return (
 		<div className="min-h-dvh pb-24">
 			<header className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-2 backdrop-blur">

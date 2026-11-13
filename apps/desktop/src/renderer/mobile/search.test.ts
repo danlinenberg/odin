@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { titleMatches } from "./search";
+import { mergeHits, titleMatches } from "./search";
 
 test("board titles match every typed word, newest first", () => {
 	const row = (paneId: string, title: string, statusAt: number) => ({
@@ -23,4 +23,26 @@ test("board titles match every typed word, newest first", () => {
 		"b",
 	]);
 	expect(titleMatches(sessions, "kangaroo")).toEqual([]);
+});
+
+test("a board session the Mac's search left out stays in the results", () => {
+	const hit = (
+		sessionId: string,
+		paneId: string | null,
+		updatedAt: number,
+	) => ({
+		sessionId,
+		paneId,
+		title: sessionId,
+		snippet: paneId === "a" ? "from the conversation" : "",
+		person: null,
+		updatedAt,
+	});
+	// "a" is in both: the Mac's row, with its snippet, stands for it.
+	const merged = mergeHits(
+		[hit("s-a", "a", 5), hit("s-old", null, 1)],
+		[hit("a", "a", 4), hit("new", "new", 9)],
+	);
+	expect(merged.map((h) => h.sessionId)).toEqual(["new", "s-a", "s-old"]);
+	expect(merged[1].snippet).toBe("from the conversation");
 });
