@@ -49,6 +49,7 @@ import { hostLinkFor } from "./host-link";
 import { readableTitle, readableTitles } from "./readable-title";
 import { readScreens } from "./screens";
 import { rememberFromPhone } from "./sent";
+import { startedPane } from "./started-pane";
 
 /**
  * Everything the phone can do, and nothing else: the LAN never reaches the
@@ -91,19 +92,6 @@ async function hiddenLinks(paneId: string): Promise<string[]> {
 		return Array.isArray(urls) ? urls.filter((u) => typeof u === "string") : [];
 	} catch {
 		return [];
-	}
-}
-
-/**
- * A started task's paneId, which the phone opens. {} when the window answered
- * in words: a launch that failed, or nothing found to start.
- */
-function startedPane(text: string): { paneId?: string } {
-	try {
-		const { paneId } = JSON.parse(text) as { paneId?: unknown };
-		return typeof paneId === "string" ? { paneId } : {};
-	} catch {
-		return {};
 	}
 }
 
@@ -810,7 +798,9 @@ export const phoneRouter = t.router({
 				...(input.start && { start: "true", open: "true" }),
 				...(input.onHost !== undefined && { host: String(input.onHost) }),
 			});
-			return input.start ? startedPane(text) : {};
+			return input.start
+				? startedPane(text, "Saved to your tasks, but it didn't start: ")
+				: {};
 		}),
 
 	/** Odin's profiles, and the one it's in. */

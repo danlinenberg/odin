@@ -621,7 +621,7 @@ function Home() {
 					</button>
 				</div>
 			)}
-			<ErrorLine error={board.error} />
+			<ErrorLine error={board.error ?? start.error} />
 			{away && (
 				<div className="mx-3 mt-3 rounded-[10px] border border-border bg-secondary px-3 py-2 text-sm text-muted-foreground">
 					Your Mac is away. These are the sessions on {away.host}, answered by
