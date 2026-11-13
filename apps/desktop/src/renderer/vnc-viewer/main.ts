@@ -1,4 +1,5 @@
 import RFB from "@novnc/novnc";
+import { tuneForLink } from "renderer/lib/vnc-screen";
 
 /**
  * The View tab's own window (Open in window in the drawer's View tab): noVNC
@@ -8,12 +9,11 @@ import RFB from "@novnc/novnc";
  */
 const query = new URLSearchParams(location.search);
 const status = document.getElementById("status") as HTMLElement;
-const rfb = new RFB(
-	document.getElementById("screen") as HTMLElement,
-	`ws://127.0.0.1:${query.get("port")}/`,
-	{ credentials: { password: query.get("password") ?? "" } },
-);
-rfb.scaleViewport = true;
+const screen = document.getElementById("screen") as HTMLElement;
+const rfb = new RFB(screen, `ws://127.0.0.1:${query.get("port")}/`, {
+	credentials: { password: query.get("password") ?? "" },
+});
+tuneForLink(rfb, screen);
 rfb.addEventListener("connect", () => {
 	status.textContent = "";
 });
