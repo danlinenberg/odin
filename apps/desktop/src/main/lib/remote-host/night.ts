@@ -19,6 +19,7 @@
  * laptop sent (`fallback`). A plan stops at `until`, so a host you switched
  * away from goes quiet on its own.
  */
+import { NIGHT_TASK_PLACEHOLDER } from "shared/away-tasks";
 import { MIN_HOST_FREE_MEMORY_SHARE } from "shared/launch-gate";
 import { sh } from "./session";
 import { adminLogin, connectHost, type HostLogin, runOnHost } from "./ssh";
@@ -30,7 +31,7 @@ export const NIGHT_PANE_PLACEHOLDER = "0dinpane-0000-4000-8000-000000000000";
 /** Where the fallback template's prompt, base64, goes in its script. */
 export const NIGHT_PROMPT_B64_PLACEHOLDER = "__ODIN_PROMPT_B64__";
 /** Where a picked message goes in the fallback template's prompt. */
-export const NIGHT_TASK_PLACEHOLDER = "__ODIN_NIGHT_TASK__";
+export { NIGHT_TASK_PLACEHOLDER } from "shared/away-tasks";
 
 export interface NightTask {
 	key: string;
@@ -82,6 +83,8 @@ export interface NightStarted {
 	url?: string;
 	/** true: the host picked it, with no row of the laptop's behind it. */
 	picked?: boolean;
+	/** true: the phone started it on the host with the laptop closed (away.ts), not the night. */
+	away?: boolean;
 }
 
 export const NIGHT_RUNNER_PY = `import base64, json, os, re, shutil, subprocess, tempfile, time, urllib.parse, urllib.request, uuid
@@ -89,6 +92,10 @@ export const NIGHT_RUNNER_PY = `import base64, json, os, re, shutil, subprocess,
 HOME = os.path.expanduser("~/.odin/night")
 PLAN, STATE = HOME + "/plan.json", HOME + "/state.json"
 MISSED, LEDGER = HOME + "/missed.json", HOME + "/ran.jsonl"
+# Tasks the phone may start here with the laptop closed (away.ts).
+AWAY = HOME + "/away.json"
+BOARD = HOME + "/board.json"
+ADDED = HOME + "/added.jsonl"
 DAY = 86400
 PANE = "${NIGHT_PANE_PLACEHOLDER}"
 PROMPT_B64 = "${NIGHT_PROMPT_B64_PLACEHOLDER}"
@@ -353,22 +360,94 @@ def main():
     if reason:
         print("holding " + task["title"] + ": this host " + reason)
         return
+    row = {"key": task["key"], "title": task["title"], "sessionId": task["sessionId"], "at": now, "night": night["from"]}
+    if task.get("picked"):
+        row.update({"url": task.get("url", ""), "picked": True})
+    started.append(row)
+    save(STATE, state)
+    launch(task, row)
+
+
+def launch(task, row):
+    """Starts a task's session in tmux. In the ledger before the start: a crash between the two never starts it twice."""
     secrets = tempfile.mkdtemp(prefix="odin.", dir="/dev/shm")
     shutil.copyfile(HOME + "/env", secrets + "/env")
     os.chmod(secrets + "/env", 0o600)
     with open(secrets + "/run.sh", "w") as f:
         f.write(task["script"].replace("${SECRETS_DIR_PLACEHOLDER}", secrets))
-    row = {"key": task["key"], "title": task["title"], "sessionId": task["sessionId"], "at": now, "night": night["from"]}
-    if task.get("picked"):
-        row.update({"url": task.get("url", ""), "picked": True})
-    # In the ledger before the start: a crash between the two never starts it twice.
     record(row)
-    started.append(row)
-    save(STATE, state)
     subprocess.run(["tmux", "new-session", "-d", "-s", session_name(task["sessionId"]), "bash " + secrets + "/run.sh"], check=True)
 
 
+def jsonl(path):
+    try:
+        with open(path) as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return []
+    rows = []
+    for line in lines:
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows
+
+
+def board_task(away, key):
+    """
+    A row the host fetched itself (phone/host/feeds), started in the template
+    the laptop sent: the row's own title and text go in its prompt, base64 in
+    the script, and nothing else changes. None when either is missing.
+    """
+    tpl = away.get("template")
+    rows = load(BOARD, [])
+    row = next((r for r in rows if isinstance(r, dict) and r.get("key") == key), None) if isinstance(rows, list) else None
+    if not row:
+        # A task typed on the phone a moment ago, before the board's next fetch.
+        row = next((r for r in jsonl(ADDED) if r.get("key") == key), None)
+    if not isinstance(tpl, dict) or not row:
+        return None
+    sid = str(uuid.uuid4())
+    prompt = tpl["prompt"].replace(TASK, row.get("text") or row.get("title") or key).replace(PANE, sid).replace(PANE[:8], sid[:8])
+    script = (tpl["script"].replace(PROMPT_B64, base64.b64encode(prompt.encode()).decode())
+              .replace(PANE, sid).replace(PANE[:8], sid[:8]))
+    return {"key": key, "title": row.get("title") or key, "sessionId": sid, "script": script}
+
+
+def start_away(key, now=None):
+    """
+    The phone's Start on a task the laptop sent (away.json) or one the host
+    fetched itself (board.json), with the laptop closed. Prints the session id. Exits 4 when the task isn't in the list or
+    the list expired, 6 when the host has no room, with the reason. A task
+    already started here prints its session again.
+    """
+    now = now or time.time()
+    away = load(AWAY, None)
+    if not isinstance(away, dict) or now >= away.get("until", 0):
+        return 4
+    task = next((t for t in away.get("tasks", []) if t.get("key") == key), None) or board_task(away, key)
+    if not task:
+        return 4
+    ran = next((r for r in ledger() if r.get("key") == key), None)
+    if ran:
+        print(ran["sessionId"])
+        return 0
+    reason = hold_reason(read("/proc/meminfo"), read("/proc/loadavg"), os.cpu_count())
+    if reason:
+        print("this host " + reason)
+        return 6
+    launch(task, {"key": key, "title": task["title"], "sessionId": task["sessionId"], "at": now, "away": True})
+    print(task["sessionId"])
+    return 0
+
+
 if __name__ == "__main__":
+    import sys
+    if len(sys.argv) == 3 and sys.argv[1] == "start":
+        sys.exit(start_away(sys.argv[2]))
     main()
 `;
 

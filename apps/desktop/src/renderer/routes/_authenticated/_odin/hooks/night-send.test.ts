@@ -105,6 +105,10 @@ describe("a plan for the next nights", () => {
 		).toEqual(["slack:C1:1.1", "jira:A-1", "slack:C1:2.2"]);
 	});
 
+	test("excludes a row a session already took, so the host's own picks skip it", () => {
+		expect(nightExclude([], [], ["slack:C1:3.3"])).toEqual(["slack:C1:3.3"]);
+	});
+
 	test("a Slack message the host picked becomes a row the board can attach to", () => {
 		const item = hostPickedItem({
 			key: "slack:D9:1.5",

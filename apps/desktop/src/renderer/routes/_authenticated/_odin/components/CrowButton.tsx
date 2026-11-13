@@ -3,6 +3,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { useEffect, useRef, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { formatRelativeTime } from "renderer/lib/formatRelativeTime";
+import { usePersistedDraft } from "renderer/stores/chat-drafts";
 import {
 	CLAUDE_MODELS,
 	CROW_DEFAULT_MODEL,
@@ -101,7 +102,8 @@ function CrowPanel({
 	onClose: () => void;
 	onShowOnBoard: (paneId: string) => void;
 }) {
-	const [text, setText] = useState("");
+	// Kept until it is sent, like a session's reply box.
+	const [text, setText, markSent] = usePersistedDraft("huginn");
 	const [files, setFiles] = useState<PromptImage[]>([]);
 	const [sending, setSending] = useState(false);
 	const panel = useRef<HTMLDivElement>(null);
@@ -136,6 +138,7 @@ function CrowPanel({
 		if (sending || (!ask.trim() && files.length === 0)) return;
 		setSending(true);
 		if (await onAsk(ask, files)) {
+			markSent();
 			setText("");
 			setFiles([]);
 		}

@@ -44,6 +44,7 @@ export const LISTED_HOTKEYS: HotkeyId[] = [
 	"CHAT_TO_BOTTOM",
 	"CHAT_FIND",
 	"CHAT_SEND_NOW",
+	"STOP_TURN",
 	// Menu bar
 	"OPEN_PROJECT",
 	"RELOAD_WINDOW",

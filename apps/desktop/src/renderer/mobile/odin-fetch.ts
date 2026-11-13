@@ -270,6 +270,11 @@ const ON_HOST = new Set([
 	"host",
 	"repos",
 	"screens",
+	// A task the Mac left there or the host fetched, a new one typed on the
+	// phone, and Done on a session there (Tasks with the Mac closed).
+	"start",
+	"add",
+	"done",
 ]);
 
 /** The procedures a "/trpc/a,b?batch=1" path calls, or null for anything else. */

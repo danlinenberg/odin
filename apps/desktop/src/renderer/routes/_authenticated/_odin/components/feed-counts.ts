@@ -46,9 +46,9 @@ export const EVERY_PROVIDER_HAS_A_TAB: [ProviderWithoutTab] extends [never]
 	? true
 	: ProviderWithoutTab = true;
 
-/** Renovate/dependabot/CI accounts - noise in a review queue. */
-export const isBot = (author: string) =>
-	/\[bot\]$|^(renovate|dependabot)/i.test(author);
+export { isBot } from "./is-bot";
+
+import { isBot } from "./is-bot";
 
 /**
  * The badge on each tab: what's actually waiting on you, not how many rows the

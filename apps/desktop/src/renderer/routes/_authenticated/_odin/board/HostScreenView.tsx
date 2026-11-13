@@ -1,7 +1,7 @@
 import RFB from "@novnc/novnc";
 import { useEffect, useRef, useState } from "react";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
-import type { HostScreen } from "renderer/stores/host-view";
+import { closeHostScreen, type HostScreen } from "renderer/stores/host-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
 
 /**
@@ -22,6 +22,23 @@ export function HostScreenView({
 	const [name, setName] = useState("");
 	const [attempt, setAttempt] = useState(0);
 	const lost = status !== null && status !== "Connecting to the host…";
+	const [popping, setPopping] = useState(false);
+
+	// Open in window: the same screen in its own resizable Odin window. The
+	// drawer goes back to the session, so only one viewer holds the screen;
+	// ▣ View brings it back here.
+	const openInWindow = () => {
+		setPopping(true);
+		electronTrpcClient.remoteHost.viewInWindow
+			.mutate({
+				host: useTabsStore.getState().panes[paneId]?.odinRemote,
+				port: screen.port,
+				password: screen.password,
+			})
+			.then(() => closeHostScreen())
+			.catch((error: Error) => setStatus(error.message))
+			.finally(() => setPopping(false));
+	};
 
 	useEffect(() => {
 		// Re-runs on Reconnect (attempt) as well as for a new screen.
@@ -65,8 +82,19 @@ export function HostScreenView({
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			<div className="flex h-7 shrink-0 items-center gap-2 border-b border-border px-4 text-[11px] text-muted-foreground">
-				{name || "The app running on the host"} - ▣ View again goes back to the
-				session
+				<span className="min-w-0 flex-1 truncate">
+					{name || "The app running on the host"} - ▣ View again goes back to
+					the session
+				</span>
+				<button
+					type="button"
+					onClick={openInWindow}
+					disabled={popping}
+					title="Show the app in its own window you can move and resize"
+					className="shrink-0 rounded px-1.5 py-0.5 font-medium text-foreground hover:bg-secondary disabled:opacity-50"
+				>
+					{popping ? "Opening…" : "↗ Open in window"}
+				</button>
 			</div>
 			<div className="relative min-h-0 flex-1 bg-[#111]">
 				<div ref={target} className="absolute inset-0" />

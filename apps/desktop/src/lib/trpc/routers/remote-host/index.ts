@@ -32,12 +32,19 @@ import {
 	readNotionOAuthResult,
 	startNotionOAuth,
 } from "main/lib/notion-oauth";
+import type { HostFeeds } from "main/lib/phone/host/feeds";
 import {
 	activePlanLimit,
 	apiKeyFallbackOn,
 	clearPlanLimit,
 	planLimitedUntil,
 } from "main/lib/remote-host/api-key-fallback";
+import {
+	AWAY_DAYS,
+	awayInbox,
+	clearAwayTasks,
+	pushAwayTasks,
+} from "main/lib/remote-host/away";
 import {
 	bringUpHost,
 	hostUp,
@@ -143,7 +150,7 @@ import {
 	runOnHost,
 } from "main/lib/remote-host/ssh";
 import { awsClientConfig } from "main/lib/remote-host/ssm";
-import { viewOnMac } from "main/lib/remote-host/view-on-mac";
+import { viewInWindow, viewOnMac } from "main/lib/remote-host/view-on-mac";
 import {
 	bringShellToHost,
 	remoteFolderUri,
@@ -169,6 +176,7 @@ import {
 	updateOdinConfig,
 } from "../odin-config";
 import { scanRepos } from "../repos";
+import { normalizeReaction, QUEUE_REACTION } from "../slack/reactions";
 import {
 	awsSsoLogin,
 	isAwsSignInExpired,
@@ -282,6 +290,78 @@ async function buildSessionSpec(
 		// Its login only: the session's git and gh get the token itself from
 		// the host service at each use, so it never goes stale.
 		githubLogin: hostGithubLogin(readOdinConfig(), githubOwner(origin ?? "")),
+	};
+}
+
+/** A task as the renderer plans it for the host (use-start-item's planOnHost). */
+const plannedTask = z.object({
+	key: z.string(),
+	title: z.string(),
+	sessionId: z.string().min(1),
+	repoPath: z.string().nullable(),
+	prompt: z.string(),
+});
+
+/** Each task as a ready session script for the host, and the files their prompts name. */
+async function readyTasks(
+	host: RemoteHost,
+	planned: z.infer<typeof plannedTask>[],
+) {
+	const files: { local: string; remote: string }[] = [];
+	const tasks = [];
+	for (const task of planned) {
+		const spec = await buildSessionSpec(host, {
+			pane: task.sessionId,
+			repoPath: task.repoPath,
+			claudeArgs: `--session-id ${task.sessionId}`,
+			prompt: task.prompt,
+		});
+		files.push(...(spec.files ?? []));
+		tasks.push({
+			key: task.key,
+			title: task.title,
+			sessionId: task.sessionId,
+			script: runScript(spec, SECRETS_DIR_PLACEHOLDER),
+		});
+	}
+	return { tasks, files };
+}
+
+/**
+ * A session like the tasks', no repo, its id and message left blank for the
+ * host: the runner puts a fresh id in place of NIGHT_PANE_PLACEHOLDER and a
+ * task's text in place of NIGHT_TASK_PLACEHOLDER in `prompt`, base64 where
+ * NIGHT_PROMPT_B64_PLACEHOLDER stands in the script.
+ */
+async function sessionTemplate(host: RemoteHost, prompt: string) {
+	const spec = await buildSessionSpec(host, {
+		pane: NIGHT_PANE_PLACEHOLDER,
+		repoPath: null,
+		claudeArgs: `--session-id ${NIGHT_PANE_PLACEHOLDER}`,
+		prompt,
+	});
+	const text = spec.prompt ?? prompt;
+	return {
+		script: runScript(spec, SECRETS_DIR_PLACEHOLDER).replaceAll(
+			Buffer.from(text).toString("base64"),
+			NIGHT_PROMPT_B64_PLACEHOLDER,
+		),
+		prompt: text,
+		files: spec.files ?? [],
+	};
+}
+
+/** What the host fetches its own board with (phone/host/feeds): this computer's settings. */
+function hostFeeds(): HostFeeds {
+	const config = readOdinConfig();
+	return {
+		slackReaction: normalizeReaction(config.slackReaction ?? QUEUE_REACTION),
+		jiraSiteUrl: config.jiraSiteUrl ?? null,
+		notionDatabaseId:
+			process.env.SLACK_QUEUE_NOTION_DB_ID ??
+			config.notionTaskDbId ??
+			config.slackQueueDbId ??
+			null,
 	};
 }
 
@@ -1294,6 +1374,23 @@ export const createRemoteHostRouter = () =>
 				};
 			}),
 
+		/** The View tab's Open in window: the host's screen in its own Odin window. */
+		viewInWindow: publicProcedure
+			.input(
+				z.object({
+					host: paneHost,
+					port: z.number().int().min(1).max(65535),
+					password: z.string(),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				const host = hostNamed(input.host);
+				if (!host) throw new Error("No remote host is set up.");
+				await withAwsSignIn(host, () =>
+					viewInWindow(host, input.port, input.password),
+				);
+			}),
+
 		/**
 		 * A `!download` block's file: copied from the session's host to this
 		 * computer's Downloads folder (a new name when one is taken), and
@@ -1610,15 +1707,7 @@ export const createRemoteHostRouter = () =>
 					from: z.number(),
 					to: z.number(),
 					cap: z.number().int().min(0),
-					tasks: z.array(
-						z.object({
-							key: z.string(),
-							title: z.string(),
-							sessionId: z.string().min(1),
-							repoPath: z.string().nullable(),
-							prompt: z.string(),
-						}),
-					),
+					tasks: z.array(plannedTask),
 					nights: z
 						.array(z.object({ from: z.number(), to: z.number() }))
 						.optional(),
@@ -1649,42 +1738,19 @@ export const createRemoteHostRouter = () =>
 							),
 					);
 				}
-				const files: { local: string; remote: string }[] = [];
-				const tasks = [];
-				for (const task of input.tasks) {
-					const spec = await buildSessionSpec(host, {
-						pane: task.sessionId,
-						repoPath: task.repoPath,
-						claudeArgs: `--session-id ${task.sessionId}`,
-						prompt: task.prompt,
-					});
-					files.push(...(spec.files ?? []));
-					tasks.push({
-						key: task.key,
-						title: task.title,
-						sessionId: task.sessionId,
-						script: runScript(spec, SECRETS_DIR_PLACEHOLDER),
-					});
-				}
+				const { tasks, files } = await readyTasks(host, input.tasks);
 				let fallback: NightFallback | undefined;
 				if (input.fallback) {
-					// A session like the tasks', no repo, its id and message left blank for the host.
-					const spec = await buildSessionSpec(host, {
-						pane: NIGHT_PANE_PLACEHOLDER,
-						repoPath: null,
-						claudeArgs: `--session-id ${NIGHT_PANE_PLACEHOLDER}`,
-						prompt: [NIGHT_TASK_PLACEHOLDER, input.fallback.instructions]
+					const template = await sessionTemplate(
+						host,
+						[NIGHT_TASK_PLACEHOLDER, input.fallback.instructions]
 							.filter(Boolean)
 							.join("\n\n"),
-					});
-					files.push(...(spec.files ?? []));
-					const prompt = spec.prompt ?? NIGHT_TASK_PLACEHOLDER;
+					);
+					files.push(...template.files);
 					fallback = {
-						script: runScript(spec, SECRETS_DIR_PLACEHOLDER).replaceAll(
-							Buffer.from(prompt).toString("base64"),
-							NIGHT_PROMPT_B64_PLACEHOLDER,
-						),
-						prompt,
+						script: template.script,
+						prompt: template.prompt,
 						rank: input.fallback.rank,
 					};
 				}
@@ -1705,6 +1771,88 @@ export const createRemoteHostRouter = () =>
 					files,
 				);
 				return { sent: tasks.length };
+			}),
+		/**
+		 * Tasks with the Mac closed: the top of Next in line, sent to the host
+		 * as ready session scripts, for the phone to start there while this
+		 * computer is away (main/lib/remote-host/away). Only while the switch is on.
+		 */
+		awayPush: publicProcedure
+			.input(
+				z.object({
+					tasks: z.array(plannedTask).max(30),
+					/** The prompt any other row starts with on the host, NIGHT_TASK_PLACEHOLDER for its text. */
+					template: z.string().max(200_000).optional(),
+					/** My own Tasks, for the host's board. */
+					todos: z
+						.array(
+							z.object({
+								id: z.string(),
+								title: z.string(),
+								notes: z.string(),
+								createdAt: z.number(),
+								priority: z.number().optional(),
+								skill: z.string().optional(),
+							}),
+						)
+						.max(500)
+						.optional(),
+					/** Done here, so the host's own board leaves it out. */
+					done: z
+						.record(
+							z.string(),
+							z.object({ at: z.number(), url: z.string().nullable() }),
+						)
+						.optional(),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host?.on || !host.awayTasks)
+					throw new Error("Tasks with the Mac closed is off.");
+				const { tasks, files } = await readyTasks(host, input.tasks);
+				const template = input.template
+					? await sessionTemplate(host, input.template)
+					: null;
+				if (template) files.push(...template.files);
+				await pushAwayTasks(
+					host,
+					{
+						tasks,
+						until: Math.floor(Date.now() / 1000) + AWAY_DAYS * 86_400,
+						...(template && {
+							template: { script: template.script, prompt: template.prompt },
+							feeds: hostFeeds(),
+							done: input.done ?? {},
+							todos: input.todos ?? [],
+						}),
+					},
+					await sessionSecrets(),
+					files,
+				);
+				return { sent: tasks.length };
+			}),
+		/**
+		 * What the phone typed and marked Done on the host with this computer
+		 * away; with `before`, what this computer already took in is dropped.
+		 */
+		awayInbox: publicProcedure
+			.input(z.object({ before: z.number().optional() }).optional())
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host?.on || !host.awayTasks) return { added: [], done: [] };
+				return awayInbox(host, input?.before);
+			}),
+		/** The switch; off deletes the list and its secrets from the host. */
+		setAwayTasks: publicProcedure
+			.input(z.boolean())
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host) throw new Error("No remote host is set up.");
+				updateOdinConfig({
+					remoteHost: { ...host, awayTasks: input || undefined },
+				});
+				if (!input) await withAwsSignIn(host, () => clearAwayTasks(host));
 			}),
 		/**
 		 * What the host's runner started tonight, for the board to adopt; which

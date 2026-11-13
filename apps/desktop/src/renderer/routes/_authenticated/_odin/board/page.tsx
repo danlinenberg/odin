@@ -74,7 +74,12 @@ import {
 	moveQueuedToMac,
 	startQueuedPane,
 } from "renderer/hooks/useTaskQueue";
-import { useHotkey } from "renderer/hotkeys";
+import {
+	isHotkey,
+	useBinding,
+	useHotkey,
+	useHotkeyDisplay,
+} from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { canClaimKeyboard } from "renderer/lib/keyboard";
@@ -236,7 +241,8 @@ import {
 	woke,
 } from "./ci-wake";
 import { DiffView } from "./DiffView";
-import { escStaysWithTarget } from "./drawer-esc";
+import { drawerEscAction, escStaysWithTarget } from "./drawer-esc";
+import { drawerViewSwitch } from "./drawer-view-switch";
 import { HostScreenView } from "./HostScreenView";
 import { deliverOnHost } from "./host-delivery";
 import { hostStartDelay } from "./host-start-gap";
@@ -3200,7 +3206,13 @@ function DevBoardPage() {
 		};
 	}, [drawerCard, utils, isBriefOpen, terminalPaneId, chatView]);
 
-	// Esc closes the drawer. Captured at the window so it doesn't reach the
+	// Read by the Esc handler below, set once the helpers it needs exist.
+	const drawerEscRef = useRef<{
+		working: (paneId: string) => boolean;
+		interrupt: (paneId: string) => void;
+		interrupting: Set<string>;
+	}>({ working: () => false, interrupt: () => {}, interrupting: new Set() });
+	// Esc stops a running turn, and otherwise closes the drawer. Captured at the window so it doesn't reach the
 	// terminal by default - an Esc in the PTY cancels Claude's pending menu and
 	// trips upstream's "user interrupted → idle" status heuristic. The
 	// exceptions below are the states where Esc already means something to
@@ -3208,7 +3220,22 @@ function DevBoardPage() {
 	useEffect(() => {
 		if (!drawerCard) return;
 		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key !== "Escape") return;
+			// "Stop the turn" (Settings -> Keyboard) is Esc by default. Bound to
+			// another key, that key stops a running turn and Esc only closes.
+			const stopKey = isHotkey("STOP_TURN", event);
+			if (event.key !== "Escape") {
+				const paneId = drawerCard.pane.id;
+				if (
+					!stopKey ||
+					!drawerEscRef.current.working(paneId) ||
+					drawerEscRef.current.interrupting.has(paneId)
+				)
+					return;
+				event.preventDefault();
+				event.stopImmediatePropagation();
+				drawerEscRef.current.interrupt(paneId);
+				return;
+			}
 			// A link open over the drawer takes this Esc and closes alone.
 			if (useInAppBrowser.getState().url) return;
 			// Huginn open over the drawer closes first, on its own listener.
@@ -3230,14 +3257,19 @@ function DevBoardPage() {
 				return;
 			event.preventDefault();
 			event.stopImmediatePropagation();
-			// Selecting in the session list: Esc leaves select mode, not the drawer.
-			if (pickedCountRef.current || selectingRef.current) {
+			const paneId = drawerCard.pane.id;
+			const action = drawerEscAction({
+				selecting: !!pickedCountRef.current || selectingRef.current,
+				renaming: renameDraft !== null,
+				working: stopKey && drawerEscRef.current.working(paneId),
+				interrupting: stopKey && drawerEscRef.current.interrupting.has(paneId),
+			});
+			if (action === "leave-select") {
 				setPickedIds(new Set());
 				setSelecting(false);
-			}
-			// Mid-rename, Esc abandons the rename - not the drawer.
-			else if (renameDraft !== null) setRenameDraft(null);
-			else setDrawerCard(null);
+			} else if (action === "cancel-rename") setRenameDraft(null);
+			else if (action === "interrupt") drawerEscRef.current.interrupt(paneId);
+			else if (action === "close") setDrawerCard(null);
 		};
 		window.addEventListener("keydown", onKeyDown, { capture: true });
 		return () =>
@@ -4430,6 +4462,15 @@ function DevBoardPage() {
 	// Catch up has no Diff or Shell - one left open in a normal drawer doesn't
 	// follow you in, since there'd be no button to close it.
 	const catchUpLean = inCatchUp && catchUpFull !== drawerCard?.pane.id;
+	// The footer's Chat View / Terminal View button. The ▣ View tab covers the
+	// chat's own Terminal View, so while the app shows the footer goes back to
+	// the view under it.
+	const hostScreenOpen = isViewOpen && !inCatchUp;
+	const viewSwitch = drawerViewSwitch({
+		chat: chatView,
+		peeking: !!drawerCard && terminalPaneId === drawerCard.pane.id,
+		hostScreenOpen,
+	});
 	useEffect(() => {
 		import.meta.hot?.send("odin:session-pane", drawerOpen);
 		return () => import.meta.hot?.send("odin:session-pane", false);
@@ -5260,6 +5301,15 @@ function DevBoardPage() {
 				[paneId]: { ...state.panes[paneId], status: sent ? "idle" : "review" },
 			},
 		}));
+	};
+
+	// Esc on the session screen stops a running turn the same way. The set
+	// keeps a second Esc from closing the drawer before the stop lands.
+	drawerEscRef.current.working = isWorkingNow;
+	drawerEscRef.current.interrupt = (paneId: string) => {
+		const pending = drawerEscRef.current.interrupting;
+		pending.add(paneId);
+		void interruptPane(paneId).finally(() => pending.delete(paneId));
 	};
 
 	// Each host's tmux sessions, asked once the dead remote cards in `asked`
@@ -6640,6 +6690,9 @@ function DevBoardPage() {
 		catchUpNext(true);
 	};
 	// One key per card: Enter takes the suggestion, → skips, E is Done.
+	// "" when the stop is unassigned in Settings -> Keyboard.
+	const stopDisplay = useHotkeyDisplay("STOP_TURN").text;
+	const stopKeys = useBinding("STOP_TURN") ? stopDisplay : "";
 	const catchUpKeys = {
 		enabled: !!catchUpCall,
 		enableOnFormTags: false,
@@ -8268,8 +8321,9 @@ function DevBoardPage() {
 														: "↻ Resume"}
 								</button>
 							)}
-							{/* The drawer keeps Esc for itself, so a turn needs its own stop:
-							    Ctrl+C, which stops Claude mid-turn. Only while working - at
+							{/* The drawer keeps Esc for itself (it stops a running turn
+							    there too), and this is the same stop on a button: Ctrl+C,
+							    which stops Claude mid-turn. Only while working - at
 							    an idle prompt a second Ctrl+C quits Claude. The chat view's
 							    composer has this same stop, so it shows in Terminal View only. */}
 							{drawerCard.pane.type === "terminal" &&
@@ -8279,7 +8333,7 @@ function DevBoardPage() {
 										disabled={!isWorkingNow(drawerCard.pane.id)}
 										title={
 											isWorkingNow(drawerCard.pane.id)
-												? "Stop the agent (sends Ctrl+C to the session)"
+												? `Stop the agent (${stopKeys ? `${stopKeys}, or ` : ""}this button, sends Ctrl+C to the session)`
 												: "Nothing to interrupt - the agent isn't working"
 										}
 										onClick={() => void interruptPane(drawerCard.pane.id)}
@@ -8291,25 +8345,36 @@ function DevBoardPage() {
 										■ Interrupt
 									</button>
 								)}
-							{/* Back from Terminal View: out of a question peek, or the
-							    setting itself when the terminal is the choice. */}
-							{drawerCard.pane.type === "terminal" &&
-								(!chatView || terminalPaneId === drawerCard.pane.id) && (
-									<button
-										type="button"
-										title="Show sessions as a chat (Settings > Appearance)"
-										onClick={() =>
-											chatView ? setTerminalPaneId(null) : setChatView(true)
-										}
-										className={cn(
-											"flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-xs font-semibold",
-											BUTTON.secondary,
-										)}
-									>
+							{/* Chat View back from the terminal (a question peek, or the
+							    terminal set as the view). While the ▣ View app covers the
+							    session it names the view under it, the last one used, and
+							    only takes the app off screen. */}
+							{drawerCard.pane.type === "terminal" && viewSwitch && (
+								<button
+									type="button"
+									title={
+										hostScreenOpen
+											? `Back to the session's ${viewSwitch}`
+											: "Show sessions as a chat (Settings > Appearance)"
+									}
+									onClick={() => {
+										if (hostScreenOpen) closeHostScreen();
+										else if (chatView) setTerminalPaneId(null);
+										else setChatView(true);
+									}}
+									className={cn(
+										"flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+										BUTTON.secondary,
+									)}
+								>
+									{viewSwitch === "chat" ? (
 										<LuMessageSquare className="size-3.5" />
-										Chat View
-									</button>
-								)}
+									) : (
+										<LuSquareTerminal className="size-3.5" />
+									)}
+									{viewSwitch === "chat" ? "Chat View" : "Terminal View"}
+								</button>
+							)}
 							{/* Done, Remind and Minimize sit right; RemindButton wraps its button
 							    in a span, so the gap is a spacer rather than ml-auto. */}
 							<div className="flex-1" />
@@ -8389,6 +8454,7 @@ function DevBoardPage() {
 				<OdinPromptDialog
 					heading="New Session"
 					placeholder="What should the agent do? (it picks the repo)"
+					draftKey="new-session"
 					repoPicker
 					defaultRepo={composerRepo}
 					modelPicker

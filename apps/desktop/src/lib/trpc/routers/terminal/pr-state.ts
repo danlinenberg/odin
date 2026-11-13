@@ -440,6 +440,8 @@ const PR_PARTS = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)$/;
 const RECHECK_MS = 10 * 60_000;
 const merges = new Map<string, { at: number; author: string | null }>();
 const checkedAt = new Map<string, number>();
+/** Urls a lookup is already asking about, so a second call doesn't ask again. */
+const asking = new Set<string>();
 
 /**
  * Your merged PRs among `urls`, each with when it merged. Insights asks about
@@ -449,21 +451,29 @@ const checkedAt = new Map<string, number>();
  * repo no logged-in account can read counts as unmerged - only a confirmed
  * merge ships. "Yours" = authored by a logged-in gh account; a teammate's PR a
  * session pushed to isn't. When gh can't name the accounts, nothing is dropped.
+ * With `budgetMs`, it answers from what is known by then and the lookups go on
+ * in the background, so a slow or rate-limited GitHub can't hold the caller.
  */
 export async function mergedPullRequests(
 	urls: string[],
 	exec: GhExec = gh,
+	budgetMs?: number,
 ): Promise<Map<string, number>> {
 	const now = Date.now();
 	const byRepo = new Map<string, Map<number, string>>();
 	for (const url of new Set(urls)) {
-		if (merges.has(url) || now - (checkedAt.get(url) ?? 0) < RECHECK_MS)
+		if (
+			merges.has(url) ||
+			asking.has(url) ||
+			now - (checkedAt.get(url) ?? 0) < RECHECK_MS
+		)
 			continue;
 		const [, owner, name, number] = PR_PARTS.exec(url) ?? [];
 		if (!number) continue;
 		const repo = `${owner}/${name}`;
 		if (!byRepo.has(repo)) byRepo.set(repo, new Map());
 		byRepo.get(repo)?.set(Number(number), url);
+		asking.add(url);
 	}
 	type Found = {
 		merged?: boolean;
@@ -493,26 +503,42 @@ export async function mergedPullRequests(
 							}
 						).data.repository,
 					exec,
-				).then(async (graphqlFound) => {
-					const found =
-						graphqlFound ?? (await restMerges(owner, name, chunk, exec));
-					for (const n of chunk) {
-						const url = prs.get(n) as string;
-						const pr = found?.[`p${n}`];
-						const mergedAt = pr?.merged && Date.parse(pr.mergedAt ?? "");
-						if (mergedAt)
-							merges.set(url, {
-								at: mergedAt,
-								author: pr?.author?.login ?? null,
-							});
-						else checkedAt.set(url, now);
-					}
-				}),
+				)
+					.then(async (graphqlFound) => {
+						const found =
+							graphqlFound ?? (await restMerges(owner, name, chunk, exec));
+						for (const n of chunk) {
+							const url = prs.get(n) as string;
+							const pr = found?.[`p${n}`];
+							const mergedAt = pr?.merged && Date.parse(pr.mergedAt ?? "");
+							if (mergedAt)
+								merges.set(url, {
+									at: mergedAt,
+									author: pr?.author?.login ?? null,
+								});
+							else checkedAt.set(url, now);
+						}
+					})
+					.catch((error) => {
+						for (const n of chunk) checkedAt.set(prs.get(n) as string, now);
+						console.warn("[pr-state] merge lookup failed:", error);
+					})
+					.finally(() => {
+						for (const n of chunk) asking.delete(prs.get(n) as string);
+					}),
 			);
 		}
 	}
-	await Promise.all(asks);
-	const accounts = await loggedInAccounts(exec);
+	const deadline =
+		budgetMs === undefined
+			? null
+			: new Promise<null>((done) => setTimeout(done, budgetMs, null));
+	await Promise.race([Promise.all(asks), ...(deadline ? [deadline] : [])]);
+	const accounts =
+		(await Promise.race([
+			loggedInAccounts(exec),
+			...(deadline ? [deadline] : []),
+		])) ?? new Set<string>();
 	const mine = new Map<string, number>();
 	for (const url of urls) {
 		const merge = merges.get(url);

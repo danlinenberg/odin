@@ -148,3 +148,75 @@ export function hostStatus(
 	if (read === "review") return last && last !== "working" ? last : "review";
 	return read ?? last ?? "idle";
 }
+
+/** A task the laptop sent for the phone to start here (remote-host/away). */
+export type AwayTask = { id: string; title: string; started: boolean };
+
+/** What the laptop left here with Tasks with the Mac closed on (remote-host/away). */
+export interface AwayList {
+	tasks?: { key: string; title: string }[];
+	/** Epoch seconds: after it, the host lists and starts nothing. */
+	until?: number;
+	/** What the host fetches the board with (feeds.ts); absent from older laptops. */
+	feeds?: import("./feeds").HostFeeds;
+	/** Done on the laptop, so the host's board leaves it out. */
+	done?: import("./feeds").HostDone;
+	/** My own Tasks on the laptop (not automations), for the host's board. */
+	todos?: import("renderer/routes/_authenticated/_odin/hooks/odin-task").OdinTask[];
+}
+
+/** The laptop's list, or null when there is none or it expired. */
+export function readAway(now = Date.now()): AwayList | null {
+	try {
+		const away = JSON.parse(
+			readFileSync(join(hostPaths.odin, "night", "away.json"), "utf8"),
+		) as AwayList;
+		return away && now / 1000 < (away.until ?? 0) ? away : null;
+	} catch {
+		return null;
+	}
+}
+
+/** What the runner started here (its ledger). */
+export function ranRows(): { key: string; sessionId: string }[] {
+	try {
+		return readFileSync(join(hostPaths.odin, "night", "ran.jsonl"), "utf8")
+			.split("\n")
+			.flatMap((line) => {
+				try {
+					return line ? [JSON.parse(line)] : [];
+				} catch {
+					return [];
+				}
+			});
+	} catch {
+		return [];
+	}
+}
+
+/** The task keys the runner started here. */
+export const ranKeys = () => new Set(ranRows().map((row) => row.key));
+
+/**
+ * The tasks the laptop left here, then the host's own board rows (feeds.ts),
+ * not started yet (the runner's ledger says which were), in that order. None
+ * once the list expired: the laptop has been away longer than it covers.
+ */
+export function awayBacklog(
+	now = Date.now(),
+	board: { key: string; title: string }[] = [],
+	/** Put away on the phone here (inbox.ts). */
+	done: Iterable<string> = [],
+): AwayTask[] {
+	const away = readAway(now);
+	if (!away) return [];
+	const skip = ranKeys();
+	for (const key of done) skip.add(key);
+	const rows: AwayTask[] = [];
+	for (const task of [...(away.tasks ?? []), ...board]) {
+		if (skip.has(task.key)) continue;
+		skip.add(task.key);
+		rows.push({ id: task.key, title: task.title, started: false });
+	}
+	return rows;
+}

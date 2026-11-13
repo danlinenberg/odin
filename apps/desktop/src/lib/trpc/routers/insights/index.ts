@@ -106,7 +106,13 @@ export const createInsightsRouter = () => {
 				// Only your merged PRs count - an open or closed one hasn't shipped,
 				// and a teammate's isn't yours. Each lands in the week it merged:
 				// one opened Thursday and merged Sunday shipped Sunday.
-				const merged = await mergedPullRequests(mine.flatMap((s) => s.prs));
+				// Five seconds at most: a PR still being looked up counts on the
+				// next refetch instead of holding the whole page on GitHub.
+				const merged = await mergedPullRequests(
+					mine.flatMap((s) => s.prs),
+					undefined,
+					5_000,
+				);
 				const workload = computeWorkload(
 					mine.map((s) => {
 						const prs = s.prs.filter((url) => merged.has(url));

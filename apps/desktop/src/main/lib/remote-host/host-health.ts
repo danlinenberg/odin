@@ -83,7 +83,7 @@ export function parseHealthOutput(output: string): Map<string, string> {
 }
 
 const ADMIN_FIX =
-	"Set it up - your AWS role needs to allow ssm:SendCommand on the host, so ask an administrator if it doesn't.";
+	"Click Set up to fix it. If that fails, ask an administrator to give your AWS role ssm:SendCommand on the host.";
 const firstLine = (err: unknown) =>
 	(err instanceof Error ? err.message : String(err))
 		.split("\n")[0]
@@ -234,7 +234,7 @@ export async function checkHostHealth(
 			set(
 				"service",
 				"warn",
-				`Running an older version than this Odin. It updates itself when an administrator's Odin sends tokens; else ${ADMIN_FIX.charAt(0).toLowerCase()}${ADMIN_FIX.slice(1)}`,
+				"Out of date. It updates on its own the next time an administrator's Odin syncs tokens to the host. To update it now, click Set up. If that fails, ask an administrator to give your AWS role ssm:SendCommand on the host.",
 				"setup",
 			);
 		else set("service", "ok", "Running, and up to date.");

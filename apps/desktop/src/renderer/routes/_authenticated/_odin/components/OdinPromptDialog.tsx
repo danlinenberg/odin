@@ -1,7 +1,8 @@
 import { toast } from "@odin/ui/sonner";
-import { type ReactNode, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { usePersistedDraft } from "renderer/stores/chat-drafts";
 import {
 	CLAUDE_MODELS,
 	useClaudeCommand,
@@ -144,6 +145,7 @@ export function OdinPromptDialog({
 	wherePicker = false,
 	defaultOnHost,
 	submitLabel = "Start session",
+	draftKey,
 	onCancel,
 	onSubmit,
 }: {
@@ -169,6 +171,11 @@ export function OdinPromptDialog({
 	/** The picker's starting pick - one made before the dialog opened. */
 	defaultOnHost?: boolean;
 	submitLabel?: string;
+	/**
+	 * Keep the typed prompt under this name until it is sent: Cancel, a
+	 * window reload or a restart brings it back the next time it opens.
+	 */
+	draftKey?: string;
 	onCancel: () => void;
 	onSubmit: (
 		prompt: string,
@@ -180,7 +187,10 @@ export function OdinPromptDialog({
 	) => void | Promise<void>;
 }) {
 	const sendKeys = useHotkeyDisplay("SUBMIT").text;
-	const [prompt, setPrompt] = useState(defaultPrompt);
+	const [prompt, setPrompt, markSent] = usePersistedDraft(
+		draftKey,
+		defaultPrompt,
+	);
 	const [files, setFiles] = useState<PromptImage[]>([]);
 	// null until you type or click: the default may arrive after the dialog opens.
 	const [typedRepo, setTypedRepo] = useState<string | null>(null);
@@ -194,6 +204,13 @@ export function OdinPromptDialog({
 	const toBacklog = backlogToggle && storedToBacklog;
 	const fileInput = useRef<HTMLInputElement>(null);
 	const [onHost, setOnHost] = useState(defaultOnHost);
+	const mounted = useRef(true);
+	useEffect(() => {
+		mounted.current = true;
+		return () => {
+			mounted.current = false;
+		};
+	}, []);
 
 	// Launching takes a couple of seconds (workspace + PTY), so wait on the
 	// caller's promise and keep the button busy until it settles. If it rejects
@@ -203,6 +220,12 @@ export function OdinPromptDialog({
 		setIsStarting(true);
 		try {
 			await onSubmit(prompt, files, repo, onHost);
+			// Sent only if the submit closed the dialog: one that bailed stays
+			// open with the prompt, and Cancel must still keep it. A tick
+			// later, so the close has rendered.
+			setTimeout(() => {
+				if (!mounted.current) markSent();
+			}, 0);
 		} catch (error) {
 			// A rejected launch used to be an unhandled rejection: the dialog just
 			// sat there. Most often it's a machine without Git: a fresh Windows, or

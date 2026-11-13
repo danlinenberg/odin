@@ -41,6 +41,11 @@ export const BUILT_IN_COMMANDS = [
 		description: "Summarize the conversation to free up context",
 	},
 	{ name: "clear", description: "Start the conversation over" },
+	{
+		name: "plan",
+		description: "Plan first: Claude reads and proposes before it edits",
+	},
+	{ name: "init", description: "Write a CLAUDE.md for this repo" },
 	{ name: "context", description: "Show how much context is used" },
 	{ name: "model", description: "Change the model" },
 	{ name: "cost", description: "Show what this session has cost" },
