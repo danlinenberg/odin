@@ -512,10 +512,13 @@ export const trainingState = () => ({
 
 /**
  * Read my recent sent messages and rewrite the guide from them now, whatever
- * the sample count. `fetchMine` is Slack search (slackMySentMessages).
+ * the sample count. `fetchMine` is Slack search (slackMySentMessages): `toBots`
+ * are my messages to bots, which also leave the samples kept before.
  */
+export type FetchMine = () => Promise<{ lines: string[]; toBots: string[] }>;
+
 export function trainVoice(
-	fetchMine: () => Promise<string[]>,
+	fetchMine: FetchMine,
 	{ path = voicePath(), claudeBin = "claude" } = {},
 ): Promise<void> {
 	training ??= (async () => {
@@ -523,9 +526,19 @@ export function trainVoice(
 		try {
 			if (!(await readVoice(path)).enabled) return;
 			// Search answers newest first; samples keep the newest last.
-			const lines = (await fetchMine()).filter(isSample).reverse();
+			const mine = await fetchMine();
+			const lines = mine.lines.filter(isSample).reverse();
+			const toBots = new Set(mine.toBots.map(withoutPlace));
 			const store = await update(path, (now) => ({
-				...addSamples(now, lines),
+				...addSamples(
+					{
+						...now,
+						samples: now.samples.filter(
+							(line) => !toBots.has(withoutPlace(line)),
+						),
+					},
+					lines,
+				),
 				trainedAt: new Date().toISOString(),
 			}));
 			if (store.samples.length === 0)
@@ -544,7 +557,7 @@ export function trainVoice(
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Train once a day while Odin runs, so the guide keeps up with how I write now. */
-export function startVoiceTrainer(fetchMine: () => Promise<string[]>): void {
+export function startVoiceTrainer(fetchMine: FetchMine): void {
 	const tick = async () => {
 		const store = await readVoice();
 		const last = store.trainedAt ? Date.parse(store.trainedAt) : 0;

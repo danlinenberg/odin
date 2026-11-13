@@ -11,7 +11,13 @@ import {
 	resolveSlackToken,
 	updateOdinConfig,
 } from "../odin-config";
-import { createNameLookup, type SlackUser, slackUserName } from "./name-lookup";
+import {
+	createNameLookup,
+	type SentTo,
+	type SlackUser,
+	sentToBot,
+	slackUserName,
+} from "./name-lookup";
 import {
 	buildPermalink,
 	channelLabel,
@@ -184,11 +190,13 @@ interface Identity {
 let identityCache: { token: string; identity: Identity } | null = null;
 const channelNames = createNameLookup();
 const userNames = createNameLookup();
+const botUsers = createNameLookup();
 
 export function clearSlackCaches(): void {
 	identityCache = null;
 	channelNames.clear();
 	userNames.clear();
+	botUsers.clear();
 }
 
 /**
@@ -265,6 +273,20 @@ async function lookupUserName(
 		);
 		return slackUserName(res.user);
 	});
+}
+
+/** Is this user a bot (an app's bot user, or Slackbot)? Cached; unknown counts as a person. */
+async function isBotUser(userId: string, token: string): Promise<boolean> {
+	if (userId === "USLACKBOT") return true;
+	const bot = await botUsers.get(userId, async () => {
+		const res = await slackApi<SlackResponse & { user?: { is_bot?: boolean } }>(
+			"users.info",
+			{ user: userId },
+			token,
+		);
+		return res.user?.is_bot ? "bot" : null;
+	});
+	return bot !== null;
 }
 
 /**
@@ -792,7 +814,9 @@ export async function slackConversation(
 			token,
 		);
 		const info = await slackRead<
-			SlackResponse & { channel?: { is_im?: boolean; is_mpim?: boolean } }
+			SlackResponse & {
+				channel?: { is_im?: boolean; is_mpim?: boolean; user?: string };
+			}
 		>("conversations.info", { channel }, token);
 		const inline =
 			info.channel?.is_im || info.channel?.is_mpim
@@ -829,6 +853,9 @@ export async function slackConversation(
 		const all = [...byTs.values()].sort((a, b) => Number(a.ts) - Number(b.ts));
 		const shown = all.length > 16 ? [all[0], ...all.slice(-15)] : all;
 		const lines: string[] = [];
+		// My lines that teach the voice guide: not the ones written to a bot.
+		const voiceLines: string[] = [];
+		const dmWith = info.channel?.is_im ? info.channel.user : undefined;
 		for (const message of shown) {
 			const who =
 				message.user === me.userId
@@ -841,6 +868,14 @@ export async function slackConversation(
 				.slice(0, chars);
 			const mark = message.ts === ts ? " [QUEUED]" : "";
 			lines.push(`${who}${mark}: ${said}`);
+			if (
+				who === "ME" &&
+				!(await sentToBot(
+					{ text: message.text, channel: { user: dmWith } },
+					(id) => isBotUser(id, token),
+				))
+			)
+				voiceLines.push(`ME: ${said}`);
 			// A session downloads these through Odin; it holds no Slack token.
 			for (const file of message.files ?? [])
 				if (file.url_private)
@@ -853,7 +888,7 @@ export async function slackConversation(
 		const text = lines.join("\n");
 		// My own lines in it teach drafts how I write - see voice-profile.
 		void import("main/lib/voice-profile").then(({ noteConversation }) =>
-			noteConversation(text),
+			noteConversation(voiceLines.join("\n")),
 		);
 		return text;
 	} catch {
@@ -865,9 +900,13 @@ export async function slackConversation(
  * My most recent sent messages, newest first, for training the voice guide.
  * Slack search, not history: history is held to a call a minute, search
  * returns a hundred of mine per call. Needs `search:read`; a token from
- * before it was asked for gets a "reconnect Slack" error.
+ * before it was asked for gets a "reconnect Slack" error. Messages to a bot
+ * (a mention of one, or a DM with one) come back apart, in `toBots`, so the
+ * guide can drop the ones it kept before.
  */
-export async function slackMySentMessages(limit = 300): Promise<string[]> {
+export async function slackMySentMessages(
+	limit = 300,
+): Promise<{ lines: string[]; toBots: string[] }> {
 	const token = slackToken();
 	if (!token) throw new Error("Connect Slack in Settings > Connections first.");
 	const me = await getIdentity(token);
@@ -875,7 +914,12 @@ export async function slackMySentMessages(limit = 300): Promise<string[]> {
 		text?: string;
 		subtype?: string;
 		permalink?: string;
-		channel?: { name?: string; is_im?: boolean; is_mpim?: boolean };
+		channel?: {
+			name?: string;
+			user?: string;
+			is_im?: boolean;
+			is_mpim?: boolean;
+		};
 	};
 	// Where it went shapes how I write it: voice-profile reads the tag.
 	const placeOf = (match: Match) => {
@@ -887,6 +931,7 @@ export async function slackMySentMessages(limit = 300): Promise<string[]> {
 		return `[${where}${match.permalink?.includes("thread_ts=") ? " thread" : ""}] `;
 	};
 	const out: string[] = [];
+	const toBots: string[] = [];
 	for (let page = 1; out.length < limit && page <= 5; page++) {
 		let result: SlackResponse & {
 			messages?: { matches?: Match[]; paging?: { pages?: number } };
@@ -912,7 +957,10 @@ export async function slackMySentMessages(limit = 300): Promise<string[]> {
 		}
 		for (const match of result.messages?.matches ?? [])
 			if (match.text && !match.subtype)
-				out.push(
+				((await sentToBot(match as SentTo, (id) => isBotUser(id, token)))
+					? toBots
+					: out
+				).push(
 					placeOf(match) +
 						(await resolveMentions(match.text, token))
 							.replace(/\s+/g, " ")
@@ -920,7 +968,7 @@ export async function slackMySentMessages(limit = 300): Promise<string[]> {
 				);
 		if (page >= (result.messages?.paging?.pages ?? 1)) break;
 	}
-	return out.slice(0, limit);
+	return { lines: out.slice(0, limit), toBots };
 }
 
 /**
@@ -975,12 +1023,15 @@ export async function slackMySentAfter(
 					match.permalink?.includes(`thread_ts=${thread}`)),
 		);
 		const out: string[] = [];
-		for (const match of mine.reverse())
+		for (const match of mine.reverse()) {
+			if (await sentToBot(match as SentTo, (id) => isBotUser(id, token)))
+				continue;
 			out.push(
 				(await resolveMentions(match.text ?? "", token))
 					.replace(/\s+/g, " ")
 					.trim(),
 			);
+		}
 		return out;
 	} catch {
 		return [];

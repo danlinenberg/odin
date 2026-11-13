@@ -1,5 +1,5 @@
-import { describe, expect, it } from "bun:test";
-import { createNameLookup, slackUserName } from "./name-lookup";
+import { describe, expect, it, test } from "bun:test";
+import { createNameLookup, sentToBot, slackUserName } from "./name-lookup";
 
 describe("createNameLookup", () => {
 	it("asks Slack once for a name, then answers from the cache", async () => {
@@ -72,5 +72,41 @@ describe("slackUserName", () => {
 
 	it("is null for an unknown user", () => {
 		expect(slackUserName(undefined)).toBeNull();
+	});
+});
+
+describe("sentToBot", () => {
+	const isBot = async (id: string) => id === "UBOT1";
+
+	test("a mention of a bot, or a DM with one, is to a bot", async () => {
+		expect(await sentToBot({ text: "<@UBOT1> delete" }, isBot)).toBe(true);
+		expect(await sentToBot({ text: "<@UBOT1|helper> delete" }, isBot)).toBe(
+			true,
+		);
+		expect(
+			await sentToBot({ text: "every day", channel: { user: "UBOT1" } }, isBot),
+		).toBe(true);
+		expect(
+			await sentToBot(
+				{ text: "every day", channel: { is_im: true, name: "UBOT1" } },
+				isBot,
+			),
+		).toBe(true);
+	});
+
+	test("a message to people is not", async () => {
+		expect(await sentToBot({ text: "<@U0123> can you take it?" }, isBot)).toBe(
+			false,
+		);
+		expect(
+			await sentToBot(
+				{ text: "on it", channel: { is_im: true, name: "U0123" } },
+				isBot,
+			),
+		).toBe(false);
+		// A channel that happens to be named like a bot's id is not a DM.
+		expect(
+			await sentToBot({ text: "on it", channel: { name: "UBOT1" } }, isBot),
+		).toBe(false);
 	});
 });
