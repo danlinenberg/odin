@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 /**
- * The sessions in Danger Mode: their replies' `!` commands run without a
+ * The sessions in GSD Mode: their replies' `!` commands run without a
  * click. In memory only, so it is off again when Odin restarts.
  */
 export const useDangerMode = create<{
