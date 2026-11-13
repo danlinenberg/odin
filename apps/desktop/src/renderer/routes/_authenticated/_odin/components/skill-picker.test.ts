@@ -104,3 +104,8 @@ test("/plan is offered as Claude's own command", () => {
 	const [first] = matchSkills(BUILT_IN_COMMANDS, "plan");
 	expect(first?.name).toBe("plan");
 });
+
+test("each Claude command is listed once", () => {
+	const names = BUILT_IN_COMMANDS.map((command) => command.name);
+	expect(new Set(names).size).toBe(names.length);
+});
