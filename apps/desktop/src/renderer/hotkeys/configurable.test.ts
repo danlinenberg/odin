@@ -58,6 +58,10 @@ const ALLOWED: Record<string, { lines: number; why: string }> = {
 		lines: 16,
 		why: "the OS copy / paste / select-all keys inside a terminal",
 	},
+	"apps/desktop/src/renderer/lib/vnc-screen.ts": {
+		lines: 3,
+		why: "the OS copy / paste keys, passed to the app on a host's screen",
+	},
 	"apps/desktop/src/renderer/lib/terminal/line-edit-translations.ts": {
 		lines: 5,
 		why: "the OS text-caret keys (⌘←, ⌥⌫) inside a terminal",

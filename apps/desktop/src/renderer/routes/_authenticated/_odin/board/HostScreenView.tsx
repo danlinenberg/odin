@@ -1,6 +1,7 @@
 import RFB from "@novnc/novnc";
 import { useEffect, useRef, useState } from "react";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
+import { tuneForLink } from "renderer/lib/vnc-screen";
 import { closeHostScreen, type HostScreen } from "renderer/stores/host-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
 
@@ -44,6 +45,7 @@ export function HostScreenView({
 		// Re-runs on Reconnect (attempt) as well as for a new screen.
 		void attempt;
 		let rfb: RFB | null = null;
+		let untune = () => {};
 		let gone = false;
 		setStatus("Connecting to the host…");
 		electronTrpcClient.remoteHost.viewOnMac
@@ -56,7 +58,7 @@ export function HostScreenView({
 				rfb = new RFB(target.current, `ws://127.0.0.1:${port}/`, {
 					credentials: { password: screen.password },
 				});
-				rfb.scaleViewport = true;
+				untune = tuneForLink(rfb, target.current);
 				rfb.addEventListener("connect", () => setStatus(null));
 				rfb.addEventListener("desktopname", (event) =>
 					setName(event.detail.name),
@@ -75,6 +77,7 @@ export function HostScreenView({
 			});
 		return () => {
 			gone = true;
+			untune();
 			rfb?.disconnect();
 		};
 	}, [paneId, screen.port, screen.password, attempt]);
