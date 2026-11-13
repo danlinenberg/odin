@@ -60,3 +60,30 @@ export function slackUserName(user: SlackUser | undefined): string | null {
 		null
 	);
 }
+
+/** What a sent message says about who it went to: its raw text and, for a DM, the other side. */
+export interface SentTo {
+	text?: string;
+	channel?: { is_im?: boolean; user?: string; name?: string };
+}
+
+const USER_ID = /^[UW][A-Z0-9]+$/;
+
+/**
+ * True for a message written to a bot: it mentions one (`<@U123>` in the raw
+ * text) or sits in a DM with one. A command to a bot is not how I write to
+ * people, so the voice guide leaves these out.
+ */
+export async function sentToBot(
+	sent: SentTo,
+	isBot: (userId: string) => Promise<boolean>,
+): Promise<boolean> {
+	const ids = new Set(
+		Array.from((sent.text ?? "").matchAll(/<@([UW][A-Z0-9]+)/g), (m) => m[1]),
+	);
+	// A DM's search match names the other person in `user` or `name`.
+	if (sent.channel?.user) ids.add(sent.channel.user);
+	if (sent.channel?.is_im && sent.channel.name) ids.add(sent.channel.name);
+	for (const id of ids) if (USER_ID.test(id) && (await isBot(id))) return true;
+	return false;
+}

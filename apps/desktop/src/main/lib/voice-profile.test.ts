@@ -178,7 +178,10 @@ describe("trainVoice", () => {
 	test("learns from sent messages right away, newest kept last", async () => {
 		const path = join(mkdtempSync(join(tmpdir(), "voice-")), "voice.json");
 		await trainVoice(
-			async () => ["newest message of mine", "ok", "older message of mine"],
+			async () => ({
+				lines: ["newest message of mine", "ok", "older message of mine"],
+				toBots: [],
+			}),
 			{
 				path,
 				claudeBin: fakeClaude,
@@ -192,6 +195,25 @@ describe("trainVoice", () => {
 		expect(store.guide).toBe("Terse.");
 		expect(store.trainedAt).not.toBeNull();
 		expect(trainingState()).toEqual({ training: false, error: null });
+	});
+
+	test("a message to a bot kept before leaves the samples", async () => {
+		const path = join(mkdtempSync(join(tmpdir(), "voice-")), "voice.json");
+		await noteConversation(
+			"ME: @Helper remind me every day at nine\nME: a message to a real person",
+			{ path },
+		);
+		await trainVoice(
+			async () => ({
+				lines: ["[dm] another message to a person"],
+				toBots: ["[#general thread] @Helper remind me every day at nine"],
+			}),
+			{ path, claudeBin: fakeClaude },
+		);
+		expect((await readVoice(path)).samples).toEqual([
+			"a message to a real person",
+			"[dm] another message to a person",
+		]);
 	});
 
 	test("a Slack refusal is the error Settings shows", async () => {
@@ -209,7 +231,10 @@ describe("trainVoice", () => {
 		const path = join(mkdtempSync(join(tmpdir(), "voice-")), "voice.json");
 		await setVoiceEnabled(false, path);
 		await noteConversation("ME: a message while it is off", { path });
-		await trainVoice(async () => ["a message while it is off"], { path });
+		await trainVoice(
+			async () => ({ lines: ["a message while it is off"], toBots: [] }),
+			{ path },
+		);
 		expect((await readVoice(path)).samples).toEqual([]);
 		await setVoiceNotes(["shorter", "", " shorter ", "no emoji"], path);
 		expect((await readVoice(path)).notes).toEqual(["shorter", "no emoji"]);
