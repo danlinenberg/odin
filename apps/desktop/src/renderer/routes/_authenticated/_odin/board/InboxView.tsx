@@ -1,8 +1,18 @@
+import {
+	HoverCard,
+	HoverCardContent,
+	HoverCardTrigger,
+} from "@odin/ui/hover-card";
 import { cn } from "@odin/ui/utils";
 import { type ComponentType, useState } from "react";
 import { LuEye, LuLightbulb, LuTriangleAlert, LuZap } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { isApprovalItem, itemOptions, splitActionItems } from "./action-items";
+import {
+	isApprovalItem,
+	itemDetail,
+	itemOptions,
+	splitActionItems,
+} from "./action-items";
 import { actionItemEntries, lastMessageAt } from "./brief";
 import {
 	type InboxEffort,
@@ -32,6 +42,10 @@ interface Row {
 	text: string;
 	options: string[];
 	approve: boolean;
+	/** The session's opening ask: what the task is. */
+	task: string | null;
+	/** The reply's paragraph about this item: where things stand. */
+	status: string;
 }
 
 const BANDS: {
@@ -124,8 +138,9 @@ export function InboxView({
 		if (reason) stuck.push({ session, ...reason });
 		if (!session.asks || !messages) return;
 		const last = messages.findLast((m) => m.role === "assistant")?.text ?? "";
-		const { actions } = splitActionItems(last);
+		const { body, actions } = splitActionItems(last);
 		if (!actions) return;
+		const task = messages.find((m) => m.role === "user")?.text ?? null;
 		actionItemEntries(actions).forEach((entry, at) => {
 			const effort = itemEffort(entry);
 			const { text, options } = itemOptions(entry.text);
@@ -135,6 +150,8 @@ export function InboxView({
 				text,
 				options,
 				approve: isApprovalItem(entry.text),
+				task,
+				status: itemDetail(entry.text, body, at + 1) ?? body,
 			};
 			if (answered.has(rowKey(row))) return;
 			rows.set(effort, [...(rows.get(effort) ?? []), row]);
@@ -224,19 +241,33 @@ export function InboxView({
 										i > 0 && "border-t border-border",
 									)}
 								>
-									<button
-										type="button"
-										onClick={() => onOpen(row.session.paneId)}
-										title="Open the session"
-										className="flex min-w-0 flex-1 flex-col items-start text-left"
-									>
-										<span className="w-full select-text truncate text-[13.5px]">
-											{row.text}
-										</span>
-										<span className="w-full truncate text-[11.5px] text-muted-foreground">
-											{row.session.title}
-										</span>
-									</button>
+									<HoverCard openDelay={400} closeDelay={80}>
+										<HoverCardTrigger asChild>
+											<button
+												type="button"
+												onClick={() => onOpen(row.session.paneId)}
+												className="flex min-w-0 flex-1 flex-col items-start text-left"
+											>
+												<span className="w-full select-text truncate text-[13.5px]">
+													{row.text}
+												</span>
+												<span className="w-full truncate text-[11.5px] text-muted-foreground">
+													{row.session.title}
+												</span>
+											</button>
+										</HoverCardTrigger>
+										<HoverCardContent
+											align="start"
+											className="flex w-[480px] flex-col gap-2 border-border bg-popover p-3 text-[12.5px]"
+										>
+											{row.task && (
+												<HoverPart label="The task" text={row.task} />
+											)}
+											{row.status && (
+												<HoverPart label="Where it stands" text={row.status} />
+											)}
+										</HoverCardContent>
+									</HoverCard>
 									{row.options.map((option) => (
 										<button
 											key={option}
@@ -281,6 +312,23 @@ export function InboxView({
 					</section>
 				);
 			})}
+		</div>
+	);
+}
+
+/** One labelled part of a row's hover card, clipped to a few lines. */
+function HoverPart({ label, text }: { label: string; text: string }) {
+	return (
+		<div className="flex flex-col gap-0.5">
+			<span className="text-[11px] font-semibold text-muted-foreground">
+				{label}
+			</span>
+			<p
+				dir="auto"
+				className="line-clamp-6 whitespace-pre-wrap break-words text-foreground"
+			>
+				{text}
+			</p>
 		</div>
 	);
 }
