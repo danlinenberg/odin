@@ -57,6 +57,20 @@ export function titleMatches(
 		.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
+/**
+ * The Mac's answer with the board's own matches kept in it. The Mac reads the
+ * conversations it has on disk, so a session that just started, or one on a
+ * remote host whose conversation hasn't been copied over yet, is missing from
+ * its answer: without this it showed while you typed, then disappeared.
+ * Latest activity first, as the Mac's answer is.
+ */
+export function mergeHits(mac: SearchHit[], board: SearchHit[]): SearchHit[] {
+	const found = new Set(mac.map((hit) => hit.paneId));
+	return [...mac, ...board.filter((hit) => !found.has(hit.paneId))].sort(
+		(a, b) => b.updatedAt - a.updatedAt,
+	);
+}
+
 /** The typed query, once typing pauses: every keystroke would rescan the logs. */
 export function useSettled(value: string, ms = 350): string {
 	const [settled, setSettled] = useState(value);
