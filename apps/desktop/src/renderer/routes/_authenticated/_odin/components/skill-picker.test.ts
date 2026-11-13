@@ -99,3 +99,8 @@ describe("completeTaskSkill", () => {
 		);
 	});
 });
+
+test("/plan is offered as Claude's own command", () => {
+	const [first] = matchSkills(BUILT_IN_COMMANDS, "plan");
+	expect(first?.name).toBe("plan");
+});
