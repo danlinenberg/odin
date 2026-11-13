@@ -438,6 +438,14 @@ for (const [label, line] of SCREENS) {
 	});
 }
 
+await step("the Inbox view opens from the top bar and back", async () => {
+	await click("button", "Inbox view");
+	await waitForText("inbox:");
+	await click("button", "Board view");
+	await waitForText("inbox:", false);
+	await waitForText("idle");
+});
+
 await step("Tasks: every feed tab opens", async () => {
 	await rail("Tasks");
 	await waitForText("waiting on you");

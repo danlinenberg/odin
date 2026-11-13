@@ -49,6 +49,7 @@ import {
 	LuGitMerge,
 	LuGitPullRequest,
 	LuHourglass,
+	LuInbox,
 	LuLaptop,
 	LuLayers,
 	LuLayoutGrid,
@@ -246,6 +247,7 @@ import { drawerViewSwitch } from "./drawer-view-switch";
 import { HostScreenView } from "./HostScreenView";
 import { deliverOnHost } from "./host-delivery";
 import { hostStartDelay } from "./host-start-gap";
+import { type InboxSession, InboxView } from "./InboxView";
 import { onIdleArrival, restoreAfterCompact } from "./idle-compact";
 import { menuTop } from "./menu-fit";
 import {
@@ -360,14 +362,18 @@ function ViewToggle({
 	sessionsOpen,
 	sessionsDisabled,
 	sessionsKey,
+	inboxOpen,
 	onSessions,
 	onBoard,
+	onInbox,
 }: {
 	sessionsOpen: boolean;
 	sessionsDisabled?: boolean;
 	sessionsKey: string;
+	inboxOpen: boolean;
 	onSessions: () => void;
 	onBoard: () => void;
+	onInbox: () => void;
 }) {
 	const segment = (active: boolean) =>
 		cn(
@@ -392,12 +398,22 @@ function ViewToggle({
 			<button
 				type="button"
 				aria-label="Board view"
-				aria-pressed={!sessionsOpen}
+				aria-pressed={!sessionsOpen && !inboxOpen}
 				title="Board view (the sessions keep running)"
 				onClick={onBoard}
-				className={segment(!sessionsOpen)}
+				className={segment(!sessionsOpen && !inboxOpen)}
 			>
 				<LuLayoutGrid className="size-3.5" aria-hidden />
+			</button>
+			<button
+				type="button"
+				aria-label="Inbox view"
+				aria-pressed={!sessionsOpen && inboxOpen}
+				title="Inbox view - every open action item across sessions, quickest first, and the stuck ones on top"
+				onClick={onInbox}
+				className={segment(!sessionsOpen && inboxOpen)}
+			>
+				<LuInbox className="size-3.5" aria-hidden />
 			</button>
 		</div>
 	);
@@ -6657,6 +6673,46 @@ function DevBoardPage() {
 		const card = switchRows[at + step];
 		if (card) openDrawer(card);
 	};
+	// Inbox view: the board's action items as one list (InboxView). Closing a
+	// session opened from it lands back on it.
+	const [inboxOpen, setInboxOpen] = useState(false);
+	const inboxSessions: InboxSession[] = [...cardsByStatus.values()]
+		.flat()
+		.map((card) => {
+			const pane = card.pane;
+			const since = statusSinceRef.current.get(pane.id)?.at;
+			const dead = card.status === "idle" && !pane.odinQueued;
+			return {
+				paneId: pane.id,
+				title: cardTitle(card),
+				sessionId: pane.claudeSessionId ?? sessionIdByPane[pane.id] ?? null,
+				live: agentPaneIds.has(pane.id),
+				asks: card.status === "permission" || card.status === "review",
+				stuck: {
+					ciGaveUp: ciGaveUpPaneIds.has(pane.id),
+					conflicts: conflictsByPane.get(pane.id),
+					// A status restored from disk has no known start (at 0).
+					queued:
+						pane.odinQueued && since
+							? { reason: pane.odinQueued.reason, since }
+							: undefined,
+					diedMidTurn: dead && pane.status === "working",
+					failed: dead && pane.status === "failed",
+					working:
+						card.status === "working" ? { lastMessageAt: null } : undefined,
+				},
+			};
+		});
+	const inboxCard = (paneId: string) =>
+		[...cardsByStatus.values()].flat().find((card) => card.pane.id === paneId);
+	const sendFromInbox = (paneId: string, text: string) => {
+		const card = inboxCard(paneId);
+		if (!card) return;
+		const sent = agentPaneIds.has(paneId)
+			? typeIntoClaude(terminalWrite.mutateAsync, paneId, text)
+			: resumeCard(card, false, text);
+		void sent.then(() => toast.success(`Sent to ${cardTitle(card)}`));
+	};
 	// The top bar (layout.tsx) owns the slot; it mounts before this page.
 	const [viewToggleSlot, setViewToggleSlot] = useState<HTMLElement | null>(
 		null,
@@ -7291,7 +7347,15 @@ function DevBoardPage() {
 							onSessions={() => {
 								if (!drawerCard) openSessions();
 							}}
-							onBoard={() => setDrawerCard(null)}
+							inboxOpen={inboxOpen}
+							onBoard={() => {
+								setDrawerCard(null);
+								setInboxOpen(false);
+							}}
+							onInbox={() => {
+								setDrawerCard(null);
+								setInboxOpen(true);
+							}}
 						/>,
 						viewToggleSlot,
 					)}
@@ -7465,7 +7529,26 @@ function DevBoardPage() {
 				/>
 			)}
 
-			<div className="flex min-h-0 flex-1 gap-3 overflow-x-auto px-[18px] pb-[18px] pt-1">
+			{inboxOpen && (
+				<InboxView
+					sessions={inboxSessions}
+					onOpen={(paneId) => {
+						const card = inboxCard(paneId);
+						if (card) openDrawer(card);
+					}}
+					onSend={sendFromInbox}
+					onResume={(paneId) => {
+						const card = inboxCard(paneId);
+						if (card) void resumeCard(card);
+					}}
+				/>
+			)}
+			<div
+				className={cn(
+					"flex min-h-0 flex-1 gap-3 overflow-x-auto px-[18px] pb-[18px] pt-1",
+					inboxOpen && "hidden",
+				)}
+			>
 				{COLUMNS.map((column) => {
 					const cards = cardsByStatus.get(column.status) ?? [];
 					const sections = bySection(
