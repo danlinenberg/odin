@@ -2878,7 +2878,7 @@ const gsdBriefed = new Set<string>();
 
 /** What GSD Mode tells Claude when it goes on, so it gets the job done without waiting. */
 const GSD_BRIEF =
-	"GSD Mode is on (Get-Shit-Done): I'm not here to answer until I turn it off. Don't wait for me. For every open action item or choice, pick the one you'd recommend and do it. Decide anything you would ask me yourself, and keep working until the job is done. Put any command I'd run in a `!` block (`!local` for my computer, `!download` for a file) - Odin runs them for you and sends you their output. Stop only for something only I can do, and say why.";
+	"GSD Mode is on (Get-Shit-Done): I'm not here to answer until I turn it off. Don't wait for me. For every open action item or choice, pick the one you'd recommend and do it. Decide anything you would ask me yourself, and keep working until the job is done. Put any command I'd run in a `!` block (`!local` for my computer, `!download` for a file) - Odin runs them for you and sends you their output. Nobody is here to answer a prompt, so write commands that need no input and open no pager; one that prints nothing for 5 minutes is stopped. Stop only for something only I can do, and say why.";
 
 /** Replies whose sign-in already ran on its own, so a remount doesn't open another tab. */
 const autoSsoTried = new Set<string>();
@@ -3945,6 +3945,7 @@ export function ChatView({
 					}
 					const run = await electronTrpcClient.terminal.startLocalRun.mutate({
 						command: local,
+						unattended: true,
 					});
 					if (
 						!(await runInSessionShell(
@@ -3956,9 +3957,25 @@ export function ChatView({
 					)
 						throw new Error("Odin couldn't find this session's Shell.");
 					onShellStarted?.("local");
-					const result = await localRunEnd(run.id);
+					// Nobody is here to answer it: a run that goes quiet gets Ctrl+C,
+					// and its Shell closed if that doesn't end it.
+					const shell = () =>
+						useTabsStore.getState().panes[paneId]?.odinNamedShells?.local;
+					const result = await localRunEnd(run.id, (kill) => {
+						const pane = shell();
+						if (!pane) return;
+						if (kill) useTabsStore.getState().removePane(pane);
+						else
+							void electronTrpcClient.terminal.write
+								.mutate({ paneId: pane, data: "\x03" })
+								.catch(() => {});
+					});
 					if (!result) throw new Error(`\`${local}\` never ended.`);
-					outputs.push(localRunMessage(local, result));
+					outputs.push(
+						(result.quiet
+							? `GSD Mode stopped the command below: it printed nothing for ${QUIET_STOP_MS / 60_000} minutes, so it was most likely waiting for input nobody is here to give. Run it another way that needs no input, or go on without it.\n\n`
+							: "") + localRunMessage(local, result),
+					);
 				} catch (error) {
 					const why = error instanceof Error ? error.message : String(error);
 					toast.error(`GSD Mode stopped: ${why}`);
@@ -4742,16 +4759,49 @@ export function ChatView({
 	);
 }
 
-/** Checks for a `!local` run's end every 2s, for up to 2h. Null if it never ends. */
+/** How long a run GSD Mode waits on may print nothing before it is stopped. */
+const QUIET_STOP_MS = 5 * 60_000;
+
+/**
+ * Checks for a `!local` run's end every 2s, for up to 2h. Null if it never ends.
+ *
+ * With `stop`, a run nobody watches: once it has printed nothing for
+ * QUIET_STOP_MS it is most likely waiting for input, so `stop()` is called to
+ * interrupt it, and 10s later `stop(true)` to kill it. Either way what it
+ * wrote comes back, marked `quiet`.
+ */
 async function localRunEnd(
 	id: string,
-): Promise<{ exitCode: number; output: string } | null> {
+	stop?: (kill?: boolean) => void,
+): Promise<{ exitCode: number; output: string; quiet?: boolean } | null> {
+	let size = -2;
+	let changed = 0;
+	let stopped: number | null = null;
 	for (let waited = 0; waited < 2 * 60 * 60_000; waited += 2_000) {
 		await new Promise((resolve) => setTimeout(resolve, 2_000));
 		const result = await electronTrpcClient.terminal.localRunResult
 			.query({ id })
 			.catch(() => null);
-		if (result) return result;
+		if (result) return stopped === null ? result : { ...result, quiet: true };
+		if (!stop) continue;
+		if (stopped !== null) {
+			if (waited - stopped < 10_000) continue;
+			stop(true);
+			const partial = await electronTrpcClient.terminal.localRunResult
+				.query({ id, stopped: true })
+				.catch(() => null);
+			return { exitCode: 130, output: "", ...partial, quiet: true };
+		}
+		const now = await electronTrpcClient.terminal.localRunSize
+			.query({ id })
+			.catch(() => size);
+		if (now !== size) {
+			size = now;
+			changed = waited;
+		} else if (waited - changed >= QUIET_STOP_MS) {
+			stopped = waited;
+			stop();
+		}
 	}
 	return null;
 }
@@ -5464,7 +5514,7 @@ type DangerStep = { text: string; since: number; stopped?: boolean };
 /**
  * The GSD Mode line's text: the command running now and for how long,
  * else Claude working, else where it stopped or that it waits for you. A run
- * past 30 seconds may be waiting for input in the Shell, so it says so.
+ * past 30 seconds says when Odin gives up on it.
  */
 function DangerStatus({
 	step,
@@ -5483,7 +5533,7 @@ function DangerStatus({
 	let text: string;
 	if (running) {
 		const seconds = Math.max(0, Math.round((now - running.since) / 1_000));
-		text = `GSD Mode: ${running.text} (${seconds}s)${seconds >= 30 ? " - if it asks for input, answer it in the Shell" : ""}`;
+		text = `GSD Mode: ${running.text} (${seconds}s)${seconds >= 30 ? " - Odin stops it if it prints nothing for 5 minutes" : ""}`;
 	} else if (working)
 		text = "GSD Mode: Claude is working. Its commands run when the turn ends.";
 	else if (step?.stopped) text = `GSD Mode: ${step.text}`;
