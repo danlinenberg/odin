@@ -3883,8 +3883,14 @@ export function ChatView({
 			// Say what's about to run before it does, with a few seconds to stop it.
 			const stop = () => useDangerMode.getState().toggle(paneId, false);
 			setDangerStep({
-				text: `about to run ${commands.length === 1 ? "a command" : `${commands.length} commands`} - Stop in the warning cancels it`,
+				text: `about to run ${commands.length === 1 ? "a command" : `${commands.length} commands`} - Stop in the warning cancels it, Go runs it now`,
 				since: Date.now(),
+			});
+			// Go skips the rest of the countdown and runs them now.
+			let go = () => {};
+			const wait = new Promise<void>((resolve) => {
+				go = resolve;
+				setTimeout(resolve, DANGER_WARN_MS);
 			});
 			toast.warning(<DangerCountdown count={commands.length} />, {
 				description: (
@@ -3896,9 +3902,10 @@ export function ChatView({
 					</ol>
 				),
 				duration: DANGER_WARN_MS,
-				action: { label: "Stop", onClick: stop },
+				cancel: { label: "Stop", onClick: stop },
+				action: { label: "Go", onClick: () => go() },
 			});
-			await new Promise((resolve) => setTimeout(resolve, DANGER_WARN_MS));
+			await wait;
 			const outputs: string[] = [];
 			for (const [index, command] of commands.entries()) {
 				if (!useDangerMode.getState().on[paneId]) {
