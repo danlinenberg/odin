@@ -7120,6 +7120,21 @@ function DevBoardPage() {
 						▣ View
 					</button>
 				)}
+				{/* View and Agents come and go, so they sit left of Diff: Diff, Shell
+				    and Brief keep their place. */}
+				{drawerCard.pane.type === "terminal" && !inCatchUp && (
+					<DrawerAgentsButton
+						card={drawerCard}
+						alive={agentPaneIds.has(drawerCard.pane.id)}
+						open={isAgentsOpen}
+						onClick={() => {
+							setIsShellOpen(false);
+							setIsDiffOpen(false);
+							closeHostScreen();
+							setIsAgentsOpen((open) => !open);
+						}}
+					/>
+				)}
 				{drawerCard.pane.type === "terminal" && !inCatchUp && (
 					<button
 						type="button"
@@ -7139,19 +7154,6 @@ function DevBoardPage() {
 					>
 						⑂ Diff
 					</button>
-				)}
-				{drawerCard.pane.type === "terminal" && !inCatchUp && (
-					<DrawerAgentsButton
-						card={drawerCard}
-						alive={agentPaneIds.has(drawerCard.pane.id)}
-						open={isAgentsOpen}
-						onClick={() => {
-							setIsShellOpen(false);
-							setIsDiffOpen(false);
-							closeHostScreen();
-							setIsAgentsOpen((open) => !open);
-						}}
-					/>
 				)}
 				{/* Not in Catch up (nor Diff): you're deciding Next or Done. */}
 				{drawerCard.pane.type === "terminal" && !inCatchUp && (
