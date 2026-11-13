@@ -40,6 +40,17 @@ export function nightExclude(
 }
 
 /**
+ * The Slack messages a session started on, or marked Done. They leave the
+ * feed's rows once started, but keep their :eyes: in Slack, which is all the
+ * host's own picks read.
+ */
+export function slackTaken(rows: { id: string; status: string }[]): string[] {
+	return rows
+		.filter((row) => row.status !== "Not started")
+		.map((row) => `slack:${row.id}`);
+}
+
+/**
  * A board row for a Slack message the host picked itself while this
  * computer was away, so its session lands on the board with no row of ours
  * behind it. Null for anything else.

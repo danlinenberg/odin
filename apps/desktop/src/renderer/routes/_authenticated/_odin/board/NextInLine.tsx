@@ -37,6 +37,7 @@ import {
 	effectiveDue,
 	useReminders,
 } from "../components/Reminders";
+import { slackTaken } from "../hooks/night-send";
 import { useReview } from "../hooks/useBacklogReview";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
@@ -216,6 +217,7 @@ function useNextInLineRows() {
 		reminders,
 		prompt,
 		rankInput,
+		slackTaken: slackTaken(reactions.data?.rows ?? []),
 		refetchSlack: () => void reactions.refetch(),
 	};
 }
@@ -247,8 +249,16 @@ export function TonightCount() {
  * Night Agent runner, so the night works through exactly the list you see.
  */
 export function useNextInLineQueue(showHidden = false) {
-	const { rows, loaded, todos, reminders, prompt, rankInput, refetchSlack } =
-		useNextInLineRows();
+	const {
+		rows,
+		loaded,
+		todos,
+		reminders,
+		prompt,
+		rankInput,
+		slackTaken,
+		refetchSlack,
+	} = useNextInLineRows();
 	const { ranking, applied } = useAiRanking();
 	const pinOverdueDays = useNextInLinePrompt((s) => s.pinOverdueDays);
 	const startItem = useStartAllItem(refetchSlack);
@@ -292,9 +302,13 @@ export function useNextInLineQueue(showHidden = false) {
 	// Rows not waiting (a session on them, now or ever, or Done) and waiting
 	// rows that repeat one: the host's Night Agent must skip these too.
 	const waitingKeys = new Set(waiting.map((item) => item.key));
-	const taken = rows
-		.filter((item) => !waitingKeys.has(item.key) || duplicateFor(item))
-		.map((item) => item.key);
+	// A started or Done Slack message is no row here at all, so it is added.
+	const taken = [
+		...rows
+			.filter((item) => !waitingKeys.has(item.key) || duplicateFor(item))
+			.map((item) => item.key),
+		...slackTaken,
+	];
 	// Rows your instructions say not to show, per the model. They count as
 	// hidden and come back, dimmed, under the same "show hidden" as yours.
 	const aiHidden = new Set(applied ? ranking?.hidden : []);

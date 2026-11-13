@@ -9,6 +9,7 @@ import {
 	retryDelayMs,
 	sendFailedLine,
 	shouldAlert,
+	slackTaken,
 } from "./night-send";
 import { nightWindow } from "./useNightAgentRunner";
 
@@ -107,6 +108,16 @@ describe("a plan for the next nights", () => {
 
 	test("excludes a row a session already took, so the host's own picks skip it", () => {
 		expect(nightExclude([], [], ["slack:C1:3.3"])).toEqual(["slack:C1:3.3"]);
+	});
+
+	test("a started or Done Slack message is taken, a waiting one is not", () => {
+		expect(
+			slackTaken([
+				{ id: "C1:1.1", status: "In progress" },
+				{ id: "C1:2.2", status: "Not started" },
+				{ id: "C1:3.3", status: "Done" },
+			]),
+		).toEqual(["slack:C1:1.1", "slack:C1:3.3"]);
 	});
 
 	test("a Slack message the host picked becomes a row the board can attach to", () => {
