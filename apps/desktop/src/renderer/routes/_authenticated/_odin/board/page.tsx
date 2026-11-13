@@ -287,6 +287,7 @@ import {
 	statusAt,
 } from "./session-order";
 import { mergePrompt, parkable, resumable } from "./session-pick";
+import { TRANSIENT_RETRY, transientRetryKey } from "./transient-retry";
 import { moveToVsCode } from "./vscode-move";
 
 /**
@@ -6188,6 +6189,29 @@ function DevBoardPage() {
 						until,
 						Date.now() / 1000,
 					);
+					// Not the plan's limit but an API error that passes on its
+					// own (a Cloudflare challenge, a 5xx, overloaded): wait a bit
+					// and send the turn again, a few times at most.
+					const retryKey = key
+						? null
+						: transientRetryKey(card.pane.id, transcript.messages);
+					if (retryKey && !planLimitResumedRef.current.has(retryKey)) {
+						planLimitResumedRef.current.add(retryKey);
+						await new Promise((done) => setTimeout(done, 30_000));
+						if (
+							useTabsStore.getState().panes[card.pane.id]?.status !== "failed"
+						)
+							return;
+						toast.info("API error - retrying the turn", {
+							description: taskName(card),
+						});
+						await typeIntoClaude(
+							(input) => electronTrpcClient.terminal.write.mutate(input),
+							card.pane.id,
+							TRANSIENT_RETRY,
+						);
+						return;
+					}
 					if (
 						!key ||
 						planLimitResumedRef.current.has(key) ||
