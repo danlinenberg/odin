@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { LuImage, LuPlus, LuX } from "react-icons/lu";
+import { useUnsaved } from "./screens-update";
 
 /**
  * Screenshots shared to Odin from the iOS share sheet: the share extension
@@ -70,6 +71,7 @@ export function SharePicker({
 	sessions: { paneId: string; title: string }[];
 }) {
 	const [files, setFiles] = useState<File[]>([]);
+	useUnsaved(files.length > 0);
 	useEffect(() => {
 		const check = () =>
 			void takeShared().then((got) => got.length && setFiles(got));

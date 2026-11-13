@@ -62,7 +62,7 @@ import { NightPage } from "./night";
 import { channelFetch, type OdinFetch, routedFetch } from "./odin-fetch";
 import { type Pairing, parsePairLink } from "./pair-link";
 import { MenuCard, PlanCard, QuestionCard } from "./prompt-cards";
-import { markStarted, useScreensUpdate } from "./screens-update";
+import { markStarted, useScreensUpdate, useUnsaved } from "./screens-update";
 import {
 	mergeHits,
 	SearchBox,
@@ -824,6 +824,12 @@ function NewTask({ onClose }: { onClose: () => void }) {
 		!uploads.uploading &&
 		!speech.transcribing &&
 		!add.isPending;
+	useUnsaved(
+		!!(text.trim() || uploads.paths.length || speech.listening) ||
+			uploads.uploading ||
+			speech.transcribing ||
+			add.isPending,
+	);
 	const save = async (start: boolean) => {
 		const words = await speech.finish();
 		const full = words ? appendWords(text, words) : text;
@@ -963,6 +969,7 @@ const sentByPane = new Map<string, Sent[]>();
 
 /** What you typed and didn't send, per session: kept when you go back to the board. */
 const draftByPane = new Map<string, string>();
+const hasDrafts = () => draftByPane.size > 0;
 
 const squash = (text: string) => text.replace(/\s+/g, " ").trim();
 
@@ -1140,6 +1147,12 @@ function Session({ paneId }: { paneId: string }) {
 		!uploads.uploading &&
 		!speech.transcribing &&
 		!reply.isPending;
+	useUnsaved(
+		!!(text.trim() || uploads.paths.length || speech.listening) ||
+			uploads.uploading ||
+			speech.transcribing ||
+			reply.isPending,
+	);
 	/** Sends the box: `now` lands it mid-turn, as the board's Send now. */
 	const submit = async (now: boolean) => {
 		if (!ready) return;
@@ -1659,8 +1672,9 @@ function App() {
 }
 
 /**
- * Newer screens from Odin, kept for the next launch: a pill offers them now.
- * The app's native side stays; only these screens update without Xcode.
+ * Newer screens from Odin: the app reloads into them by itself, once nothing
+ * unsent is on screen. The app's native side stays; only these screens
+ * update without Xcode.
  */
 function ScreensUpdate() {
 	const utils = phone.useUtils();
@@ -1669,19 +1683,8 @@ function ScreensUpdate() {
 			utils.client.screens.query(input),
 		[utils],
 	);
-	const ready = useScreensUpdate(check, true);
-	if (!ready) return null;
-	return (
-		<div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+6px)] z-50 flex justify-center">
-			<button
-				type="button"
-				onClick={() => location.reload()}
-				className="pointer-events-auto rounded-full bg-(--brand) px-4 py-1.5 text-[13px] font-semibold text-primary-foreground shadow-lg"
-			>
-				Odin updated the app - tap to reload
-			</button>
-		</div>
-	);
+	useScreensUpdate(check, true, hasDrafts);
+	return null;
 }
 
 /**
