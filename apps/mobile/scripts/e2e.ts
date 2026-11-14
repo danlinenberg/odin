@@ -67,6 +67,8 @@ const chrome = spawn(
 	],
 	{ stdio: "ignore" },
 );
+// However the walk ends, its browser goes with it.
+process.on("exit", () => chrome.kill());
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 let targets: { type: string; webSocketDebuggerUrl: string }[] = [];
 for (let i = 0; i < 40 && !targets.length; i++) {
