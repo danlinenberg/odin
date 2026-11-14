@@ -304,7 +304,7 @@ export function InboxView({
 										<button
 											type="button"
 											onClick={() => onPreview(group[0].session.paneId)}
-											className="flex items-center gap-1.5 px-4 pt-2.5 pb-0.5 text-left text-[11.5px] font-medium text-muted-foreground hover:text-foreground"
+											className="flex items-center gap-1.5 bg-none px-4 pt-2.5 pb-0.5 text-left text-[11.5px] font-medium text-muted-foreground hover:text-foreground"
 										>
 											<span className="truncate">
 												{tidyText(group[0].session.title)}
@@ -386,7 +386,7 @@ function ItemRow({
 					<button
 						type="button"
 						onClick={() => onPreview(row.session.paneId)}
-						className="min-w-0 flex-1 text-left"
+						className="min-w-0 flex-1 bg-none text-left"
 					>
 						<span
 							dir="auto"
