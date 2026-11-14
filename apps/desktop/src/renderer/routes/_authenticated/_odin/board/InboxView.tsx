@@ -90,11 +90,15 @@ const BUTTON =
  */
 export function InboxView({
 	sessions,
+	onPreview,
 	onOpen,
 	onSend,
 	onResume,
 }: {
 	sessions: InboxSession[];
+	/** A clicked row: show the session's brief beside the list. */
+	onPreview: (paneId: string) => void;
+	/** An Open button: the session itself. */
 	onOpen: (paneId: string) => void;
 	onSend: (paneId: string, text: string) => void;
 	onResume: (paneId: string) => void;
@@ -197,7 +201,7 @@ export function InboxView({
 						>
 							<button
 								type="button"
-								onClick={() => onOpen(session.paneId)}
+								onClick={() => onPreview(session.paneId)}
 								className="w-56 shrink-0 truncate text-left text-[13px] font-medium hover:underline"
 							>
 								{session.title}
@@ -245,7 +249,7 @@ export function InboxView({
 										<HoverCardTrigger asChild>
 											<button
 												type="button"
-												onClick={() => onOpen(row.session.paneId)}
+												onClick={() => onPreview(row.session.paneId)}
 												className="flex min-w-0 flex-1 flex-col items-start text-left"
 											>
 												<span className="w-full select-text truncate text-[13.5px]">

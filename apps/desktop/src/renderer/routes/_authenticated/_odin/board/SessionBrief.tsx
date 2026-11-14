@@ -716,6 +716,7 @@ export function SessionBrief({
 	launch = null,
 	starting = false,
 	resourcesOnly = false,
+	actions,
 }: {
 	paneId: string;
 	cwd: string | null;
@@ -729,6 +730,8 @@ export function SessionBrief({
 	starting?: boolean;
 	/** Just the resource sections - no brief, notes or link input. */
 	resourcesOnly?: boolean;
+	/** Buttons at the right end of the header. */
+	actions?: React.ReactNode;
 }) {
 	const sendKeys = useHotkeyDisplay("SUBMIT").text;
 	// Same lookup Resume uses: the pane's own conversation id, then the legacy
@@ -1312,11 +1315,12 @@ export function SessionBrief({
 					ⓘ Brief
 				</span>
 				What's going on
-				{isWriting && !written && (
-					<span className="ml-auto normal-case tracking-normal text-primary">
-						writing…
-					</span>
-				)}
+				<span className="ml-auto flex items-center gap-2 normal-case tracking-normal">
+					{isWriting && !written && (
+						<span className="text-primary">writing…</span>
+					)}
+					{actions}
+				</span>
 			</div>
 			<div className="flex min-h-0 flex-1 select-text cursor-text flex-col gap-3.5 overflow-y-auto px-4 py-3">
 				{!sessionId ? (
