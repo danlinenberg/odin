@@ -45,7 +45,7 @@ import {
 	UploadChips,
 	useUploads,
 } from "./attach";
-import { BriefCard } from "./brief-card";
+import { BriefCard, PrStrip } from "./brief-card";
 import {
 	boardSections,
 	Chips,
@@ -1003,15 +1003,11 @@ function Session({ paneId }: { paneId: string }) {
 	// The brief Odin on the Mac already wrote: it keeps it current.
 	const brief = phone.brief.useQuery({ paneId }, { refetchInterval: 15_000 });
 	const [briefOpen, setBriefOpen] = useState(false);
-	// Only while the brief is open: every PR is a `gh pr view` on the Mac.
+	// Its PRs' state, under the title and in the brief. Once a minute: every
+	// PR is a `gh pr view` on the Mac.
 	const links = phone.links.useQuery(
 		{ paneId },
-		{
-			enabled: briefOpen,
-			retry: false,
-			staleTime: 30_000,
-			refetchInterval: briefOpen ? 60_000 : false,
-		},
+		{ retry: false, staleTime: 30_000, refetchInterval: 60_000 },
 	);
 	const refetch = () => void session.refetch();
 	const reply = phone.reply.useMutation({ onSuccess: refetch });
@@ -1301,6 +1297,7 @@ function Session({ paneId }: { paneId: string }) {
 						<Chips details={data.details as Details} />
 					</div>
 				)}
+				<PrStrip links={links.data} />
 			</header>
 			<main
 				ref={scroller}
