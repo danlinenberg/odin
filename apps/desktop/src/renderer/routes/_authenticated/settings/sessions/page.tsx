@@ -4,6 +4,7 @@ import { toast } from "@odin/ui/sonner";
 import { Switch } from "@odin/ui/switch";
 import { createFileRoute } from "@tanstack/react-router";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useGsdLimits } from "renderer/stores/gsd-limits";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { useIdleCompact } from "renderer/stores/idle-compact";
 import { useLaunchLimits } from "renderer/stores/launch-limits";
@@ -90,6 +91,27 @@ function SessionsSettingsPage() {
 				<AutoRenameRow />
 				<IdleCompactRow />
 				<IdleCloseRow />
+			</SettingsSection>
+
+			<SettingsSection
+				title="GSD Mode"
+				description="What a session in GSD Mode may do with nobody there. Odin won't run a command of a kind that is off, or answer Yes to a check for one: it stays in the reply with its button, for you. A second model also reviews each reply's commands against these before they run, and holds what is too risky. Never allowed, whatever is on here: deleting your home or root folder, force-pushing main or master, running a download as a script, and wiping a disk."
+			>
+				<GsdLimitRow
+					kind="merge"
+					label="Merge pull requests"
+					description="Off: a merge, or a push to main or master, waits for you, and an action item asking for a merge is not handed back to Claude."
+				/>
+				<GsdLimitRow
+					kind="destructive"
+					label="Delete and overwrite"
+					description="Off: commands that delete or overwrite wait for you - rm -r, git reset --hard, a force push, closing a PR, dropping or deleting data, kubectl delete, terraform apply, deleting cloud resources, killing processes."
+				/>
+				<GsdLimitRow
+					kind="sensitive"
+					label="Touch credentials and permissions"
+					description="Off: commands that touch secrets or protections wait for you - sudo, chmod and chown, reading .env or key files, gh auth and secrets, cloud IAM and secret stores, skipping checks with --no-verify, publishing a package."
+				/>
 			</SettingsSection>
 
 			<SettingsSection title="When they won't start">
@@ -338,6 +360,33 @@ function IdleCloseRow() {
  * into Idle, so the conversation is summarized while Claude's cache of it is
  * still warm.
  */
+/** One kind of thing GSD Mode may do by itself; all off until you turn them on. */
+function GsdLimitRow({
+	kind,
+	label,
+	description,
+}: {
+	kind: "merge" | "destructive" | "sensitive";
+	label: string;
+	description: string;
+}) {
+	const on = useGsdLimits((s) => s[kind]);
+	const set = useGsdLimits((s) => s.set);
+	return (
+		<SettingRow
+			label={label}
+			htmlFor={`gsd-limit-${kind}`}
+			description={description}
+		>
+			<Switch
+				id={`gsd-limit-${kind}`}
+				checked={on}
+				onCheckedChange={(checked) => set(kind, checked)}
+			/>
+		</SettingRow>
+	);
+}
+
 function IdleCompactRow() {
 	const enabled = useIdleCompact((s) => s.enabled);
 	const setEnabled = useIdleCompact((s) => s.setEnabled);

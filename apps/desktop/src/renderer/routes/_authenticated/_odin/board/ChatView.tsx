@@ -55,6 +55,7 @@ import {
 	useDismissedActions,
 	withDismissals,
 } from "renderer/stores/dismissed-actions";
+import { gsdAllow } from "renderer/stores/gsd-limits";
 import { type HostEvent, useHostEvents } from "renderer/stores/host-connection";
 import { showHostScreen, useHostView } from "renderer/stores/host-view";
 import { openUrl } from "renderer/stores/in-app-browser";
@@ -68,6 +69,7 @@ import {
 	isPreviewableVideoFile,
 } from "shared/file-types";
 import { cameFromPhone } from "shared/from-phone";
+import { gsdHeld, gsdLimitsLine } from "shared/gsd-policy";
 import { interruptClaude } from "shared/interrupt-claude";
 import { freshTldr, sameReply, tldrPlacement } from "shared/latest-reply";
 import { LIMIT_HIT_RE } from "shared/limit-hit";
@@ -106,6 +108,7 @@ import {
 	describeCommand,
 	downloadPath,
 	gsdPush,
+	gsdYouOnly,
 	isAnswerItem,
 	isApprovalItem,
 	isDoneItem,
@@ -2882,12 +2885,20 @@ const gsdBriefed = new Set<string>();
 const gsdPushes = new Map<string, number>();
 const GSD_PUSH_MAX = 3;
 
+/** The "(you only)" items GSD Mode already questioned (`paneId:item`), so each is asked about once. */
+const gsdAsked = new Set<string>();
+
 /** Menus GSD Mode already answered (`paneId:menu`), so a poll doesn't answer one twice. */
 const gsdAnswered = new Set<string>();
 
 /** What GSD Mode tells Claude when it goes on, so it gets the job done without waiting. */
 const GSD_BRIEF =
-	"GSD Mode is on (Get-Shit-Done): I'm not here to answer until I turn it off. Don't wait for me. For every open action item or choice, pick the one you'd recommend and do it. Decide anything you would ask me yourself, and keep working until the job is done. Put any command I'd run in a `!` block (`!local` for my computer, `!download` for a file) - Odin runs them for you and sends you their output. Nobody is here to answer a prompt, so write commands that need no input and open no pager; one that prints nothing for 5 minutes is stopped. Stop only for something only I can do, and say why.";
+	"GSD Mode is on (Get-Shit-Done): I'm not here to answer until I turn it off. Don't wait for me. For every open action item or choice, pick the one you'd recommend and do it. Decide anything you would ask me yourself, and keep working until the job is done. Before you leave anything for me, check that the job really needs it, and try every way around it first - a `!local` command on my computer, another tool, another route to the same result. Put any command I'd run in a `!` block (`!local` for my computer, `!download` for a file) - Odin runs them for you and sends you their output. Nobody is here to answer a prompt, so write commands that need no input and open no pager; one that prints nothing for 5 minutes is stopped. Stop only when you hit a wall on something only I can do, and say what you tried.";
+
+/** The brief with the limits set in Settings > Sessions > GSD Mode, as they are now. */
+function gsdBrief(): string {
+	return [GSD_BRIEF, gsdLimitsLine(gsdAllow())].filter(Boolean).join(" ");
+}
 
 /** Replies whose sign-in already ran on its own, so a remount doesn't open another tab. */
 const autoSsoTried = new Set<string>();
@@ -3900,31 +3911,56 @@ export function ChatView({
 		const brief = !gsdBriefed.has(paneId);
 		gsdBriefed.add(paneId);
 		if (dangerRan.has(key)) {
-			if (brief) sendToClaude(GSD_BRIEF);
+			if (brief) sendToClaude(gsdBrief());
 			return;
 		}
 		dangerRan.add(key);
-		const commands = autoRunCommands(lastText.text);
+		// What the settings don't let GSD Mode do is never run: those commands
+		// keep their buttons, and Claude is told to leave them to you.
+		const allow = gsdAllow();
+		const heldWhy = (command: string) =>
+			gsdHeld(localCommand(command) ?? command, allow);
+		const written = autoRunCommands(lastText.text);
+		const commands = written.filter((command) => !heldWhy(command));
+		const held = written
+			.filter(heldWhy)
+			.map((command) => `- \`${command}\`: ${heldWhy(command)}`);
+		const heldNote = held.length
+			? `GSD Mode did not run these, and won't:\n${held.join("\n")}\nLeave each as an action item for me and go on with the rest.`
+			: "";
 		if (!commands.length) {
 			// The turn stopped on action items Claude can still move: Odin
 			// hands them back itself instead of trusting Claude to remember
 			// the brief. A few times in a row at most, so a reply that never
 			// changes can't loop forever.
-			const push = gsdPush(lastText.text);
+			const asked = (item: string) => gsdAsked.has(`${paneId}:${item}`);
+			const mine = gsdYouOnly(lastText.text, allow).filter(
+				(item) => !asked(item),
+			);
+			const push = [heldNote, gsdPush(lastText.text, allow, asked)]
+				.filter(Boolean)
+				.join("\n\n");
 			const pushes = gsdPushes.get(paneId) ?? 0;
 			if (!push) gsdPushes.delete(paneId);
 			if (push && pushes < GSD_PUSH_MAX) {
 				gsdPushes.set(paneId, pushes + 1);
-				sendToClaude(brief ? `${GSD_BRIEF}\n\n${push}` : push);
+				for (const item of mine) gsdAsked.add(`${paneId}:${item}`);
+				sendToClaude(brief ? `${gsdBrief()}\n\n${push}` : push);
+				if (held.length)
+					setDangerStep({
+						text: `held back ${held.length === 1 ? "a command" : `${held.length} commands`} its settings don't allow - run ${held.length === 1 ? "it" : "them"} from the reply yourself`,
+						since: Date.now(),
+						stopped: true,
+					});
 				return;
 			}
 			if (push)
 				setDangerStep({
-					text: `Claude stopped on its action items ${GSD_PUSH_MAX} times in a row, so Odin stopped handing them back. Tell it what's next.`,
+					text: `Claude stopped on the same things ${GSD_PUSH_MAX} times in a row, so Odin stopped handing them back. Tell it what's next.`,
 					since: Date.now(),
 					stopped: true,
 				});
-			if (brief) sendToClaude(GSD_BRIEF);
+			if (brief) sendToClaude(gsdBrief());
 			return;
 		}
 		gsdPushes.delete(paneId);
@@ -3935,6 +3971,13 @@ export function ChatView({
 				text: `about to run ${commands.length === 1 ? "a command" : `${commands.length} commands`} - Stop in the warning cancels it, Go runs it now`,
 				since: Date.now(),
 			});
+			// A second model reads the commands while the warning counts down:
+			// what it won't let run alone waits for you, and no verdict is no run.
+			const judging = electronTrpcClient.terminal.judgeGsdCommands
+				.mutate({ commands, allow, reply: lastText.text })
+				.catch((error: unknown) =>
+					error instanceof Error ? error : new Error(String(error)),
+				);
 			// Go skips the rest of the countdown and runs them now.
 			let go = () => {};
 			const wait = new Promise<void>((resolve) => {
@@ -3944,10 +3987,12 @@ export function ChatView({
 			toast.warning(<DangerCountdown count={commands.length} />, {
 				description: (
 					<ol className="list-decimal pl-4">
-						{dangerPlan(lastText.text).map((line, i) => (
-							// biome-ignore lint/suspicious/noArrayIndexKey: a fixed list, two commands can read the same
-							<li key={i}>{line}</li>
-						))}
+						{dangerPlan(lastText.text, (command) => !heldWhy(command)).map(
+							(line, i) => (
+								// biome-ignore lint/suspicious/noArrayIndexKey: a fixed list, two commands can read the same
+								<li key={i}>{line}</li>
+							),
+						)}
 					</ol>
 				),
 				duration: DANGER_WARN_MS,
@@ -3955,12 +4000,45 @@ export function ChatView({
 				action: { label: "Go", onClick: () => go() },
 			});
 			await wait;
-			const outputs: string[] = [];
+			if (!useDangerMode.getState().on[paneId]) {
+				setDangerStep(null);
+				return;
+			}
+			setDangerStep({
+				text: "its reviewer is checking the commands",
+				since: Date.now(),
+			});
+			const verdict = await judging;
+			if (verdict instanceof Error) {
+				toast.error(
+					`GSD Mode ran nothing: its reviewer couldn't check the commands (${verdict.message})`,
+				);
+				setDangerStep({
+					text: `ran nothing: its reviewer couldn't check the commands (${verdict.message}). Run them from the reply yourself.`,
+					since: Date.now(),
+					stopped: true,
+				});
+				return;
+			}
+			const refused = commands.flatMap((command, index) =>
+				verdict[index]
+					? [`- \`${command}\`: its reviewer held it - ${verdict[index]}`]
+					: [],
+			);
+			const outputs: string[] = [
+				...(heldNote ? [heldNote] : []),
+				...(refused.length
+					? [
+							`GSD Mode did not run these, and won't:\n${refused.join("\n")}\nLeave each as an action item for me and go on with the rest.`,
+						]
+					: []),
+			];
 			for (const [index, command] of commands.entries()) {
 				if (!useDangerMode.getState().on[paneId]) {
 					setDangerStep(null);
 					return;
 				}
+				if (verdict[index]) continue;
 				const step = `${index + 1} of ${commands.length}`;
 				try {
 					const local = localCommand(command);
@@ -4024,7 +4102,7 @@ export function ChatView({
 			sendToClaude(
 				[
 					...outputs,
-					brief ? GSD_BRIEF : "GSD Mode ran your commands. Carry on.",
+					brief ? gsdBrief() : "GSD Mode ran your commands. Carry on.",
 				].join("\n\n"),
 			);
 		})();
@@ -4070,7 +4148,12 @@ export function ChatView({
 					? "GSD Mode approved Claude's plan"
 					: "GSD Mode answered Claude's question with its first option",
 			);
-		} else if (screenMenu && /^yes\b/i.test(screenMenu.options[0] ?? "")) {
+		} else if (
+			screenMenu &&
+			/^yes\b/i.test(screenMenu.options[0] ?? "") &&
+			// A check for something the settings don't allow waits for you.
+			!gsdHeld(screenMenu.title, gsdAllow())
+		) {
 			if (!answer(`${screenMenu.title}\n${screenMenu.options.join("\n")}`))
 				return;
 			void pickScreenMenu(screenMenu, 0);
