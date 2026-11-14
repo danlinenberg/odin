@@ -344,6 +344,29 @@ export async function moveQueuedToMac(
 }
 
 /**
+ * A reply to a session still waiting for the remote host's room joins its
+ * opening message and keeps it bound for the host. False when the pane isn't
+ * waiting for the host.
+ */
+export function addToQueuedHostPrompt(paneId: string, text: string): boolean {
+	const pane = useTabsStore.getState().panes[paneId];
+	const queued = pane?.odinQueued;
+	const remote = queued?.remote;
+	if (!pane || !queued || !remote) return false;
+	const prompt = remote.prompt ? `${remote.prompt}\n\n${text}` : text;
+	useTabsStore.setState((state) => ({
+		panes: {
+			...state.panes,
+			[paneId]: {
+				...pane,
+				odinQueued: { ...queued, remote: { ...remote, prompt } },
+			},
+		},
+	}));
+	return true;
+}
+
+/**
  * Rewrite each waiting card's "why" to what's holding it now. The reason is
  * stamped at queue time, so without this a card kept naming a session that had
  * long since stopped.

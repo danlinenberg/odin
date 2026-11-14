@@ -70,6 +70,7 @@ import {
 import { SiJira, SiNotion, SiSlack } from "react-icons/si";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import {
+	addToQueuedHostPrompt,
 	currentHostBlocker,
 	currentLaunchBlocker,
 	moveQueuedToMac,
@@ -6044,6 +6045,9 @@ function DevBoardPage() {
 				).catch(() => undefined);
 				return "delivered";
 			}
+			// Still waiting for the host's room: starting it now would move it to
+			// this Mac, so the reply waits with it instead.
+			if (addToQueuedHostPrompt(paneId, text)) return "delivered";
 			const card = [...cardsRef.current.values()]
 				.flat()
 				.find((each) => each.pane.id === paneId);
