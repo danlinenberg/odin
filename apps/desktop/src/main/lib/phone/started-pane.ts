@@ -20,3 +20,15 @@ export function startedPane(text: string, saved = ""): { paneId?: string } {
 		});
 	return typeof answer.paneId === "string" ? { paneId: answer.paneId } : {};
 }
+
+/**
+ * The phone's Backlog: tasks no session was ever started on, as the desktop's
+ * Next in line counts them. `started` alone is a session open now, so a task
+ * whose session ended came back as waiting, weeks after it ran. A window from
+ * before `ran` sends none: then `started` decides, as it did.
+ */
+export function waitingTasks<T extends { started: boolean; ran?: boolean }>(
+	tasks: T[],
+): T[] {
+	return tasks.filter((task) => !task.started && !task.ran);
+}
