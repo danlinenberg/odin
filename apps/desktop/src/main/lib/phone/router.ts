@@ -309,12 +309,26 @@ export const phoneRouter = t.router({
 
 	/** The conversation, prose only, plus the brief's TL;DR when one is cached or quick. */
 	session: t.procedure.input(paneInput).query(async ({ input }) => {
+		const asked = Date.now();
 		const pane = await savedPane(input.paneId);
+		const paneAt = Date.now();
 		const sessionId = sessionOf(input.paneId);
-		// The log's end only: a long session's log runs to tens of MB.
-		const tail = sessionId
-			? await transcriptTail({ sessionId }).catch(() => [])
-			: [];
+		// Each read is its own round trip: asked at once, not one after another.
+		const [tail, rawScreen, connected] = await Promise.all([
+			// The log's end only: a long session's log runs to tens of MB.
+			sessionId ? transcriptTail({ sessionId }).catch(() => []) : [],
+			terminal()
+				.readScreen(input)
+				.catch(() => null),
+			// The ssh session to the host is this pane's terminal.
+			terminal()
+				.management.listSessions()
+				.then(({ sessions }) =>
+					sessions.some((s) => s.sessionId === input.paneId && s.isAlive),
+				)
+				.catch(() => undefined),
+		]);
+		const readAt = Date.now();
 		const messages = await Promise.all(
 			tail.map(async (message) =>
 				message.images
@@ -325,11 +339,7 @@ export const phoneRouter = t.router({
 					: message,
 			),
 		);
-		const fullScreen = stripAnsi(
-			(await terminal()
-				.readScreen(input)
-				.catch(() => null)) ?? "",
-		);
+		const fullScreen = stripAnsi(rawScreen ?? "");
 		// What the board's chat answers in cards: Claude's question or plan,
 		// else a menu the terminal draws (folder trust, the usage limit menu).
 		const prompt = sessionId ? tailPrompt(sessionId) : null;
@@ -340,8 +350,15 @@ export const phoneRouter = t.router({
 			.filter(Boolean)
 			.slice(-14)
 			.join("\n");
+		const title = await readableTitle(pane.odinTaskTitle ?? "Session");
+		const done = Date.now();
+		// The phone server logs a slow call; this says which part was slow.
+		if (done - asked > 1_000)
+			console.log(
+				`[phone] session ${input.paneId}: pane ${paneAt - asked}ms, reads ${readAt - paneAt}ms, rest ${done - readAt}ms`,
+			);
 		return {
-			title: await readableTitle(pane.odinTaskTitle ?? "Session"),
+			title,
 			// Claude's spinner on the screen is Working now: the board's saved
 			// status catches up late, so a reply just sent read as stuck.
 			status:
@@ -354,13 +371,10 @@ export const phoneRouter = t.router({
 				contact: pane.odinContact ?? null,
 				source: boardSection(pane),
 				remote: pane.odinRemote ?? null,
-				// The ssh session to the host is this pane's terminal.
-				connected: await terminal()
-					.management.listSessions()
-					.then(({ sessions }) =>
-						sessions.some((s) => s.sessionId === input.paneId && s.isAlive),
-					)
-					.catch(() => undefined),
+				// Why it isn't on the host, and why it hasn't started yet.
+				localWhy: pane.odinLocalWhy ?? null,
+				queued: pane.odinQueued?.reason ?? null,
+				connected,
 				tags: boardTags(pane.odinTags, boardLook().customTags),
 				launchEmoji: pane.odinTags?.includes("auto-started")
 					? boardLook().launchEmoji

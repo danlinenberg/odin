@@ -173,6 +173,8 @@ export interface Pane {
 	odinTags?: string[];
 	/** The remote host (Settings → Remote) this session runs on. */
 	odinRemote?: string;
+	/** Why it runs on this computer though Settings → Remote sends sessions to the host. */
+	odinLocalWhy?: string;
 	/** Starred from the card's ★ button or right-click menu: pinned to the top section. */
 	odinStarred?: boolean;
 	/**

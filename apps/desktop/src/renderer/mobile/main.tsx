@@ -52,6 +52,7 @@ import {
 	type Details,
 	DoneShelf,
 	Dot,
+	LaunchNotes,
 	SessionCard,
 	STATUS,
 } from "./cards";
@@ -963,6 +964,8 @@ type Sent = {
 	previews?: string[];
 	/** The remote host typed it in, with the Mac away: its name. */
 	deliveredBy?: string;
+	/** Odin typed it into the session; Claude reads it after its current step. */
+	typed?: boolean;
 };
 
 /**
@@ -1036,10 +1039,11 @@ function Session({ paneId }: { paneId: string }) {
 	 */
 	const delivered = (item: Sent, answer: unknown) => {
 		const host = (answer as { via?: { host?: string } } | undefined)?.via?.host;
-		if (!host) return;
 		const mark = (all: Sent[]) =>
 			all.map((each) =>
-				each === item ? { ...each, deliveredBy: host } : each,
+				each === item
+					? { ...each, typed: true, ...(host && { deliveredBy: host }) }
+					: each,
 			);
 		setSent(mark);
 		sentByPane.set(paneId, mark(sentByPane.get(paneId) ?? []));
@@ -1295,6 +1299,7 @@ function Session({ paneId }: { paneId: string }) {
 				{data && "details" in data && (
 					<div className="mt-1.5">
 						<Chips details={data.details as Details} />
+						<LaunchNotes details={data.details as Details} />
 					</div>
 				)}
 				<PrStrip links={links.data} />
@@ -1337,7 +1342,9 @@ function Session({ paneId }: { paneId: string }) {
 						<div className="mt-1 text-right text-[11px] opacity-70">
 							{item.deliveredBy
 								? `Delivered on ${item.deliveredBy}`
-								: "Sent · Odin reads it when it's free"}
+								: item.typed
+									? "Delivered · Claude reads it after its current step"
+									: "Sending..."}
 						</div>
 					</div>
 				))}
