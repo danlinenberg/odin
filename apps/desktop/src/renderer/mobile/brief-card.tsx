@@ -131,6 +131,33 @@ function LinkRow({
 }
 
 /**
+ * A session's PRs under its title, each with its state and CI: whether it
+ * merged shows without opening the brief. Nothing while there are none.
+ */
+export function PrStrip({ links }: { links: BriefLinks }) {
+	const hidden = links?.hidden ?? [];
+	const prs = links?.prs.filter((pr) => !hidden.includes(pr.url)) ?? [];
+	if (!prs.length) return null;
+	return (
+		<div className="mt-1.5 space-y-1">
+			{prs.map((pr) => (
+				<a
+					key={pr.url}
+					href={pr.url}
+					target="_blank"
+					rel="noreferrer"
+					className="flex items-center gap-1.5 text-[13px] text-link"
+				>
+					<span className="min-w-0 truncate">{pr.label}</span>
+					<StateChip status={pr.status} />
+					<ChecksChip status={pr.status} />
+				</a>
+			))}
+		</div>
+	);
+}
+
+/**
  * The TL;DR at the top of a session; tap it for the whole brief - goal, what
  * it did, where it stands, what's next - and its links: PRs with their state
  * and CI, the Jira ticket, the Slack thread, the Notion page.
