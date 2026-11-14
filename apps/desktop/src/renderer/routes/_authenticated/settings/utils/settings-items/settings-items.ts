@@ -46,6 +46,7 @@ export const SETTING_ITEM_ID = {
 	EXPERIMENTAL_WORKSPACE_AGENTS: "experimental-workspace-agents",
 	EXPERIMENTAL_WAIT_FOR_SETUP_BEFORE_AGENT:
 		"experimental-wait-for-setup-before-agent",
+	EXPERIMENTAL_INBOX_VIEW: "experimental-inbox-view",
 
 	PROJECT_NAME: "project-name",
 	PROJECT_PATH: "project-path",
@@ -126,6 +127,7 @@ export const SETTING_ITEM_VARIANT: Record<SettingItemId, SettingVariant> = {
 	[SETTING_ITEM_ID.EXPERIMENTAL_WORKSPACE_AGENTS]: "v2",
 	// Gates both the v1 renderer launch and the v2 host-side launch.
 	[SETTING_ITEM_ID.EXPERIMENTAL_WAIT_FOR_SETUP_BEFORE_AGENT]: "shared",
+	[SETTING_ITEM_ID.EXPERIMENTAL_INBOX_VIEW]: "shared",
 
 	[SETTING_ITEM_ID.PROJECT_NAME]: "shared",
 	[SETTING_ITEM_ID.PROJECT_PATH]: "shared",
@@ -206,6 +208,10 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
 	},
 	{
 		id: SETTING_ITEM_ID.EXPERIMENTAL_WAIT_FOR_SETUP_BEFORE_AGENT,
+		section: "experimental",
+	},
+	{
+		id: SETTING_ITEM_ID.EXPERIMENTAL_INBOX_VIEW,
 		section: "experimental",
 	},
 

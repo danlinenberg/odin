@@ -3,6 +3,7 @@ import { Label } from "@odin/ui/label";
 import { Switch } from "@odin/ui/switch";
 import { useIsV2CloudEnabled } from "renderer/hooks/useIsV2CloudEnabled";
 import { track } from "renderer/lib/analytics";
+import { useInboxViewStore } from "renderer/stores/inbox-view";
 import {
 	useInlineWorkspacePortsEnabled,
 	useInlineWorkspacePortsStore,
@@ -47,6 +48,11 @@ export function ExperimentalSettings({
 		SETTING_ITEM_ID.EXPERIMENTAL_WAIT_FOR_SETUP_BEFORE_AGENT,
 		visibleItems,
 	);
+	const showInboxView = isItemVisible(
+		SETTING_ITEM_ID.EXPERIMENTAL_INBOX_VIEW,
+		visibleItems,
+	);
+	const inboxView = useInboxViewStore();
 	const isV2CloudEnabled = useIsV2CloudEnabled();
 	const setOptInV2 = useV2LocalOverrideStore((state) => state.setOptInV2);
 	const openV1ImportModal = useOpenV1ImportModal();
@@ -158,6 +164,24 @@ export function ExperimentalSettings({
 					</div>
 				)}
 				{showWaitForSetupBeforeAgent && <WaitForSetupBeforeAgentSetting />}
+				{showInboxView && (
+					<div className="flex items-center justify-between gap-6">
+						<div className="min-w-0 flex-1 space-y-0.5">
+							<Label htmlFor="inbox-view" className="text-sm font-medium">
+								Inbox view
+							</Label>
+							<p className="text-xs text-muted-foreground">
+								Add an Inbox button beside the Board: every open action item
+								across sessions in one list.
+							</p>
+						</div>
+						<Switch
+							id="inbox-view"
+							checked={inboxView.enabled}
+							onCheckedChange={inboxView.setEnabled}
+						/>
+					</div>
+				)}
 			</div>
 		</div>
 	);
