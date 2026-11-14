@@ -1158,17 +1158,27 @@ await step(
 				},
 			})}\n`,
 		);
+		// The turn is over: the fake draws Claude's idle prompt, as the real one
+		// does, and then the Stop hook fires. The prompt first - a stopped
+		// session with no prompt on its screen reads as Claude gone.
+		writeFileSync(join(home, `idle-${sessionPid}`), "");
+		for (
+			const end = Date.now() + 30_000;
+			!terminalTails().includes("for shortcuts");
+			await sleep(300)
+		)
+			if (Date.now() > end)
+				throw new Error("the fake claude never drew its idle prompt");
 		await fetch(
 			`http://127.0.0.1:${port}/hook/complete?${new URLSearchParams({ paneId: paneId ?? "", eventType: "Stop" })}`,
 		);
-		// The turn is over: the fake draws Claude's idle prompt, as the real one does.
-		writeFileSync(join(home, `idle-${sessionPid}`), "");
-		await sleep(2500);
 		await rail("Dev Board");
 		await page(`[...document.querySelectorAll('[role="button"][draggable="true"]')]
 			.find((c) => c.textContent.includes(${JSON.stringify(SESSION)}))
 			?.click()`);
 		await waitForText("the export is ready.", true, 30_000);
+		// The switch shows once the board has read the session as live.
+		await waitForText("gsd mode", true, 30_000);
 		await click("button", "GSD (Get-Shit-Done) Mode");
 		// The item Claude can decide goes back, and the one it left for you is
 		// questioned: is it needed, is there a way around it.
