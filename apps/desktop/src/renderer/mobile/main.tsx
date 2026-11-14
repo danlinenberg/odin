@@ -1321,22 +1321,25 @@ function Session({ paneId }: { paneId: string }) {
 				<div className="mt-1 truncate text-[17px] font-semibold">
 					{data?.title ?? "…"}
 				</div>
-				<div
-					className="flex items-center gap-1.5 text-[11px] font-semibold uppercase"
-					style={{ color: STATUS[status].color }}
-				>
-					<Dot status={status} />
-					{STATUS[status].label}
+				{/* The status, with the card's chips beside it on the same row. */}
+				<div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+					<div
+						className="flex shrink-0 items-center gap-1.5 text-[11px] font-semibold uppercase"
+						style={{ color: STATUS[status].color }}
+					>
+						<Dot status={status} />
+						{STATUS[status].label}
+					</div>
+					{data && "details" in data && (
+						<Chips details={data.details as Details} />
+					)}
 				</div>
 				{data && "details" in data && (
-					<div className="mt-1.5">
-						<Chips details={data.details as Details} />
-						<LaunchNotes
-							details={data.details as Details}
-							onStart={() => startQueued.mutate({ paneId })}
-							starting={startQueued.isPending}
-						/>
-					</div>
+					<LaunchNotes
+						details={data.details as Details}
+						onStart={() => startQueued.mutate({ paneId })}
+						starting={startQueued.isPending}
+					/>
 				)}
 				<PrStrip links={links.data} />
 			</header>
