@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
 import { launchBlocker } from "shared/launch-gate";
 import {
@@ -6,6 +7,7 @@ import {
 	type MachineLoadInput,
 } from "shared/machine-load";
 import {
+	addToQueuedHostPrompt,
 	hostReadSinceStart,
 	livePanes,
 	MAC_START_GAP_MS,
@@ -149,5 +151,29 @@ describe("startQueuedPane", () => {
 		await startQueuedPane(client, queued);
 		expect(calls).toEqual(["kill", "spawn"]);
 		expect(useTabsStore.getState().panes.q?.odinQueued).toBeUndefined();
+	});
+});
+
+describe("addToQueuedHostPrompt", () => {
+	test("a reply to a card waiting for the host joins its prompt and stays on the host", () => {
+		const remote = {
+			pane: "s1",
+			repoPath: null,
+			claudeArgs: "--session-id s1",
+			prompt: "Task: fix it",
+		};
+		useTabsStore.setState({
+			panes: {
+				host: pane("host", {
+					odinQueued: { command: "ssh", reason: "busy", remote },
+				}),
+				mac: pane("mac", { odinQueued: { command: "claude", reason: "busy" } }),
+			},
+		});
+		expect(addToQueuedHostPrompt("host", "and this")).toBe(true);
+		expect(addToQueuedHostPrompt("mac", "and this")).toBe(false);
+		const queued = useTabsStore.getState().panes.host?.odinQueued;
+		expect(queued?.remote?.prompt).toBe("Task: fix it\n\nand this");
+		expect(queued?.here).toBeUndefined();
 	});
 });
