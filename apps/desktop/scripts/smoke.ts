@@ -10,6 +10,7 @@
  * a task down, add a profile, press ⌘F, start a session (on a fake `claude`)
  * and mark it done. Exits 1 with a list of what broke;
  * SMOKE_SHOTS_DIR=<dir> also saves a screenshot of every failed step.
+ * On a Linux box with no screen: ELECTRON_DISABLE_SANDBOX=1 xvfb-run -a bun run smoke.
  *
  * Dependency-free (Bun WebSocket + fetch), like the other cdp-*.ts scripts.
  */
@@ -90,6 +91,10 @@ writeFileSync(
 					claudeSessionId: crypto.randomUUID(),
 					odinTags: ["question"],
 				},
+				// What a late change leaves when its pane has closed: no id, tab
+				// or type. The main process refuses a board that holds one, so the
+				// window must drop it, or nothing below reaches the phone.
+				"pane-smoke-broken": { status: "idle" },
 			},
 		},
 	}),
@@ -1530,6 +1535,14 @@ await step(
 			const session = await call<{ title: string }>("session", { paneId });
 			if (session.title !== title)
 				throw new Error(`session is titled "${session.title}"`);
+			// The board the phone lists is the main process's copy of the window's.
+			let board = "";
+			for (let i = 0; i < 20 && !board.includes(title); i++) {
+				await sleep(500);
+				board = JSON.stringify(await call<unknown>("board", {}));
+			}
+			if (!board.includes(title))
+				throw new Error("the phone's board doesn't list the task it started");
 		} finally {
 			channel.close();
 		}

@@ -2413,3 +2413,29 @@ export const useTabsStore = create<TabsStore>()(
 		{ name: "TabsStore" },
 	),
 );
+
+/**
+ * A change that lands on a pane just after it closed (a late title, a late
+ * status) spreads a pane that is no longer there, and leaves one with no id,
+ * tab or type under its key. The main process refuses a board that holds
+ * one, so from then on no save went through: the window carried on, and the
+ * phone, the tray and the remote host kept the board of that moment for days.
+ * Such a pane is nothing a screen can show, so it goes as soon as it appears.
+ */
+const isWholePane = (pane: Pane | undefined) =>
+	typeof pane?.id === "string" && typeof pane.tabId === "string" && !!pane.type;
+useTabsStore.subscribe((state) => {
+	const broken = Object.entries(state.panes).filter(
+		([, pane]) => !isWholePane(pane),
+	);
+	if (!broken.length) return;
+	console.warn(
+		"[tabs] dropped panes with no id, tab or type:",
+		JSON.stringify(broken.map(([key, pane]) => [key, Object.keys(pane ?? {})])),
+	);
+	useTabsStore.setState((s) => ({
+		panes: Object.fromEntries(
+			Object.entries(s.panes).filter(([, pane]) => isWholePane(pane)),
+		),
+	}));
+});
