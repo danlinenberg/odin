@@ -1,4 +1,5 @@
 import { Button } from "@odin/ui/button";
+import { Switch } from "@odin/ui/switch";
 import { Textarea } from "@odin/ui/textarea";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -6,6 +7,7 @@ import { ClaudeCommandPicker } from "renderer/components/ClaudeCommandPicker";
 import { DEFAULT_SESSION_INSTRUCTIONS } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useClaudeCommand } from "renderer/stores/claude-command";
+import { useInboxViewStore } from "renderer/stores/inbox-view";
 import { useSessionInstructions } from "renderer/stores/session-instructions";
 import {
 	SettingRow,
@@ -41,7 +43,28 @@ function AdvancedSettingsPage() {
 			>
 				<UpdatePluginsRow />
 			</SettingsSection>
+			<SettingsSection
+				title="Experimental"
+				description="Early features, off until you turn them on."
+			>
+				<InboxViewRow />
+			</SettingsSection>
 		</SettingsPage>
+	);
+}
+
+/** The board's Inbox view: off by default, the Board is the view. */
+function InboxViewRow() {
+	const enabled = useInboxViewStore((s) => s.enabled);
+	const setEnabled = useInboxViewStore((s) => s.setEnabled);
+	return (
+		<SettingRow
+			label="Inbox view"
+			htmlFor="inbox-view"
+			description="Adds an Inbox button beside Board view in the top bar: every open action item across sessions in one list."
+		>
+			<Switch id="inbox-view" checked={enabled} onCheckedChange={setEnabled} />
+		</SettingRow>
 	);
 }
 
