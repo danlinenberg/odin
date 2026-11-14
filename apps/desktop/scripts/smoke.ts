@@ -453,6 +453,20 @@ await step("the Inbox view opens from the top bar and back", async () => {
 			`the Inbox header ${shown ? "never appeared" : "never went away"}`,
 		);
 	};
+	// Off by default: no Inbox button until Settings > Advanced turns it on.
+	if (await page<boolean>(`!!__find("button", "Inbox view")`))
+		throw new Error("Inbox view button shown while the setting is off");
+	await rail("Settings");
+	await click("a", "Advanced");
+	await waitForText("adds an inbox button");
+	const on = await page<string | null>(`(() => {
+		const e = document.getElementById("inbox-view");
+		e?.click();
+		return e?.getAttribute("aria-checked") ?? null;
+	})()`);
+	if (!on) throw new Error("no Inbox view switch in Settings > Advanced");
+	await click("a", "Back");
+	await rail("Dev Board");
 	await click("button", "Inbox view");
 	await inboxShown(true);
 	await click("button", "Board view");

@@ -187,6 +187,12 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "skills plugins marketplace update upgrade latest version sync",
 	},
 	{
+		label: "Inbox view",
+		to: "/settings/advanced",
+		section: "Experimental",
+		keywords: "inbox action items board view experimental beta",
+	},
+	{
 		label: "Default prompt",
 		to: "/settings/advanced",
 		section: "What they run",

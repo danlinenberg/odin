@@ -99,6 +99,7 @@ import { useDangerMode } from "renderer/stores/danger-mode";
 import { sessionDocKey, useDoneStore } from "renderer/stores/done";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { useIdleCompact } from "renderer/stores/idle-compact";
+import { useInboxViewStore } from "renderer/stores/inbox-view";
 import { useRecentlyViewed } from "renderer/stores/recently-viewed";
 import { useSessionView } from "renderer/stores/session-view";
 import { useStartingPanes } from "renderer/stores/starting-panes";
@@ -375,7 +376,8 @@ function ViewToggle({
 	inboxOpen: boolean;
 	onSessions: () => void;
 	onBoard: () => void;
-	onInbox: () => void;
+	/** Unset while the Inbox experiment is off: no Inbox button. */
+	onInbox?: () => void;
 }) {
 	const segment = (active: boolean) =>
 		cn(
@@ -407,16 +409,18 @@ function ViewToggle({
 			>
 				<LuLayoutGrid className="size-3.5" aria-hidden />
 			</button>
-			<button
-				type="button"
-				aria-label="Inbox view"
-				aria-pressed={!sessionsOpen && inboxOpen}
-				title="Inbox view - every open action item across sessions, quickest first, and the stuck ones on top"
-				onClick={onInbox}
-				className={segment(!sessionsOpen && inboxOpen)}
-			>
-				<LuInbox className="size-3.5" aria-hidden />
-			</button>
+			{onInbox && (
+				<button
+					type="button"
+					aria-label="Inbox view"
+					aria-pressed={!sessionsOpen && inboxOpen}
+					title="Inbox view - every open action item across sessions, quickest first, and the stuck ones on top"
+					onClick={onInbox}
+					className={segment(!sessionsOpen && inboxOpen)}
+				>
+					<LuInbox className="size-3.5" aria-hidden />
+				</button>
+			)}
 		</div>
 	);
 }
@@ -6713,7 +6717,9 @@ function DevBoardPage() {
 	};
 	// Inbox view: the board's action items as one list (InboxView). Closing a
 	// session opened from it lands back on it.
-	const [inboxOpen, setInboxOpen] = useState(false);
+	const inboxEnabled = useInboxViewStore((s) => s.enabled);
+	const [inboxShown, setInboxOpen] = useState(false);
+	const inboxOpen = inboxEnabled && inboxShown;
 	const inboxSessions: InboxSession[] = [...cardsByStatus.values()]
 		.flat()
 		.map((card) => {
@@ -7395,10 +7401,14 @@ function DevBoardPage() {
 								setDrawerCard(null);
 								setInboxOpen(false);
 							}}
-							onInbox={() => {
-								setDrawerCard(null);
-								setInboxOpen(true);
-							}}
+							onInbox={
+								inboxEnabled
+									? () => {
+											setDrawerCard(null);
+											setInboxOpen(true);
+										}
+									: undefined
+							}
 						/>,
 						viewToggleSlot,
 					)}
