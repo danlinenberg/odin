@@ -490,11 +490,25 @@ let lastMacSessions: {
 	remote?: string | null;
 }[] = [];
 
+/** Where the board was scrolled when a session opened, for the way back. */
+let boardScrollY = 0;
+
 function Home() {
 	const board = phone.board.useQuery(undefined, {
 		refetchInterval: POLL,
 		select: heldBoard,
 	});
+	// Back from a session: the board opens where you left it, once its cards are drawn.
+	const hasCards = !!board.data;
+	useLayoutEffect(() => {
+		if (hasCards && boardScrollY) scrollTo(0, boardScrollY);
+	}, [hasCards]);
+	useLayoutEffect(
+		() => () => {
+			boardScrollY = scrollY;
+		},
+		[],
+	);
 	// Dictation hears the board's names and terms right (speech.ts).
 	useEffect(() => {
 		if (!board.data) return;
@@ -1078,6 +1092,7 @@ function Session({ paneId }: { paneId: string }) {
 	};
 	const key = phone.key.useMutation({ onSuccess: refetch });
 	const interrupt = phone.interrupt.useMutation({ onSuccess: refetch });
+	const startQueued = phone.startQueued.useMutation({ onSettled: refetch });
 	const runCommand = phone.run.useMutation({ onSuccess: refetch });
 	// The board's dismissals too: an item closed there is gone here.
 	const dismissed = phone.dismissed.useQuery(
@@ -1316,7 +1331,11 @@ function Session({ paneId }: { paneId: string }) {
 				{data && "details" in data && (
 					<div className="mt-1.5">
 						<Chips details={data.details as Details} />
-						<LaunchNotes details={data.details as Details} />
+						<LaunchNotes
+							details={data.details as Details}
+							onStart={() => startQueued.mutate({ paneId })}
+							starting={startQueued.isPending}
+						/>
 					</div>
 				)}
 				<PrStrip links={links.data} />
@@ -1332,7 +1351,7 @@ function Session({ paneId }: { paneId: string }) {
 					setAtBottom(near);
 				}}
 			>
-				<ErrorLine error={session.error ?? done.error} />
+				<ErrorLine error={session.error ?? done.error ?? startQueued.error} />
 				<Transcript
 					messages={data?.messages ?? []}
 					brief={

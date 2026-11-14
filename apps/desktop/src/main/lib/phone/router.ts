@@ -374,6 +374,10 @@ export const phoneRouter = t.router({
 				// Why it isn't on the host, and why it hasn't started yet.
 				localWhy: pane.odinLocalWhy ?? null,
 				queued: pane.odinQueued?.reason ?? null,
+				// Start now can run it: a Resume held for the host's room can't move here.
+				startable:
+					!!pane.odinQueued &&
+					(!pane.odinQueued.remote || !!pane.odinQueued.remote.prompt),
 				connected,
 				tags: boardTags(pane.odinTags, boardLook().customTags),
 				launchEmoji: pane.odinTags?.includes("auto-started")
@@ -847,6 +851,17 @@ export const phoneRouter = t.router({
 		.mutation(async ({ input }) =>
 			startedPane(await board("start", { ids: input.id, open: "true" })),
 		),
+
+	/** The drawer's Start now on a session the launch gate held back. */
+	startQueued: t.procedure.input(paneInput).mutation(async ({ input }) => {
+		const answer = await board(
+			"start-queued",
+			{ paneId: input.paneId },
+			120_000,
+		);
+		if (answer !== "ok")
+			throw new TRPCError({ code: "PRECONDITION_FAILED", message: answer });
+	}),
 
 	done: t.procedure
 		.input(paneInput)

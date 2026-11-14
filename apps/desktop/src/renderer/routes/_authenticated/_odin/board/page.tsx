@@ -135,7 +135,7 @@ import {
 import { isQueuedResume } from "shared/queued-resume";
 import { remoteCardsToReconnect, tmuxSession } from "shared/remote-reconnect";
 import { hostsNotTakingLogins, loginFailing } from "./host-stuck";
-import { setPhoneReply } from "./phone-resume";
+import { setPhoneReply, setPhoneStart } from "./phone-resume";
 import { useReadableSlackTitles, useSlackReadable } from "./slack-titles";
 
 /** Tags the card shows as their own pill instead of in the #tag line. */
@@ -6056,6 +6056,24 @@ function DevBoardPage() {
 			return "resumed";
 		});
 		return () => setPhoneReply(null);
+	}, []);
+	// The phone's Start now: the drawer's ▶ Start now on a held-back session.
+	useEffect(() => {
+		setPhoneStart(async (paneId) => {
+			const pane = useTabsStore.getState().panes[paneId];
+			if (!pane?.odinQueued) return null;
+			if (pane.odinQueued.remote && !pane.odinQueued.remote.prompt)
+				return "This one can only start on the remote host.";
+			const card = [...cardsRef.current.values()]
+				.flat()
+				.find((each) => each.pane.id === paneId);
+			if (!card) return "That session isn't on the board.";
+			await resumeCardRef.current({ ...card, pane });
+			return useTabsStore.getState().panes[paneId]?.odinQueued
+				? "Odin couldn't start it."
+				: null;
+		});
+		return () => setPhoneStart(null);
 	}, []);
 	// Covers the transcript check before resumeCard marks the card resuming.
 	const autoResumingRef = useRef(false);

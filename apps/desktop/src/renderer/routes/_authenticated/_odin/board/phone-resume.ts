@@ -19,3 +19,18 @@ export const setPhoneReply = (next: PhoneReply | null) => {
 /** "live" when no board is mounted to resume it: then it's typed in. */
 export const phoneReply = (paneId: string, text: string) =>
 	handler?.(paneId, text) ?? "live";
+
+/**
+ * The phone's Start now on a session held back by the launch gate: the
+ * drawer's ▶ Start now. Null when it started; else why it couldn't.
+ */
+export type PhoneStart = (paneId: string) => Promise<string | null>;
+
+let starter: PhoneStart | null = null;
+
+export const setPhoneStart = (next: PhoneStart | null) => {
+	starter = next;
+};
+
+export const phoneStart = (paneId: string) =>
+	starter?.(paneId) ?? Promise.resolve("Open the board on your Mac.");
