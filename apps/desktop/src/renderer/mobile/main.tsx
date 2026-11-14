@@ -604,7 +604,19 @@ function Home() {
 		<div className="min-h-dvh pb-24">
 			<header className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-2 backdrop-blur">
 				<div className="flex items-center justify-between gap-3">
-					<h1 className="text-2xl font-bold">Board</h1>
+					<div className="flex min-w-0 items-center gap-2">
+						<h1 className="text-2xl font-bold">Board</h1>
+						{board.data && !demo && (
+							<span
+								className={`flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${away ? "bg-secondary text-muted-foreground" : "bg-success/15 text-success-ink"}`}
+							>
+								<span
+									className={`size-1.5 rounded-full ${away ? "bg-muted-foreground" : "bg-success"}`}
+								/>
+								{away ? "Mac away" : "Mac awake"}
+							</span>
+						)}
+					</div>
 					<div className="flex min-w-0 items-center gap-2">
 						<ProfilePicker />
 						<a
