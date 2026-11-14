@@ -446,7 +446,7 @@ function ProfilePicker() {
 	const activeId = switchTo.variables?.id ?? profiles.data?.activeId;
 	const name = list.find((p) => p.id === activeId)?.name ?? "Profile";
 	return (
-		<label className="relative flex max-w-[55%] items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-sm font-medium">
+		<label className="relative flex min-w-0 items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-sm font-medium">
 			{switchTo.isPending ? (
 				<LuLoaderCircle className="size-4 shrink-0 animate-spin text-primary" />
 			) : (
