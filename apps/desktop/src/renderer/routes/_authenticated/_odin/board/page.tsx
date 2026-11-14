@@ -95,6 +95,7 @@ import {
 	remoteControlOn,
 	useClaudeCommand,
 } from "renderer/stores/claude-command";
+import { useDangerMode } from "renderer/stores/danger-mode";
 import { sessionDocKey, useDoneStore } from "renderer/stores/done";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { useIdleCompact } from "renderer/stores/idle-compact";
@@ -1114,6 +1115,20 @@ function PrPill({ card, live }: { card: BoardCard; live: boolean }) {
 		<span>
 			PR #{pr.number}
 			{prs.length > 1 ? ` +${prs.length - 1}` : ""}
+		</span>
+	);
+}
+
+/** The card's chip while its session is in GSD Mode; nothing when it is off. */
+function GsdPill({ paneId }: { paneId: string }) {
+	const on = useDangerMode((state) => !!state.on[paneId]);
+	if (!on) return null;
+	return (
+		<span
+			title="GSD Mode is on: Claude makes the calls itself and Odin runs this session's commands without asking"
+			className="font-medium text-destructive"
+		>
+			⚡ GSD Mode
 		</span>
 	);
 }
@@ -2758,6 +2773,7 @@ const BoardCardTile = memo(
     something of you. A pill that renders nothing drops out, so the dots
     between the rest stay right. */}
 						<div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 text-[11.5px] text-muted-foreground [&>*+*]:before:inline-block [&>*+*]:before:mr-1.5 [&>*+*]:before:text-faint-foreground [&>*+*]:before:content-['·']">
+							<GsdPill paneId={card.pane.id} />
 							{(dropped || merged) && (
 								<span className="font-medium text-danger">
 									{merged ? "Dropped: PR merged" : "Dropped: PR closed"}
