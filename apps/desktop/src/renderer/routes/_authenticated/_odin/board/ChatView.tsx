@@ -2891,6 +2891,9 @@ const gsdAsked = new Set<string>();
 /** Menus GSD Mode already answered (`paneId:menu`), so a poll doesn't answer one twice. */
 const gsdAnswered = new Set<string>();
 
+/** How long a turn that ended without a reply stays quiet before GSD Mode tells Claude to carry on. */
+const GSD_QUIET_MS = 20_000;
+
 /** What GSD Mode tells Claude when it goes on, so it gets the job done without waiting. */
 const GSD_BRIEF =
 	"GSD Mode is on (Get-Shit-Done): I'm not here to answer until I turn it off. Don't wait for me. For every open action item or choice, pick the one you'd recommend and do it. Decide anything you would ask me yourself, and keep working until the job is done. Before you leave anything for me, check that the job really needs it, and try every way around it first - a `!local` command on my computer, another tool, another route to the same result. Put any command I'd run in a `!` block (`!local` for my computer, `!download` for a file) - Odin runs them for you and sends you their output. Nobody is here to answer a prompt, so write commands that need no input and open no pager; one that prints nothing for 5 minutes is stopped. Stop only when you hit a wall on something only I can do, and say what you tried.";
@@ -4118,6 +4121,78 @@ export function ChatView({
 		onShellStarted,
 		sendToClaude,
 	]);
+	// A turn that ended with no reply to act on - cut short, or its last step a
+	// tool call - would leave GSD Mode waiting forever: after a quiet spell
+	// Odin tells Claude to carry on. Counted with the other pushes, so a
+	// session that keeps stopping is left alone after a few.
+	const lastKind = items.at(-1)?.kind;
+	const waitingOnMenu = !!prompt || !!screenMenu || !!screenDialog;
+	const sending = pending.some((sent) => !sent.lost);
+	useEffect(() => {
+		if (!danger || working || !onShowTerminal || !lastItemId) return;
+		if (lastKind === "text" || waitingOnMenu || sending) return;
+		const key = `${paneId}:${lastItemId}:quiet`;
+		if (dangerRan.has(key)) return;
+		const timer = setTimeout(() => {
+			if (!useDangerMode.getState().on[paneId]) return;
+			dangerRan.add(key);
+			const pushes = gsdPushes.get(paneId) ?? 0;
+			if (pushes >= GSD_PUSH_MAX) {
+				setDangerStep({
+					text: `Claude stopped without a reply ${GSD_PUSH_MAX} times in a row, so Odin stopped telling it to carry on. Tell it what's next.`,
+					since: Date.now(),
+					stopped: true,
+				});
+				return;
+			}
+			gsdPushes.set(paneId, pushes + 1);
+			const brief = !gsdBriefed.has(paneId);
+			gsdBriefed.add(paneId);
+			sendToClaude(
+				[
+					brief ? gsdBrief() : "",
+					"GSD Mode: your turn ended without a reply, and nobody is here. Carry on from where you stopped and finish the job.",
+				]
+					.filter(Boolean)
+					.join("\n\n"),
+			);
+		}, GSD_QUIET_MS);
+		return () => clearTimeout(timer);
+	}, [
+		danger,
+		working,
+		onShowTerminal,
+		lastItemId,
+		lastKind,
+		waitingOnMenu,
+		sending,
+		paneId,
+		sendToClaude,
+	]);
+	// What GSD Mode can't answer for you, for its red line: a check its
+	// settings hold back, a menu with no Yes, or a dialog Odin can't read.
+	const gsdYes = screenMenu
+		? screenMenu.options.findIndex((option) => /^yes\b/i.test(option))
+		: -1;
+	const gsdHeldCheck = screenMenu
+		? gsdHeld(screenMenu.title, gsdAllow())
+		: null;
+	const gsdWaits = !danger
+		? null
+		: screenMenu
+			? gsdHeldCheck
+				? `a check in the terminal waits for you - ${gsdHeldCheck}. Answer it above.`
+				: gsdYes < 0
+					? "the terminal asks something with no Yes to pick. Answer it above."
+					: null
+			: screenDialog
+				? "the terminal asks something Odin can't read. Answer it in Terminal View."
+				: null;
+	// When the screen last changed: a working Claude redraws its timer every
+	// second, so a still screen means it waits on something.
+	const [screenMovedAt, setScreenMovedAt] = useState(Date.now());
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the screen and the transcript are the triggers
+	useEffect(() => setScreenMovedAt(Date.now()), [screenText, lastItemId]);
 	// GSD Mode answers Claude's own menus too, as nobody is there to: a
 	// question gets its first option (the one Claude recommends), a plan is
 	// approved, and a yes/no check (a permission, folder trust) gets its Yes.
@@ -4150,14 +4225,15 @@ export function ChatView({
 			);
 		} else if (
 			screenMenu &&
-			/^yes\b/i.test(screenMenu.options[0] ?? "") &&
+			// The Yes is not always first: "No, exit" leads the folder-trust menu.
+			gsdYes >= 0 &&
 			// A check for something the settings don't allow waits for you.
-			!gsdHeld(screenMenu.title, gsdAllow())
+			!gsdHeldCheck
 		) {
 			if (!answer(`${screenMenu.title}\n${screenMenu.options.join("\n")}`))
 				return;
-			void pickScreenMenu(screenMenu, 0);
-			toast.info(`GSD Mode answered "${screenMenu.options[0]}"`);
+			void pickScreenMenu(screenMenu, gsdYes);
+			toast.info(`GSD Mode answered "${screenMenu.options[gsdYes]}"`);
 		}
 	}, [danger, paneId, prompt, screenMenu]);
 	// It goes off with the session.
@@ -4862,7 +4938,9 @@ export function ChatView({
 								<DangerStatus
 									step={dangerStep}
 									working={working}
-									sent={pending.some((sent) => !sent.lost)}
+									sent={sending}
+									waits={gsdWaits}
+									stillSince={screenMovedAt}
 								/>
 								<button
 									type="button"
@@ -5676,25 +5754,36 @@ function DangerStatus({
 	step,
 	working,
 	sent,
+	waits,
+	stillSince,
 }: {
 	step: DangerStep | null;
 	working: boolean;
 	/** A message is on its way to Claude, which hasn't started on it yet. */
 	sent: boolean;
+	/** What the terminal asks that GSD Mode won't answer for you. */
+	waits: string | null;
+	/** When Claude's screen last changed. */
+	stillSince: number;
 }) {
 	const running = step && !step.stopped ? step : null;
 	const [now, setNow] = useState(Date.now());
 	useEffect(() => {
-		if (!running) return;
+		if (!running && !working) return;
 		const timer = setInterval(() => setNow(Date.now()), 1_000);
 		return () => clearInterval(timer);
-	}, [running]);
+	}, [running, working]);
+	const still = Math.floor((now - stillSince) / 60_000);
 	let text: string;
 	if (running) {
 		const seconds = Math.max(0, Math.round((now - running.since) / 1_000));
 		text = `GSD Mode: ${running.text} (${seconds}s)${seconds >= 30 ? " - Odin stops it if it prints nothing for 5 minutes" : ""}`;
-	} else if (working)
-		text = "GSD Mode: Claude is working. Its commands run when the turn ends.";
+	} else if (waits) text = `GSD Mode: ${waits}`;
+	else if (working)
+		text =
+			still >= 2
+				? `GSD Mode: Claude's screen has not changed for ${still} minutes. It may be waiting on something - look in Terminal View.`
+				: "GSD Mode: Claude is working. Its commands run when the turn ends.";
 	else if (step?.stopped) text = `GSD Mode: ${step.text}`;
 	else if (sent) text = "GSD Mode: told Claude. Waiting for it to start.";
 	else
