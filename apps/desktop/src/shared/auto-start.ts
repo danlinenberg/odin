@@ -37,6 +37,9 @@ export interface AutoStartRow {
  * `loaded` names the sources whose feed has answered: one that answered with
  * nothing waiting gets an empty baseline, so its first row after that is new
  * and starts, instead of becoming the baseline itself.
+ * `rows` is every row a feed shows, not only the ones waiting: a task with a
+ * session on it is seen too, so it is not new the day that session ends and
+ * it waits again.
  */
 export function newAutoStartRows(
 	seen: Record<string, string[]> | undefined,
@@ -61,10 +64,16 @@ export function newAutoStartRows(
 		if (added.length === 0) continue;
 		changed = true;
 		if (known) fresh.push(...added);
+		// Past the cap, keys the feed no longer shows go first: dropping one it
+		// still shows would make that old row new again, and start it.
+		const shown = new Set(sourceRows.map((row) => row.key));
+		const gone = (known ?? []).filter((key) => !shown.has(key));
+		const room = Math.min(gone.length, Math.max(0, SEEN_CAP - shown.size));
 		next[source] = [
-			...(known ?? []),
+			...gone.slice(gone.length - room),
+			...(known ?? []).filter((key) => shown.has(key)),
 			...new Set(added.map((row) => row.key)),
-		].slice(-SEEN_CAP);
+		];
 	}
 	for (const source of loaded) {
 		if (next[source]) continue;

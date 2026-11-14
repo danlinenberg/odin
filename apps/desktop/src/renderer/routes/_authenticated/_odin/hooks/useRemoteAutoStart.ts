@@ -14,9 +14,9 @@ const SOURCES = new Set<string>(AUTO_START_SOURCES);
  * Settings > Remote > Auto-start new tasks: while the remote host is on,
  * start a session there on every new task from a source switched on. The
  * main process decides what is new (claimNewTasks) and hands each row out
- * once; a row is then started as if you clicked Start, on the host, without
- * asking for context or pulling the board into view. Mounted in the Odin
- * shell so it runs whichever view is open.
+ * once; a row still waiting is then started as if you clicked Start, on the
+ * host, without asking for context or pulling the board into view. Mounted in
+ * the Odin shell so it runs whichever view is open.
  */
 export function useRemoteAutoStart(): void {
 	const queue = useNextInLineQueue(true);
@@ -30,12 +30,19 @@ export function useRemoteAutoStart(): void {
 			if (busy) return;
 			busy = true;
 			try {
-				const { waiting, loaded } = latest.current;
-				const rows = waiting.filter((item) => SOURCES.has(item.source));
+				// Every row, not only the waiting ones: an old task whose session
+				// ended would otherwise come back as new and start again.
+				const { rows: all, slackTaken, loaded } = latest.current;
+				const rows = [
+					...all
+						.filter((item) => SOURCES.has(item.source))
+						.map((item) => ({ source: item.source, key: item.key })),
+					...slackTaken.map((key) => ({ source: "Slack", key })),
+				];
 				// No rows and no feed answered yet: still loading, nothing to learn.
 				if (rows.length === 0 && loaded.length === 0) return;
 				const keys = await electronTrpcClient.remoteHost.claimNewTasks.mutate({
-					rows: rows.map((item) => ({ source: item.source, key: item.key })),
+					rows,
 					loaded,
 				});
 				for (const key of keys) {
