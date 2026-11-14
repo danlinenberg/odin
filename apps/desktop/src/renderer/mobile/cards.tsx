@@ -220,7 +220,30 @@ export type Details = {
 	repo?: string | null;
 	/** The Auto-started pill's emoji: the launch reaction. An older Odin sends none. */
 	launchEmoji?: string;
+	/** Why it runs on the Mac though the host switch is on. */
+	localWhy?: string | null;
+	/** Held back by the launch gate: why it hasn't started yet. */
+	queued?: string | null;
 };
+
+/**
+ * What the desktop says in a toast and the card's Queued row, which the phone
+ * otherwise never sees: a session that hasn't started, or didn't go to the host.
+ */
+export function LaunchNotes({ details }: { details: Details }) {
+	const notes = [
+		details.queued && `Waiting to start: ${details.queued}`,
+		details.localWhy && `On this Mac: ${details.localWhy}`,
+	].filter(Boolean);
+	if (!notes.length) return null;
+	return (
+		<div className="mt-1.5 flex flex-col gap-0.5 text-[12px] text-soft-foreground select-text">
+			{notes.map((note) => (
+				<span key={note as string}>{note}</span>
+			))}
+		</div>
+	);
+}
 
 /**
  * What the desktop card shows beside its title: where it runs (Remote or

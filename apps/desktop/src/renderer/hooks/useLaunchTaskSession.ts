@@ -372,17 +372,31 @@ export function useLaunchTaskSession() {
 		try {
 			// Where it runs, and a toast when the host switch is on but this one
 			// stays here - otherwise it looks like the switch did nothing.
+			// Why it stays here though the host switch is on, kept on the card
+			// for the phone, which never sees the desktop's toast.
+			let localWhy: string | null = null;
+			const stayHere = (why: string) => {
+				localWhy = why;
+				if (!planOnly)
+					toast.info(`"${title}" runs on this computer`, {
+						description: `${why}.`,
+					});
+			};
 			const launchTarget = () =>
 				utils.client.remoteHost?.launchPlace
 					.query({ repoPath: repoPath ?? null, source: source ?? null })
 					.then(({ host, why }) => {
-						if (why && !planOnly)
-							toast.info(`"${title}" runs on this computer`, {
-								description: `Not on the remote host: ${why}.`,
-							});
+						if (why) stayHere(`Not on the remote host: ${why}`);
 						return host;
 					})
-					.catch(() => null);
+					// A failed check runs it here: say so, or the switch looks ignored.
+					.catch((error: unknown) => {
+						console.error("[launch] where to run it:", error);
+						stayHere(
+							`Couldn't check the remote host: ${error instanceof Error ? error.message : String(error)}`,
+						);
+						return null;
+					});
 			// Everything the card needs, asked at once: one after another, these
 			// round trips to a busy main process held the card back for seconds.
 			const [workspace, hostConfig, profiles, target] = await Promise.all([
@@ -765,6 +779,7 @@ export function useLaunchTaskSession() {
 						...(card.source ? { odinSource: card.source } : {}),
 						...(odinTags?.length ? { odinTags } : {}),
 						...(remote ? { odinRemote: remote } : {}),
+						...(!remote && localWhy ? { odinLocalWhy: localWhy } : {}),
 						...(queuedReason
 							? {
 									odinQueued: {

@@ -29,6 +29,7 @@ describe("paneSchema", () => {
 			odinSource: "jira",
 			odinTags: ["work"],
 			odinRemote: "odin-remote",
+			odinLocalWhy: "the host was unreachable",
 			odinStarred: true,
 			odinQueued: { command: "claude", reason: "busy" },
 			odinAutoTagged: true,
