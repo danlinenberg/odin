@@ -25,6 +25,7 @@ import {
 	completeCalendarOAuth,
 	isCalendarOAuthCallback,
 } from "./lib/calendar-oauth";
+import { startDevMainPuller } from "./lib/dev-pull-main";
 import { setWorkspaceDockIcon } from "./lib/dock-icon";
 import { startDoubleTap } from "./lib/double-tap";
 import { loadWebviewBrowserExtension } from "./lib/extensions";
@@ -524,6 +525,7 @@ if (!gotTheLock) {
 			});
 
 		startWorktreePruner();
+		startDevMainPuller();
 		startVoiceTrainer(() =>
 			import("lib/trpc/routers/slack").then((slack) =>
 				slack.slackMySentMessages(),
