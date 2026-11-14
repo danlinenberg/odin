@@ -248,20 +248,29 @@ export function LaunchNotes({ details }: { details: Details }) {
 /**
  * What the desktop card shows beside its title: where it runs (Remote or
  * Local) first, then who it's for, the feed it came from, the repo and its tags.
+ * A board card passes `cloud`: its cloud already says Remote, so the chip is left out.
  */
-export function Chips({ details }: { details: Details }) {
+export function Chips({
+	details,
+	cloud,
+}: {
+	details: Details;
+	cloud?: boolean;
+}) {
 	const source = details.source ? SOURCES[details.source] : undefined;
 	const chips = [
 		// Where it runs, first; a remote one says whether it's connected to the host.
 		details.remote
-			? details.connected === false
-				? { icon: BsCloudSlash, label: "Remote · offline", off: true }
-				: {
-						icon: BsCloud,
-						label: "Remote",
-						on: details.connected === true,
-						strong: true,
-					}
+			? cloud
+				? null
+				: details.connected === false
+					? { icon: BsCloudSlash, label: "Remote · offline", off: true }
+					: {
+							icon: BsCloud,
+							label: "Remote",
+							on: details.connected === true,
+							strong: true,
+						}
 			: { icon: LuLaptop, label: "Local" },
 		details.contact && { icon: LuUser, label: details.contact },
 		source,
@@ -293,6 +302,31 @@ export function Chips({ details }: { details: Details }) {
 			))}
 		</span>
 	);
+}
+
+/**
+ * The one mark a remote session wears on its board card: a cloud in the colour
+ * of its link to the host. Green is connected, red and struck through is
+ * offline, plain is not known yet (an older Odin sends no state).
+ */
+export function remoteCloud(connected: boolean | undefined): {
+	icon: IconType;
+	label: string;
+	className: string;
+} {
+	if (connected === false)
+		return {
+			icon: BsCloudSlash,
+			label: "Remote, offline",
+			className: "text-danger",
+		};
+	if (connected)
+		return {
+			icon: BsCloud,
+			label: "Remote, connected",
+			className: "text-success",
+		};
+	return { icon: BsCloud, label: "Remote", className: "text-foreground" };
 }
 
 /** A day `days` from today as YYYY-MM-DD, local time. */
@@ -400,7 +434,8 @@ function RemindAction({ onPick }: { onPick: (day: string) => void }) {
 }
 
 /**
- * One session on the board: its column's dot, a cloud for a remote one, the
+ * One session on the board: its column's dot, a cloud for a remote one in the
+ * colour of its host link, the
  * title (two lines), where
  * it runs and how long since its status changed, a Just done pill for a turn
  * that ended in the last 10 minutes, a moon for the Night Agent's, and its star.
@@ -426,6 +461,7 @@ export function SessionCard({
 	const at = session.statusAt ?? null;
 	const justDone =
 		column === "review" && at !== null && Date.now() - at < JUST_DONE_MS;
+	const cloud = session.remote ? remoteCloud(session.connected) : null;
 	return (
 		<SwipeRow
 			className="mx-3 my-1.5 rounded-[10px]"
@@ -478,11 +514,11 @@ export function SessionCard({
 						<span className="mt-[7px]">
 							<Dot status={column} />
 						</span>
-						{session.remote && (
-							<BsCloud
+						{cloud && (
+							<cloud.icon
 								role="img"
-								aria-label="Remote"
-								className={`mt-[3px] size-4 shrink-0 ${session.connected === false ? "text-danger" : "text-foreground"}`}
+								aria-label={cloud.label}
+								className={`mt-[3px] size-4 shrink-0 ${cloud.className}`}
 							/>
 						)}
 						<span className="line-clamp-2">{session.title}</span>
@@ -494,7 +530,7 @@ export function SessionCard({
 							</span>
 						)}
 						{session.night && <NightPill />}
-						<Chips details={session} />
+						<Chips details={session} cloud />
 						{at !== null && <span className="ml-auto shrink-0">{ago(at)}</span>}
 					</div>
 					{session.dropped && (

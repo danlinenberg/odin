@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { boardSections } from "./cards";
+import { boardSections, remoteCloud } from "./cards";
 
 test("a column lists starred first, then by last activity", () => {
 	const row = (paneId: string, statusAt: number | null, starred = false) =>
@@ -41,4 +41,12 @@ test("Ping me sessions waiting on someone else get their own section above Idle"
 	expect(
 		boardSections([row("idle", "idle")]).some((s) => s.key === "waiting"),
 	).toBe(false);
+});
+
+test("a remote card's cloud wears the colour of its link to the host", () => {
+	expect(remoteCloud(true).className).toBe("text-success");
+	expect(remoteCloud(false).className).toBe("text-danger");
+	expect(remoteCloud(false).label).toBe("Remote, offline");
+	// An older Odin sends no state: a plain cloud, no claim either way.
+	expect(remoteCloud(undefined).className).toBe("text-foreground");
 });
