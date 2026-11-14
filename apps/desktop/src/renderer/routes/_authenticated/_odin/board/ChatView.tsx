@@ -4859,7 +4859,11 @@ export function ChatView({
 						{danger && (
 							<div className="flex items-center gap-2 border-t border-destructive/40 bg-destructive/15 px-5 py-1.5 text-[11.5px] text-destructive">
 								<LuZap className="size-3.5 shrink-0" />
-								<DangerStatus step={dangerStep} working={working} />
+								<DangerStatus
+									step={dangerStep}
+									working={working}
+									sent={pending.some((sent) => !sent.lost)}
+								/>
 								<button
 									type="button"
 									onClick={() => useDangerMode.getState().toggle(paneId, false)}
@@ -5664,15 +5668,19 @@ type DangerStep = { text: string; since: number; stopped?: boolean };
 
 /**
  * The GSD Mode line's text: the command running now and for how long,
- * else Claude working, else where it stopped or that it waits for you. A run
+ * else Claude working, else where it stopped, that a message is on its way
+ * to Claude, or that it waits for you. A run
  * past 30 seconds says when Odin gives up on it.
  */
 function DangerStatus({
 	step,
 	working,
+	sent,
 }: {
 	step: DangerStep | null;
 	working: boolean;
+	/** A message is on its way to Claude, which hasn't started on it yet. */
+	sent: boolean;
 }) {
 	const running = step && !step.stopped ? step : null;
 	const [now, setNow] = useState(Date.now());
@@ -5688,6 +5696,7 @@ function DangerStatus({
 	} else if (working)
 		text = "GSD Mode: Claude is working. Its commands run when the turn ends.";
 	else if (step?.stopped) text = `GSD Mode: ${step.text}`;
+	else if (sent) text = "GSD Mode: told Claude. Waiting for it to start.";
 	else
 		text =
 			"GSD Mode: nothing left to run. Claude stopped - tell it what's next.";
