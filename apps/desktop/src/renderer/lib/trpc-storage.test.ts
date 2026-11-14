@@ -51,3 +51,77 @@ it("changes that never pause still save within a few debounces", async () => {
 	}
 	expect(saved.length).toBeGreaterThan(1);
 });
+
+it("a save that never answers doesn't hold back the ones after it", async () => {
+	const { createTrpcStorageAdapter } = await import("./trpc-storage");
+	const saved: unknown[] = [];
+	let calls = 0;
+	const adapter = createTrpcStorageAdapter({
+		get: async () => null,
+		// The first call hangs for good, as a main process stuck on its write.
+		set: (input) =>
+			calls++ === 0
+				? new Promise(() => {})
+				: Promise.resolve(void saved.push(input)),
+		saveTimeoutMs: 30,
+		retryMs: 10,
+	});
+	await adapter.setItem(
+		"tabs",
+		JSON.stringify({ state: { i: 1 }, version: 1 }),
+	);
+	await new Promise((r) => setTimeout(r, 5));
+	await adapter.setItem(
+		"tabs",
+		JSON.stringify({ state: { i: 2 }, version: 1 }),
+	);
+	await new Promise((r) => setTimeout(r, 120));
+	expect(saved.at(-1)).toEqual({ i: 2 });
+});
+
+it("a failed save is tried again without another change", async () => {
+	const { createTrpcStorageAdapter } = await import("./trpc-storage");
+	const saved: unknown[] = [];
+	let calls = 0;
+	const adapter = createTrpcStorageAdapter({
+		get: async () => null,
+		set: async (input) => {
+			if (calls++ === 0) throw new Error("main is busy");
+			saved.push(input);
+		},
+		retryMs: 10,
+	});
+	await adapter.setItem(
+		"tabs",
+		JSON.stringify({ state: { i: 1 }, version: 1 }),
+	);
+	await new Promise((r) => setTimeout(r, 80));
+	expect(saved).toEqual([{ i: 1 }]);
+});
+
+it("a full localStorage doesn't stop the save to the main process", async () => {
+	const full = globalThis.localStorage;
+	globalThis.localStorage = {
+		getItem: () => null,
+		setItem: () => {
+			throw new Error("QuotaExceededError");
+		},
+		removeItem: () => {},
+	} as unknown as Storage;
+	try {
+		const { createTrpcStorageAdapter } = await import("./trpc-storage");
+		const saved: unknown[] = [];
+		const adapter = createTrpcStorageAdapter({
+			get: async () => null,
+			set: async (input) => void saved.push(input),
+		});
+		await adapter.setItem(
+			"tabs",
+			JSON.stringify({ state: { i: 1 }, version: 1 }),
+		);
+		await new Promise((r) => setTimeout(r, 30));
+		expect(saved).toEqual([{ i: 1 }]);
+	} finally {
+		globalThis.localStorage = full;
+	}
+});
