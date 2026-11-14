@@ -44,7 +44,7 @@ import { parseDueDay, parseQueuePlace, useTaskMeta } from "../all/task-meta";
 import { useSearchableItems } from "../all/use-all-items";
 import { paneWorksOn } from "../all/use-start-item";
 import { useCardFlags } from "../board/card-flags";
-import { phoneReply } from "../board/phone-resume";
+import { phoneReply, phoneStart } from "../board/phone-resume";
 import { remindSession } from "../board/SessionReminders";
 import { type PromptImage, sessionTitle } from "../components/OdinPromptDialog";
 import { useReminders } from "../components/Reminders";
@@ -949,6 +949,9 @@ function runOdinAction(
 	// The phone's reply: resume an exited session with it, or "live".
 	if (action === "phone-reply")
 		return phoneReply(args.paneId ?? "", args.text ?? "");
+	// The phone's Start now on a held-back session: "ok", or why it didn't.
+	if (action === "start-queued")
+		return phoneStart(args.paneId ?? "").then((error) => error ?? "ok");
 	// A `!local` block's Run on the phone: the session's Shell runs it here.
 	if (action === "run-local") {
 		const pane = args.paneId ? panes[args.paneId] : undefined;

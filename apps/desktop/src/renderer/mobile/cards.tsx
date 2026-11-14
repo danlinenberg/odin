@@ -224,13 +224,24 @@ export type Details = {
 	localWhy?: string | null;
 	/** Held back by the launch gate: why it hasn't started yet. */
 	queued?: string | null;
+	/** Start now can start it here: false for a Resume held for the host's room. */
+	startable?: boolean;
 };
 
 /**
  * What the desktop says in a toast and the card's Queued row, which the phone
  * otherwise never sees: a session that hasn't started, or didn't go to the host.
  */
-export function LaunchNotes({ details }: { details: Details }) {
+export function LaunchNotes({
+	details,
+	onStart,
+	starting,
+}: {
+	details: Details;
+	/** The drawer's Start now: skips the wait. */
+	onStart?: () => void;
+	starting?: boolean;
+}) {
 	const notes = [
 		details.queued && `Waiting to start: ${details.queued}`,
 		details.localWhy && `On this Mac: ${details.localWhy}`,
@@ -241,6 +252,16 @@ export function LaunchNotes({ details }: { details: Details }) {
 			{notes.map((note) => (
 				<span key={note as string}>{note}</span>
 			))}
+			{details.queued && details.startable && onStart && (
+				<button
+					type="button"
+					disabled={starting}
+					onClick={onStart}
+					className="mt-1 self-start rounded-full bg-(--brand) px-3.5 py-1.5 text-[13px] font-semibold text-primary-foreground disabled:opacity-40"
+				>
+					{starting ? "Starting…" : "Start now"}
+				</button>
+			)}
 		</div>
 	);
 }

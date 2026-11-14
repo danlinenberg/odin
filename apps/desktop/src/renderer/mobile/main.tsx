@@ -490,11 +490,25 @@ let lastMacSessions: {
 	remote?: string | null;
 }[] = [];
 
+/** Where the board was scrolled when a session opened, for the way back. */
+let boardScrollY = 0;
+
 function Home() {
 	const board = phone.board.useQuery(undefined, {
 		refetchInterval: POLL,
 		select: heldBoard,
 	});
+	// Back from a session: the board opens where you left it, once its cards are drawn.
+	const hasCards = !!board.data;
+	useLayoutEffect(() => {
+		if (hasCards && boardScrollY) scrollTo(0, boardScrollY);
+	}, [hasCards]);
+	useLayoutEffect(
+		() => () => {
+			boardScrollY = scrollY;
+		},
+		[],
+	);
 	// Dictation hears the board's names and terms right (speech.ts).
 	useEffect(() => {
 		if (!board.data) return;
@@ -603,9 +617,9 @@ function Home() {
 	return (
 		<div className="min-h-dvh pb-24">
 			<header className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-2 backdrop-blur">
-				<div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-					<h1 className="text-2xl font-bold">Board</h1>
-					<div>
+				<div className="flex items-center justify-between gap-3">
+					<div className="flex min-w-0 items-center gap-2">
+						<h1 className="text-2xl leading-none font-bold">Board</h1>
 						{board.data && !demo && (
 							<span
 								className={`flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${away ? "bg-secondary text-muted-foreground" : "bg-success/15 text-success-ink"}`}
@@ -617,7 +631,7 @@ function Home() {
 							</span>
 						)}
 					</div>
-					<div className="flex min-w-0 items-center justify-end gap-2">
+					<div className="flex min-w-0 items-center gap-2">
 						<ProfilePicker />
 						<a
 							href="#/night"
@@ -1078,6 +1092,7 @@ function Session({ paneId }: { paneId: string }) {
 	};
 	const key = phone.key.useMutation({ onSuccess: refetch });
 	const interrupt = phone.interrupt.useMutation({ onSuccess: refetch });
+	const startQueued = phone.startQueued.useMutation({ onSettled: refetch });
 	const runCommand = phone.run.useMutation({ onSuccess: refetch });
 	// The board's dismissals too: an item closed there is gone here.
 	const dismissed = phone.dismissed.useQuery(
@@ -1306,18 +1321,25 @@ function Session({ paneId }: { paneId: string }) {
 				<div className="mt-1 truncate text-[17px] font-semibold">
 					{data?.title ?? "…"}
 				</div>
-				<div
-					className="flex items-center gap-1.5 text-[11px] font-semibold uppercase"
-					style={{ color: STATUS[status].color }}
-				>
-					<Dot status={status} />
-					{STATUS[status].label}
+				{/* The status, with the card's chips beside it on the same row. */}
+				<div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+					<div
+						className="flex shrink-0 items-center gap-1.5 text-[11px] font-semibold uppercase"
+						style={{ color: STATUS[status].color }}
+					>
+						<Dot status={status} />
+						{STATUS[status].label}
+					</div>
+					{data && "details" in data && (
+						<Chips details={data.details as Details} />
+					)}
 				</div>
 				{data && "details" in data && (
-					<div className="mt-1.5">
-						<Chips details={data.details as Details} />
-						<LaunchNotes details={data.details as Details} />
-					</div>
+					<LaunchNotes
+						details={data.details as Details}
+						onStart={() => startQueued.mutate({ paneId })}
+						starting={startQueued.isPending}
+					/>
 				)}
 				<PrStrip links={links.data} />
 			</header>
@@ -1332,7 +1354,7 @@ function Session({ paneId }: { paneId: string }) {
 					setAtBottom(near);
 				}}
 			>
-				<ErrorLine error={session.error ?? done.error} />
+				<ErrorLine error={session.error ?? done.error ?? startQueued.error} />
 				<Transcript
 					messages={data?.messages ?? []}
 					brief={
