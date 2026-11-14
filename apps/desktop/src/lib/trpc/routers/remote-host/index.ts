@@ -900,10 +900,11 @@ export const createRemoteHostRouter = () =>
 				return input.sources;
 			}),
 		/**
-		 * The board's waiting rows, handed in on every look: answers the ones
-		 * to start now - new since the last look, from a source switched on,
-		 * while the host is on. Every row is recorded either way, so a source
-		 * switched on later starts only what arrives after. Here, not in the
+		 * Every row the feeds show, waiting or not, handed in on every look:
+		 * answers the ones to start now - new since the last look, from a source
+		 * switched on, while the host is on. Every row is recorded either way,
+		 * so a source switched on later starts only what arrives after, and a
+		 * task whose session ended is not new when it waits again. Here, not in the
 		 * window, so a reload can't start a row twice.
 		 */
 		claimNewTasks: publicProcedure

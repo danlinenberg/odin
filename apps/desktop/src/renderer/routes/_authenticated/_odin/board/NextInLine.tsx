@@ -345,6 +345,8 @@ export function useNextInLineQueue(showHidden = false) {
 		order,
 		prompt,
 		rankInput,
+		rows,
+		slackTaken,
 		waiting,
 		loaded,
 		taken,
