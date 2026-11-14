@@ -37,6 +37,7 @@ import type { PhoneNight } from "renderer/routes/_authenticated/_odin/night-agen
 import { boardSection } from "shared/board-section";
 import { withDismissalNote } from "shared/dismissed-match";
 import { interruptClaude } from "shared/interrupt-claude";
+import { odinScreenStatus } from "shared/odin-screen-status";
 import { boardTags } from "shared/odin-tags";
 import type { PaneStatus } from "shared/tabs-types";
 import stripAnsi from "strip-ansi";
@@ -340,7 +341,12 @@ export const phoneRouter = t.router({
 			.join("\n");
 		return {
 			title: await readableTitle(pane.odinTaskTitle ?? "Session"),
-			status: pane.status ?? "idle",
+			// Claude's spinner on the screen is Working now: the board's saved
+			// status catches up late, so a reply just sent read as stuck.
+			status:
+				odinScreenStatus(fullScreen) === "working"
+					? "working"
+					: (pane.status ?? "idle"),
 			starred: !!pane.odinStarred,
 			// What the board card shows: who it's for, where it runs, its tags.
 			details: {
