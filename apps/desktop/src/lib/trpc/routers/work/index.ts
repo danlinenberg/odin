@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
+import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
 import { isInternalBuild } from "main/lib/build-channel";
 import {
@@ -74,6 +76,31 @@ import { type JiraIssueLinksPayload, jiraIssueLinks } from "./jira-links";
 function odinRepo(): string | null {
 	const repo = process.env.ODIN_REPO_DIR ?? readOdinConfig().odinRepo;
 	return repo && existsSync(repo) ? repo : null;
+}
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * The branch this dev build runs from, so several "Odin Dev" windows can be
+ * told apart. A detached checkout (the try-<PR#> previews) has no branch, so
+ * it shows the worktree folder and the commit instead.
+ */
+async function devBranch(): Promise<string | null> {
+	const git = (...args: string[]) =>
+		execFileAsync("git", args, { cwd: process.cwd() }).then(({ stdout }) =>
+			stdout.trim(),
+		);
+	try {
+		const branch = await git("rev-parse", "--abbrev-ref", "HEAD");
+		if (branch !== "HEAD") return branch;
+		const [topLevel, sha] = await Promise.all([
+			git("rev-parse", "--show-toplevel"),
+			git("rev-parse", "--short", "HEAD"),
+		]);
+		return `${basename(topLevel)} @ ${sha}`;
+	} catch {
+		return null;
+	}
 }
 
 function githubToken(): string | null {
@@ -303,7 +330,7 @@ const settledPullRequests = new Set<string>();
 export const createWorkRouter = () => {
 	return router({
 		/** Which feeds are usable - lets the views explain a missing token. */
-		getConfig: publicProcedure.query(() => ({
+		getConfig: publicProcedure.query(async () => ({
 			hasJira: hasJiraOAuth(),
 			hasGithub: githubToken() !== null,
 			hasGmail: gmailCredentials() !== null,
@@ -317,6 +344,8 @@ export const createWorkRouter = () => {
 			odinRepoPath: odinRepo(),
 			/** Already running from source with hot reload? */
 			isDev: process.env.NODE_ENV === "development",
+			devBranch:
+				process.env.NODE_ENV === "development" ? await devBranch() : null,
 			/** Canary or unpackaged run - gates the self-development toolbar. */
 			isInternalBuild: isInternalBuild(),
 		})),
