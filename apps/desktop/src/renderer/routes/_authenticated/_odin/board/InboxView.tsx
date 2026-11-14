@@ -186,7 +186,10 @@ export function InboxView({
 			?.scrollIntoView({ behavior: "smooth", block: "start" });
 
 	return (
-		<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-[18px] pt-2 pb-[18px]">
+		<section
+			aria-label="Inbox"
+			className="flex min-h-0 flex-1 flex-col overflow-y-auto px-[18px] pt-2 pb-[18px]"
+		>
 			<div className="mx-auto flex w-full max-w-[980px] flex-col gap-6">
 				<header className="flex flex-wrap items-center gap-x-3 gap-y-2">
 					<h1 className="text-[17px] font-semibold tracking-[-.2px]">
@@ -328,7 +331,7 @@ export function InboxView({
 					);
 				})}
 			</div>
-		</div>
+		</section>
 	);
 }
 
