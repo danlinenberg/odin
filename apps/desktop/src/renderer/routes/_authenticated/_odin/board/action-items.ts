@@ -260,6 +260,26 @@ export function autoRunCommands(text: string): string[] {
 }
 
 /**
+ * What GSD Mode answers when a turn stops on action items with nobody there:
+ * the items Claude can still move, handed back for it to do or decide. Null
+ * when the reply has none - no items, "none", or only "(you only)" ones and a
+ * move to your computer, which no reply from Odin can do.
+ */
+export function gsdPush(text: string): string | null {
+	const { actions } = splitActionItems(text);
+	if (!actions || noActionItems(actions)) return null;
+	const open = actionItemList(actions).filter(
+		(item) => !isYouOnly(item) && !isMoveHereItem(item),
+	);
+	if (!open.length) return null;
+	return [
+		"GSD Mode: nobody is here to answer, and Odin won't wait on these action items. Do each one yourself now - where it asks me to choose, approve or tell you something, take the answer you'd recommend and go on:",
+		...open.map((item) => `- ${item}`),
+		'Then keep working until the job is done. Leave open only what is truly "(you only)".',
+	].join("\n");
+}
+
+/**
  * What GSD Mode is about to do with a reply, one line per command in the
  * order it runs: Claude's note above the block, or what the command reads as.
  */

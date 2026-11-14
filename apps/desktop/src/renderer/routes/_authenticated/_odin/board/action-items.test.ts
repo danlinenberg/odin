@@ -6,6 +6,7 @@ import {
 	dangerPlan,
 	describeCommand,
 	downloadPath,
+	gsdPush,
 	isMoveHereItem,
 	itemPullRequests,
 	itemSnippets,
@@ -339,4 +340,26 @@ test("GSD Mode's warning says what each command does, in order", () => {
 		"Restart the app on this computer",
 		"Delete cache",
 	]);
+});
+
+test("GSD Mode hands open action items back, and stops on what only you can do", () => {
+	const push = gsdPush(
+		[
+			"Done.",
+			"ACTION ITEMS",
+			"1. Tell me the export format [CSV | shareable page]",
+			"2. Approve the merge of the PR",
+			"3. Sign in to the VPN (you only)",
+		].join("\n"),
+	);
+	expect(push).toContain("- Tell me the export format [CSV | shareable page]");
+	expect(push).toContain("- Approve the merge of the PR");
+	expect(push).not.toContain("VPN");
+	expect(gsdPush("Done.\n\nACTION ITEMS: none")).toBeNull();
+	expect(gsdPush("No section here.")).toBeNull();
+	expect(
+		gsdPush(
+			"ACTION ITEMS\n1. Sign in to the VPN (you only)\n2. Move this session to my computer - it needs Xcode",
+		),
+	).toBeNull();
 });

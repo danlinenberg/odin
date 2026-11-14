@@ -105,6 +105,7 @@ import {
 	dangerPlan,
 	describeCommand,
 	downloadPath,
+	gsdPush,
 	isAnswerItem,
 	isApprovalItem,
 	isDoneItem,
@@ -143,6 +144,7 @@ import {
 import { launchRequest } from "./launch-request";
 import { holdForMove, isMoving } from "./moving-home";
 import { PLAN_LIMIT_OPENING } from "./plan-limit-resume";
+import { answerKeys, type Question } from "./prompt-keys";
 import {
 	cursorReached,
 	menuKeys,
@@ -2876,6 +2878,13 @@ const dangerRan = new Set<string>();
 /** Sessions GSD Mode already told what it means, since it was last turned on. */
 const gsdBriefed = new Set<string>();
 
+/** How many times in a row GSD Mode hands a reply's action items back, per session. */
+const gsdPushes = new Map<string, number>();
+const GSD_PUSH_MAX = 3;
+
+/** Menus GSD Mode already answered (`paneId:menu`), so a poll doesn't answer one twice. */
+const gsdAnswered = new Set<string>();
+
 /** What GSD Mode tells Claude when it goes on, so it gets the job done without waiting. */
 const GSD_BRIEF =
 	"GSD Mode is on (Get-Shit-Done): I'm not here to answer until I turn it off. Don't wait for me. For every open action item or choice, pick the one you'd recommend and do it. Decide anything you would ask me yourself, and keep working until the job is done. Put any command I'd run in a `!` block (`!local` for my computer, `!download` for a file) - Odin runs them for you and sends you their output. Nobody is here to answer a prompt, so write commands that need no input and open no pager; one that prints nothing for 5 minutes is stopped. Stop only for something only I can do, and say why.";
@@ -3879,7 +3888,10 @@ export function ChatView({
 	}, [working]);
 	const lastItemId = items.at(-1)?.id;
 	useEffect(() => {
-		if (!danger) gsdBriefed.delete(paneId);
+		if (!danger) {
+			gsdBriefed.delete(paneId);
+			gsdPushes.delete(paneId);
+		}
 		if (!danger || working || !onShowTerminal || !lastText) return;
 		if (lastItemId !== lastText.id) return;
 		const key = `${paneId}:${lastText.id}`;
@@ -3894,9 +3906,28 @@ export function ChatView({
 		dangerRan.add(key);
 		const commands = autoRunCommands(lastText.text);
 		if (!commands.length) {
+			// The turn stopped on action items Claude can still move: Odin
+			// hands them back itself instead of trusting Claude to remember
+			// the brief. A few times in a row at most, so a reply that never
+			// changes can't loop forever.
+			const push = gsdPush(lastText.text);
+			const pushes = gsdPushes.get(paneId) ?? 0;
+			if (!push) gsdPushes.delete(paneId);
+			if (push && pushes < GSD_PUSH_MAX) {
+				gsdPushes.set(paneId, pushes + 1);
+				sendToClaude(brief ? `${GSD_BRIEF}\n\n${push}` : push);
+				return;
+			}
+			if (push)
+				setDangerStep({
+					text: `Claude stopped on its action items ${GSD_PUSH_MAX} times in a row, so Odin stopped handing them back. Tell it what's next.`,
+					since: Date.now(),
+					stopped: true,
+				});
 			if (brief) sendToClaude(GSD_BRIEF);
 			return;
 		}
+		gsdPushes.delete(paneId);
 		void (async () => {
 			// Say what's about to run before it does, with a few seconds to stop it.
 			const stop = () => useDangerMode.getState().toggle(paneId, false);
@@ -4009,6 +4040,43 @@ export function ChatView({
 		onShellStarted,
 		sendToClaude,
 	]);
+	// GSD Mode answers Claude's own menus too, as nobody is there to: a
+	// question gets its first option (the one Claude recommends), a plan is
+	// approved, and a yes/no check (a permission, folder trust) gets its Yes.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: sendKeys and pickScreenMenu are new each render; each menu is answered once
+	useEffect(() => {
+		if (!danger) return;
+		const answer = (key: string) => {
+			if (gsdAnswered.has(`${paneId}:${key}`)) return false;
+			gsdAnswered.add(`${paneId}:${key}`);
+			return true;
+		};
+		if (prompt) {
+			if (!answer(prompt.id)) return;
+			const questions = (
+				Array.isArray(prompt.input.questions) ? prompt.input.questions : []
+			) as Question[];
+			const plan = prompt.name !== "AskUserQuestion";
+			void sendKeys(
+				plan
+					? ["1"]
+					: answerKeys(
+							questions,
+							questions.map(() => [0]),
+						),
+			);
+			toast.info(
+				plan
+					? "GSD Mode approved Claude's plan"
+					: "GSD Mode answered Claude's question with its first option",
+			);
+		} else if (screenMenu && /^yes\b/i.test(screenMenu.options[0] ?? "")) {
+			if (!answer(`${screenMenu.title}\n${screenMenu.options.join("\n")}`))
+				return;
+			void pickScreenMenu(screenMenu, 0);
+			toast.info(`GSD Mode answered "${screenMenu.options[0]}"`);
+		}
+	}, [danger, paneId, prompt, screenMenu]);
 	// It goes off with the session.
 	useEffect(() => {
 		if (danger && !onShowTerminal)
@@ -4947,7 +5015,7 @@ function DangerModeToggle({ paneId }: { paneId: string }) {
 			title={
 				on
 					? "GSD (Get-Shit-Done) Mode is on: Claude makes the calls itself and Odin runs every command this session writes, without asking. Click to turn it off."
-					: "GSD (Get-Shit-Done) Mode: Claude stops waiting for you - it picks its own answers and keeps going - and Odin runs every command this session writes (Run, Run on my computer, Download) without asking, until you turn it off or the session ends. Only runs this session's commands on your computer, so use it on a session you trust."
+					: "GSD (Get-Shit-Done) Mode: Claude stops waiting for you - Odin hands its open action items back to it, answers its questions and yes/no checks, and approves its plans - and Odin runs every command this session writes (Run, Run on my computer, Download) without asking, until you turn it off or the session ends. Only runs this session's commands on your computer, so use it on a session you trust."
 			}
 			onClick={() => useDangerMode.getState().toggle(paneId, !on)}
 			className={cn(
