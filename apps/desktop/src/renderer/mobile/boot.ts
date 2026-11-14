@@ -9,7 +9,8 @@ import { storeDelete, storeGet, storeSet } from "./screens-store";
  * A launch marks the version it tries, and the screens clear the mark once
  * they draw (markStarted). A mark still there at the next launch means they
  * never drew: that version is set aside and the built-in screens run, so a
- * broken update can't lock you out of the app.
+ * broken update can't lock you out of the app. A launch whose screens haven't
+ * drawn after a few seconds does the same at once.
  */
 
 declare global {
@@ -51,6 +52,15 @@ async function sentScreens(): Promise<boolean> {
 		new Blob([bundle.js], { type: "text/javascript" }),
 	);
 	document.body.append(script);
+	// Screens that haven't drawn by now won't: set them aside and reload into
+	// the built-in ones, rather than leave a blank app until the next launch.
+	setTimeout(async () => {
+		if ((await storeGet("trying").catch(() => undefined)) !== bundle.version)
+			return;
+		await storeSet("bad", bundle.version).catch(() => {});
+		await storeDelete("trying").catch(() => {});
+		location.reload();
+	}, 8_000);
 	return true;
 }
 

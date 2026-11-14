@@ -68,7 +68,12 @@ import {
 } from "./odin-fetch";
 import { type Pairing, parsePairLink } from "./pair-link";
 import { MenuCard, PlanCard, QuestionCard } from "./prompt-cards";
-import { markStarted, useScreensUpdate, useUnsaved } from "./screens-update";
+import {
+	markStarted,
+	showCrash,
+	useScreensUpdate,
+	useUnsaved,
+} from "./screens-update";
 import {
 	mergeHits,
 	SearchBox,
@@ -1745,7 +1750,9 @@ if (import.meta.hot)
 		});
 	});
 
-ReactDom.createRoot(document.getElementById("root") as HTMLElement).render(
+ReactDom.createRoot(document.getElementById("root") as HTMLElement, {
+	onUncaughtError: showCrash,
+}).render(
 	<phone.Provider client={client} queryClient={queryClient}>
 		<QueryClientProvider client={queryClient}>
 			<App />

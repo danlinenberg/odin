@@ -45,8 +45,11 @@ async function freshScreens(): Promise<void> {
 	const built = await readFile(join(dir(), STAMP), "utf-8").catch(() => "");
 	if (built.trim() === head) return;
 	// odin-dev.sh puts Homebrew's bin first; an app opened from the Dock may not have it.
+	// The dev app runs with NODE_ENV=development, which built React's dev
+	// screens: half again as big, and not what ships or what CI walks.
 	building ??= run("/bin/zsh", ["-lc", "bun run build:screens"], {
 		cwd: mobile,
+		env: { ...process.env, NODE_ENV: "production" },
 	})
 		.then(() => writeFile(join(dir(), STAMP), head))
 		.catch(() => {})

@@ -15,6 +15,31 @@ export function markStarted() {
 	if (window.__odinScreens) void storeDelete("trying").catch(() => {});
 }
 
+/**
+ * A crash while drawing unmounts every screen: say what it was, in place of a
+ * blank app, with a way out. Screens Odin sent are set aside first, so the
+ * reload runs the built-in ones.
+ */
+export function showCrash(error: unknown) {
+	const box = document.createElement("div");
+	box.className = "p-6 pt-[calc(env(safe-area-inset-top)+24px)] text-sm";
+	const text = document.createElement("pre");
+	text.className = "text-danger whitespace-pre-wrap select-text";
+	text.textContent = `The app hit an error:\n${
+		error instanceof Error ? (error.stack ?? error.message) : String(error)
+	}`.slice(0, 1500);
+	const reload = document.createElement("button");
+	reload.className = "mt-4 font-semibold text-primary";
+	reload.textContent = "Reload";
+	reload.onclick = async () => {
+		if (window.__odinScreens)
+			await storeSet("bad", window.__odinScreens).catch(() => {});
+		location.reload();
+	};
+	box.append(text, reload);
+	document.body.append(box);
+}
+
 /** How many screens hold something a reload would lose (useUnsaved). */
 let unsaved = 0;
 
