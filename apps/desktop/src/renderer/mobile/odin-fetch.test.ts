@@ -2,7 +2,9 @@ import { expect, test } from "bun:test";
 
 // The module reads the Capacitor bridge off window: none under test.
 (globalThis as { window?: object }).window ??= {};
-const { routedFetch, Unreachable } = await import("./odin-fetch");
+const { hostOnlyFetch, routedFetch, Unreachable } = await import(
+	"./odin-fetch"
+);
 
 const ok = (who: string) => new Response(who);
 
@@ -37,9 +39,30 @@ test("a Mac out of reach: the host answers what it can, and is asked first for a
 		"host /trpc/board,profiles?batch=1",
 		"host /trpc/session?input=x",
 	]);
-	// What only the Mac does still fails as before.
+	// What only the Mac does says so, not "Couldn't connect".
+	expect(fetch("/trpc/night")).rejects.toThrow("Your Mac is away");
+	expect(fetch("/upload?ext=png")).rejects.toThrow("Your Mac is away");
+});
+
+test("no host paired: what the Mac's failure says stands", async () => {
+	const fetch = routedFetch(async () => {
+		throw new Unreachable("asleep");
+	}, null);
 	expect(fetch("/trpc/night")).rejects.toThrow("asleep");
-	expect(fetch("/upload?ext=png")).rejects.toThrow("asleep");
+});
+
+test("paired with the host only: the host is asked what it answers, the rest says it needs the Mac", async () => {
+	const calls: string[] = [];
+	const fetch = hostOnlyFetch(async (input) => {
+		calls.push(String(input));
+		return ok("host");
+	});
+	expect(await (await fetch("/trpc/board,profiles?batch=1")).text()).toBe(
+		"host",
+	);
+	expect(fetch("/trpc/night")).rejects.toThrow("needs Odin on your Mac");
+	await Bun.sleep(0);
+	expect(calls).toEqual(["/trpc/board,profiles?batch=1"]);
 });
 
 test("a Mac that got the request and was slow to answer is not retried on the host", async () => {

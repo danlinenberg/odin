@@ -319,9 +319,36 @@ export function routedFetch(
 			awayUntil = 0;
 			return answer;
 		} catch (error) {
-			if (!(error instanceof Unreachable) || !hostCan) throw error;
+			if (!(error instanceof Unreachable)) throw error;
+			// With a host paired, "Couldn't connect" says too little: the Mac
+			// is away, and this is one of the things only it does.
+			if (!hostCan) throw host ? new Unreachable(NEEDS_MAC) : error;
 			awayUntil = Date.now() + AWAY_MS;
 			return viaHost(input, init);
 		}
+	};
+}
+
+/** What the phone says for the Night Agent, search, a star or Stop with the Mac away. */
+export const NEEDS_MAC =
+	"Your Mac is away, and only it can do this. Open Odin on your Mac.";
+
+/**
+ * A phone paired with the remote host alone: what the host answers goes to
+ * it, and the rest says it needs the Mac, in place of the host's "No
+ * procedure found".
+ */
+export function hostOnlyFetch(host: OdinFetch): OdinFetch {
+	return async (input, init) => {
+		const url = new URL(
+			input instanceof Request ? input.url : input,
+			"http://odin",
+		);
+		const names = procedures(url.pathname);
+		if (!names?.every((name) => ON_HOST.has(name)))
+			throw new Unreachable(
+				"This needs Odin on your Mac: this phone is paired with the remote host only.",
+			);
+		return host(input, init);
 	};
 }

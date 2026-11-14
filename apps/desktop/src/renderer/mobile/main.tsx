@@ -59,7 +59,12 @@ import { useConnectStep } from "./connect-step";
 import { demoAnswer } from "./demo";
 import { NATIVE_API } from "./native-api";
 import { NightPage } from "./night";
-import { channelFetch, type OdinFetch, routedFetch } from "./odin-fetch";
+import {
+	channelFetch,
+	hostOnlyFetch,
+	type OdinFetch,
+	routedFetch,
+} from "./odin-fetch";
 import { type Pairing, parsePairLink } from "./pair-link";
 import { MenuCard, PlanCard, QuestionCard } from "./prompt-cards";
 import { markStarted, useScreensUpdate, useUnsaved } from "./screens-update";
@@ -183,7 +188,7 @@ const odinFetch: OdinFetch = pairing
 			forgetHostPairing,
 		)
 	: hostPairing
-		? channelFetch(hostPairing)
+		? hostOnlyFetch(channelFetch(hostPairing))
 		: demo
 			? demoFetch
 			: (input, init) =>

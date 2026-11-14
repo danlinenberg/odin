@@ -10,17 +10,32 @@ interface TrpcStorageConfig {
 	get: () => Promise<unknown>;
 	set: (input: unknown) => Promise<unknown>;
 	writeDebounceMs?: number;
+	/** How long a save may take before it counts as failed. */
+	saveTimeoutMs?: number;
+	/** How long after a failed save the same state is sent again. */
+	retryMs?: number;
 }
 
 const PENDING_SNAPSHOT_TTL_MS = 5 * 60 * 1000;
 const LOCAL_SNAPSHOT_WRITE_DEBOUNCE_MS = 250;
 /** A write waits at most this many debounces, however often state changes. */
 const MAX_WAIT_DEBOUNCES = 3;
+/**
+ * A save the main process never answers (its write to disk stuck) used to
+ * hold back every save after it: the window went on, and the main process,
+ * which the phone, the tray and the remote host read, kept the board of that
+ * moment for days. Past this, the save counts as failed and the next one goes.
+ */
+const SAVE_TIMEOUT_MS = 10_000;
+/** A failed save is sent again this long after, with whatever is newest. */
+const RETRY_MS = 5_000;
 
 export function createTrpcStorageAdapter(
 	config: TrpcStorageConfig,
 ): StateStorage {
 	const debounceMs = config.writeDebounceMs ?? 0;
+	const saveTimeoutMs = config.saveTimeoutMs ?? SAVE_TIMEOUT_MS;
+	const retryMs = config.retryMs ?? RETRY_MS;
 	let pendingValue: string | null = null;
 	let lastFlushedValue: string | null = null;
 	let flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -127,14 +142,33 @@ export function createTrpcStorageAdapter(
 		}
 
 		isFlushing = true;
+		let failed = false;
 		try {
 			const parsed = JSON.parse(valueToFlush) as {
 				state: unknown;
 				version: number;
 			};
-			// Persist version in localStorage, bare state via tRPC.
-			localStorage.setItem(`${name}:version`, String(parsed.version));
-			await config.set(parsed.state);
+			// Persist version in localStorage, bare state via tRPC. A full
+			// localStorage must not stop the save itself.
+			try {
+				localStorage.setItem(`${name}:version`, String(parsed.version));
+			} catch (error) {
+				console.error("[trpc-storage] Failed to keep the version:", error);
+			}
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			try {
+				await Promise.race([
+					config.set(parsed.state),
+					new Promise<never>((_, reject) => {
+						timer = setTimeout(
+							() => reject(new Error(`No answer in ${saveTimeoutMs}ms`)),
+							saveTimeoutMs,
+						);
+					}),
+				]);
+			} finally {
+				clearTimeout(timer);
+			}
 			lastFlushedValue = valueToFlush;
 
 			// Cancel delayed snapshot write if this exact snapshot was already flushed.
@@ -146,14 +180,18 @@ export function createTrpcStorageAdapter(
 			clearPendingSnapshot(name, valueToFlush);
 		} catch (error) {
 			console.error("[trpc-storage] Failed to set state:", error);
+			failed = true;
+			// Still unsaved: it goes again, unless a newer state came meanwhile.
+			if (pendingValue === null) pendingValue = valueToFlush;
 		} finally {
 			isFlushing = false;
-			if (pendingValue !== null) {
-				if (debounceMs > 0) {
+			if (pendingValue !== null && flushTimer === null) {
+				const wait = failed ? retryMs : debounceMs;
+				if (wait > 0) {
 					flushTimer = setTimeout(() => {
 						flushTimer = null;
 						void flushPendingWrite(name);
-					}, debounceMs);
+					}, wait);
 				} else {
 					void flushPendingWrite(name);
 				}

@@ -36,6 +36,33 @@ the board loads. With the phone locked, Odin sends a silent push with the end
 times when a turn ends, through Odin's relay, which signs it with the app's
 APNs key (`packages/odin-relay`, `APNS_*`). Nobody sets up a key.
 
+## Walk the screens end to end, with no phone
+
+`bun run e2e` opens the screens in a headless Chrome at iPhone size, pairs
+them through the real encrypted channel, and walks them as a person would:
+the board, every session, the brief, the Night Agent, Recently ended, search,
+New task, then a reply, a star and Done. It saves each screen's picture and
+text, and lists what went wrong: an error on a screen, a console error, an
+exception, a spinner that never ends. It exits 1 when it found something.
+
+```sh
+bun run dev                                   # the screens, on :5175
+bun run fake-odin                             # sample sessions; prints a pair link
+bun run e2e "<pair link>" out/                # walk them
+```
+
+On a remote host, `bun run e2e-host` runs the host's real phone server
+against a copy of your Odin files there, behind a relay on localhost, and
+adds a practice session that the walk replies to and marks Done. Your real
+sessions are listed and opened, never typed into.
+
+```sh
+bun run e2e-host                              # serves a new pair link at :4802
+bun run e2e http://localhost:4802 out/        # the host alone
+bun run e2e "odin://pair?k=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&c=x&l=ws%3A%2F%2Flocalhost%3A1%2Fchannel" http://localhost:4802 out/
+                                              # a Mac that can't be reached, and the host
+```
+
 ## Notes
 
 - `ios/` is checked in; `cap sync` (part of `bun run ios`) rewrites
