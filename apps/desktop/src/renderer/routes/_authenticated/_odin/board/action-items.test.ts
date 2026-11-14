@@ -7,6 +7,7 @@ import {
 	describeCommand,
 	downloadPath,
 	gsdPush,
+	gsdYouOnly,
 	isMoveHereItem,
 	itemPullRequests,
 	itemSnippets,
@@ -342,24 +343,43 @@ test("GSD Mode's warning says what each command does, in order", () => {
 	]);
 });
 
-test("GSD Mode hands open action items back, and stops on what only you can do", () => {
+test("GSD Mode hands open action items back, and questions once what was left for you", () => {
 	const push = gsdPush(
 		[
 			"Done.",
 			"ACTION ITEMS",
 			"1. Tell me the export format [CSV | shareable page]",
-			"2. Approve the merge of the PR",
+			"2. Approve the rollout plan",
 			"3. Sign in to the VPN (you only)",
 		].join("\n"),
 	);
 	expect(push).toContain("- Tell me the export format [CSV | shareable page]");
-	expect(push).toContain("- Approve the merge of the PR");
-	expect(push).not.toContain("VPN");
+	expect(push).toContain("- Approve the rollout plan");
 	expect(gsdPush("Done.\n\nACTION ITEMS: none")).toBeNull();
 	expect(gsdPush("No section here.")).toBeNull();
-	expect(
-		gsdPush(
-			"ACTION ITEMS\n1. Sign in to the VPN (you only)\n2. Move this session to my computer - it needs Xcode",
-		),
-	).toBeNull();
+	// What it left for you alone is questioned, once: is it needed, is there a way around.
+	const mine =
+		"ACTION ITEMS\n1. Sign in to the VPN (you only)\n2. Move this session to my computer - it needs Xcode";
+	expect(push).toContain("- Sign in to the VPN (you only)");
+	expect(push).toContain("try every way around it");
+	expect(gsdPush(mine)).toContain("- Move this session to my computer");
+	expect(gsdYouOnly(mine)).toHaveLength(2);
+	expect(gsdPush(mine, undefined, () => true)).toBeNull();
+	expect(gsdYouOnly("ACTION ITEMS\n1. Merge PR #12 (you only)")).toEqual([]);
+});
+
+test("GSD Mode leaves a merge to you unless its settings allow merging", () => {
+	const reply =
+		"ACTION ITEMS\n1. Merge PR #12\n2. Tell me the format [CSV | page]";
+	const held = gsdPush(reply);
+	expect(held).not.toContain("- Merge PR #12");
+	expect(held).toContain("don't merge");
+	const allowed = gsdPush(reply, {
+		merge: true,
+		destructive: true,
+		sensitive: true,
+	});
+	expect(allowed).toContain("- Merge PR #12");
+	expect(allowed).not.toContain("limits");
+	expect(gsdPush("ACTION ITEMS\n1. Merge PR #12")).toBeNull();
 });

@@ -355,6 +355,25 @@ export const createTerminalRouter = () => {
 				startLocalRun(input.command, undefined, input.unattended),
 			),
 
+		// Odin fork: GSD Mode's reviewer - a second model says which of the
+		// commands Odin is about to run by itself must wait for you instead.
+		judgeGsdCommands: publicProcedure
+			.input(
+				z.object({
+					commands: z.array(z.string().min(1).max(20_000)).min(1).max(50),
+					allow: z.object({
+						merge: z.boolean(),
+						destructive: z.boolean(),
+						sensitive: z.boolean(),
+					}),
+					reply: z.string(),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				const { judgeGsdCommands } = await import("main/lib/gsd-judge");
+				return judgeGsdCommands(input.commands, input.allow, input.reply);
+			}),
+
 		localRunResult: publicProcedure
 			.input(
 				z.object({ id: z.string().uuid(), stopped: z.boolean().optional() }),

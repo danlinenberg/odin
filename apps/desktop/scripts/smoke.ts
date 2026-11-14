@@ -133,7 +133,7 @@ writeFileSync(
 	// refuses an id Claude never saved. Git Bash's $$ isn't the Windows pid,
 	// and its exec starts a new process, so there it names the file by the
 	// Windows pid and stays alive itself.
-	`#!/bin/sh\np=$$; [ -r /proc/$$/winpid ] && p=$(cat /proc/$$/winpid)\nfor a; do [ "$prev" = --session-id ] && mkdir -p "$HOME/.claude/projects/smoke" && : > "$HOME/.claude/projects/smoke/$a.jsonl"; prev=$a; done\nprintf '%s %s' "$ODIN_PORT" "$ODIN_PANE_ID" > "$HOME/pane-$p"\nprintf '%s\\n' "$@" > "$HOME/.claude-$p"\nmv "$HOME/.claude-$p" "$HOME/claude-$p.args"\necho "fake claude is working"\n[ "$p" = "$$" ] && exec sleep 600\nsleep 600\n`,
+	`#!/bin/sh\np=$$; [ -r /proc/$$/winpid ] && p=$(cat /proc/$$/winpid)\nfor a; do [ "$prev" = --session-id ] && mkdir -p "$HOME/.claude/projects/smoke" && : > "$HOME/.claude/projects/smoke/$a.jsonl"; prev=$a; done\nprintf '%s %s' "$ODIN_PORT" "$ODIN_PANE_ID" > "$HOME/pane-$p"\nprintf '%s\\n' "$@" > "$HOME/.claude-$p"\nmv "$HOME/.claude-$p" "$HOME/claude-$p.args"\necho "fake claude is working"\ni=0; while [ $i -lt 600 ]; do [ -e "$HOME/idle-$p" ] && { rm "$HOME/idle-$p"; printf '%s\\n' "────────────────────" "❯ " "────────────────────" "  ? for shortcuts"; }; sleep 1; i=$((i+1)); done\n`,
 	{ mode: 0o755 },
 );
 // A Mac without the Command Line Tools: /usr/bin/git is Apple's stub, which
@@ -1126,6 +1126,71 @@ await step("an agent adds an Odin task through Odin's API", async () => {
 	if (!tasks.some((task) => task.title === title))
 		throw new Error(`not in the backlog: ${JSON.stringify(tasks)}`);
 });
+
+await step(
+	"GSD Mode hands a reply's open action items back to Claude by itself",
+	async () => {
+		// A turn that ended on a choice, as a real session writes it: the reply
+		// in the transcript, then the Stop hook. With GSD Mode on nobody clicks a
+		// choice - Odin sends the items back itself.
+		const run = fakeClaudeRuns().find((r) => r.args.includes(SESSION));
+		const sessionId = run?.args.match(/--session-id\n(\S+)/)?.[1];
+		if (!sessionId) throw new Error("the session ran without --session-id");
+		const [port, paneId] = readFileSync(
+			join(home, `pane-${sessionPid}`),
+			"utf8",
+		)
+			.trim()
+			.split(" ");
+		appendFileSync(
+			join(home, ".claude", "projects", "smoke", `${sessionId}.jsonl`),
+			`${JSON.stringify({
+				type: "assistant",
+				timestamp: new Date().toISOString(),
+				message: {
+					stop_reason: "end_turn",
+					content: [
+						{
+							type: "text",
+							text: "The export is ready.\n\nACTION ITEMS\n1. Tell me the export format [CSV | shareable page]\n2. Sign in to the smoke VPN (you only)",
+						},
+					],
+				},
+			})}\n`,
+		);
+		// The turn is over: the fake draws Claude's idle prompt, as the real one
+		// does, and then the Stop hook fires. The prompt first - a stopped
+		// session with no prompt on its screen reads as Claude gone.
+		writeFileSync(join(home, `idle-${sessionPid}`), "");
+		for (
+			const end = Date.now() + 30_000;
+			!terminalTails().includes("for shortcuts");
+			await sleep(300)
+		)
+			if (Date.now() > end)
+				throw new Error("the fake claude never drew its idle prompt");
+		await fetch(
+			`http://127.0.0.1:${port}/hook/complete?${new URLSearchParams({ paneId: paneId ?? "", eventType: "Stop" })}`,
+		);
+		await rail("Dev Board");
+		await page(`[...document.querySelectorAll('[role="button"][draggable="true"]')]
+			.find((c) => c.textContent.includes(${JSON.stringify(SESSION)}))
+			?.click()`);
+		await waitForText("the export is ready.", true, 30_000);
+		// The switch shows once the board has read the session as live.
+		await waitForText("gsd mode", true, 30_000);
+		await click("button", "GSD (Get-Shit-Done) Mode");
+		// The item Claude can decide goes back, and the one it left for you is
+		// questioned: is it needed, is there a way around it.
+		await waitForText("odin won't wait on these action items", true, 30_000);
+		await waitForText("try every way around it");
+		await waitForText("don't merge a pull request");
+		await click("button", "GSD (Get-Shit-Done) Mode");
+		await page(
+			`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
+		);
+	},
+);
 
 await step(
 	"Done on the card ends the session and clears the board",

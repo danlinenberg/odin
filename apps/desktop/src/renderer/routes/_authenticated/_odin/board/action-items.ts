@@ -1,3 +1,9 @@
+import {
+	GSD_ALLOW_NOTHING,
+	type GsdAllow,
+	gsdLimitsLine,
+	isMergeItem,
+} from "shared/gsd-policy";
 import { actionItemEntries, actionItemLines } from "./brief";
 
 export { actionItemEntries } from "./brief";
@@ -260,35 +266,81 @@ export function autoRunCommands(text: string): string[] {
 }
 
 /**
- * What GSD Mode answers when a turn stops on action items with nobody there:
- * the items Claude can still move, handed back for it to do or decide. Null
- * when the reply has none - no items, "none", or only "(you only)" ones and a
- * move to your computer, which no reply from Odin can do.
+ * The items a reply left for you alone - "(you only)", or a move to your
+ * computer - that GSD Mode may still question: not a merge while it may not
+ * merge.
  */
-export function gsdPush(text: string): string | null {
+export function gsdYouOnly(
+	text: string,
+	allow: GsdAllow = GSD_ALLOW_NOTHING,
+): string[] {
+	const { actions } = splitActionItems(text);
+	if (!actions || noActionItems(actions)) return [];
+	return actionItemList(actions).filter(
+		(item) =>
+			(isYouOnly(item) || isMoveHereItem(item)) &&
+			(allow.merge || !isMergeItem(item)),
+	);
+}
+
+/**
+ * What GSD Mode answers when a turn stops on action items with nobody there.
+ * The items Claude can still move are handed back for it to do or decide. The
+ * ones it left for you alone are questioned once each (`asked` says which
+ * already were): does the job need it, and is there a way around it. Null
+ * when nothing is left to send - no items, "none", merges while GSD Mode may
+ * not merge, or only items it already questioned.
+ */
+export function gsdPush(
+	text: string,
+	allow: GsdAllow = GSD_ALLOW_NOTHING,
+	asked: (item: string) => boolean = () => false,
+): string | null {
 	const { actions } = splitActionItems(text);
 	if (!actions || noActionItems(actions)) return null;
 	const open = actionItemList(actions).filter(
-		(item) => !isYouOnly(item) && !isMoveHereItem(item),
+		(item) =>
+			!isYouOnly(item) &&
+			!isMoveHereItem(item) &&
+			(allow.merge || !isMergeItem(item)),
 	);
-	if (!open.length) return null;
+	const mine = gsdYouOnly(text, allow).filter((item) => !asked(item));
+	if (!open.length && !mine.length) return null;
 	return [
-		"GSD Mode: nobody is here to answer, and Odin won't wait on these action items. Do each one yourself now - where it asks me to choose, approve or tell you something, take the answer you'd recommend and go on:",
-		...open.map((item) => `- ${item}`),
-		'Then keep working until the job is done. Leave open only what is truly "(you only)".',
-	].join("\n");
+		...(open.length
+			? [
+					"GSD Mode: nobody is here to answer, and Odin won't wait on these action items. Do each one yourself now - where it asks me to choose, approve or tell you something, take the answer you'd recommend and go on:",
+					...open.map((item) => `- ${item}`),
+				]
+			: []),
+		...(mine.length
+			? [
+					"GSD Mode: you left these for me, and nobody is here. Before one stays open, check that the job really needs it - drop it if not. If it does, try every way around it: a `!local` command Odin runs on my computer, another tool or account you do have, another route to the same result. Leave it for me only when you hit a wall, and then say in one line what you tried:",
+					...mine.map((item) => `- ${item}`),
+				]
+			: []),
+		"Then keep working until the job is done.",
+		gsdLimitsLine(allow),
+	]
+		.filter(Boolean)
+		.join("\n");
 }
 
 /**
  * What GSD Mode is about to do with a reply, one line per command in the
  * order it runs: Claude's note above the block, or what the command reads as.
  */
-export function dangerPlan(text: string): string[] {
+export function dangerPlan(
+	text: string,
+	runs: (command: string) => boolean = () => true,
+): string[] {
 	const notes = bangCommandNotes(text);
-	return autoRunCommands(text).map((command) => {
-		const note = notes[command];
-		return note ? commandLabel(note) : describeCommand(command);
-	});
+	return autoRunCommands(text)
+		.filter(runs)
+		.map((command) => {
+			const note = notes[command];
+			return note ? commandLabel(note) : describeCommand(command);
+		});
 }
 
 /**

@@ -268,6 +268,26 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "idle timeout hours close card",
 	},
 	{
+		label: "Merge pull requests",
+		to: "/settings/sessions",
+		section: "GSD Mode",
+		keywords: "gsd get shit done mode limits allow merge pr push main auto",
+	},
+	{
+		label: "Delete and overwrite",
+		to: "/settings/sessions",
+		section: "GSD Mode",
+		keywords:
+			"gsd get shit done mode limits allow destructive delete rm reset force drop",
+	},
+	{
+		label: "Touch credentials and permissions",
+		to: "/settings/sessions",
+		section: "GSD Mode",
+		keywords:
+			"gsd get shit done mode limits allow security sensitive secrets sudo credentials permissions",
+	},
+	{
 		label: "Restart Odin completely",
 		to: "/settings/sessions",
 		section: "When they won't start",
