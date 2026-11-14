@@ -7,6 +7,7 @@ import { cn } from "@odin/ui/utils";
 import { type ComponentType, useState } from "react";
 import { LuEye, LuLightbulb, LuTriangleAlert, LuZap } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { BUTTON } from "../components/pill";
 import {
 	isApprovalItem,
 	itemDetail,
@@ -22,6 +23,7 @@ import {
 	type StuckFix,
 	type StuckSignals,
 	stuckReason,
+	tidyText,
 } from "./inbox";
 
 /** A board session as the Inbox sees it. */
@@ -80,8 +82,11 @@ const BANDS: {
 
 const rowKey = (row: Row) => `${row.session.paneId}:${row.number}:${row.text}`;
 
-const BUTTON =
-	"shrink-0 rounded-md border border-border bg-secondary px-2.5 py-1 text-[12px] font-medium hover:bg-accent";
+const BTN =
+	"shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-[12px] font-medium";
+
+const CHIP =
+	"inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-[11.5px] font-medium text-soft-foreground ring-1 ring-inset ring-border hover:bg-accent hover:text-foreground";
 
 /**
  * Every open action item across the board's sessions in one list, banded by
@@ -175,147 +180,270 @@ export function InboxView({
 		rebase: "Rebase on main",
 	};
 
+	const jump = (id: string) =>
+		document
+			.getElementById(id)
+			?.scrollIntoView({ behavior: "smooth", block: "start" });
+
 	return (
-		<div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-[18px] pt-1 pb-[18px]">
-			<div className="text-[12px] text-muted-foreground">
-				{count === 0 && stuck.length === 0
-					? "Inbox: nothing needs you. Every session is working or done."
-					: `Inbox: ${count} ${count === 1 ? "item" : "items"} waiting on you${stuck.length ? `, ${stuck.length} stuck` : ""}`}
-			</div>
-			{stuck.length > 0 && (
-				<section
-					aria-label="Stuck"
-					className="flex flex-col rounded-xl border border-danger/40 bg-danger/5 px-4 py-2"
-				>
-					<h2 className="flex items-center gap-2 py-1.5 text-[12px] font-semibold text-danger">
-						<LuTriangleAlert className="size-3.5" aria-hidden />
-						Stuck
-						<span className="font-normal text-muted-foreground">
-							can't move on their own and aren't asking
+		<section
+			aria-label="Inbox"
+			className="flex min-h-0 flex-1 flex-col overflow-y-auto px-[18px] pt-2 pb-[18px]"
+		>
+			<div className="mx-auto flex w-full max-w-[980px] flex-col gap-6">
+				<header className="flex flex-wrap items-center gap-x-3 gap-y-2">
+					<h1 className="text-[17px] font-semibold tracking-[-.2px]">
+						{count === 0 && stuck.length === 0
+							? "Nothing needs you"
+							: `${count} waiting on you`}
+					</h1>
+					{count === 0 && stuck.length === 0 ? (
+						<span className="text-[12.5px] text-muted-foreground">
+							Every session is working or done.
 						</span>
-					</h2>
-					{stuck.map(({ session, why, fix }) => (
-						<div
-							key={session.paneId}
-							className="flex items-center gap-3 border-t border-danger/20 py-2"
-						>
-							<button
-								type="button"
-								onClick={() => onPreview(session.paneId)}
-								className="w-56 shrink-0 truncate text-left text-[13px] font-medium hover:underline"
-							>
-								{session.title}
-							</button>
-							<span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
-								{why}
-							</span>
-							<button
-								type="button"
-								onClick={() => fixStuck(session.paneId, fix)}
-								className={BUTTON}
-							>
-								{FIX_LABEL[fix]}
-							</button>
+					) : (
+						<div className="flex flex-wrap gap-1.5">
+							{stuck.length > 0 && (
+								<button
+									type="button"
+									onClick={() => jump("inbox-stuck")}
+									className={cn(CHIP, "text-danger ring-danger/30")}
+								>
+									<LuTriangleAlert className="size-3" aria-hidden />
+									{stuck.length} stuck
+								</button>
+							)}
+							{BANDS.map(({ effort, label, Icon, tone }) => {
+								const n = rows.get(effort)?.length;
+								if (!n) return null;
+								return (
+									<button
+										key={effort}
+										type="button"
+										onClick={() => jump(`inbox-${effort}`)}
+										className={CHIP}
+									>
+										<Icon className={cn("size-3", tone)} aria-hidden />
+										{n} {label.toLowerCase()}
+									</button>
+								);
+							})}
 						</div>
-					))}
-				</section>
-			)}
-			{BANDS.map(({ effort, label, hint, Icon, tone }) => {
-				const band = rows.get(effort);
-				if (!band?.length) return null;
-				return (
+					)}
+				</header>
+				{stuck.length > 0 && (
 					<section
-						key={effort}
-						aria-label={label}
-						className="flex flex-col gap-2"
+						id="inbox-stuck"
+						aria-label="Stuck"
+						className="flex scroll-mt-2 flex-col gap-2"
 					>
-						<h2 className="flex items-center gap-2 text-[12px] font-semibold">
-							<Icon className={cn("size-3.5", tone)} aria-hidden />
-							{label}
-							<span className="font-normal text-muted-foreground">
-								{band.length} - {hint}
-							</span>
-						</h2>
-						<div className="flex flex-col rounded-xl border border-border bg-card">
-							{band.map((row, i) => (
+						<BandTitle
+							Icon={LuTriangleAlert}
+							tone="text-danger"
+							label="Stuck"
+							hint="can't move on their own and aren't asking"
+						/>
+						<div className="flex flex-col overflow-hidden rounded-xl border border-danger/30 bg-danger/5">
+							{stuck.map(({ session, why, fix }, i) => (
 								<div
-									key={`${row.session.paneId}:${row.number}`}
+									key={session.paneId}
 									className={cn(
-										"flex items-center gap-2 px-4 py-2.5",
-										i > 0 && "border-t border-border",
+										"flex items-center gap-3 px-4 py-2.5",
+										i > 0 && "border-t border-danger/15",
 									)}
 								>
-									<HoverCard openDelay={400} closeDelay={80}>
-										<HoverCardTrigger asChild>
-											<button
-												type="button"
-												onClick={() => onPreview(row.session.paneId)}
-												className="flex min-w-0 flex-1 flex-col items-start text-left"
-											>
-												<span className="w-full select-text truncate text-[13.5px]">
-													{row.text}
-												</span>
-												<span className="w-full truncate text-[11.5px] text-muted-foreground">
-													{row.session.title}
-												</span>
-											</button>
-										</HoverCardTrigger>
-										<HoverCardContent
-											align="start"
-											className="flex w-[480px] flex-col gap-2 border-border bg-popover p-3 text-[12.5px]"
-										>
-											{row.task && (
-												<HoverPart label="The task" text={row.task} />
-											)}
-											{row.status && (
-												<HoverPart label="Where it stands" text={row.status} />
-											)}
-										</HoverCardContent>
-									</HoverCard>
-									{row.options.map((option) => (
-										<button
-											key={option}
-											type="button"
-											onClick={() =>
-												answer(
-													row,
-													`Action item ${row.number} (${row.text}): ${option}`,
-												)
-											}
-											className={BUTTON}
-										>
-											{option}
-										</button>
-									))}
-									{row.approve && (
-										<button
-											type="button"
-											onClick={() =>
-												answer(
-													row,
-													`Approved - go ahead with action item ${row.number}: ${row.text}`,
-												)
-											}
-											className={BUTTON}
-										>
-											Approve
-										</button>
-									)}
-									{!row.options.length && !row.approve && (
-										<button
-											type="button"
-											onClick={() => onOpen(row.session.paneId)}
-											className={BUTTON}
-										>
-											Open
-										</button>
-									)}
+									<button
+										type="button"
+										onClick={() => onPreview(session.paneId)}
+										className="flex min-w-0 flex-1 flex-col items-start text-left"
+									>
+										<span className="w-full truncate text-[13.5px] font-medium hover:underline">
+											{tidyText(session.title)}
+										</span>
+										<span className="w-full truncate text-[12px] text-danger/90">
+											{why}
+										</span>
+									</button>
+									<button
+										type="button"
+										onClick={() => fixStuck(session.paneId, fix)}
+										className={cn(BTN, BUTTON.primary)}
+									>
+										{FIX_LABEL[fix]}
+									</button>
 								</div>
 							))}
 						</div>
 					</section>
-				);
-			})}
+				)}
+				{BANDS.map(({ effort, label, hint, Icon, tone }) => {
+					const band = rows.get(effort);
+					if (!band?.length) return null;
+					return (
+						<section
+							key={effort}
+							id={`inbox-${effort}`}
+							aria-label={label}
+							className="flex scroll-mt-2 flex-col gap-2"
+						>
+							<BandTitle
+								Icon={Icon}
+								tone={tone}
+								label={label}
+								hint={`${band.length} - ${hint}`}
+							/>
+							<div className="flex flex-col overflow-hidden rounded-xl border border-border bg-card">
+								{bySession(band).map((group, g) => (
+									<div
+										key={group[0].session.paneId}
+										className={cn(
+											"flex flex-col pb-1",
+											g > 0 && "border-t border-border",
+										)}
+									>
+										<button
+											type="button"
+											onClick={() => onPreview(group[0].session.paneId)}
+											className="flex items-center gap-1.5 px-4 pt-2.5 pb-0.5 text-left text-[11.5px] font-medium text-muted-foreground hover:text-foreground"
+										>
+											<span className="truncate">
+												{tidyText(group[0].session.title)}
+											</span>
+											{group.length > 1 && (
+												<span className="shrink-0 rounded-full bg-secondary px-1.5 text-[10.5px] tabular-nums">
+													{group.length}
+												</span>
+											)}
+										</button>
+										{group.map((row) => (
+											<ItemRow
+												key={rowKey(row)}
+												row={row}
+												onPreview={onPreview}
+												onOpen={onOpen}
+												answer={answer}
+											/>
+										))}
+									</div>
+								))}
+							</div>
+						</section>
+					);
+				})}
+			</div>
+		</section>
+	);
+}
+
+/** Consecutive rows of one session, so its title shows once above them. */
+function bySession(band: Row[]): Row[][] {
+	const groups: Row[][] = [];
+	for (const row of band) {
+		const last = groups.at(-1);
+		if (last?.[0].session.paneId === row.session.paneId) last.push(row);
+		else groups.push([row]);
+	}
+	return groups;
+}
+
+function BandTitle({
+	Icon,
+	tone,
+	label,
+	hint,
+}: {
+	Icon: ComponentType<{ className?: string }>;
+	tone: string;
+	label: string;
+	hint: string;
+}) {
+	return (
+		<h2 className="flex items-center gap-2 px-1 text-[12px] font-semibold">
+			<Icon className={cn("size-3.5", tone)} aria-hidden />
+			{label}
+			<span className="font-normal text-muted-foreground">{hint}</span>
+		</h2>
+	);
+}
+
+/** One action item: its text, and the buttons that answer it. */
+function ItemRow({
+	row,
+	onPreview,
+	onOpen,
+	answer,
+}: {
+	row: Row;
+	onPreview: (paneId: string) => void;
+	onOpen: (paneId: string) => void;
+	answer: (row: Row, text: string) => void;
+}) {
+	const text = tidyText(row.text);
+	return (
+		<div className="group flex items-center gap-4 px-4 py-1.5 hover:bg-accent/40">
+			<HoverCard openDelay={400} closeDelay={80}>
+				<HoverCardTrigger asChild>
+					<button
+						type="button"
+						onClick={() => onPreview(row.session.paneId)}
+						className="min-w-0 flex-1 text-left"
+					>
+						<span
+							dir="auto"
+							title={row.text}
+							className="line-clamp-2 select-text text-[13.5px] leading-snug"
+						>
+							{text}
+						</span>
+					</button>
+				</HoverCardTrigger>
+				<HoverCardContent
+					align="start"
+					className="flex w-[480px] flex-col gap-2 border-border bg-popover p-3 text-[12.5px]"
+				>
+					{row.task && <HoverPart label="The task" text={row.task} />}
+					{row.status && (
+						<HoverPart label="Where it stands" text={row.status} />
+					)}
+				</HoverCardContent>
+			</HoverCard>
+			<div className="flex max-w-[55%] shrink-0 flex-wrap justify-end gap-1.5">
+				{row.options.map((option) => (
+					<button
+						key={option}
+						type="button"
+						onClick={() =>
+							answer(row, `Action item ${row.number} (${row.text}): ${option}`)
+						}
+						className={cn(BTN, BUTTON.secondary)}
+					>
+						{option}
+					</button>
+				))}
+				{row.approve && (
+					<button
+						type="button"
+						onClick={() =>
+							answer(
+								row,
+								`Approved - go ahead with action item ${row.number}: ${row.text}`,
+							)
+						}
+						className={cn(BTN, BUTTON.primary)}
+					>
+						Approve
+					</button>
+				)}
+				{!row.options.length && !row.approve && (
+					<button
+						type="button"
+						onClick={() => onOpen(row.session.paneId)}
+						className={cn(BTN, BUTTON.secondary)}
+					>
+						Open
+					</button>
+				)}
+			</div>
 		</div>
 	);
 }

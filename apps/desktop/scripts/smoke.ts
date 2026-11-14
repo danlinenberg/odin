@@ -444,10 +444,19 @@ for (const [label, line] of SCREENS) {
 }
 
 await step("the Inbox view opens from the top bar and back", async () => {
+	// The Inbox's header reads "N waiting on you" or "Nothing needs you".
+	const header = `!!document.querySelector('section[aria-label="Inbox"] h1')`;
+	const inboxShown = async (shown: boolean) => {
+		for (const end = Date.now() + 15_000; Date.now() < end; await sleep(200))
+			if ((await page<boolean>(header)) === shown) return;
+		throw new Error(
+			`the Inbox header ${shown ? "never appeared" : "never went away"}`,
+		);
+	};
 	await click("button", "Inbox view");
-	await waitForText("inbox:");
+	await inboxShown(true);
 	await click("button", "Board view");
-	await waitForText("inbox:", false);
+	await inboxShown(false);
 	await waitForText("idle");
 });
 

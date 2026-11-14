@@ -78,3 +78,27 @@ export const STATUS_PROMPT =
 
 export const REBASE_PROMPT =
 	"Your PR has merge conflicts with main. Rebase it on origin/main, fix the conflicts, run the checks and push.";
+
+// A URL, with or without its scheme for GitHub, ending before trailing punctuation.
+const URL_TOKEN = /(?:https?:\/\/|\bgithub\.com\/)[^\s<>()]*[^\s<>().,;:!?'"]/g;
+
+/** "repo#123" for a GitHub PR or issue, else the bare host. */
+export function shortLink(url: string): string {
+	const bare = url.replace(/^https?:\/\//, "").replace(/^www\./, "");
+	const gh = bare.match(/^github\.com\/[^/]+\/([^/]+)\/(?:pull|issues)\/(\d+)/);
+	if (gh) return `${gh[1]}#${gh[2]}`;
+	const [host, ...path] = bare.split("/");
+	return path.join("") ? `${host}/…` : host;
+}
+
+/**
+ * A row's text with every URL shortened and a link's echoes ("x (x) <x>",
+ * which pasted Slack titles carry) folded into one. A line that was mostly a
+ * raw URL said nothing until you hovered it.
+ */
+export function tidyText(text: string): string {
+	return text
+		.replace(/\s*<https?:\/\/[^\s>]*$/, "") // an echo cut off mid-URL
+		.replace(URL_TOKEN, shortLink)
+		.replace(/(\S+)(?:\s*[(<]\1[)>])+/g, "$1");
+}
