@@ -50,7 +50,7 @@ import { hostLinkFor } from "./host-link";
 import { readableTitle, readableTitles } from "./readable-title";
 import { readScreens } from "./screens";
 import { rememberFromPhone } from "./sent";
-import { startedPane } from "./started-pane";
+import { startedPane, waitingTasks } from "./started-pane";
 
 /**
  * Everything the phone can do, and nothing else: the LAN never reaches the
@@ -290,14 +290,15 @@ export const phoneRouter = t.router({
 			cardFlags(),
 			doneShelf(),
 		]);
-		const backlog = (
+		const backlog = waitingTasks(
 			JSON.parse(tasks) as {
 				id: string;
 				title: string;
 				started: boolean;
+				ran?: boolean;
 				repo?: string;
-			}[]
-		).filter((task) => !task.started);
+			}[],
+		);
 		const [sessionRows, backlogRows, doneRows] = await Promise.all([
 			readableTitles(sessions.map((s) => ({ ...s, ...flags[s.paneId] }))),
 			readableTitles(backlog),

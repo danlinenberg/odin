@@ -719,6 +719,8 @@ function runOdinAction(
 				skill: task.skill,
 				repo: task.repo,
 				started: started(task.paneId),
+				// A session was started on it at some point, open or not.
+				ran: !!task.paneId,
 				queued: queued(task.paneId),
 			})),
 		);
