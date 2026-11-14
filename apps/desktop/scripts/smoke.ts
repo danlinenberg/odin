@@ -1136,6 +1136,21 @@ await step(
 		const run = fakeClaudeRuns().find((r) => r.args.includes(SESSION));
 		const sessionId = run?.args.match(/--session-id\n(\S+)/)?.[1];
 		if (!sessionId) throw new Error("the session ran without --session-id");
+		// On a busy runner the session can be launched again (a second Start
+		// now click, or a resume), so the claude on screen may not be the first
+		// one: talk to the one still running.
+		const live = fakeClaudeRuns().filter(
+			(r) =>
+				(r.args.includes(SESSION) || r.args.includes(sessionId)) &&
+				isAlive(r.pid),
+		);
+		if (live.length && !live.some((r) => r.pid === sessionPid)) {
+			const next = Math.max(...live.map((r) => r.pid));
+			console.log(
+				`  note: the session's claude is pid ${next}, not ${sessionPid}`,
+			);
+			sessionPid = next;
+		}
 		const [port, paneId] = readFileSync(
 			join(home, `pane-${sessionPid}`),
 			"utf8",
