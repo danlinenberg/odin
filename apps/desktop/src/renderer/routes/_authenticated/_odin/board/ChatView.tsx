@@ -3434,11 +3434,14 @@ export function ChatView({
 	// transcript's first cwd. The pane's cwd has often moved on since (a feed
 	// session starts in ~/dev and works in a worktree). Same query and options
 	// as the card's pills, so it's a cache hit; the pane's cwd is the fallback.
-	const { data: transcript, isError } =
-		electronTrpc.terminal.readClaudeTranscript.useQuery(
-			{ sessionId: sessionId ?? "" },
-			{ enabled: !!sessionId, retry: false, staleTime: 60_000 },
-		);
+	const {
+		data: transcript,
+		isError,
+		refetch: refetchTranscript,
+	} = electronTrpc.terminal.readClaudeTranscript.useQuery(
+		{ sessionId: sessionId ?? "" },
+		{ enabled: !!sessionId, retry: false, staleTime: 60_000 },
+	);
 	// Wait for the answer: guessing with the pane's cwd first flashed "Not on
 	// disk yet" at a wrong path. The pane's cwd only stands in when there's no
 	// transcript to ask (not written yet, or unreadable).
@@ -3457,6 +3460,13 @@ export function ChatView({
 		earlierLoads,
 		loadEarlier,
 	} = useLiveItems(path, workspaceId);
+	// The rows stream live, but the model picker reads `transcript.usage`: a
+	// /model or a finished turn re-reads it, or the picker kept the old model.
+	// Not mid-turn - each read parses the whole file.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: a new row is the trigger
+	useEffect(() => {
+		if (sessionId && !working) void refetchTranscript();
+	}, [items.length, working, sessionId]);
 	// The whole view takes a file drop, not just the reply box: a drop on the
 	// conversation used to do nothing. The composer owns the attachments.
 	const dropRef = useRef<(files: File[]) => void>(undefined);
