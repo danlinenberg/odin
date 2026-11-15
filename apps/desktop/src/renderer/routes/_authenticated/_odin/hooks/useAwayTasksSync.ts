@@ -13,6 +13,17 @@ const TICK_MS = 60_000;
 const RESEND_MS = 30 * 60_000;
 /** How often the board checks what the phone started there. */
 const ADOPT_EVERY_TICKS = 5;
+/**
+ * After the Mac wakes, the board checks on every tick for this many ticks: a
+ * row the phone started there can still be loading into Next in line here,
+ * and the host can take a moment to be reachable again.
+ */
+const EAGER_TICKS = 5;
+
+/** The ticks stopped for a while: the Mac slept, and is back. */
+export const wokeUp = (lastTick: number, now: number): boolean =>
+	now - lastTick > 3 * TICK_MS;
+
 /** A phone start older than the list's reach isn't put on the board. */
 const ADOPT_DAYS = 4;
 
@@ -90,7 +101,13 @@ export function useAwayTasksSync() {
 		let running = false;
 		let ticks = 0;
 		let sent: { signature: string; at: number } | null = null;
+		let lastTick = Date.now();
+		let eager = 0;
 		const tick = async () => {
+			// Back from sleep: what the phone started there comes onto the
+			// board now, not at the next five-minute check.
+			if (wokeUp(lastTick, Date.now())) eager = EAGER_TICKS;
+			lastTick = Date.now();
 			if (running) return;
 			const host = (
 				await electronTrpcClient.remoteHost.get.query().catch(() => null)
@@ -102,7 +119,8 @@ export function useAwayTasksSync() {
 			running = true;
 			try {
 				const name = host.name || host.instanceId;
-				if (ticks++ % ADOPT_EVERY_TICKS === 0) {
+				const due = ticks++ % ADOPT_EVERY_TICKS === 0;
+				if (due || eager-- > 0) {
 					const { started } =
 						await electronTrpcClient.remoteHost.nightStarted.query();
 					const { nightLog, logNight } = useNextInLinePrompt.getState();
@@ -239,6 +257,15 @@ export function useAwayTasksSync() {
 		};
 		void tick();
 		const id = setInterval(() => void tick(), TICK_MS);
-		return () => clearInterval(id);
+		// The network is back, as it is after a wake: check at once.
+		const online = () => {
+			eager = EAGER_TICKS;
+			void tick();
+		};
+		window.addEventListener("online", online);
+		return () => {
+			clearInterval(id);
+			window.removeEventListener("online", online);
+		};
 	}, []);
 }
