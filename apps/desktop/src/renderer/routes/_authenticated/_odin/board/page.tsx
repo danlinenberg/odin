@@ -120,6 +120,7 @@ import { sessionUsageLabel } from "shared/machine-load";
 import { profileOf } from "shared/odin-profile";
 import {
 	agentOnScreen,
+	backgroundAgentsOnScreen,
 	escIsHandledOnScreen,
 	inputBoxEmpty,
 	missedStart,
@@ -4250,7 +4251,11 @@ function DevBoardPage() {
 						} else {
 							sawIdlePromptRef.current.delete(pane.id);
 						}
-						const status = odinScreenWrite(read, current);
+						const status = odinScreenWrite(
+							read,
+							current,
+							backgroundAgentsOnScreen(screen),
+						);
 						// An unreadable screen, or one that can't improve on what the
 						// hooks already said, leaves the status alone.
 						if (status) setPaneStatusFromStore(pane.id, status);
