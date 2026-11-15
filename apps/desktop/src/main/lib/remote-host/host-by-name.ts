@@ -40,3 +40,43 @@ export function asLastRun<T extends { instanceId: string; user: string }>(
 		return host;
 	return { ...host, user: last.user };
 }
+
+/** Another instance in the cluster: where it is, and the login that set it up. */
+export interface ClusterHost {
+	instanceId: string;
+	name: string;
+	profile?: string;
+	region?: string;
+	adminUser?: string;
+}
+
+/**
+ * Settings a host keeps for itself: sign-ins made on that one machine, AWS
+ * profiles set up with its instance role, and the copies of tasks and
+ * automations it runs with the Mac away. A cluster host has none of them,
+ * so this computer's tokens go to it in their place.
+ */
+const MAIN_HOST_ONLY = [
+	"githubHostSignIns",
+	"jiraHostSignIn",
+	"notionHostSignIn",
+	"mcpHostSignIns",
+	"awsProfiles",
+	"awayTasks",
+	"claudeSetupDropped",
+] as const;
+
+/**
+ * A cluster host as a full host: the main host's settings (connectors,
+ * GitHub accounts, Claude setup, Linux user) on its own instance.
+ */
+export function clusterMember<T extends NamedHost>(
+	main: T,
+	extra: ClusterHost,
+): T {
+	const member = { ...main } as Record<string, unknown>;
+	for (const key of MAIN_HOST_ONLY) delete member[key];
+	for (const [key, value] of Object.entries(extra))
+		if (value !== undefined) member[key] = value;
+	return member as T;
+}

@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
 	claimedCheckout,
 	launchBlocker,
+	pickClusterHost,
 	remoteFrozenReason,
 	remoteLaunchBlocker,
 	sessionInFlight,
@@ -264,5 +265,60 @@ describe("remoteFrozenReason", () => {
 		expect(
 			remoteFrozenReason(reading(0), "box", 1000 + 10 * 60_000),
 		).toBeNull();
+	});
+});
+
+describe("pickClusterHost", () => {
+	const now = 1_000_000;
+	const a = { name: "a", instanceId: "i-a" };
+	const b = { name: "b", instanceId: "i-b" };
+	const c = { name: "c", instanceId: "i-c" };
+	const reading = (instanceId: string, freeGb: number, load1 = 1) => ({
+		instanceId,
+		at: now,
+		memAvailableMb: freeGb * 1024,
+		memTotalMb: 32 * 1024,
+		load1,
+		cores: 8,
+	});
+
+	it("starts on the host with the most free memory", () => {
+		expect(
+			pickClusterHost([a, b], [reading("i-a", 10), reading("i-b", 20)], now),
+		).toEqual({ host: b, reason: null });
+	});
+
+	it("skips a host that would make the launch wait", () => {
+		expect(
+			pickClusterHost(
+				[a, b],
+				[reading("i-a", 10), reading("i-b", 20, 30)],
+				now,
+			),
+		).toEqual({ host: a, reason: null });
+	});
+
+	it("puts a host with no reading after the ones with a reading", () => {
+		expect(
+			pickClusterHost([a, b, c], [null, reading("i-b", 9), null], now),
+		).toEqual({ host: b, reason: null });
+		expect(pickClusterHost([a, c], [null, null], now)).toEqual({
+			host: a,
+			reason: null,
+		});
+	});
+
+	it("waits only when every host is full, and says why for each", () => {
+		const picked = pickClusterHost(
+			[a, b],
+			[reading("i-a", 2), reading("i-b", 3)],
+			now,
+		);
+		expect(picked?.host).toBe(a);
+		expect(picked?.reason).toBe("a has 2.0 GB free; b has 3.0 GB free");
+	});
+
+	it("is null with no hosts", () => {
+		expect(pickClusterHost([], [], now)).toBeNull();
 	});
 });

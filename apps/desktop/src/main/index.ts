@@ -43,6 +43,7 @@ import { startPhone } from "./lib/phone/server";
 import { ensureProjectIconsDir, getProjectIconPath } from "./lib/project-icons";
 import { startWorktreePruner } from "./lib/prune-worktrees";
 import { runQuitCleanup } from "./lib/quit-sequence";
+import { clusterMember } from "./lib/remote-host/host-by-name";
 import { hostFileSources } from "./lib/remote-host/host-files";
 import { reopenVscodeBridges } from "./lib/remote-host/vscode-bridge";
 import { offerRestartOffOldSignature } from "./lib/restart-odin";
@@ -404,9 +405,12 @@ if (!gotTheLock) {
 		refreshNotificationIconCache();
 		// VS Code windows left open on a remote host reconnect without a click.
 		{
-			const { remoteHost, pastRemoteHosts } = readOdinConfig();
+			const { remoteHost, pastRemoteHosts, clusterHosts } = readOdinConfig();
+			const cluster = remoteHost
+				? (clusterHosts ?? []).map((extra) => clusterMember(remoteHost, extra))
+				: [];
 			void reopenVscodeBridges(
-				[remoteHost, ...(pastRemoteHosts ?? [])].filter((h) => !!h),
+				[remoteHost, ...cluster, ...(pastRemoteHosts ?? [])].filter((h) => !!h),
 			);
 		}
 		// No permission is asked for up front: each macOS prompt (notifications,
