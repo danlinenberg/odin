@@ -4,7 +4,7 @@ import type { Client } from "ssh2";
 import { canRebootInstance, SSM_UNSEEN, ssmPing } from "./aws-instances";
 import { awsProfileFor } from "./aws-profile";
 import { HOST_SERVICE_PY } from "./host-service";
-import { SERVICE_CURRENT_SCRIPT } from "./host-tokens";
+import { SERVICE_CURRENT_SCRIPT, updateHostService } from "./host-tokens";
 import { connectHost, type HostLogin, runOnHost } from "./ssh";
 import { awsClientConfig, hostLabel, keyRefused, userMissing } from "./ssm";
 
@@ -46,6 +46,8 @@ export interface HealthProbe {
 	ssmStatus(): Promise<string | null>;
 	/** Whether this AWS role may reboot the host: only then is Reboot offered. */
 	canReboot(): Promise<boolean>;
+	/** Brings the user's service up to date (an administrator's AWS role only); throws when it can't. */
+	updateService(): Promise<void>;
 	/** Logs in as the host user and runs `command` there, `input` on its stdin. */
 	login(): Promise<{
 		run(command: string, input?: string): Promise<string>;
@@ -229,9 +231,19 @@ export async function checkHostHealth(
 			);
 		else set("tools", "ok", "All installed.");
 
-		const current = await session
-			.run(SERVICE_CURRENT_SCRIPT(host.user), HOST_SERVICE_PY)
-			.catch(() => "");
+		const isCurrent = () =>
+			session
+				.run(SERVICE_CURRENT_SCRIPT(host.user), HOST_SERVICE_PY)
+				.then((out) => out === "current")
+				.catch(() => false);
+		// Out of date: update it here, so the warning only stays when that fails.
+		const current =
+			(await isCurrent()) ||
+			((await probe.updateService().then(
+				() => true,
+				() => false,
+			)) &&
+				(await isCurrent()));
 		const up = found.get("service") === "up";
 		if (!up)
 			set(
@@ -240,11 +252,11 @@ export async function checkHostHealth(
 				`Not answering, so connectors and GitHub tokens don't reach sessions there and they can't reach Odin here. ${ADMIN_FIX}`,
 				"setup",
 			);
-		else if (current !== "current")
+		else if (!current)
 			set(
 				"service",
 				"warn",
-				"Out of date. It updates on its own the next time an administrator's Odin syncs tokens to the host. To update it now, click Set up. If that fails, ask an administrator to give your AWS role ssm:SendCommand on the host.",
+				"Out of date, and Odin could not update it: your AWS role needs ssm:SendCommand on the host. It updates on its own the next time an administrator's Odin syncs tokens to the host, or ask an administrator to add that permission.",
 				"setup",
 			);
 		else set("service", "ok", "Running, and up to date.");
@@ -304,6 +316,7 @@ export function hostProbe(host: HostLogin): HealthProbe {
 				() => false,
 			),
 		canReboot: () => canRebootInstance(host, host.instanceId),
+		updateService: () => within(120_000, "The update", updateHostService(host)),
 		ssmStatus: async () =>
 			(await ssmPing(new SSMClient(config), [host.instanceId])).get(
 				host.instanceId,

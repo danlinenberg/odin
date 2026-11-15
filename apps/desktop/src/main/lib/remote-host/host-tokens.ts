@@ -179,18 +179,21 @@ async function ensureHostService(
 		HOST_SERVICE_PY,
 	);
 	if (state === "current") return;
-	try {
-		const admin = await connectHost(adminLogin(host));
-		try {
-			await runOnHost(
-				admin,
-				`sudo -n bash -c ${sh(hostServiceInstallScript(host.user))}`,
-			);
-		} finally {
-			admin.end();
-		}
-	} catch (error) {
+	await updateHostService(host).catch((error: unknown) => {
 		if (required) throw error;
+	});
+}
+
+/** Installs this Odin's service script for the host user, over the instance's own (administrator) login. */
+export async function updateHostService(host: HostLogin): Promise<void> {
+	const admin = await connectHost(adminLogin(host));
+	try {
+		await runOnHost(
+			admin,
+			`sudo -n bash -c ${sh(hostServiceInstallScript(host.user))}`,
+		);
+	} finally {
+		admin.end();
 	}
 }
 
