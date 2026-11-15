@@ -149,15 +149,21 @@ function SessionInstructionsRow() {
 			description="Added to the end of every task a session starts with: how to work, where to run things, the ACTION ITEMS section. The board reads ACTION ITEMS from each reply, so keep that part if you want it there."
 			stacked
 		>
-			<Textarea
-				id="session-instructions"
-				value={draft}
-				rows={10}
-				spellCheck={false}
-				className="font-mono text-xs"
-				onChange={(event) => setDraft(event.target.value)}
-				onBlur={save}
-			/>
+			{/* Long, rarely edited: closed until asked for. */}
+			<details>
+				<summary className="cursor-pointer text-xs text-muted-foreground">
+					Show prompt
+				</summary>
+				<Textarea
+					id="session-instructions"
+					value={draft}
+					rows={10}
+					spellCheck={false}
+					className="mt-2 font-mono text-xs"
+					onChange={(event) => setDraft(event.target.value)}
+					onBlur={save}
+				/>
+			</details>
 			<div className="mt-2 flex items-center gap-2">
 				<Button
 					variant="outline"

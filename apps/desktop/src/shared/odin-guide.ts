@@ -197,7 +197,7 @@ What a session runs, rarely changed:
 - **Update plugins**: refreshes every plugin marketplace and moves each enabled plugin to its newest version, so a team runs the same skills. New sessions get the new versions; open ones keep theirs until they restart.
 - **GSD Mode** (Experimental section, off by default): adds the GSD Mode switch under a session's reply box and the GSD Mode limits to Settings → Sessions. Turning it off ends GSD Mode in every session. Store: gsdModeEnabled.
 - **Inbox view** (Experimental section, off by default): adds the Inbox button beside Board view in the top bar. Off, the Board is the only board view. Store: inboxView.
-- **Default prompt**: added to the end of every task prompt (how to work, the Shell, ACTION ITEMS), with Reset to default. The board reads ACTION ITEMS from each reply. Store: sessionInstructions.
+- **Default prompt**: added to the end of every task prompt (how to work, the Shell, ACTION ITEMS). Its text box is collapsed: click Show prompt to read or edit it. Has Reset to default. The board reads ACTION ITEMS from each reply. Store: sessionInstructions.
 
 ## Remote (Settings → Remote)
 Your sessions when you're not at this computer.
