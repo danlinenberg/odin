@@ -83,9 +83,16 @@ export const shell = {
 const tail = (sessionId: string) =>
 	transcriptTail({ sessionId, root: hostPaths.projects }).catch(() => []);
 
-/** A title for a session the laptop's board never showed this host: its first words. */
+/**
+ * A title for a session the laptop's board never showed this host: the task
+ * it was started on here (the runner's ledger), as the phone's Backlog named
+ * it; else its first words. A session started here opens with the session
+ * template's instructions, so its first words name nothing.
+ */
 async function titleOf(session: HostSession): Promise<string> {
 	if (session.card?.title) return session.card.title;
+	const ran = ranRows().find((row) => row.sessionId === session.sessionId);
+	if (ran?.title) return ran.title.slice(0, 200);
 	const first = (await tail(session.sessionId)).find((m) => m.role === "user");
 	const words = first?.text.replace(/\s+/g, " ").trim() ?? "";
 	return words ? words.slice(0, 80) : "Session on the remote host";
