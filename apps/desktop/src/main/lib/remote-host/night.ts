@@ -260,8 +260,10 @@ def marked(now):
             continue
         if now - float(m.get("ts") or 0) > PICK_DAYS * DAY:
             continue
+        # Slack's <url|label> links read as the bare url.
+        text = re.sub(r"<([^|>]+)[|][^>]*>", r"<\\1>", " ".join((m.get("text") or "").split()))
         out.append({"key": "slack:%s:%s" % (item.get("channel"), m.get("ts")),
-                    "title": " ".join((m.get("text") or "").split())[:120] or "A Slack message",
+                    "title": text[:120] or "A Slack message", "text": text,
                     "url": m.get("permalink") or ""})
     return out
 
@@ -308,7 +310,8 @@ def picked_tasks(plan, skip, now):
     tasks = []
     for key in order:
         c, sid = by_key[key], str(uuid.uuid4())
-        text = c["title"] + chr(10) * 2 + c["url"] + chr(10) * 2 + (
+        # The whole message, not the title: a title cut at 120 characters can end mid-link.
+        text = (c.get("text") or c["title"]) + chr(10) * 2 + c["url"] + chr(10) * 2 + (
             "A Slack message I marked :eyes:, which the Night Agent on the host picked while my computer was away. "
             "Read its thread with Odin's Slack connection, then do what it asks of me. If it is already handled, stop.")
         prompt = fb["prompt"].replace(TASK, text).replace(PANE, sid).replace(PANE[:8], sid[:8])
