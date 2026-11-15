@@ -47,6 +47,7 @@ import {
 } from "main/lib/remote-host/away";
 import {
 	bringUpHost,
+	canRebootInstance,
 	hostUp,
 	launchHost,
 	listAwsProfiles,
@@ -777,6 +778,13 @@ export const createRemoteHostRouter = () =>
 		 * it restarts. A minute later its panes all try again (markHostUp),
 		 * stopped ones included, instead of each waiting out its own timer.
 		 */
+		/** Whether your AWS role may reboot the host: the board offers Reboot only then. */
+		canRebootHost: publicProcedure
+			.input(z.object({ host: z.string().optional() }).optional())
+			.query(async ({ input }) => {
+				const host = hostNamed(input?.host);
+				return host ? canRebootInstance(host, host.instanceId) : false;
+			}),
 		rebootHost: publicProcedure
 			.input(z.object({ host: z.string().optional() }).optional())
 			.mutation(async ({ input }) => {

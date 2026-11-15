@@ -1780,7 +1780,8 @@ function HostMark({ paneId, state }: { paneId: string; state: HostState }) {
  * One line over the board when several sessions on a host can't log in: the
  * host itself is stuck (out of memory, sshd not answering), so one Reboot
  * for all of them, not R in each pane. A minute after it, every pane on the
- * host tries again by itself, stopped ones too.
+ * host tries again by itself, stopped ones too. Reboot shows only when your
+ * AWS role may reboot the host; anyone else is told to ask an administrator.
  */
 function HostDownBanner({
 	host,
@@ -1792,14 +1793,19 @@ function HostDownBanner({
 	const reboot = electronTrpc.remoteHost.rebootHost.useMutation({
 		onError: (error) => toast.error(error.message),
 	});
+	const allowed = electronTrpc.remoteHost.canRebootHost.useQuery({ host });
 	return (
 		<div className="flex items-center gap-3 border-b border-border bg-danger/10 px-4 py-2 text-[12px] text-danger">
 			<span className="flex-1 select-text cursor-text">
 				{reboot.isSuccess
 					? `Rebooting ${host} - its sessions reconnect and resume once it is back.`
-					: `${host} isn't taking logins: ${sessions} sessions there can't reconnect. Rebooting it ends what runs there; each session then resumes its conversation.`}
+					: `${host} isn't taking logins: ${sessions} sessions there can't reconnect. ${
+							allowed.data === false
+								? "Ask an administrator to reboot it."
+								: "Rebooting it ends what runs there; each session then resumes its conversation."
+						}`}
 			</span>
-			{!reboot.isSuccess && (
+			{allowed.data && !reboot.isSuccess && (
 				<button
 					type="button"
 					disabled={reboot.isPending}
