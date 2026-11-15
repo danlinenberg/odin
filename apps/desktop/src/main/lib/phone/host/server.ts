@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -81,10 +82,43 @@ function link(
 
 const empty = new Uint8Array(0);
 
-/** One request out of the channel, to the host's router. Only /trpc/. */
+/** The most one photo or file from the phone may weigh, as on the laptop. */
+const UPLOAD_MAX = 200 * 1024 * 1024;
+
+/**
+ * A photo or file from the phone with the laptop away: the raw bytes, kept
+ * in ~/.odin/attachments here (only this user reads it). The reply that
+ * follows names the returned path, which a session on this host opens.
+ */
+function upload(request: ChannelRequest): ChannelResponse {
+	const ext = (
+		new URL(`http://odin${request.path}`).searchParams.get("ext") ?? ""
+	).toLowerCase();
+	if (
+		request.method.toUpperCase() !== "POST" ||
+		!/^[a-z0-9]{1,8}$/.test(ext) ||
+		!request.body.length ||
+		request.body.length > UPLOAD_MAX
+	)
+		return { status: 400, headers: {}, body: empty };
+	mkdirSync(hostPaths.attachments, { recursive: true, mode: 0o700 });
+	const path = join(
+		hostPaths.attachments,
+		`${Date.now()}-${randomBytes(3).toString("hex")}.${ext}`,
+	);
+	writeFileSync(path, request.body, { mode: 0o600 });
+	return {
+		status: 200,
+		headers: { "content-type": "application/json" },
+		body: new TextEncoder().encode(JSON.stringify({ path })),
+	};
+}
+
+/** One request out of the channel: the host's router (/trpc/), or an upload. */
 export const handleRequest: Handler = async (
 	request: ChannelRequest,
 ): Promise<ChannelResponse> => {
+	if (request.path.startsWith("/upload?")) return upload(request);
 	if (!request.path.startsWith("/trpc/"))
 		return { status: 404, headers: {}, body: empty };
 	const method = request.method.toUpperCase();

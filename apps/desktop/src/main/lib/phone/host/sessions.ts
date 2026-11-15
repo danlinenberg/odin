@@ -30,6 +30,10 @@ export const hostPaths = {
 	get dir() {
 		return join(this.odin, "phone-host");
 	},
+	/** The phone's photos and files sent with the laptop away, as its own ~/.odin/attachments. */
+	get attachments() {
+		return join(this.odin, "attachments");
+	},
 	/** Claude's transcripts, as claude-sessions' projectsRoot on this host. */
 	get projects() {
 		return join(this.home, ".claude", "projects");
