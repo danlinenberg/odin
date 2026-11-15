@@ -1,4 +1,5 @@
 import type { PaneStatus } from "renderer/stores/tabs/types";
+import { priorityRank, type SessionPriority } from "shared/session-priority";
 
 /** The drawer session list's sort options - value to menu label. */
 export const SWITCH_SORTS = {
@@ -18,10 +19,14 @@ export const SWITCH_SORTS_SHORT: Record<SwitchSort, string> = {
 	viewed: "Viewed",
 };
 
-/** What the order reads off a card: the column it sits in, its star, and when it got there. */
+/** What the order reads off a card: the column it sits in, its star, its priority, and when it got there. */
 export interface OrderedCard {
 	status: PaneStatus;
-	pane: { odinStarred?: boolean; odinStatusAt?: number };
+	pane: {
+		odinStarred?: boolean;
+		odinPriority?: SessionPriority;
+		odinStatusAt?: number;
+	};
 }
 
 /** When the session entered its current state; 0 for a card never stamped. */
@@ -45,7 +50,7 @@ const rank = (table: Partial<Record<PaneStatus, number>>, status: PaneStatus) =>
 
 /**
  * Order for the drawer's session list: the group (when grouped), starred first,
- * then the picked sort.
+ * then priority (High, Medium, none, Low), then the picked sort.
  *
  * "Recently viewed" reads `viewedAt` (when you last opened the session in the
  * drawer); a session you never opened falls below the ones you did, newest
@@ -65,6 +70,7 @@ export function sessionOrder<T extends OrderedCard>(
 	return (a, b) =>
 		(grouped ? rank(GROUP_RANK, a.status) - rank(GROUP_RANK, b.status) : 0) ||
 		Number(!!b.pane.odinStarred) - Number(!!a.pane.odinStarred) ||
+		priorityRank(a.pane.odinPriority) - priorityRank(b.pane.odinPriority) ||
 		(sort === "status"
 			? rank(STATUS_RANK, a.status) - rank(STATUS_RANK, b.status)
 			: 0) ||

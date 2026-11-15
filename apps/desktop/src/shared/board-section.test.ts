@@ -141,3 +141,39 @@ describe("bySection waiting", () => {
 		]);
 	});
 });
+
+describe("bySection with priorities", () => {
+	const ids = (grouped: ReturnType<typeof bySection>) =>
+		grouped.map(([section, group]) => [section, group.map((c) => c.pane.id)]);
+
+	it("sorts each section High, Medium, none, Low, keeping ties in order", () => {
+		const grouped = bySection([
+			card({ id: "low", odinPriority: "low" }),
+			card({ id: "none1" }),
+			card({ id: "med", odinPriority: "medium" }),
+			card({ id: "high", odinPriority: "high" }),
+			card({ id: "none2" }),
+			card({ id: "star-low", odinStarred: true, odinPriority: "low" }),
+			card({ id: "star-high", odinStarred: true, odinPriority: "high" }),
+		]);
+		expect(ids(grouped)).toEqual([
+			["starred", ["star-high", "star-low"]],
+			["normal", ["high", "med", "none1", "none2", "low"]],
+		]);
+	});
+
+	it("a High card lands on top of its section in whichever column it moves to", () => {
+		// The same panes, as the Working column and then the Needs you column
+		// sees them: the column changes, the order inside the section doesn't.
+		const working = [
+			card({ id: "a", odinSource: "jira" }),
+			card({ id: "b", odinSource: "jira", odinPriority: "high" }),
+		];
+		const needsYou = [
+			card({ id: "c", odinSource: "jira" }),
+			...working.slice(1),
+		];
+		expect(ids(bySection(working))).toEqual([["jira", ["b", "a"]]]);
+		expect(ids(bySection(needsYou))).toEqual([["jira", ["b", "c"]]]);
+	});
+});

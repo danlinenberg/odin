@@ -1,3 +1,4 @@
+import type { SessionPriority } from "./session-priority";
 /**
  * Shared types for tabs/panes used by both main and renderer processes.
  * Renderer extends these with MosaicNode layout specifics.
@@ -177,6 +178,8 @@ export interface Pane {
 	odinLocalWhy?: string;
 	/** Starred from the card's ★ button or right-click menu: pinned to the top section. */
 	odinStarred?: boolean;
+	/** High, Medium or Low from the card's right-click menu: sorts the card inside its section. */
+	odinPriority?: SessionPriority;
 	/**
 	 * The generated tags have been applied to this card once. Set so a tag you
 	 * deleted stays deleted - without it, the next brief puts it straight back.
