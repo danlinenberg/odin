@@ -469,6 +469,13 @@ export function updateOdinConfig(patch: OdinFileConfig): OdinFileConfig {
 	return { ...shared, ...config } as OdinFileConfig;
 }
 
+/** A profile's config as `readOdinConfig` gives the active one's; {} for an id Odin doesn't know. */
+export function readProfileConfig(id: string): OdinFileConfig {
+	const root = readRoot();
+	const profile = root.profiles.find((p) => p.id === id);
+	return profile ? { ...root.shared, ...profile.config } : {};
+}
+
 export function activeProfileId(): string {
 	return readRoot().activeProfileId;
 }

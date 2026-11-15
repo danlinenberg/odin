@@ -5,6 +5,7 @@ import {
 	activeProfileId,
 	listProfiles,
 	readOdinConfig,
+	readProfileConfig,
 } from "lib/trpc/routers/odin-config";
 import type { PullRequestStatus } from "lib/trpc/routers/terminal/pr-state";
 import { appState } from "main/lib/app-state";
@@ -276,7 +277,7 @@ export const phoneRouter = t.router({
 	 * read the link from it.
 	 */
 	hostLink: t.procedure.query(() =>
-		hostLinkFor(readOdinConfig().remoteHost?.instanceId),
+		hostLinkFor(readOdinConfig().remoteHost?.instanceId, activeProfileId()),
 	),
 
 	/** Running sessions (Needs you first) and the backlog not started yet. */
@@ -828,10 +829,18 @@ export const phoneRouter = t.router({
 				: {};
 		}),
 
-	/** Odin's profiles, and the one it's in. */
+	/**
+	 * Odin's profiles, and the one it's in. Each with its remote host's link
+	 * (hostLink above), which the phone keeps: with the Mac away it switches
+	 * to a profile that has one, and greys out the rest.
+	 */
 	profiles: t.procedure.query(() => ({
 		activeId: activeProfileId(),
-		profiles: listProfiles().map(({ id, name }) => ({ id, name })),
+		profiles: listProfiles().map(({ id, name }) => ({
+			id,
+			name,
+			hostLink: hostLinkFor(readProfileConfig(id).remoteHost?.instanceId, id),
+		})),
 	})),
 
 	/** Switches Odin's profile, as the desktop's profile menu does. */
