@@ -695,7 +695,7 @@ function Home() {
 								<span
 									className={`size-1.5 rounded-full ${away ? "bg-muted-foreground" : "bg-success"}`}
 								/>
-								{away ? "Mac away" : "Mac awake"}
+								{away ? "Desktop Odin Offline" : "Mac awake"}
 							</span>
 						)}
 					</div>
