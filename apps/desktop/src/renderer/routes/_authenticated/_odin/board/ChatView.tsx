@@ -56,6 +56,7 @@ import {
 	withDismissals,
 } from "renderer/stores/dismissed-actions";
 import { gsdAllow } from "renderer/stores/gsd-limits";
+import { useGsdModeEnabled } from "renderer/stores/gsd-mode-enabled";
 import { type HostEvent, useHostEvents } from "renderer/stores/host-connection";
 import { showHostScreen, useHostView } from "renderer/stores/host-view";
 import { openUrl } from "renderer/stores/in-app-browser";
@@ -5183,6 +5184,9 @@ async function hostPathsOf(paths: string[]): Promise<string[]> {
 /** The composer's GSD Mode switch: on, the session's `!` commands run without a click. */
 function DangerModeToggle({ paneId }: { paneId: string }) {
 	const on = useDangerMode((state) => !!state.on[paneId]);
+	// An experiment, off until Settings > Advanced turns it on.
+	const enabled = useGsdModeEnabled((s) => s.enabled);
+	if (!enabled) return null;
 	return (
 		<button
 			type="button"

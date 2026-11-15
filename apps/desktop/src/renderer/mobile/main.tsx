@@ -45,6 +45,17 @@ import {
 	UploadChips,
 	useUploads,
 } from "./attach";
+import {
+	awayLink,
+	awayLinkOf,
+	awayProfileId,
+	forgetAwayLink,
+	forgetProfiles,
+	HOST_PAIRING_KEY,
+	knownProfiles,
+	pickAwayProfile,
+	rememberProfiles,
+} from "./away-profiles";
 import { BriefCard, PrStrip } from "./brief-card";
 import {
 	boardSections,
@@ -114,11 +125,6 @@ const native = (window as { Capacitor?: { Plugins?: { App?: AppPlugin } } })
 	.Capacitor;
 
 const PAIRING_KEY = "odin-phone-pairing";
-/**
- * The remote host's own pairing (main/lib/phone/host), beside the Mac's: it
- * answers for the sessions on the host while the Mac is away.
- */
-const HOST_PAIRING_KEY = "odin-phone-host-pairing";
 
 /**
  * Dev only: a token in the page's URL (`bun run dev`, or sim.sh --live) talks
@@ -152,11 +158,31 @@ function pairWith(link: string): boolean {
 function resetPairing() {
 	localStorage.removeItem(PAIRING_KEY);
 	localStorage.removeItem(HOST_PAIRING_KEY);
+	forgetProfiles(localStorage);
 	location.reload();
 }
 
 /** The remote host refused this phone: forget its link; the Mac sends it again once it's back. */
-const forgetHostPairing = () => localStorage.removeItem(HOST_PAIRING_KEY);
+const forgetHostPairing = () => forgetAwayLink(localStorage);
+
+const hostFetches = new Map<string, OdinFetch>();
+/**
+ * The remote host that answers with the Mac away: the one of the profile
+ * picked on the phone, else of the profile the Mac was last in. Null with no
+ * host to ask.
+ */
+function awayHost(): OdinFetch | null {
+	const link = awayLink(localStorage);
+	if (!link) return null;
+	let fetch = hostFetches.get(link);
+	if (!fetch) {
+		const pairing = parsePairLink(link);
+		if (!pairing) return null;
+		fetch = channelFetch(pairing);
+		hostFetches.set(link, fetch);
+	}
+	return fetch;
+}
 
 /** "Try the demo": sample sessions inside the app, no Odin behind it. */
 const DEMO = "demo";
@@ -188,11 +214,7 @@ const hostPairing = devToken || demo ? null : savedHostPairing();
  * sessions while the Mac is away), the demo's samples, or fake-odin in dev.
  */
 const odinFetch: OdinFetch = pairing
-	? routedFetch(
-			channelFetch(pairing),
-			hostPairing ? channelFetch(hostPairing) : null,
-			forgetHostPairing,
-		)
+	? routedFetch(channelFetch(pairing), awayHost, forgetHostPairing)
 	: hostPairing
 		? hostOnlyFetch(channelFetch(hostPairing))
 		: demo
@@ -435,10 +457,34 @@ function withHeldStars<T extends { paneId: string; starred?: boolean }>(
  * Odin's profile, and a switch to another: the iPhone's own picker over a
  * pill. Hidden with one profile. Switching moves the Mac's Odin too, as its
  * profile menu does - one Odin, one profile at a time.
+ *
+ * With the Mac away the remote host lists no profiles: the picker shows the
+ * ones the Mac last listed (away-profiles.ts). Picking one asks that
+ * profile's own user on the host, on this phone only; a profile with
+ * nothing on a host is greyed out. The Mac's profile stands again once it
+ * answers.
  */
-function ProfilePicker() {
+function ProfilePicker({ macAway }: { macAway: boolean }) {
 	const utils = phone.useUtils();
 	const profiles = phone.profiles.useQuery();
+	const refetch = profiles.refetch;
+	// The Mac left or came back: the list is the other one's now.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: asked again when the Mac leaves or comes back
+	useEffect(() => void refetch(), [macAway, refetch]);
+	const [awayId, setAwayId] = useState(() => awayProfileId(localStorage));
+	const fromMac = profiles.data?.profiles.length ? profiles.data : null;
+	useEffect(() => {
+		if (!fromMac || !pairing) return;
+		rememberProfiles(localStorage, fromMac);
+		setAwayId(fromMac.activeId);
+	}, [fromMac]);
+	const pickAway = (id: string) => {
+		pickAwayProfile(localStorage, id);
+		setAwayId(id);
+		// Spinner, not the other profile's board, until its host answers.
+		void utils.invalidate();
+		void utils.board.reset();
+	};
 	const switchTo = phone.setProfile.useMutation({
 		onSuccess: async () => {
 			await profiles.refetch();
@@ -446,9 +492,15 @@ function ProfilePicker() {
 			await utils.board.reset();
 		},
 	});
-	const list = profiles.data?.profiles ?? [];
+	// The remote host answered, with its empty list.
+	const away = !!pairing && !!profiles.data && !fromMac;
+	const list = away
+		? knownProfiles(localStorage).profiles
+		: (profiles.data?.profiles ?? []);
 	if (list.length < 2) return null;
-	const activeId = switchTo.variables?.id ?? profiles.data?.activeId;
+	const activeId = away
+		? awayId
+		: (switchTo.variables?.id ?? profiles.data?.activeId);
 	const name = list.find((p) => p.id === activeId)?.name ?? "Profile";
 	return (
 		<label className="relative flex min-w-0 items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-sm font-medium">
@@ -463,14 +515,21 @@ function ProfilePicker() {
 				aria-label="Profile"
 				value={activeId}
 				disabled={switchTo.isPending}
-				onChange={(event) => switchTo.mutate({ id: event.target.value })}
+				onChange={(event) =>
+					away
+						? pickAway(event.target.value)
+						: switchTo.mutate({ id: event.target.value })
+				}
 				className="absolute inset-0 opacity-0"
 			>
-				{list.map((profile) => (
-					<option key={profile.id} value={profile.id}>
-						{profile.name}
-					</option>
-				))}
+				{list.map((profile) => {
+					const needsMac = away && !awayLinkOf(localStorage, profile.id);
+					return (
+						<option key={profile.id} value={profile.id} disabled={needsMac}>
+							{needsMac ? `${profile.name} - needs your Mac` : profile.name}
+						</option>
+					);
+				})}
 			</select>
 		</label>
 	);
@@ -587,16 +646,25 @@ function Home() {
 		addEventListener(NEW_TASK_EVENT, open);
 		return () => removeEventListener(NEW_TASK_EVENT, open);
 	}, []);
-	const sessions = board.data?.sessions ?? [];
 	// Answered by the remote host: the Mac is away.
 	const away =
 		(board.data as { via?: { host: string } } | undefined)?.via ?? null;
+	// The host lists every profile's sessions: the phone shows the picked
+	// profile's, and the ones started on the host since, which have none.
+	const awayProfile = away && awayProfileId(localStorage);
+	const sessions = (board.data?.sessions ?? []).filter((row) => {
+		const profile = (row as { profile?: string | null }).profile;
+		return !awayProfile || !profile || profile === awayProfile;
+	});
 	if (board.data && !away) lastMacSessions = board.data.sessions;
-	const onMacOnly = away
-		? lastMacSessions.filter(
-				(row) => !row.remote && !sessions.some((s) => s.paneId === row.paneId),
-			)
-		: [];
+	// The Mac's last board is its own profile's: not another one picked here.
+	const onMacOnly =
+		away && awayProfileId(localStorage) === knownProfiles(localStorage).activeId
+			? lastMacSessions.filter(
+					(row) =>
+						!row.remote && !sessions.some((s) => s.paneId === row.paneId),
+				)
+			: [];
 	// Every session's conversation, searched on the Mac as the desktop's ⌘F does.
 	const [query, setQuery] = useState("");
 	const [folded, fold] = useFolded();
@@ -627,12 +695,12 @@ function Home() {
 								<span
 									className={`size-1.5 rounded-full ${away ? "bg-muted-foreground" : "bg-success"}`}
 								/>
-								{away ? "Mac away" : "Mac awake"}
+								{away ? "Desktop Odin Offline" : "Mac awake"}
 							</span>
 						)}
 					</div>
 					<div className="flex min-w-0 items-center gap-2">
-						<ProfilePicker />
+						<ProfilePicker macAway={!!away} />
 						<a
 							href="#/night"
 							aria-label="Night Agent"

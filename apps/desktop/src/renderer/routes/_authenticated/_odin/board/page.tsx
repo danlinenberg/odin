@@ -95,9 +95,11 @@ import {
 	remoteControlOn,
 	useClaudeCommand,
 } from "renderer/stores/claude-command";
+import { useDangerMode } from "renderer/stores/danger-mode";
 import { sessionDocKey, useDoneStore } from "renderer/stores/done";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { useIdleCompact } from "renderer/stores/idle-compact";
+import { useInboxViewStore } from "renderer/stores/inbox-view";
 import { useRecentlyViewed } from "renderer/stores/recently-viewed";
 import { useSessionView } from "renderer/stores/session-view";
 import { useStartingPanes } from "renderer/stores/starting-panes";
@@ -374,7 +376,8 @@ function ViewToggle({
 	inboxOpen: boolean;
 	onSessions: () => void;
 	onBoard: () => void;
-	onInbox: () => void;
+	/** Unset while the Inbox experiment is off: no Inbox button. */
+	onInbox?: () => void;
 }) {
 	const segment = (active: boolean) =>
 		cn(
@@ -406,16 +409,18 @@ function ViewToggle({
 			>
 				<LuLayoutGrid className="size-3.5" aria-hidden />
 			</button>
-			<button
-				type="button"
-				aria-label="Inbox view"
-				aria-pressed={!sessionsOpen && inboxOpen}
-				title="Inbox view - every open action item across sessions, quickest first, and the stuck ones on top"
-				onClick={onInbox}
-				className={segment(!sessionsOpen && inboxOpen)}
-			>
-				<LuInbox className="size-3.5" aria-hidden />
-			</button>
+			{onInbox && (
+				<button
+					type="button"
+					aria-label="Inbox view"
+					aria-pressed={!sessionsOpen && inboxOpen}
+					title="Inbox view - every open action item across sessions, quickest first, and the stuck ones on top"
+					onClick={onInbox}
+					className={segment(!sessionsOpen && inboxOpen)}
+				>
+					<LuInbox className="size-3.5" aria-hidden />
+				</button>
+			)}
 		</div>
 	);
 }
@@ -1114,6 +1119,20 @@ function PrPill({ card, live }: { card: BoardCard; live: boolean }) {
 		<span>
 			PR #{pr.number}
 			{prs.length > 1 ? ` +${prs.length - 1}` : ""}
+		</span>
+	);
+}
+
+/** The card's chip while its session is in GSD Mode; nothing when it is off. */
+function GsdPill({ paneId }: { paneId: string }) {
+	const on = useDangerMode((state) => !!state.on[paneId]);
+	if (!on) return null;
+	return (
+		<span
+			title="GSD Mode is on: Claude makes the calls itself and Odin runs this session's commands without asking"
+			className="font-medium text-destructive"
+		>
+			⚡ GSD Mode
 		</span>
 	);
 }
@@ -2758,6 +2777,7 @@ const BoardCardTile = memo(
     something of you. A pill that renders nothing drops out, so the dots
     between the rest stay right. */}
 						<div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 text-[11.5px] text-muted-foreground [&>*+*]:before:inline-block [&>*+*]:before:mr-1.5 [&>*+*]:before:text-faint-foreground [&>*+*]:before:content-['·']">
+							<GsdPill paneId={card.pane.id} />
 							{(dropped || merged) && (
 								<span className="font-medium text-danger">
 									{merged ? "Dropped: PR merged" : "Dropped: PR closed"}
@@ -6697,7 +6717,9 @@ function DevBoardPage() {
 	};
 	// Inbox view: the board's action items as one list (InboxView). Closing a
 	// session opened from it lands back on it.
-	const [inboxOpen, setInboxOpen] = useState(false);
+	const inboxEnabled = useInboxViewStore((s) => s.enabled);
+	const [inboxShown, setInboxOpen] = useState(false);
+	const inboxOpen = inboxEnabled && inboxShown;
 	const inboxSessions: InboxSession[] = [...cardsByStatus.values()]
 		.flat()
 		.map((card) => {
@@ -7379,10 +7401,14 @@ function DevBoardPage() {
 								setDrawerCard(null);
 								setInboxOpen(false);
 							}}
-							onInbox={() => {
-								setDrawerCard(null);
-								setInboxOpen(true);
-							}}
+							onInbox={
+								inboxEnabled
+									? () => {
+											setDrawerCard(null);
+											setInboxOpen(true);
+										}
+									: undefined
+							}
 						/>,
 						viewToggleSlot,
 					)}

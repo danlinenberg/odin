@@ -72,11 +72,13 @@ export class Unpaired extends Error {}
 type Channel = Awaited<ReturnType<typeof connectChannel>>;
 
 /** One path: open the socket, then the handshake. The Wi-Fi answers at
- * once or not at all, so it gets less time than the relay. */
+ * once or not at all, so it gets less time than the relay. `quiet` leaves
+ * the spinner's step alone: a look for the Mac behind the host's answers. */
 async function attempt(
 	url: string,
 	pairing: Pairing,
 	limitMs: number,
+	quiet: boolean,
 ): Promise<Channel> {
 	const me = await myKey();
 	const socket = new WebSocket(url);
@@ -94,7 +96,7 @@ async function attempt(
 	try {
 		await opened(socket);
 		wasOpen = true;
-		setConnectStep(`${who(pairing)} is checking this phone`);
+		if (!quiet) setConnectStep(`${who(pairing)} is checking this phone`);
 		return await connectChannel(websocketPipe(socket), {
 			me,
 			host: fromBase64url(pairing.host),
@@ -131,16 +133,34 @@ export type OdinFetch = (
 /** Odin couldn't be reached at all: nothing was sent. */
 export class Unreachable extends TypeError {}
 
+/** The request went out on a socket that then said nothing at all: likely dead. */
+export class Silent extends TypeError {}
+
+/**
+ * A channel's `fetch`, and `reach`: opens the channel without asking it
+ * anything, so a caller learns whether Odin is there before it sends.
+ */
+export type ChannelFetch = OdinFetch & {
+	reach?: (quiet?: boolean) => Promise<void>;
+};
+
+/** How long the relay path waits for a later start, so the Wi-Fi wins when it's there. */
+const RELAY_HEAD_START_MS = 300;
+
 /** A `fetch` for "/trpc/..." and "/upload?...", through one pairing's channel. */
-export function channelFetch(pairing: Pairing): OdinFetch {
+export function channelFetch(pairing: Pairing): ChannelFetch {
 	let channel: Promise<Channel> | null = null;
 	/** The path that worked last: tried first next time. */
 	let lastUrl: string | null = null;
 	/** When the open channel last answered anything: a live one answers the polls. */
 	let heardAt = 0;
 
-	/** The open channel, or a new one: the Wi-Fi first, then the relay. */
-	function connect(): Promise<Channel> {
+	/**
+	 * The open channel, or a new one: the path that worked last, and a moment
+	 * later the other beside it, so a Wi-Fi the Mac isn't on costs no wait
+	 * before the relay is tried. The first to open is kept.
+	 */
+	function connect(quiet = false): Promise<Channel> {
 		channel ??= (async () => {
 			const paths = [
 				pairing.lan,
@@ -149,30 +169,46 @@ export function channelFetch(pairing: Pairing): OdinFetch {
 			]
 				.filter((url): url is string => !!url)
 				.sort((a, b) => Number(b === lastUrl) - Number(a === lastUrl));
-			let last: unknown = new Error("No address to reach Odin");
-			for (const url of paths) {
-				setConnectStep(
-					url === pairing.lan
-						? `Reaching ${who(pairing)} on this Wi-Fi`
-						: `Reaching ${who(pairing)} through the relay`,
-				);
-				try {
-					const open = await attempt(
-						url,
-						pairing,
-						url === pairing.lan ? 1_500 : 8_000,
+			if (!paths.length) throw new Error("No address to reach Odin");
+			let won = false;
+			const tries = paths.map(async (url, index) => {
+				if (index)
+					await new Promise((resolve) =>
+						setTimeout(resolve, RELAY_HEAD_START_MS),
 					);
-					lastUrl = url;
-					void open.closed.then(() => {
-						channel = null;
-					});
-					return open;
-				} catch (error) {
-					if (error instanceof Unpaired) throw error;
-					last = error;
+				if (won) throw new Error("Another path opened first");
+				if (!quiet)
+					setConnectStep(
+						url === pairing.lan
+							? `Reaching ${who(pairing)} on this Wi-Fi`
+							: `Reaching ${who(pairing)} through the relay`,
+					);
+				const open = await attempt(
+					url,
+					pairing,
+					url === pairing.lan ? 1_500 : 8_000,
+					quiet,
+				);
+				// The other path opened first: this one isn't needed.
+				if (won) {
+					open.close();
+					throw new Error("Another path opened first");
 				}
+				won = true;
+				lastUrl = url;
+				return open;
+			});
+			try {
+				const open = await Promise.any(tries);
+				void open.closed.then(() => {
+					channel = null;
+				});
+				return open;
+			} catch (error) {
+				const errors = (error as AggregateError).errors ?? [error];
+				// Odin saying no on one path is its answer on both.
+				throw errors.find((e) => e instanceof Unpaired) ?? errors.at(-1);
 			}
-			throw last;
 		})();
 		return channel.catch((error) => {
 			channel = null;
@@ -196,7 +232,7 @@ export function channelFetch(pairing: Pairing): OdinFetch {
 		if (document.visibilityState === "visible") drop();
 	});
 
-	return async (input, init) => {
+	const send: ChannelFetch = async (input, init) => {
 		const url = new URL(
 			input instanceof Request ? input.url : input,
 			"http://odin",
@@ -240,7 +276,7 @@ export function channelFetch(pairing: Pairing): OdinFetch {
 						return;
 					}
 					drop();
-					reject(new TypeError("Odin didn't answer. Reconnecting."));
+					reject(new Silent("Odin didn't answer. Reconnecting."));
 				}, limit);
 			}),
 		])
@@ -256,6 +292,14 @@ export function channelFetch(pairing: Pairing): OdinFetch {
 			headers: answer.headers,
 		});
 	};
+	send.reach = async (quiet = false) => {
+		try {
+			await connect(quiet);
+		} finally {
+			if (!quiet) setConnectStep(null);
+		}
+	};
+	return send;
 }
 
 /** What a remote host's phone server answers (main/lib/phone/host/router.ts). */
@@ -275,61 +319,121 @@ const ON_HOST = new Set([
 	"start",
 	"add",
 	"done",
+	// Kept on the host and put on the Mac's board when it is back.
+	"star",
 ]);
 
 /** The procedures a "/trpc/a,b?batch=1" path calls, or null for anything else. */
 const procedures = (path: string) =>
 	path.match(/^\/trpc\/([^?]+)/)?.[1]?.split(",") ?? null;
 
-/** After the Mac was out of reach, how long the host answers without asking the Mac first. */
+/** After the Mac was out of reach, how long before the phone looks for it again. */
 const AWAY_MS = 15_000;
+
+/** How long a Mac gets to open its channel before the host is asked instead. */
+const MAC_GRACE_MS = 2_500;
 
 /**
  * Odin on the Mac first; when it can't be reached at all (asleep, closed,
  * offline), the remote host's phone server for what it answers: the
  * sessions there, their conversations and a reply. Only a Mac that never got
- * the request falls back, so a reply is never typed in twice. A host that
- * refuses the phone (401) is not the Mac unpairing it: `onHostRefused`
- * forgets the host's link, and the answer says the Mac is away.
+ * the request falls back, so a reply is never typed in twice; a read the Mac
+ * got and never answered is asked of the host too, as asking twice is safe.
+ * A host that refuses the phone (401) is not the Mac unpairing it:
+ * `onHostRefused` forgets the host's link, and the answer says the Mac is away.
+ *
+ * The wait for the Mac is short. Its channel gets MAC_GRACE_MS to open
+ * (`reach`); past that the host answers, while the channel goes on opening
+ * behind it. While the Mac is away the host answers at once, and the phone
+ * looks for the Mac every AWAY_MS without holding a request for it.
+ *
+ * `host` is read at each request: with the Mac away the phone can switch to
+ * another profile's host.
  */
 export function routedFetch(
-	mac: OdinFetch,
-	host: OdinFetch | null,
+	mac: ChannelFetch,
+	hostNow: () => OdinFetch | null,
 	onHostRefused?: () => void,
 ): OdinFetch {
-	const viaHost = async (input: RequestInfo | URL, init?: RequestInit) => {
-		const answer = await (host as OdinFetch)(input, init);
+	const viaHost = async (
+		to: OdinFetch,
+		input: RequestInfo | URL,
+		init?: RequestInit,
+	) => {
+		const answer = await to(input, init);
 		if (answer.status !== 401) return answer;
 		onHostRefused?.();
 		throw new Unreachable(
 			"Your Mac is away, and the remote host doesn't know this phone yet. Open Odin on the Mac once.",
 		);
 	};
-	let awayUntil = 0;
+	let away = false;
+	let lookAgainAt = 0;
+	let looking: Promise<boolean> | null = null;
+	/** Opens the Mac's channel; true when it's there. One look at a time. */
+	const look = (quiet: boolean): Promise<boolean> => {
+		looking ??= (mac.reach as NonNullable<ChannelFetch["reach"]>)(quiet)
+			.then(
+				() => {
+					away = false;
+					return true;
+				},
+				(error) => {
+					// Odin saying no is its answer: the request goes to it, and
+					// its 401 sends the phone to pair again.
+					away = !(error instanceof Unpaired);
+					return !away;
+				},
+			)
+			.finally(() => {
+				looking = null;
+				lookAgainAt = Date.now() + AWAY_MS;
+			});
+		return looking;
+	};
 	return async (input, init) => {
 		const url = new URL(
 			input instanceof Request ? input.url : input,
 			"http://odin",
 		);
 		const names = procedures(url.pathname);
-		const hostCan = !!host && !!names?.every((name) => ON_HOST.has(name));
-		if (hostCan && Date.now() < awayUntil) return viaHost(input, init);
+		const to = hostNow();
+		const hostCan = !!to && !!names?.every((name) => ON_HOST.has(name));
+		if (hostCan && away) {
+			if (mac.reach && Date.now() >= lookAgainAt) void look(true);
+			else if (!mac.reach && Date.now() >= lookAgainAt) away = false;
+			if (away) return viaHost(to, input, init);
+		}
+		if (hostCan && mac.reach) {
+			const there = await Promise.race([
+				look(false),
+				new Promise<false>((resolve) =>
+					setTimeout(() => resolve(false), MAC_GRACE_MS),
+				),
+			]);
+			if (!there) {
+				// Still opening: the look itself says so if the Mac turns up.
+				away = true;
+				return viaHost(to, input, init);
+			}
+		}
 		try {
-			const answer = await mac(input, init);
-			awayUntil = 0;
-			return answer;
+			return await mac(input, init);
 		} catch (error) {
-			if (!(error instanceof Unreachable)) throw error;
+			const read = (init?.method ?? "GET").toUpperCase() === "GET";
+			if (!(error instanceof Unreachable || (read && error instanceof Silent)))
+				throw error;
 			// With a host paired, "Couldn't connect" says too little: the Mac
 			// is away, and this is one of the things only it does.
-			if (!hostCan) throw host ? new Unreachable(NEEDS_MAC) : error;
-			awayUntil = Date.now() + AWAY_MS;
-			return viaHost(input, init);
+			if (!hostCan) throw to ? new Unreachable(NEEDS_MAC) : error;
+			away = true;
+			lookAgainAt = Date.now() + AWAY_MS;
+			return viaHost(to, input, init);
 		}
 	};
 }
 
-/** What the phone says for the Night Agent, search, a star or Stop with the Mac away. */
+/** What the phone says for the Night Agent, search or Stop with the Mac away. */
 export const NEEDS_MAC =
 	"Your Mac is away, and only it can do this. Open Odin on your Mac.";
 

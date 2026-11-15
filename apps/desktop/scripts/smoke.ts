@@ -444,10 +444,33 @@ for (const [label, line] of SCREENS) {
 }
 
 await step("the Inbox view opens from the top bar and back", async () => {
+	// The Inbox's header reads "N waiting on you" or "Nothing needs you".
+	const header = `!!document.querySelector('section[aria-label="Inbox"] h1')`;
+	const inboxShown = async (shown: boolean) => {
+		for (const end = Date.now() + 15_000; Date.now() < end; await sleep(200))
+			if ((await page<boolean>(header)) === shown) return;
+		throw new Error(
+			`the Inbox header ${shown ? "never appeared" : "never went away"}`,
+		);
+	};
+	// Off by default: no Inbox button until Settings > Advanced turns it on.
+	if (await page<boolean>(`!!__find("button", "Inbox view")`))
+		throw new Error("Inbox view button shown while the setting is off");
+	await rail("Settings");
+	await click("a", "Advanced");
+	await waitForText("adds an inbox button");
+	const on = await page<string | null>(`(() => {
+		const e = document.getElementById("inbox-view");
+		e?.click();
+		return e?.getAttribute("aria-checked") ?? null;
+	})()`);
+	if (!on) throw new Error("no Inbox view switch in Settings > Advanced");
+	await click("a", "Back");
+	await rail("Dev Board");
 	await click("button", "Inbox view");
-	await waitForText("inbox:");
+	await inboxShown(true);
 	await click("button", "Board view");
-	await waitForText("inbox:", false);
+	await inboxShown(false);
 	await waitForText("idle");
 });
 
@@ -1187,6 +1210,28 @@ await step(
 		await fetch(
 			`http://127.0.0.1:${port}/hook/complete?${new URLSearchParams({ paneId: paneId ?? "", eventType: "Stop" })}`,
 		);
+		await rail("Dev Board");
+		await page(`[...document.querySelectorAll('[role="button"][draggable="true"]')]
+			.find((c) => c.textContent.includes(${JSON.stringify(SESSION)}))
+			?.click()`);
+		await waitForText("the export is ready.", true, 30_000);
+		// GSD Mode is an experiment: no switch until Settings > Advanced turns it on.
+		if (await page<boolean>(`!!__find("button", "GSD (Get-Shit-Done) Mode")`))
+			throw new Error("GSD Mode switch shown while the setting is off");
+		await page(
+			`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
+		);
+		await rail("Settings");
+		await click("a", "Advanced");
+		await waitForText("adds the gsd mode switch");
+		const gsdSwitch = await page<string | null>(`(() => {
+			const e = document.getElementById("gsd-mode");
+			e?.click();
+			return e?.getAttribute("aria-checked") ?? null;
+		})()`);
+		if (!gsdSwitch)
+			throw new Error("no GSD Mode switch in Settings > Advanced");
+		await click("a", "Back");
 		await rail("Dev Board");
 		await page(`[...document.querySelectorAll('[role="button"][draggable="true"]')]
 			.find((c) => c.textContent.includes(${JSON.stringify(SESSION)}))

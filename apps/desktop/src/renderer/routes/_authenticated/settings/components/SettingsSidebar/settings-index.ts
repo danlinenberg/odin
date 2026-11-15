@@ -187,6 +187,18 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "skills plugins marketplace update upgrade latest version sync",
 	},
 	{
+		label: "Inbox view",
+		to: "/settings/advanced",
+		section: "Experimental",
+		keywords: "inbox action items board view experimental beta",
+	},
+	{
+		label: "GSD Mode",
+		to: "/settings/advanced",
+		section: "Experimental",
+		keywords: "gsd get shit done mode experimental beta auto run",
+	},
+	{
 		label: "Default prompt",
 		to: "/settings/advanced",
 		section: "What they run",
