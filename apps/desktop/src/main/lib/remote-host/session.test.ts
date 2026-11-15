@@ -33,6 +33,7 @@ import {
 	issueTicket,
 	linuxUserName,
 	MEMORY_LIMIT_SCRIPT,
+	MEMORY_PRESSURE_WATCHER,
 	mainCheckoutOf,
 	PROMPT_TAKEN,
 	parseClaudeLogin,
@@ -196,6 +197,32 @@ describe("remote session scripts", () => {
 			rmSync(dir, { recursive: true, force: true });
 		}
 	});
+
+	test("a capped session under memory pressure loses its biggest process", () => {
+		expect(runScript(spec, "/d")).toContain(MEMORY_PRESSURE_WATCHER);
+		const dir = mkdtempSync(join(tmpdir(), "odin-psi-"));
+		const big = spawnSync("/bin/sh", [
+			"-c",
+			"sleep 60 >/dev/null 2>&1 & echo $!",
+		])
+			.stdout.toString()
+			.trim();
+		try {
+			writeFileSync(
+				join(dir, "memory.pressure"),
+				"some avg10=97.00 avg60=50.00 avg300=10.00 total=1\nfull avg10=92.31 avg60=40.00 avg300=9.00 total=1\n",
+			);
+			writeFileSync(join(dir, "memory.max"), "1000\n");
+			writeFileSync(join(dir, "cgroup.procs"), `${big}\n`);
+			execFileSync("/bin/bash", ["-c", `${MEMORY_PRESSURE_WATCHER}\nsleep 7`], {
+				env: { PATH: "/usr/bin:/bin", ODIN_CGROUP: dir },
+			});
+			expect(spawnSync("kill", ["-0", big]).status).not.toBe(0);
+		} finally {
+			spawnSync("kill", [big]);
+			rmSync(dir, { recursive: true, force: true });
+		}
+	}, 15000);
 
 	test("the host's /etc/environment fills in what the session lacks, never PATH or a name it has", () => {
 		expect(runScript(spec, "/d")).toContain(
