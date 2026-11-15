@@ -1,10 +1,18 @@
 import { execFile } from "node:child_process";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { hostReplyScript } from "main/lib/remote-host/session";
+import {
+	jiraIssue,
+	notionPage,
+	prLabel,
+	pullRequests,
+	slackThread,
+} from "renderer/routes/_authenticated/_odin/board/brief";
 import { parseScreenMenu } from "renderer/routes/_authenticated/_odin/board/screen-menu";
 import superjson from "superjson";
 import { z } from "zod";
 import {
+	readTranscript,
 	tailPrompt,
 	tailTurn,
 	transcriptTail,
@@ -331,15 +339,38 @@ export const hostPhoneRouter = t.router({
 		return { via: { host: hostName() } };
 	}),
 
-	/** The laptop writes briefs and reads links; with it away, there are none. */
+	/** The laptop writes briefs; with it away, there is none. */
 	brief: t.procedure.input(paneInput).query(() => null),
-	links: t.procedure.input(paneInput).query(() => ({
-		prs: [],
-		jira: null,
-		slack: null,
-		notion: null,
-		hidden: [] as string[],
-	})),
+	/**
+	 * The session's PRs, ticket, thread and page, read from its conversation
+	 * here as the laptop reads them. Their states (Open, Merged, CI) are the
+	 * laptop's to ask: none here, so each shows as a plain link.
+	 */
+	links: t.procedure.input(paneInput).query(async ({ input }) => {
+		const session = await findSession(input.paneId);
+		const transcript = session
+			? await readTranscript({
+					sessionId: session.sessionId,
+					root: hostPaths.projects,
+				}).catch(() => null)
+			: null;
+		const source = transcript ? (transcript.links ?? transcript.messages) : [];
+		const issue = jiraIssue(source);
+		return {
+			prs: pullRequests(source)
+				.slice(-8)
+				.map((pr) => ({
+					url: pr.url,
+					label: prLabel(pr),
+					repo: pr.repo.split("/").pop() ?? pr.repo,
+					status: null,
+				})),
+			jira: issue && { ...issue, status: null },
+			slack: slackThread(source),
+			notion: notionPage(source),
+			hidden: [] as string[],
+		};
+	}),
 	dismissed: t.procedure.input(paneInput).query((): string[] => []),
 	/**
 	 * Asked beside the board and on New task, in one batch with what the host
