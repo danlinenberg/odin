@@ -19,6 +19,16 @@ export const STUCK_RETRY_MS = 5 * 60_000;
 /** The longest the stopped state waits before it tries by itself again. */
 export const STUCK_RETRY_MAX_MS = 30 * 60_000;
 
+/** Times a prompt's files are sent before the session starts without them. */
+export const FILE_TRIES = 3;
+
+/**
+ * A failed copy of a prompt's file is worth a new connection: the file is
+ * here (a missing one fails the same way every time) and tries are left.
+ */
+export const retryCopy = (err: Error & { code?: unknown }, tries: number) =>
+	err.code !== "ENOENT" && tries < FILE_TRIES;
+
 /**
  * Puts the pane's terminal back once tmux on the host is gone: scroll region,
  * main screen, mouse off, cursor shown, screen cleared. A dropped connection

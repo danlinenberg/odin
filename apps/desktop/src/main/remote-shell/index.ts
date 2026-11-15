@@ -40,6 +40,7 @@ import {
 	keepAttached,
 	LEAVE_TMUX_SCREEN,
 	LOGIN_TIMEOUT_MS,
+	retryCopy,
 	type StuckChoice,
 	settleWithin,
 	untilReady,
@@ -131,14 +132,25 @@ const sftpOf = (client: Client) =>
 		client.sftp((err, sftp) => (err ? reject(err) : resolve(sftp))),
 	);
 
-/** The prompt's laptop files, to where the prompt now says they are. */
-async function upload(sftp: SFTPWrapper, files: RemoteFile[]): Promise<void> {
+/**
+ * The prompt's laptop files, to where the prompt now says they are. With
+ * `tries` (how many times they were sent, this one included) a copy that
+ * failed rejects while a new connection may get it there (retryCopy).
+ */
+async function upload(
+	sftp: SFTPWrapper,
+	files: RemoteFile[],
+	tries?: number,
+): Promise<void> {
 	for (const dir of [".odin", ".odin/files"])
 		await new Promise<void>((resolve) => sftp.mkdir(dir, () => resolve()));
 	for (const file of files)
-		await new Promise<void>((resolve) =>
+		await new Promise<void>((resolve, reject) =>
 			sftp.fastPut(file.local, file.remote, (err) => {
-				if (err) say(`could not copy ${file.local}: ${err.message}`);
+				if (!err) return resolve();
+				const failure = `could not copy ${file.local}: ${err.message}`;
+				if (tries && retryCopy(err, tries)) return reject(new Error(failure));
+				say(`${failure} - going on without it`);
 				resolve();
 			}),
 		);
@@ -580,8 +592,16 @@ async function connectOnce(
 	});
 }
 
-/** The prompt's files reached the host. */
+/** The prompt's files reached the host, or were given up on. */
 let filesSent = false;
+/** Times the prompt's files were sent. */
+let fileTries = 0;
+/**
+ * The session's terminal opened on the host once. Until then nothing started
+ * Claude there, so the next try starts the session, not a reconnect to it:
+ * resuming a conversation that never began ended the pane.
+ */
+let opened = false;
 
 /**
  * Attaches this terminal to the session's tmux on the host. Resolves false
@@ -611,7 +631,13 @@ async function attach(
 	await sendConversation(client, sftp, spec);
 	// Once: a try that ended before this point has them still to send.
 	if (!filesSent && spec.files?.length) {
-		await upload(sftp, spec.files);
+		// A copy cut off (the connection or its SFTP channel closed) left the
+		// session starting on a prompt that names a file the host never got.
+		// It fails this try instead, and the next connection sends them again.
+		await upload(sftp, spec.files, ++fileTries).catch((err: unknown) => {
+			client.end();
+			throw err;
+		});
 		filesSent = true;
 	}
 	const stopMirror = mirrorTranscript(client, sftp, spec);
@@ -633,6 +659,7 @@ async function attach(
 			(err, stream) => {
 				clearTimeout(opening);
 				if (err) return reject(err);
+				opened = true;
 				// Only a command that finished sends an exit status; a dropped
 				// connection doesn't, and a killed tmux exits non-zero or by signal.
 				let exited = false;
@@ -761,12 +788,10 @@ async function main(): Promise<void> {
 				void markHostUp(spec.instanceId);
 				return client;
 			},
-			attach: (client, first, fresh) =>
-				attach(
-					client,
-					fresh ? { ...(first ? spec : again), fresh } : first ? spec : again,
-					env,
-				),
+			attach: (client, _first, fresh) => {
+				const now = opened ? again : spec;
+				return attach(client, fresh ? { ...now, fresh } : now, env);
+			},
 			pause: (ms, offerReboot) => {
 				waitingSince = Date.now();
 				return waitOrR(ms, back, offerReboot);

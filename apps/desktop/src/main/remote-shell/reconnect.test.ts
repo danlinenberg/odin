@@ -3,9 +3,11 @@ import { EventEmitter } from "node:events";
 import { Duplex, PassThrough } from "node:stream";
 import { Client } from "ssh2";
 import {
+	FILE_TRIES,
 	keepAttached,
 	MAX_TRIES,
 	type ReconnectIo,
+	retryCopy,
 	STUCK_RETRY_MAX_MS,
 	STUCK_RETRY_MS,
 	type StuckChoice,
@@ -290,5 +292,20 @@ describe("settleWithin", () => {
 		await work;
 		await Promise.resolve();
 		expect(discarded).toEqual(["client"]);
+	});
+});
+
+describe("retryCopy", () => {
+	test("a copy cut off gets a new connection, until the tries run out", () => {
+		const cutOff = new Error("No response from server");
+		expect(retryCopy(cutOff, 1)).toBe(true);
+		expect(retryCopy(cutOff, FILE_TRIES - 1)).toBe(true);
+		expect(retryCopy(cutOff, FILE_TRIES)).toBe(false);
+	});
+
+	test("a file missing on this computer is not tried again", () => {
+		expect(
+			retryCopy(Object.assign(new Error("no file"), { code: "ENOENT" }), 1),
+		).toBe(false);
 	});
 });
