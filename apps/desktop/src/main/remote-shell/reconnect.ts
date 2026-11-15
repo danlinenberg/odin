@@ -26,7 +26,7 @@ export const FILE_TRIES = 3;
  * A failed copy of a prompt's file is worth a new connection: the file is
  * here (a missing one fails the same way every time) and tries are left.
  */
-export const retryCopy = (err: { code?: unknown }, tries: number) =>
+export const retryCopy = (err: Error & { code?: unknown }, tries: number) =>
 	err.code !== "ENOENT" && tries < FILE_TRIES;
 
 /**
