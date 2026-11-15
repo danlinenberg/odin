@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	accessDenied,
+	awsAnsweredHtml,
 	keyInvalid,
 	keyRefused,
 	pluginArgs,
@@ -65,6 +66,17 @@ describe("ssm", () => {
 		expect(
 			accessDenied(new Error("All configured authentication methods failed")),
 		).toBe(false);
+	});
+
+	test("an AWS error page parsed as JSON reads as AWS down", () => {
+		expect(
+			awsAnsweredHtml(
+				new Error(
+					`SyntaxError: Unexpected token '<', "<html>\n<h"... is not valid JSON`,
+				),
+			),
+		).toBe(true);
+		expect(awsAnsweredHtml(new Error("SSM session ended"))).toBe(false);
 	});
 
 	test("the plugin gets the session, region, profile and request the aws CLI gives it", () => {

@@ -227,6 +227,17 @@ export const accessDenied = (err: unknown) =>
 		`${(err as { name?: string } | null)?.name ?? ""} ${String(err)}`,
 	);
 
+/**
+ * AWS answered with a web page where it sends JSON: its sign-in portal (IAM
+ * Identity Center) or an API down with a 503 page. The SDK only says
+ * `Unexpected token '<' ... is not valid JSON`, which reads like Odin broke.
+ */
+export const awsAnsweredHtml = (err: unknown) =>
+	/Unexpected token '<'.*not valid JSON/is.test(String(err));
+
+export const AWS_DOWN_MESSAGE =
+	"AWS sign-in is not answering (it sent back an error page) - an AWS outage, not your setup";
+
 /** The key's line lasts this long: one handshake, with room for a slow SSM. */
 const KEY_LIFETIME_MS = 3 * 60_000;
 
