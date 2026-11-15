@@ -248,6 +248,7 @@ describe("the Night Agent runner on the host", () => {
 				planFrom: null,
 				planUntil: null,
 				missed: [],
+				scheduled: [],
 			});
 			writeFileSync(
 				join(night, "plan.json"),
@@ -268,6 +269,7 @@ describe("the Night Agent runner on the host", () => {
 				planFrom: 5,
 				planUntil: 9,
 				missed: [{ night: 3, at: 4 }],
+				scheduled: [],
 			});
 			// Once there is a ledger, it is the record: every night, not just tonight.
 			writeFileSync(

@@ -17,7 +17,7 @@
 import type { OdinTask } from "renderer/routes/_authenticated/_odin/hooks/odin-task";
 import type { HostDone, HostFeeds } from "../phone/host/feeds";
 import type { AddedTask, DoneMark } from "../phone/host/inbox";
-import { NIGHT_RUNNER_PY, type NightTask } from "./night";
+import { ensureNightRunner, NIGHT_RUNNER_PY, type NightTask } from "./night";
 import { sh } from "./session";
 import { connectHost, type HostLogin, runOnHost } from "./ssh";
 
@@ -74,11 +74,93 @@ export async function pushAwayTasks(
 }
 
 /**
+ * An automation the host starts on its own while this computer is away: the
+ * session it runs in, built here (a fresh id goes in place of the
+ * placeholder there), and its next run times as this computer's clock puts
+ * them, so the host's timezone doesn't matter.
+ */
+export interface HostSchedule {
+	/** The automation's id. */
+	key: string;
+	title: string;
+	/** A session template's script and prompt (remote-host router's sessionTemplate). */
+	script: string;
+	prompt: string;
+	/** Epoch seconds. */
+	at: number[];
+}
+
+/**
+ * Sends the automations and the secrets their sessions start with. The
+ * host's every-minute runner starts a run this computer didn't take
+ * (night.ts run_schedules), so it installs that runner when it's missing.
+ */
+export async function pushSchedules(
+	host: HostLogin,
+	schedules: HostSchedule[],
+	secrets: string,
+	files: { local: string; remote: string }[],
+): Promise<void> {
+	const client = await connectHost(host);
+	try {
+		await runOnHost(client, write("env"), secrets);
+		if (files.length) {
+			await runOnHost(client, "mkdir -p ~/.odin/files");
+			const sftp = await new Promise<import("ssh2").SFTPWrapper>(
+				(resolve, reject) =>
+					client.sftp((err, s) => (err ? reject(err) : resolve(s))),
+			);
+			for (const file of files)
+				await new Promise<void>((resolve) =>
+					sftp.fastPut(file.local, file.remote, () => resolve()),
+				);
+		}
+		// The runner this computer takes a run with (`claim <key>`).
+		await runOnHost(client, write("runner.py"), NIGHT_RUNNER_PY);
+		await runOnHost(
+			client,
+			write("schedules.json"),
+			JSON.stringify({
+				schedules,
+				until: Math.floor(Date.now() / 1000) + AWAY_DAYS * 86_400,
+			}),
+		);
+		if (schedules.length) await ensureNightRunner(client, host);
+	} finally {
+		client.end();
+	}
+}
+
+/** The key a run of an automation goes by in the host's ledger, either side. */
+export const scheduledRunKey = (schedule: string, slot: number) =>
+	`auto:${schedule}:${Math.floor(slot)}`;
+
+/**
+ * Takes a run on the host before this computer starts it: false when the
+ * host's runner already started that run while this computer was away.
+ */
+export async function claimScheduledRun(
+	host: HostLogin,
+	key: string,
+): Promise<boolean> {
+	const client = await connectHost(host);
+	try {
+		const out = await runOnHost(
+			client,
+			`python3 ~/.odin/night/runner.py claim ${sh(key)}`,
+		);
+		return out.trim().split("\n").pop() !== "already";
+	} finally {
+		client.end();
+	}
+}
+
+/**
  * Switch off: the list goes, and the secrets with it unless a night plan
  * still needs them. The ledger stays, so nothing it started runs twice.
  */
 export const clearAwayScript =
-	"rm -f ~/.odin/night/away.json ~/.odin/night/board.json ~/.odin/night/added.jsonl ~/.odin/night/done.jsonl ~/.odin/night/runner.py; [ -f ~/.odin/night/plan.json ] || rm -f ~/.odin/night/env";
+	"rm -f ~/.odin/night/away.json ~/.odin/night/schedules.json ~/.odin/night/board.json ~/.odin/night/added.jsonl ~/.odin/night/done.jsonl ~/.odin/night/runner.py; [ -f ~/.odin/night/plan.json ] || rm -f ~/.odin/night/env";
 
 export async function clearAwayTasks(host: HostLogin): Promise<void> {
 	const client = await connectHost(host);
