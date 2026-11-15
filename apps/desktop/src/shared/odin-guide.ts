@@ -37,7 +37,7 @@ Tabs, in two groups split by a hairline: Odin's own (All, Tasks, Docs), then the
 - The Repo picker ("agent picks") sets the checkout. Empty: the agent picks the repo from the brief.
 - More fields under the box (on Tasks → All and in the New task dialog): **Up next** (No, Start of queue, End of queue), **Due** (a date), **Status** and **Type**, the same ones the side panel sets.
 - Sorted by priority, then newest first. Starting a task keeps it on the list, linked to its session: started is not finished.
-- Schedules (automations) don't show here. Each profile has its own list. The New task dialog has a Start now box.
+- Schedules (automations) don't show here. Each profile has its own list. The New task dialog has a Start now box. Esc closes the New task dialog from anywhere in it; with the Skill menu open, Esc closes that menu first.
 - Any Claude session Odin starts can add a task here: ask it to "open an Odin task" and it adds one with a title, notes, a due date and an Up next place if you give them.
 - Store: tasks.
 

@@ -1172,6 +1172,17 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 		return () => watch.disconnect();
 	}, [grow]);
 
+	// Escape closes the box wherever the focus is - a menu, the Start now
+	// switch, or nothing at all after a click on the box itself. On the
+	// document, so a Skill menu that stops its own Escape still keeps it.
+	useEffect(() => {
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key === "Escape" && !event.defaultPrevented) onClose();
+		};
+		document.addEventListener("keydown", onKey);
+		return () => document.removeEventListener("keydown", onKey);
+	}, [onClose]);
+
 	const save = () => {
 		// Same rule the store uses - no title, no task, so don't claim one. A
 		// pasted screenshot on its own counts: its path is the title.
@@ -1235,7 +1246,6 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 						placeholder="What needs doing?"
 						onChange={setDraft}
 						onSubmit={save}
-						onCancel={onClose}
 						extraFields={
 							<NewTaskFieldsPicker value={fields} onChange={setFields} />
 						}
