@@ -48,6 +48,29 @@ function holdReason(
 	}
 }
 
+/** The runner's `marked`, with Slack answering `reactions` and the clock at `now`. */
+function marked(reactions: unknown, now: number): unknown {
+	const dir = mkdtempSync(join(tmpdir(), "odin-night-"));
+	try {
+		writeFileSync(join(dir, "night_runner.py"), NIGHT_RUNNER_PY);
+		const out = execFileSync(
+			"python3",
+			[
+				"-I",
+				"-c",
+				"import json, sys; sys.path.insert(0, sys.argv[1]); import night_runner as r; r.service = lambda path: json.loads(sys.argv[2]); print(json.dumps(r.marked(float(sys.argv[3]))))",
+				dir,
+				JSON.stringify(reactions),
+				String(now),
+			],
+			{ env: { ...env, HOME: dir } },
+		).toString();
+		return JSON.parse(out);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}
+
 const meminfo = (availableKb: number) =>
 	`MemTotal:       32000000 kB\nMemFree:         1000000 kB\nMemAvailable:   ${availableKb} kB\nBuffers:          100000 kB\n`;
 const loadavg = (load1: number) =>
@@ -451,6 +474,31 @@ describe("the Night Agent runner across nights", () => {
 		}
 	});
 
+	test("a marked message keeps its whole text, with Slack links as bare urls", () => {
+		const a = "https://example.com/acme/infra/pull/1";
+		const b = "https://example.com/acme/infra/pull/2";
+		const got = marked(
+			{
+				ok: true,
+				items: [
+					{
+						type: "message",
+						channel: "C0123",
+						message: {
+							ts: "1000.1",
+							text: `<${a}|example.com/acme/infra/pull/1>\n<${b}|example.com/acme/infra/pull/2>`,
+							permalink: "https://example.com/p",
+							reactions: [{ name: "eyes" }],
+						},
+					},
+				],
+			},
+			1001,
+		) as { title: string; text: string }[];
+		expect(got[0].text).toBe(`<${a}> <${b}>`);
+		expect(got[0].title).toBe(`<${a}> <${b}>`.slice(0, 120));
+	});
+
 	test("with the queue done, it picks marked messages once a night, in Claude's order, and only listed ones", () => {
 		const h = host();
 		try {
@@ -464,7 +512,12 @@ describe("the Night Agent runner across nights", () => {
 			});
 			const listed = JSON.stringify([
 				{ key: "slack:D9:1.1", title: "first", url: "u1" },
-				{ key: "slack:D9:2.2", title: "second", url: "u2" },
+				{
+					key: "slack:D9:2.2",
+					title: "second",
+					text: "second, then the rest past the title cut",
+					url: "u2",
+				},
 				{ key: "rm -rf /", title: "x", url: "" },
 				{ key: "slack:C1:1.1", title: "ran", url: "" },
 			]);
@@ -501,7 +554,7 @@ describe("the Night Agent runner across nights", () => {
 				plan.script.split(" ")[3],
 				"base64",
 			).toString();
-			expect(prompt).toContain("second");
+			expect(prompt).toContain("second, then the rest past the title cut");
 			expect(prompt).toContain(`odin/${sid.slice(0, 8)}`);
 			// The next night lists again.
 			h.tick(N0 + DAY + 60, setup);
