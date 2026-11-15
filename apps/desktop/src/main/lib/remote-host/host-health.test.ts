@@ -28,6 +28,7 @@ function probe(overrides: Partial<HealthProbe> = {}, output = GOOD_OUTPUT) {
 		awsSignedIn: async () => true,
 		ssmStatus: async () => "Online",
 		canReboot: async () => true,
+		updateService: async () => {},
 		login: async () => ({
 			run: async (command: string) =>
 				command === HEALTH_SCRIPT ? output : "current",
@@ -171,4 +172,37 @@ test("the health script runs in sh and prints every value the check reads", () =
 	for (const key of ["claude", "tmux", "git", "gh", "service", "mem", "disk"])
 		expect(found.has(key)).toBe(true);
 	expect(Number(found.get("disk"))).toBeGreaterThan(0);
+});
+
+test("an out-of-date service is updated during the check, and warns only when that fails", async () => {
+	let updated = false;
+	const login = async () => ({
+		run: async (command: string) =>
+			command === HEALTH_SCRIPT ? GOOD_OUTPUT : updated ? "current" : "",
+		end: () => {},
+	});
+	const fixed = await checkHostHealth(
+		host,
+		true,
+		probe({
+			login,
+			updateService: async () => {
+				updated = true;
+			},
+		}),
+	);
+	expect(states(fixed).service).toBe("ok");
+
+	updated = false;
+	const denied = await checkHostHealth(
+		host,
+		true,
+		probe({
+			login,
+			updateService: async () => {
+				throw new Error("AccessDenied");
+			},
+		}),
+	);
+	expect(states(denied).service).toBe("warn");
 });
