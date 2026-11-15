@@ -56,6 +56,8 @@ export function phoneHostScript(config: {
 	name: string;
 	board: BoardSnapshot;
 	phones: Device[];
+	/** The phone's stars from the host are on this board: the host drops its copy. */
+	starsTaken?: boolean;
 	/** This Odin's ids (owner.ts): another Odin user's Linux user never gets its board or phones. */
 	owners: string[];
 }): string {
@@ -76,7 +78,7 @@ export function phoneHostScript(config: {
 			`${DIR}/config.json`,
 			JSON.stringify({ relay: config.relay, name: config.name }),
 		),
-		`printf %s ${sh(Buffer.from(JSON.stringify(config.board)).toString("base64"))} | base64 -d > ${DIR}/board.json.new && mv -f ${DIR}/board.json.new ${DIR}/board.json`,
+		`printf %s ${sh(Buffer.from(JSON.stringify(config.board)).toString("base64"))} | base64 -d > ${DIR}/board.json.new && mv -f ${DIR}/board.json.new ${DIR}/board.json${config.starsTaken ? ` && rm -f ${DIR}/stars.jsonl.taken` : ""}`,
 		`printf %s ${sh(Buffer.from(JSON.stringify(phones)).toString("base64"))} | base64 -d > ${DIR}/laptop-devices.json.new && mv -f ${DIR}/laptop-devices.json.new ${DIR}/laptop-devices.json`,
 		`pid=$(cat ${DIR}/server.pid 2>/dev/null)`,
 		'if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then [ -z "$changed" ] && exit 0; kill "$pid"; sleep 1; fi',
@@ -84,6 +86,13 @@ export function phoneHostScript(config: {
 		"true",
 	].join("\n");
 }
+
+/**
+ * Prints the stars the phone set here with this computer away and sets them
+ * aside (`.taken`), so a star set meanwhile isn't lost; the send of the board
+ * that has them drops what was set aside (phoneHostScript's `starsTaken`).
+ */
+export const phoneHostStarsScript = `f=${DIR}/stars.jsonl; [ ! -f "$f" ] || { cat "$f" >> "$f.taken" && rm -f "$f"; }; cat "$f.taken" 2>/dev/null; true`;
 
 /** The server's link with no code: its key, the relay, its name. This computer hands it to its phones. */
 export const phoneHostInfoScript = `${PHONE_HOST_BUN} ${SCRIPT} info`;

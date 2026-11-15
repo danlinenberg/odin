@@ -319,6 +319,8 @@ const ON_HOST = new Set([
 	"start",
 	"add",
 	"done",
+	// Kept on the host and put on the Mac's board when it is back.
+	"star",
 ]);
 
 /** The procedures a "/trpc/a,b?batch=1" path calls, or null for anything else. */
@@ -431,7 +433,7 @@ export function routedFetch(
 	};
 }
 
-/** What the phone says for the Night Agent, search, a star or Stop with the Mac away. */
+/** What the phone says for the Night Agent, search or Stop with the Mac away. */
 export const NEEDS_MAC =
 	"Your Mac is away, and only it can do this. Open Odin on your Mac.";
 

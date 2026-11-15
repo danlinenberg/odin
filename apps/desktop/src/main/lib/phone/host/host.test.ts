@@ -19,7 +19,15 @@ import {
 import { startRelay } from "@odin/relay";
 import { shell } from "./router";
 import { hostFiles, hostLink, pairingLink, startHostServer } from "./server";
-import { hostPaths, hostSessions, hostStatus, procs, tmux } from "./sessions";
+import {
+	hostPaths,
+	hostSessions,
+	hostStatus,
+	parseStars,
+	procs,
+	starMarks,
+	tmux,
+} from "./sessions";
 
 const home = mkdtempSync(join(tmpdir(), "odin-phone-host-"));
 hostPaths.home = home;
@@ -203,6 +211,23 @@ test("a paired phone lists the host's sessions, reads one, and replies", async (
 	expect(files.status).toBe(412);
 	expect(typed.length).toBe(count);
 
+	// A star with the Mac away is kept here and shows on this board.
+	const star = await channel.request({
+		method: "POST",
+		path: "/trpc/star",
+		headers: { "content-type": "application/json" },
+		body: new TextEncoder().encode(
+			JSON.stringify({ json: { paneId: "pane-abc", starred: true } }),
+		),
+	});
+	expect(star.status).toBe(200);
+	expect(starMarks().get("pane-abc")).toBe(true);
+	const starredBoard = decode((await channel.request(get("board", null))).body)
+		.result.data.json;
+	expect(
+		starredBoard.sessions.map((s: { starred: boolean }) => s.starred),
+	).toEqual([true, false]);
+
 	// The board's batch beside the profile picker still gets its answer.
 	const batch = await channel.request({
 		method: "GET",
@@ -270,4 +295,14 @@ test("a session the Mac's board no longer has is left out, unless it started aft
 		listed = before;
 		rmSync(board);
 	}
+});
+
+test("the last star line for a session stands; a broken line is skipped", () => {
+	const stars = parseStars(
+		'{"paneId":"a","starred":true,"at":1}\nnot json\n{"paneId":"a","starred":false,"at":2}\n{"paneId":"b","starred":true,"at":3}\n',
+	);
+	expect([...stars]).toEqual([
+		["a", false],
+		["b", true],
+	]);
 });
