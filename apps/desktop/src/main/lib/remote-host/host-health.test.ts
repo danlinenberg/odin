@@ -27,6 +27,7 @@ function probe(overrides: Partial<HealthProbe> = {}, output = GOOD_OUTPUT) {
 	return {
 		awsSignedIn: async () => true,
 		ssmStatus: async () => "Online",
+		canReboot: async () => true,
 		login: async () => ({
 			run: async (command: string) =>
 				command === HEALTH_SCRIPT ? output : "current",
@@ -107,6 +108,33 @@ test("a stopped host offers Start, a refused key Reboot", async () => {
 	);
 	expect(states(refused).login).toBe("fail");
 	expect(refused.checks.find((c) => c.id === "login")?.fix).toBe("reboot");
+});
+
+test("an AWS role that may not reboot the host gets no Reboot, and is told to ask an administrator", async () => {
+	const refused = await checkHostHealth(
+		host,
+		true,
+		probe({
+			canReboot: async () => false,
+			login: async () => {
+				throw new Error("All configured authentication methods failed");
+			},
+		}),
+	);
+	const login = refused.checks.find((c) => c.id === "login");
+	expect(login?.fix).toBeUndefined();
+	expect(login?.detail).toContain("ask an administrator to reboot it");
+	const low = await checkHostHealth(
+		host,
+		true,
+		probe(
+			{ canReboot: async () => false },
+			GOOD_OUTPUT.replace("mem=4194304", "mem=102400"),
+		),
+	);
+	const room = low.checks.find((c) => c.id === "room");
+	expect(room?.fix).toBeUndefined();
+	expect(room?.detail).toContain("ask an administrator to reboot it");
 });
 
 test("no Claude sign-in fails; missing gh, a down service or low memory only warn", async () => {

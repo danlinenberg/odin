@@ -19,6 +19,16 @@ export const STUCK_RETRY_MS = 5 * 60_000;
 /** The longest the stopped state waits before it tries by itself again. */
 export const STUCK_RETRY_MAX_MS = 30 * 60_000;
 
+/** Times a prompt's files are sent before the session starts without them. */
+export const FILE_TRIES = 3;
+
+/**
+ * A failed copy of a prompt's file is worth a new connection: the file is
+ * here (a missing one fails the same way every time) and tries are left.
+ */
+export const retryCopy = (err: Error & { code?: unknown }, tries: number) =>
+	err.code !== "ENOENT" && tries < FILE_TRIES;
+
 /**
  * Puts the pane's terminal back once tmux on the host is gone: scroll region,
  * main screen, mouse off, cursor shown, screen cleared. A dropped connection
@@ -48,14 +58,18 @@ export interface ReconnectIo<C> {
 	/** Waits `ms` before the next try; true when you asked for a reboot. */
 	pause: (ms: number, offerReboot: boolean) => Promise<boolean>;
 	reboot: () => Promise<void>;
+	/** Whether your AWS role may reboot the host: R is offered only then. */
+	mayReboot: () => Promise<boolean>;
 	/**
 	 * After MAX_TRIES failed tries: says why, then waits for your pick, or
-	 * resolves "auto" once `retryInMs` passed with no pick.
+	 * resolves "auto" once `retryInMs` passed with no pick. "reboot" is a pick
+	 * only when `mayReboot`.
 	 */
 	stuck: (
 		reason: string,
 		tries: number,
 		retryInMs: number,
+		mayReboot: boolean,
 	) => Promise<StuckChoice>;
 	say: (text: string) => void;
 	/** A failure no retry can fix (AWS refused by policy): the pane ends. */
@@ -70,7 +84,8 @@ const message = (err: unknown) =>
 /**
  * Connects and keeps the session attached until it ends on the host. The
  * wait between tries doubles up to 5 minutes, with jitter, so a host's panes
- * don't all retry together; after 3 tries R reboots the host.
+ * don't all retry together; after 3 tries R reboots the host, for an AWS
+ * role that may.
  */
 export async function keepAttached<C>(
 	io: ReconnectIo<C>,
@@ -104,7 +119,12 @@ export async function keepAttached<C>(
 		tries++;
 		streak++;
 		if (tries >= MAX_TRIES) {
-			const choice = await io.stuck(reason, streak, stuckWait);
+			const choice = await io.stuck(
+				reason,
+				streak,
+				stuckWait,
+				await io.mayReboot(),
+			);
 			if (choice === "auto") {
 				// One try, and back to the stopped state if it misses, waiting
 				// longer: a host that is down for hours costs a login every 30m.
@@ -125,7 +145,7 @@ export async function keepAttached<C>(
 			return;
 		}
 		const delay = wait / 2 + random() * (wait / 2);
-		const offer = tries >= 3;
+		const offer = tries >= 3 && (await io.mayReboot());
 		io.say(
 			`${reason} - trying again in ${Math.round(delay / 1000)}s${offer ? ` (press R to reboot ${host})` : ""}`,
 		);

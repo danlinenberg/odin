@@ -15,7 +15,7 @@ import { EC2Client, RebootInstancesCommand } from "@aws-sdk/client-ec2";
 import { Client, type SFTPWrapper, utils } from "ssh2";
 import { HOST_LOAD_COMMAND, parseHostLoad } from "../../shared/host-load";
 import { ODIN_HOME_DIR } from "../lib/app-environment";
-import { setUpHost } from "../lib/remote-host/aws-instances";
+import { canRebootInstance, setUpHost } from "../lib/remote-host/aws-instances";
 import { hostPorts } from "../lib/remote-host/host-service";
 import { hostUpSince, markHostUp } from "../lib/remote-host/host-up";
 import {
@@ -28,7 +28,9 @@ import {
 	stashScript,
 } from "../lib/remote-host/session";
 import {
+	AWS_DOWN_MESSAGE,
 	accessDenied,
+	awsAnsweredHtml,
 	awsClientConfig,
 	hostLabel,
 	keyRefused,
@@ -40,6 +42,7 @@ import {
 	keepAttached,
 	LEAVE_TMUX_SCREEN,
 	LOGIN_TIMEOUT_MS,
+	retryCopy,
 	type StuckChoice,
 	settleWithin,
 	untilReady,
@@ -131,14 +134,25 @@ const sftpOf = (client: Client) =>
 		client.sftp((err, sftp) => (err ? reject(err) : resolve(sftp))),
 	);
 
-/** The prompt's laptop files, to where the prompt now says they are. */
-async function upload(sftp: SFTPWrapper, files: RemoteFile[]): Promise<void> {
+/**
+ * The prompt's laptop files, to where the prompt now says they are. With
+ * `tries` (how many times they were sent, this one included) a copy that
+ * failed rejects while a new connection may get it there (retryCopy).
+ */
+async function upload(
+	sftp: SFTPWrapper,
+	files: RemoteFile[],
+	tries?: number,
+): Promise<void> {
 	for (const dir of [".odin", ".odin/files"])
 		await new Promise<void>((resolve) => sftp.mkdir(dir, () => resolve()));
 	for (const file of files)
-		await new Promise<void>((resolve) =>
+		await new Promise<void>((resolve, reject) =>
 			sftp.fastPut(file.local, file.remote, (err) => {
-				if (err) say(`could not copy ${file.local}: ${err.message}`);
+				if (!err) return resolve();
+				const failure = `could not copy ${file.local}: ${err.message}`;
+				if (tries && retryCopy(err, tries)) return reject(new Error(failure));
+				say(`${failure} - going on without it`);
 				resolve();
 			}),
 		);
@@ -565,6 +579,7 @@ async function connectOnce(
 ): Promise<Client> {
 	return loginWithin(spec, target).catch(async (err: unknown) => {
 		if (accessDenied(err)) throw new NoAccess(spec, err);
+		if (awsAnsweredHtml(err)) throw new Error(AWS_DOWN_MESSAGE);
 		if (keyRefused(err) && !keyOverSsm) {
 			keyOverSsm = true;
 			// Again in full: the SSM key push can find the user missing.
@@ -580,8 +595,16 @@ async function connectOnce(
 	});
 }
 
-/** The prompt's files reached the host. */
+/** The prompt's files reached the host, or were given up on. */
 let filesSent = false;
+/** Times the prompt's files were sent. */
+let fileTries = 0;
+/**
+ * The session's terminal opened on the host once. Until then nothing started
+ * Claude there, so the next try starts the session, not a reconnect to it:
+ * resuming a conversation that never began ended the pane.
+ */
+let opened = false;
 
 /**
  * Attaches this terminal to the session's tmux on the host. Resolves false
@@ -611,7 +634,13 @@ async function attach(
 	await sendConversation(client, sftp, spec);
 	// Once: a try that ended before this point has them still to send.
 	if (!filesSent && spec.files?.length) {
-		await upload(sftp, spec.files);
+		// A copy cut off (the connection or its SFTP channel closed) left the
+		// session starting on a prompt that names a file the host never got.
+		// It fails this try instead, and the next connection sends them again.
+		await upload(sftp, spec.files, ++fileTries).catch((err: unknown) => {
+			client.end();
+			throw err;
+		});
 		filesSent = true;
 	}
 	const stopMirror = mirrorTranscript(client, sftp, spec);
@@ -633,6 +662,7 @@ async function attach(
 			(err, stream) => {
 				clearTimeout(opening);
 				if (err) return reject(err);
+				opened = true;
 				// Only a command that finished sends an exit status; a dropped
 				// connection doesn't, and a killed tmux exits non-zero or by signal.
 				let exited = false;
@@ -703,7 +733,7 @@ const waitOrR = (ms: number, back: () => boolean, keys: boolean) =>
  * The key you pressed once the pane stopped reconnecting, "retry" once
  * `back()` says another pane got into the host, or "auto" when `ms` passed.
  */
-const stuckChoice = (ms: number, back: () => boolean) =>
+const stuckChoice = (ms: number, back: () => boolean, mayReboot: boolean) =>
 	new Promise<StuckChoice>((resolve) => {
 		const { stdin } = process;
 		const done = (pick: StuckChoice) => {
@@ -722,7 +752,7 @@ const stuckChoice = (ms: number, back: () => boolean) =>
 					? "retry"
 					: key[0] === 0x66 || key[0] === 0x46
 						? "fresh"
-						: key[0] === 0x72 || key[0] === 0x52
+						: mayReboot && (key[0] === 0x72 || key[0] === 0x52)
 							? "reboot"
 							: null;
 			if (pick) done(pick);
@@ -761,12 +791,10 @@ async function main(): Promise<void> {
 				void markHostUp(spec.instanceId);
 				return client;
 			},
-			attach: (client, first, fresh) =>
-				attach(
-					client,
-					fresh ? { ...(first ? spec : again), fresh } : first ? spec : again,
-					env,
-				),
+			attach: (client, _first, fresh) => {
+				const now = opened ? again : spec;
+				return attach(client, fresh ? { ...now, fresh } : now, env);
+			},
 			pause: (ms, offerReboot) => {
 				waitingSince = Date.now();
 				return waitOrR(ms, back, offerReboot);
@@ -779,7 +807,8 @@ async function main(): Promise<void> {
 				// Its sessions restart there and resume; give it time to boot.
 				await new Promise((resolve) => setTimeout(resolve, 60_000));
 			},
-			stuck: (reason, tries, retryInMs) => {
+			mayReboot: () => canRebootInstance(target, spec.instanceId),
+			stuck: (reason, tries, retryInMs, mayReboot) => {
 				const at = new Date(Date.now() + retryInMs).toLocaleTimeString([], {
 					hour: "2-digit",
 					minute: "2-digit",
@@ -790,10 +819,10 @@ async function main(): Promise<void> {
 					),
 				);
 				process.stderr.write(
-					"  Press Enter to try again, F to start Claude over on the host (it resumes this conversation), or R to reboot the host.\r\n",
+					`  Press Enter to try again${mayReboot ? "," : " or"} F to start Claude over on the host (it resumes this conversation)${mayReboot ? ", or R to reboot the host" : ""}.\r\n`,
 				);
 				waitingSince = Date.now();
-				return stuckChoice(retryInMs, back);
+				return stuckChoice(retryInMs, back, mayReboot);
 			},
 			say,
 			fatal: (err) => err instanceof NoAccess,

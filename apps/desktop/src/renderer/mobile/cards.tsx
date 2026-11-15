@@ -524,7 +524,10 @@ export function SessionCard({
 				</>
 			)}
 		>
-			<div className="flex rounded-[10px] border border-border bg-card">
+			{/* A starred card carries the desktop card's amber edge and tint. */}
+			<div
+				className={`flex rounded-[10px] border border-border ${session.starred ? "bg-[color:color-mix(in_oklab,var(--attention)_10%,var(--card))] shadow-[inset_3px_0_0_var(--attention)]" : "bg-card"}`}
+			>
 				{/* Not draggable: a link drag cancels the row's swipe. */}
 				<a
 					href={`#/s/${session.paneId}`}
