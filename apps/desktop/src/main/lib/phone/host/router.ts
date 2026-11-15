@@ -1,6 +1,11 @@
 import { execFile } from "node:child_process";
 import { resolve, sep } from "node:path";
 import { initTRPC, TRPCError } from "@trpc/server";
+import {
+	createNameLookup,
+	type SlackUser,
+	slackUserName,
+} from "lib/trpc/routers/slack/name-lookup";
 import { hostReplyScript } from "main/lib/remote-host/session";
 import {
 	jiraIssue,
@@ -18,7 +23,8 @@ import {
 	tailTurn,
 	transcriptTail,
 } from "../../claude-sessions/claude-sessions";
-import { hostRows } from "./feeds";
+import { namedMessages, namedText } from "../mention-names";
+import { hostRows, serviceCall } from "./feeds";
 import { addTask, doneMarks, markDone } from "./inbox";
 import {
 	awayBacklog,
@@ -79,6 +85,17 @@ export const shell = {
 			);
 		}),
 };
+
+const hostNames = createNameLookup();
+/** A Slack user's name, through the host service's own Slack connection. */
+const slackName = (id: string): Promise<string | null> =>
+	hostNames.get(id, async () => {
+		const answer = await serviceCall("slack")(
+			`users.info?user=${encodeURIComponent(id)}`,
+		);
+		const body = (await answer.json()) as { ok?: boolean; user?: SlackUser };
+		return body.ok ? slackUserName(body.user) : null;
+	});
 
 const tail = (sessionId: string) =>
 	transcriptTail({ sessionId, root: hostPaths.projects }).catch(() => []);
@@ -155,7 +172,7 @@ export const hostPhoneRouter = t.router({
 				const card = session.card;
 				return {
 					paneId: session.paneId,
-					title: await titleOf(session),
+					title: await namedText(await titleOf(session), slackName),
 					source: card?.source ?? "other",
 					column: status,
 					contact: card?.contact ?? null,
@@ -194,14 +211,17 @@ export const hostPhoneRouter = t.router({
 	session: t.procedure.input(paneInput).query(async ({ input }) => {
 		const session = await sessionOrThrow(input.paneId);
 		// The laptop shrinks pasted images first; here they stay out.
-		const messages = (await tail(session.sessionId)).map(
-			({ images: _images, ...message }) => message,
+		const messages = await namedMessages(
+			(await tail(session.sessionId)).map(
+				({ images: _images, ...message }) => message,
+			),
+			slackName,
 		);
 		const { screen: fullScreen, status } = await statusOf(session);
 		const prompt = tailPrompt(session.sessionId);
 		const card = session.card;
 		return {
-			title: await titleOf(session),
+			title: await namedText(await titleOf(session), slackName),
 			status,
 			starred: starMarks().get(session.paneId) ?? card?.starred ?? false,
 			details: {
@@ -349,7 +369,7 @@ export const hostPhoneRouter = t.router({
 		markDone({
 			key: ran?.key ?? null,
 			sessionId: session.sessionId,
-			title: await titleOf(session),
+			title: await namedText(await titleOf(session), slackName),
 			at: Date.now(),
 		});
 		await tmux.run(["kill-session", "-t", session.tmux]).catch(() => "");
