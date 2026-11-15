@@ -3,6 +3,7 @@ import net from "node:net";
 import { join } from "node:path";
 import { BrowserWindow } from "electron";
 import { env } from "shared/env.shared";
+import { WebSocket, WebSocketServer } from "ws";
 import type { HostLogin } from "./ssh";
 import { vscodeHost } from "./vscode-bridge";
 
@@ -10,7 +11,8 @@ import { vscodeHost } from "./vscode-bridge";
  * A `!view <port> <password>` block: a VNC server a remote session started on
  * its host, on the host's localhost only, shown in the session drawer's View
  * tab by noVNC (HostScreenView). noVNC takes tight encoding with JPEG, far less
- * over the link than macOS Screen Sharing's lossless zlib. The tunnel is ssh
+ * over the link than macOS Screen Sharing's lossless zlib. noVNC talks to a
+ * WebSocket bridge here (wsBridge), never to the host's server directly. The tunnel is ssh
  * through the same bridge VS Code on the host uses, so it needs no open port;
  * it stays up for the next click and goes when the ssh dies.
  */
@@ -79,15 +81,59 @@ async function openTunnel(alias: string, port: number): Promise<number> {
 	);
 }
 
+/** WebSocket bridges by tunnel port: noVNC speaks WebSocket, the host's VNC server raw RFB. */
+const bridges = new Map<number, { port: number; server: WebSocketServer }>();
+
 /**
- * Opens (or reuses) the tunnel to the host's screen on `port` and returns its
- * local port, which the drawer's View tab hands noVNC.
+ * A WebSocket server on this computer that pipes each noVNC connection to the
+ * tunnel as raw RFB. The host's x11vnc only takes a WebSocket when its first
+ * bytes land within ~100ms of the connect, which the SSM tunnel often misses:
+ * then it drops the client as "not a valid RFB client: GET / HTTP/1".
+ */
+async function wsBridge(tunnel: number): Promise<number> {
+	const open = bridges.get(tunnel);
+	if (open) return open.port;
+	const port = await freePort();
+	const server = new WebSocketServer({ host: "127.0.0.1", port });
+	server.on("connection", (ws) => {
+		const tcp = net.connect(tunnel, "127.0.0.1");
+		tcp.setNoDelay(true);
+		tcp.on("data", (data) => {
+			if (ws.readyState === WebSocket.OPEN) ws.send(data);
+		});
+		ws.on("message", (data) => tcp.write(data as Buffer));
+		const end = () => {
+			tcp.destroy();
+			ws.close();
+		};
+		tcp.on("close", end);
+		tcp.on("error", end);
+		ws.on("close", end);
+		ws.on("error", end);
+	});
+	await new Promise<void>((resolve, reject) => {
+		server.once("listening", resolve);
+		server.once("error", reject);
+	});
+	bridges.set(tunnel, { port, server });
+	return port;
+}
+
+/**
+ * Opens (or reuses) the tunnel to the host's screen on `port` and returns the
+ * local WebSocket port in front of it, which the drawer's View tab hands noVNC.
  */
 export async function viewOnMac(
 	host: HostLogin & { name?: string | null },
 	port: number,
 ): Promise<number> {
-	return openTunnel(await vscodeHost(host), port);
+	const tunnel = await openTunnel(await vscodeHost(host), port);
+	for (const [old, bridge] of bridges)
+		if (old !== tunnel && ![...tunnels.values()].some((t) => t.local === old)) {
+			bridge.server.close();
+			bridges.delete(old);
+		}
+	return wsBridge(tunnel);
 }
 
 /** The viewer page, from the dev server or the built renderer, like the main window. */
