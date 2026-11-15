@@ -523,6 +523,25 @@ for (const [label, line] of [
 	});
 }
 
+await step("Esc closes New task from outside the text box", async () => {
+	await rail("Dev Board");
+	await click("button", "Add task");
+	// Focus on nothing, as after a click on the box itself: Esc used to need
+	// the text box focused.
+	const open = await page<boolean>(`(() => {
+		const dialog = document.querySelector('[role="dialog"][aria-label="New task"]');
+		document.activeElement?.blur();
+		document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
+		return !!dialog;
+	})()`);
+	if (!open) throw new Error("New task never opened");
+	await sleep(400);
+	const still = await page<boolean>(
+		`!!document.querySelector('[role="dialog"][aria-label="New task"]')`,
+	);
+	if (still) throw new Error("New task is still open after Esc");
+});
+
 const TASK = `Smoke task ${Date.now()}`;
 await step("a task written down lands in Tasks", async () => {
 	await rail("Dev Board");
