@@ -10,7 +10,10 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type { ActiveSession } from "shared/active-sessions";
-import { odinScreenStatus } from "shared/odin-screen-status";
+import {
+	backgroundAgentsOnScreen,
+	odinScreenStatus,
+} from "shared/odin-screen-status";
 import type { PaneStatus } from "shared/tabs-types";
 
 /**
@@ -248,7 +251,11 @@ export function hostStatus(
 ): PaneStatus {
 	if (!claude) return "idle";
 	const read = odinScreenStatus(screen);
-	if (read === "review") return last && last !== "working" ? last : "review";
+	if (read === "review") {
+		if (last && last !== "working") return last;
+		// At its prompt with background agents still out: not done yet.
+		return backgroundAgentsOnScreen(screen) ? "working" : "review";
+	}
 	return read ?? last ?? "idle";
 }
 

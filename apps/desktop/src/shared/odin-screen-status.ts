@@ -146,6 +146,26 @@ export function odinScreenStatus(screen: string): PaneStatus | undefined {
 }
 
 /**
+ * A row Claude draws under its input box for each background agent still
+ * running: "◯ general-purpose  Searching the docs… 3m 9s · ↓ 143.6k tokens".
+ * Its elapsed time and token count are what set it apart from the status line.
+ */
+const AGENT_ROW = /\d+[smh]\b.*·[ \t]*[↑↓][ \t]*[\d.,]+k?[ \t]*tokens/;
+
+/**
+ * Background agents are still running: Claude sits at its prompt with no
+ * spinner, but lists them under the input box. Only rows below the box count,
+ * so transcript text above it can't fake one.
+ */
+export function backgroundAgentsOnScreen(screen: string): boolean {
+	const lines = screen.split(/\r\n|\n|\r/).filter((line) => line.trim());
+	const rules = lines.flatMap((line, i) => (RULE.test(line) ? [i] : []));
+	const boxBottom = rules[rules.length - 1];
+	if (boxBottom === undefined || rules.length < 2) return false;
+	return lines.slice(boxBottom + 1).some((line) => AGENT_ROW.test(line));
+}
+
+/**
  * What to actually write after reading a screen, given what the agent hooks
  * last said. Screen-reading is a repair tool, not an authority, and the idle
  * prompt is the read it's least sure about: it says the turn is over and
@@ -160,13 +180,18 @@ export function odinScreenStatus(screen: string): PaneStatus | undefined {
  * Done existed. A dialog and a spinner are unambiguous and still overrule
  * whatever the hooks said.
  *
+ * Background agents still running (`agentsOut`) mean the turn isn't over
+ * either: the hooks' Working stands until they report back.
+ *
  * Returns undefined to leave the status alone.
  */
 export function odinScreenWrite(
 	read: PaneStatus | undefined,
 	current: PaneStatus | undefined,
+	agentsOut = false,
 ): PaneStatus | undefined {
 	if (read !== "review") return read;
+	if (agentsOut) return undefined;
 	return current === "working" ? "permission" : undefined;
 }
 
