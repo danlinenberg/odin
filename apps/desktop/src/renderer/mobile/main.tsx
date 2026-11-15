@@ -646,10 +646,16 @@ function Home() {
 		addEventListener(NEW_TASK_EVENT, open);
 		return () => removeEventListener(NEW_TASK_EVENT, open);
 	}, []);
-	const sessions = board.data?.sessions ?? [];
 	// Answered by the remote host: the Mac is away.
 	const away =
 		(board.data as { via?: { host: string } } | undefined)?.via ?? null;
+	// The host lists every profile's sessions: the phone shows the picked
+	// profile's, and the ones started on the host since, which have none.
+	const awayProfile = away && awayProfileId(localStorage);
+	const sessions = (board.data?.sessions ?? []).filter((row) => {
+		const profile = (row as { profile?: string | null }).profile;
+		return !awayProfile || !profile || profile === awayProfile;
+	});
 	if (board.data && !away) lastMacSessions = board.data.sessions;
 	// The Mac's last board is its own profile's: not another one picked here.
 	const onMacOnly =

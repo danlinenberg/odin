@@ -18,10 +18,12 @@ import {
 	hostPaths,
 	hostSessions,
 	hostStatus,
+	markStar,
 	ranRows,
 	readAway,
 	readScreen,
 	readSnapshot,
+	starMarks,
 	tmux,
 } from "./sessions";
 
@@ -130,6 +132,7 @@ export const hostPhoneRouter = t.router({
 	 * fetched itself (feeds.ts); else none: it lives on the laptop.
 	 */
 	board: t.procedure.query(async () => {
+		const stars = starMarks();
 		const sessions = await Promise.all(
 			(await hostSessions()).map(async (session) => {
 				const { status } = await statusOf(session);
@@ -144,9 +147,12 @@ export const hostPhoneRouter = t.router({
 					remote: card?.remote ?? hostName(),
 					connected: true,
 					repo: card?.repo ?? null,
-					starred: card?.starred ?? false,
+					starred: stars.get(session.paneId) ?? card?.starred ?? false,
 					statusAt: card?.statusAt ?? null,
 					night: card?.night,
+					// The laptop's profile it belongs to; null for one started
+					// here since, which every profile lists.
+					profile: card?.profile ?? null,
 				};
 			}),
 		);
@@ -181,7 +187,7 @@ export const hostPhoneRouter = t.router({
 		return {
 			title: await titleOf(session),
 			status,
-			starred: card?.starred ?? false,
+			starred: starMarks().get(session.paneId) ?? card?.starred ?? false,
 			details: {
 				contact: card?.contact ?? null,
 				source: card?.source ?? "other",
@@ -241,6 +247,18 @@ export const hostPhoneRouter = t.router({
 					code: "INTERNAL_SERVER_ERROR",
 					message: "The remote host couldn't type it in.",
 				});
+			return { via: { host: hostName() } };
+		}),
+
+	/**
+	 * A star with the Mac away: kept here, shown on this board, and put on
+	 * the Mac's board when it next syncs with this host.
+	 */
+	star: t.procedure
+		.input(paneInput.extend({ starred: z.boolean() }))
+		.mutation(async ({ input }) => {
+			const session = await sessionOrThrow(input.paneId);
+			markStar(session.paneId, input.starred);
 			return { via: { host: hostName() } };
 		}),
 

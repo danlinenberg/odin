@@ -1,5 +1,11 @@
 import { execFile } from "node:child_process";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import {
+	appendFileSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	statSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -30,8 +36,11 @@ export const hostPaths = {
 	},
 };
 
-/** A card as the laptop's board last showed it, with its Claude session. */
-export type SnapshotCard = ActiveSession & { sessionId: string };
+/** A card as the laptop's board last showed it, with its Claude session and its profile. */
+export type SnapshotCard = ActiveSession & {
+	sessionId: string;
+	profile?: string;
+};
 
 /** What the laptop sends: its remote cards on this host, and the host's name. */
 export type BoardSnapshot = { host?: string; sessions?: SnapshotCard[] };
@@ -44,6 +53,43 @@ export function readSnapshot(): BoardSnapshot {
 		return parsed && typeof parsed === "object" ? parsed : {};
 	} catch {
 		return {};
+	}
+}
+
+/**
+ * Stars the phone set or took off here with the laptop away, one JSON line
+ * each: the board here shows them, and the laptop puts them on its own board
+ * at its next sync and clears the file (remote-host/phone-host-sync).
+ */
+export const STARS_FILE = "stars.jsonl";
+
+export function markStar(paneId: string, starred: boolean): void {
+	mkdirSync(hostPaths.dir, { recursive: true, mode: 0o700 });
+	appendFileSync(
+		join(hostPaths.dir, STARS_FILE),
+		`${JSON.stringify({ paneId, starred, at: Date.now() })}\n`,
+		{ mode: 0o600 },
+	);
+}
+
+/** Each star line's session and what it was set to, in order: the last one for a session stands. */
+export function parseStars(text: string): Map<string, boolean> {
+	const stars = new Map<string, boolean>();
+	for (const line of text.split("\n")) {
+		try {
+			const mark = JSON.parse(line);
+			if (typeof mark.paneId === "string" && typeof mark.starred === "boolean")
+				stars.set(mark.paneId, mark.starred);
+		} catch {}
+	}
+	return stars;
+}
+
+export function starMarks(): Map<string, boolean> {
+	try {
+		return parseStars(readFileSync(join(hostPaths.dir, STARS_FILE), "utf8"));
+	} catch {
+		return new Map();
 	}
 }
 
