@@ -2882,6 +2882,16 @@ const dangerRan = new Set<string>();
 /** Sessions GSD Mode already told what it means, since it was last turned on. */
 const gsdBriefed = new Set<string>();
 
+/** Sessions whose Claude still thinks GSD Mode is on: your next message tells it otherwise. */
+const gsdEnded = new Set<string>();
+
+/** Your message, led by the news that GSD Mode went off when Claude hasn't heard it yet. */
+function withGsdOff(paneId: string, text: string): string {
+	return gsdEnded.delete(paneId)
+		? `GSD Mode is off: I'm here again. Stop deciding for me, and leave open action items and questions for me as usual.\n\n${text}`
+		: text;
+}
+
 /** How many times in a row GSD Mode hands a reply's action items back, per session. */
 const gsdPushes = new Map<string, number>();
 const GSD_PUSH_MAX = 3;
@@ -3798,7 +3808,7 @@ export function ChatView({
 	onResumeRef.current = onResumeWith;
 	const sendToClaude = useCallback(
 		(message: string) => {
-			const text = withDismissals(paneId, message);
+			const text = withGsdOff(paneId, withDismissals(paneId, message));
 			if (isMoving(paneId)) {
 				onSentRef.current(text, undefined, true).holdForMove(text);
 				return;
@@ -3912,6 +3922,37 @@ export function ChatView({
 		if (working) setDangerStep((now) => (now?.stopped ? null : now));
 	}, [working]);
 	const lastItemId = items.at(-1)?.id;
+	// Turned off, it stops right away: the turn Odin started is interrupted
+	// and the command it runs gets Ctrl+C. Only once Odin told Claude
+	// something - a turn of your own that it never touched runs on.
+	const onStopRef = useRef(onStop);
+	onStopRef.current = onStop;
+	const dangerStepRef = useRef(dangerStep);
+	dangerStepRef.current = dangerStep;
+	const wasDanger = useRef(danger);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the switch going off is the trigger
+	useEffect(() => {
+		const was = wasDanger.current;
+		wasDanger.current = danger;
+		if (danger) gsdEnded.delete(paneId);
+		if (!was || danger || !onShowTerminal) return;
+		const step = dangerStepRef.current;
+		const shell = useTabsStore.getState().panes[paneId]?.odinNamedShells?.local;
+		if (step && !step.stopped && shell)
+			void electronTrpcClient.terminal.write
+				.mutate({ paneId: shell, data: "\x03" })
+				.catch(() => {});
+		setDangerStep(null);
+		if (!gsdBriefed.has(paneId)) return;
+		gsdEnded.add(paneId);
+		if (onStopRef.current) onStopRef.current();
+		else
+			void interruptClaude(
+				write.mutateAsync,
+				electronTrpcClient.terminal.readScreen.query,
+				paneId,
+			);
+	}, [danger]);
 	useEffect(() => {
 		if (!danger) {
 			gsdBriefed.delete(paneId);
@@ -4113,6 +4154,8 @@ export function ChatView({
 			}
 			onShellDoneRef.current?.();
 			setDangerStep((now) => (now?.stopped ? now : null));
+			// Turned off during the last command: its output is not sent.
+			if (!useDangerMode.getState().on[paneId]) return;
 			sendToClaude(
 				[
 					...outputs,
@@ -5193,7 +5236,7 @@ function DangerModeToggle({ paneId }: { paneId: string }) {
 			aria-pressed={on}
 			title={
 				on
-					? "GSD (Get-Shit-Done) Mode is on: Claude makes the calls itself and Odin runs every command this session writes, without asking. Click to turn it off."
+					? "GSD (Get-Shit-Done) Mode is on: Claude makes the calls itself and Odin runs every command this session writes, without asking. Click to turn it off and stop Claude."
 					: "GSD (Get-Shit-Done) Mode: Claude stops waiting for you - Odin hands its open action items back to it, answers its questions and yes/no checks, and approves its plans - and Odin runs every command this session writes (Run, Run on my computer, Download) without asking, until you turn it off or the session ends. Only runs this session's commands on your computer, so use it on a session you trust."
 			}
 			onClick={() => useDangerMode.getState().toggle(paneId, !on)}
@@ -5390,7 +5433,7 @@ function Composer({
 			? command
 			: bash
 				? `!${body}`
-				: withDismissals(paneId, body);
+				: withGsdOff(paneId, withDismissals(paneId, body));
 		if (!command) {
 			if (bash) sentAsBash.add(body);
 			setDraft("");
