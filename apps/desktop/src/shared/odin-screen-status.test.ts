@@ -7,6 +7,7 @@ import {
 	escIsHandledOnScreen,
 	inputBoxEmpty,
 	inputBoxRows,
+	missedStart,
 	odinActivity,
 	odinScreenStatus,
 	odinScreenWrite,
@@ -169,6 +170,29 @@ describe("odinScreenStatus", () => {
 // straight to the pane, so every session that had been sitting at its prompt
 // for 20s was stamped Done - including the ones whose last message asked Dan a
 // question. Done filled up and Needs you emptied out.
+// A turn the phone started on the remote host while the Mac slept: its Start
+// hook never reached the Mac, so the open chat view drew a working Claude idle.
+describe("missedStart", () => {
+	it("marks an open session Working once two reads show the spinner", () => {
+		expect(missedStart("working", "review", true, 60_000)).toBe(true);
+		expect(missedStart("working", undefined, true, 60_000)).toBe(true);
+	});
+
+	it("waits for a second read to agree", () => {
+		expect(missedStart("working", "review", false, 60_000)).toBe(false);
+	});
+
+	it("leaves a turn the hooks just ended alone", () => {
+		expect(missedStart("working", "review", true, 2_000)).toBe(false);
+	});
+
+	it("has nothing to do for a card already Working, or a screen at its prompt", () => {
+		expect(missedStart("working", "working", true, 60_000)).toBe(false);
+		expect(missedStart("review", "review", true, 60_000)).toBe(false);
+		expect(missedStart(undefined, "review", true, 60_000)).toBe(false);
+	});
+});
+
 describe("odinScreenWrite", () => {
 	it("never promotes a card into Done off a screen read", () => {
 		expect(odinScreenWrite("review", "permission")).toBeUndefined();

@@ -170,6 +170,32 @@ export function odinScreenWrite(
 	return current === "working" ? "permission" : undefined;
 }
 
+/** How long the hooks must be quiet before the open session's screen may say Working. */
+export const MISSED_START_MS = 10_000;
+
+/**
+ * The open session's screen shows Claude mid-turn while its card says
+ * otherwise: the turn's Start hook never got here. A turn the phone started
+ * on the remote host with this computer asleep is one - the chat view drew
+ * it as idle, its queued replies hanging under a finished-looking answer,
+ * until the board's scan got to it minutes later. `seenBefore` is the read
+ * before this one: two must agree, and the hooks must have been quiet for
+ * MISSED_START_MS, so the spinner's last frame after a Stop doesn't count.
+ */
+export function missedStart(
+	read: PaneStatus | undefined,
+	current: PaneStatus | undefined,
+	seenBefore: boolean,
+	hookQuietMs: number,
+): boolean {
+	return (
+		read === "working" &&
+		current !== "working" &&
+		seenBefore &&
+		hookQuietMs >= MISSED_START_MS
+	);
+}
+
 /**
  * Is Claude still the thing running in this PTY?
  *
