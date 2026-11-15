@@ -23,6 +23,7 @@ function fakeIo(over: Partial<ReconnectIo<string>>) {
 		attach: async () => false,
 		pause: async () => false,
 		reboot: async () => {},
+		mayReboot: async () => true,
 		stuck: async (reason) => {
 			stuck.push(reason);
 			return "retry";
@@ -37,6 +38,36 @@ function fakeIo(over: Partial<ReconnectIo<string>>) {
 }
 
 describe("keepAttached", () => {
+	test("R to reboot is offered only to an AWS role that may reboot the host", async () => {
+		const offers = async (mayReboot: boolean) => {
+			let picks = 0;
+			const offered: boolean[] = [];
+			const { io, said } = fakeIo({
+				mayReboot: async () => mayReboot,
+				attach: async () => {
+					if (picks > 0) return false;
+					throw new Error("exit 1");
+				},
+				pause: async (_ms, offerReboot) => {
+					offered.push(offerReboot);
+					return false;
+				},
+				stuck: async (_reason, _tries, _retryInMs, may) => {
+					offered.push(may);
+					picks++;
+					return "retry";
+				},
+			});
+			await keepAttached(io, "i-0abc");
+			return {
+				offered: offered.some(Boolean),
+				said: said.some((line) => line.includes("press R to reboot")),
+			};
+		};
+		expect(await offers(true)).toEqual({ offered: true, said: true });
+		expect(await offers(false)).toEqual({ offered: false, said: false });
+	});
+
 	test("a host that is up but loses every attach stops after MAX_TRIES with the reason, instead of reconnecting forever", async () => {
 		let attaches = 0;
 		let picks = 0;

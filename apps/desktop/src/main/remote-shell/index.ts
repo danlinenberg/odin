@@ -15,7 +15,7 @@ import { EC2Client, RebootInstancesCommand } from "@aws-sdk/client-ec2";
 import { Client, type SFTPWrapper, utils } from "ssh2";
 import { HOST_LOAD_COMMAND, parseHostLoad } from "../../shared/host-load";
 import { ODIN_HOME_DIR } from "../lib/app-environment";
-import { setUpHost } from "../lib/remote-host/aws-instances";
+import { canRebootInstance, setUpHost } from "../lib/remote-host/aws-instances";
 import { hostPorts } from "../lib/remote-host/host-service";
 import { hostUpSince, markHostUp } from "../lib/remote-host/host-up";
 import {
@@ -703,7 +703,7 @@ const waitOrR = (ms: number, back: () => boolean, keys: boolean) =>
  * The key you pressed once the pane stopped reconnecting, "retry" once
  * `back()` says another pane got into the host, or "auto" when `ms` passed.
  */
-const stuckChoice = (ms: number, back: () => boolean) =>
+const stuckChoice = (ms: number, back: () => boolean, mayReboot: boolean) =>
 	new Promise<StuckChoice>((resolve) => {
 		const { stdin } = process;
 		const done = (pick: StuckChoice) => {
@@ -722,7 +722,7 @@ const stuckChoice = (ms: number, back: () => boolean) =>
 					? "retry"
 					: key[0] === 0x66 || key[0] === 0x46
 						? "fresh"
-						: key[0] === 0x72 || key[0] === 0x52
+						: mayReboot && (key[0] === 0x72 || key[0] === 0x52)
 							? "reboot"
 							: null;
 			if (pick) done(pick);
@@ -779,7 +779,8 @@ async function main(): Promise<void> {
 				// Its sessions restart there and resume; give it time to boot.
 				await new Promise((resolve) => setTimeout(resolve, 60_000));
 			},
-			stuck: (reason, tries, retryInMs) => {
+			mayReboot: () => canRebootInstance(target, spec.instanceId),
+			stuck: (reason, tries, retryInMs, mayReboot) => {
 				const at = new Date(Date.now() + retryInMs).toLocaleTimeString([], {
 					hour: "2-digit",
 					minute: "2-digit",
@@ -790,10 +791,10 @@ async function main(): Promise<void> {
 					),
 				);
 				process.stderr.write(
-					"  Press Enter to try again, F to start Claude over on the host (it resumes this conversation), or R to reboot the host.\r\n",
+					`  Press Enter to try again${mayReboot ? "," : " or"} F to start Claude over on the host (it resumes this conversation)${mayReboot ? ", or R to reboot the host" : ""}.\r\n`,
 				);
 				waitingSince = Date.now();
-				return stuckChoice(retryInMs, back);
+				return stuckChoice(retryInMs, back, mayReboot);
 			},
 			say,
 			fatal: (err) => err instanceof NoAccess,

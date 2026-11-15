@@ -59,6 +59,12 @@ With them, Use and the first session set up that user's own Linux user on the
 host. Nobody else has to do anything. A role without them gets a session that
 stops and says to ask an administrator for them.
 
+Odin offers to reboot a host that stopped taking logins (the board's Reboot,
+Reboot host in Settings > Remote, R in a stuck session) only to a role that
+also has `ec2:RebootInstances` on it. A reboot ends every user's sessions
+there, so on a host people share, give that one to its administrators only.
+Everyone else is told to ask an administrator.
+
 Each Linux user belongs to the Odin user who set it up first: Odin writes its
 ids (the GitHub login and the computer) to `~/.odin/owners` there. Another
 Odin user whose name maps to the same Linux user is refused at setup and at

@@ -250,6 +250,26 @@ export async function startInstance(
 	);
 }
 
+/**
+ * Whether this AWS role may reboot the instance: a dry run, nothing reboots.
+ * AWS answers DryRunOperation when it would have allowed it. Anything else
+ * (not allowed, signed out, no network) counts as no, so Odin offers Reboot
+ * only to a role that can use it - on a shared host, its administrators.
+ */
+export async function canRebootInstance(
+	target: Parameters<typeof awsClientConfig>[0],
+	id: string,
+): Promise<boolean> {
+	try {
+		await new EC2Client(awsClientConfig(target)).send(
+			new RebootInstancesCommand({ InstanceIds: [id], DryRun: true }),
+		);
+		return false;
+	} catch (err) {
+		return (err as { name?: string }).name === "DryRunOperation";
+	}
+}
+
 export async function rebootInstance(
 	target: AwsTarget,
 	id: string,

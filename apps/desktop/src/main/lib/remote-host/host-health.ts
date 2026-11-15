@@ -1,7 +1,7 @@
 import { SSMClient } from "@aws-sdk/client-ssm";
 import { awsSignInNeeded } from "shared/host-setup";
 import type { Client } from "ssh2";
-import { SSM_UNSEEN, ssmPing } from "./aws-instances";
+import { canRebootInstance, SSM_UNSEEN, ssmPing } from "./aws-instances";
 import { awsProfileFor } from "./aws-profile";
 import { HOST_SERVICE_PY } from "./host-service";
 import { SERVICE_CURRENT_SCRIPT } from "./host-tokens";
@@ -44,6 +44,8 @@ export interface HealthProbe {
 	awsSignedIn(): Promise<boolean>;
 	/** SSM's ping status for the instance, or null when SSM has never seen it. */
 	ssmStatus(): Promise<string | null>;
+	/** Whether this AWS role may reboot the host: only then is Reboot offered. */
+	canReboot(): Promise<boolean>;
 	/** Logs in as the host user and runs `command` there, `input` on its stdin. */
 	login(): Promise<{
 		run(command: string, input?: string): Promise<string>;
@@ -143,6 +145,11 @@ export async function checkHostHealth(
 		return done();
 	}
 	set("aws", "ok", `Signed in with the ${profile} profile.`);
+	// Asked only when a check wants a reboot: most checks never do.
+	const reboot = async () =>
+		(await probe.canReboot().catch(() => false))
+			? { how: "reboot it", fix: "reboot" as const }
+			: { how: "ask an administrator to reboot it", fix: undefined };
 
 	const ping = await probe.ssmStatus().catch(() => "error");
 	if (ping !== "Online") {
@@ -184,13 +191,16 @@ export async function checkHostHealth(
 				"ok",
 				`${host.user} may exist; the login did not get far enough to tell.`,
 			);
+			const { how, fix } = keyRefused(err)
+				? await reboot()
+				: { how: "", fix: undefined };
 			set(
 				"login",
 				"fail",
 				keyRefused(err)
-					? "The host refused Odin's one-time key. A host out of memory does this: reboot it. If it keeps happening, your user may be missing its setup."
+					? `The host refused Odin's one-time key. A host out of memory does this: ${how}. If it keeps happening, your user may be missing its setup.`
 					: `Could not log in: ${firstLine(err)}`,
-				keyRefused(err) ? "reboot" : undefined,
+				fix,
 			);
 		}
 		return done();
@@ -246,14 +256,15 @@ export async function checkHostHealth(
 			memMb < 500 ? `${memMb} MB memory free` : "",
 			diskGb < 2 ? `${diskGb} GB disk free` : "",
 		].filter(Boolean);
-		if (low.length)
+		if (low.length) {
+			const { how, fix } = await reboot();
 			set(
 				"room",
 				"warn",
-				`Only ${low.join(" and ")}: new sessions may stall. End sessions you're done with, or reboot the host.`,
-				"reboot",
+				`Only ${low.join(" and ")}: new sessions may stall. End sessions you're done with, or ${how}.`,
+				fix,
 			);
-		else set("room", "ok", `${memMb} MB memory and ${diskGb} GB disk free.`);
+		} else set("room", "ok", `${memMb} MB memory and ${diskGb} GB disk free.`);
 	} catch (err) {
 		set(
 			"tools",
@@ -292,6 +303,7 @@ export function hostProbe(host: HostLogin): HealthProbe {
 				() => true,
 				() => false,
 			),
+		canReboot: () => canRebootInstance(host, host.instanceId),
 		ssmStatus: async () =>
 			(await ssmPing(new SSMClient(config), [host.instanceId])).get(
 				host.instanceId,
