@@ -6,7 +6,9 @@ import { ODIN_HOME_DIR } from "../app-environment";
  * The remote host's phone server, as a phone paired with this computer
  * reaches it: the host's key, relay and name in a link with no code
  * (main/lib/phone/host/server.ts, `hostLink`). Odin reads it from the host at
- * each sync and hands it to its phones, so one QR code covers both.
+ * each sync and hands it to its phones, so one QR code covers both. Each
+ * profile has its own user on the host, so its own server and link: kept per
+ * profile, for the phone to switch between them with this computer away.
  */
 
 /** Where it is kept; a test points it at a temp file. */
@@ -15,25 +17,46 @@ export const hostLinkFile = {
 };
 
 type Saved = { instanceId: string; link: string };
+/** The last link read, as older Odins kept it, and each profile's own. */
+type SavedFile = Partial<Saved> & { profiles?: Record<string, Saved> };
 
-export function saveHostLink(instanceId: string, link: string): void {
-	const saved: Saved = { instanceId, link };
+function readSaved(): SavedFile {
+	try {
+		const saved = JSON.parse(readFileSync(hostLinkFile.path, "utf8"));
+		return saved && typeof saved === "object" ? saved : {};
+	} catch {
+		return {};
+	}
+}
+
+export function saveHostLink(
+	instanceId: string,
+	link: string,
+	profileId: string,
+): void {
+	const saved: SavedFile = {
+		instanceId,
+		link,
+		profiles: { ...readSaved().profiles, [profileId]: { instanceId, link } },
+	};
 	writeFileSync(hostLinkFile.path, JSON.stringify(saved), { mode: 0o600 });
 }
 
-/** The link for this host, or null when Odin hasn't read one from it yet. */
-export function hostLinkFor(instanceId: string | undefined): string | null {
+/**
+ * The link for this profile's host, or null when Odin hasn't read one from
+ * it yet. A file from before links were kept per profile has one link: it
+ * stands for any profile on that host until the next sync.
+ */
+export function hostLinkFor(
+	instanceId: string | undefined,
+	profileId: string,
+): string | null {
 	if (!instanceId) return null;
-	try {
-		const saved = JSON.parse(
-			readFileSync(hostLinkFile.path, "utf8"),
-		) as Partial<Saved>;
-		return saved.instanceId === instanceId &&
-			typeof saved.link === "string" &&
-			saved.link.startsWith("odin://pair?")
-			? saved.link
-			: null;
-	} catch {
-		return null;
-	}
+	const file = readSaved();
+	const saved = file.profiles ? file.profiles[profileId] : file;
+	return saved?.instanceId === instanceId &&
+		typeof saved.link === "string" &&
+		saved.link.startsWith("odin://pair?")
+		? saved.link
+		: null;
 }

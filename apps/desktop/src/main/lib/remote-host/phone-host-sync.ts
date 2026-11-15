@@ -8,7 +8,10 @@ import { phoneEnabled, phoneRelay } from "main/lib/phone/server";
 import { devices } from "main/lib/phone/trust";
 import { loadSessions } from "main/lib/tray";
 import type { Client } from "ssh2";
-import { readOdinConfig } from "../../../lib/trpc/routers/odin-config";
+import {
+	activeProfileId,
+	readOdinConfig,
+} from "../../../lib/trpc/routers/odin-config";
 import { hostOwners } from "./owner";
 import {
 	phoneHostInfoScript,
@@ -65,7 +68,7 @@ export async function sendPhoneHost(host: Host, client: Client): Promise<void> {
 	const link = (await runOnHost(client, phoneHostInfoScript)).trim();
 	if (!link.startsWith("odin://pair?"))
 		throw new Error("The remote host gave no link for the phone.");
-	saveHostLink(host.instanceId, link);
+	saveHostLink(host.instanceId, link, activeProfileId());
 }
 
 /** At each token push: the server kept current while phone access is on. */
