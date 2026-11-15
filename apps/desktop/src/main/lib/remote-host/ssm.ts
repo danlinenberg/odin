@@ -2,6 +2,7 @@ import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { Duplex } from "node:stream";
 import { promisify } from "node:util";
@@ -18,7 +19,12 @@ import {
 } from "@aws-sdk/client-ssm";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import { ODIN_HOME_DIR } from "../app-environment";
-import { awsProfileFor, localProfileRegion } from "./aws-profile";
+import {
+	awsProfileFor,
+	localAwsConfig,
+	localProfileRegion,
+	profileSetting,
+} from "./aws-profile";
 
 /**
  * SSH to an EC2 instance through AWS Systems Manager: no open port, no public
@@ -80,11 +86,79 @@ export function awsClientConfig(target: {
 		// ignoreCache: the SDK keeps ~/.aws/config in memory for the life of
 		// the process, so a profile changed after Odin started kept failing
 		// on its old settings until Odin was restarted.
-		credentials: fromNodeProviderChain({
-			...(profile && { profile }),
-			ignoreCache: true,
-		}),
+		credentials: withCliCacheFallback(
+			fromNodeProviderChain({
+				...(profile && { profile }),
+				ignoreCache: true,
+			}),
+			profile ?? process.env.AWS_PROFILE ?? "default",
+		),
 	};
+}
+
+type Credentials = Awaited<
+	ReturnType<ReturnType<typeof fromNodeProviderChain>>
+>;
+
+/**
+ * When AWS's SSO portal is down (it answers 503 or an HTML page), the SDK
+ * cannot swap the sign-in for role keys, while the aws CLI still works off
+ * the keys it cached in ~/.aws/cli/cache. Odin falls back to those same keys
+ * until they run out, so a session reconnects through a portal outage.
+ */
+function withCliCacheFallback(
+	chain: () => Promise<Credentials>,
+	profile: string,
+): () => Promise<Credentials> {
+	return () =>
+		chain().catch((err: unknown) => {
+			const cached = cliCachedCredentials(localAwsConfig(), profile);
+			if (cached) return cached;
+			throw err;
+		});
+}
+
+/**
+ * The aws CLI's cached SSO role keys for `profile`, if they last another
+ * minute. The file name is botocore's: sha1 of the role, account and SSO
+ * session (or start URL, for a profile without a session).
+ */
+export function cliCachedCredentials(
+	config: string,
+	profile: string,
+	cacheDir = path.join(os.homedir(), ".aws", "cli", "cache"),
+	now = Date.now(),
+): Credentials | undefined {
+	const setting = (key: string) => profileSetting(config, profile, key);
+	const accountId = setting("sso_account_id");
+	const roleName = setting("sso_role_name");
+	const session = setting("sso_session");
+	const startUrl = setting("sso_start_url");
+	if (!accountId || !roleName || !(session || startUrl)) return undefined;
+	// Keys in sorted order, no spaces: Python's json.dumps(sort_keys=True).
+	const key = JSON.stringify(
+		session
+			? { accountId, roleName, sessionName: session }
+			: { accountId, roleName, startUrl },
+	);
+	try {
+		const file = path.join(
+			cacheDir,
+			`${createHash("sha1").update(key).digest("hex")}.json`,
+		);
+		const c = JSON.parse(fs.readFileSync(file, "utf8")).Credentials;
+		const expiration = new Date(c?.Expiration);
+		if (!c?.AccessKeyId || !(expiration.getTime() > now + 60_000))
+			return undefined;
+		return {
+			accessKeyId: c.AccessKeyId,
+			secretAccessKey: c.SecretAccessKey,
+			sessionToken: c.SessionToken,
+			expiration,
+		};
+	} catch {
+		return undefined;
+	}
 }
 
 export function pluginBuild(platform: string, arch: string) {

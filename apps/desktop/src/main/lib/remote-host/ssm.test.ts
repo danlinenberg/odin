@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
 	accessDenied,
 	awsAnsweredHtml,
+	cliCachedCredentials,
 	keyInvalid,
 	keyRefused,
 	pluginArgs,
@@ -110,5 +114,38 @@ describe("ssm", () => {
 		expect(() => pluginBuild("linux", "arm64")).toThrow(
 			"not available on linux arm64",
 		);
+	});
+});
+
+describe("cliCachedCredentials", () => {
+	const config =
+		"[profile dev]\nsso_session = imagen\nsso_account_id = 919110890396\nsso_role_name = AdministratorAccess\n";
+	// The file name the aws CLI wrote for this profile (botocore's sha1).
+	const file = "02d1523726360fe50cce8237d59f13c5e2859eeb.json";
+	const now = Date.parse("2026-11-15T12:00:00Z");
+
+	test("reads the aws CLI's cached role keys until they run out", () => {
+		const dir = mkdtempSync(join(tmpdir(), "cli-cache-"));
+		const write = (expiration: string) =>
+			writeFileSync(
+				join(dir, file),
+				JSON.stringify({
+					ProviderType: "sso",
+					Credentials: {
+						AccessKeyId: "AKIA",
+						SecretAccessKey: "s",
+						SessionToken: "t",
+						Expiration: expiration,
+					},
+				}),
+			);
+		write("2026-11-15T20:00:00Z");
+		expect(cliCachedCredentials(config, "dev", dir, now)?.accessKeyId).toBe(
+			"AKIA",
+		);
+		write("2026-11-15T12:00:30Z");
+		expect(cliCachedCredentials(config, "dev", dir, now)).toBeUndefined();
+		expect(cliCachedCredentials(config, "other", dir, now)).toBeUndefined();
+		rmSync(dir, { recursive: true });
 	});
 });

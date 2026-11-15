@@ -69,10 +69,11 @@ export function fallbackAwsProfile(
 export const awsProfileFor = (picked?: string | null): string | undefined =>
 	picked || fallbackAwsProfile();
 
-/** The region a profile's section in the AWS config sets, if any. */
-export function profileRegion(
+/** A setting from a profile's section in the AWS config, if set. */
+export function profileSetting(
 	config: string,
 	profile: string,
+	key: string,
 ): string | undefined {
 	const header = profile === "default" ? "default" : `profile ${profile}`;
 	let inside = false;
@@ -83,17 +84,20 @@ export function profileRegion(
 			inside = section[1].replace(/\s+/g, " ") === header;
 			continue;
 		}
-		const region = inside && line.match(/^region\s*=\s*(\S+)$/);
-		if (region) return region[1];
+		const value = inside && line.match(/^([\w-]+)\s*=\s*(\S+)$/);
+		if (value && value[1] === key) return value[2];
 	}
 	return undefined;
 }
 
+/** The region a profile's section in the AWS config sets, if any. */
+export const profileRegion = (config: string, profile: string) =>
+	profileSetting(config, profile, "region");
+
+export const localAwsConfig = (home = os.homedir()) =>
+	readAwsFile(process.env.AWS_CONFIG_FILE, "config", home);
+
 export const localProfileRegion = (
 	profile: string,
 	home = os.homedir(),
-): string | undefined =>
-	profileRegion(
-		readAwsFile(process.env.AWS_CONFIG_FILE, "config", home),
-		profile,
-	);
+): string | undefined => profileRegion(localAwsConfig(home), profile);
