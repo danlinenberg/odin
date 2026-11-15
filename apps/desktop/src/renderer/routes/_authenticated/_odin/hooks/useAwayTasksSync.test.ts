@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { doneChecker } from "renderer/stores/done-check";
-import { hostDone } from "./useAwayTasksSync";
+import { hostDone, wokeUp } from "./useAwayTasksSync";
 
 describe("hostDone", () => {
 	it("hides rows a session took here, even after a newer mention", () => {
@@ -27,5 +27,12 @@ describe("hostDone", () => {
 			at: 5,
 			url: "u",
 		});
+	});
+});
+
+describe("wokeUp", () => {
+	it("reads a long gap between ticks as the Mac back from sleep, not a late tick", () => {
+		expect(wokeUp(0, 65_000)).toBe(false);
+		expect(wokeUp(0, 10 * 60_000)).toBe(true);
 	});
 });
