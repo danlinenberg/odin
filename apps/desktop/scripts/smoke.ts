@@ -1215,6 +1215,28 @@ await step(
 			.find((c) => c.textContent.includes(${JSON.stringify(SESSION)}))
 			?.click()`);
 		await waitForText("the export is ready.", true, 30_000);
+		// GSD Mode is an experiment: no switch until Settings > Advanced turns it on.
+		if (await page<boolean>(`!!__find("button", "GSD (Get-Shit-Done) Mode")`))
+			throw new Error("GSD Mode switch shown while the setting is off");
+		await page(
+			`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
+		);
+		await rail("Settings");
+		await click("a", "Advanced");
+		await waitForText("adds the gsd mode switch");
+		const gsdSwitch = await page<string | null>(`(() => {
+			const e = document.getElementById("gsd-mode");
+			e?.click();
+			return e?.getAttribute("aria-checked") ?? null;
+		})()`);
+		if (!gsdSwitch)
+			throw new Error("no GSD Mode switch in Settings > Advanced");
+		await click("a", "Back");
+		await rail("Dev Board");
+		await page(`[...document.querySelectorAll('[role="button"][draggable="true"]')]
+			.find((c) => c.textContent.includes(${JSON.stringify(SESSION)}))
+			?.click()`);
+		await waitForText("the export is ready.", true, 30_000);
 		// The switch shows once the board has read the session as live.
 		await waitForText("gsd mode", true, 30_000);
 		await click("button", "GSD (Get-Shit-Done) Mode");

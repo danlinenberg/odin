@@ -7,6 +7,7 @@ import { ClaudeCommandPicker } from "renderer/components/ClaudeCommandPicker";
 import { DEFAULT_SESSION_INSTRUCTIONS } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useClaudeCommand } from "renderer/stores/claude-command";
+import { useGsdModeEnabled } from "renderer/stores/gsd-mode-enabled";
 import { useInboxViewStore } from "renderer/stores/inbox-view";
 import { useSessionInstructions } from "renderer/stores/session-instructions";
 import {
@@ -48,8 +49,24 @@ function AdvancedSettingsPage() {
 				description="Early features, off until you turn them on."
 			>
 				<InboxViewRow />
+				<GsdModeRow />
 			</SettingsSection>
 		</SettingsPage>
+	);
+}
+
+/** GSD Mode: off by default, no switch under the reply box until it is on. */
+function GsdModeRow() {
+	const enabled = useGsdModeEnabled((s) => s.enabled);
+	const setEnabled = useGsdModeEnabled((s) => s.setEnabled);
+	return (
+		<SettingRow
+			label="GSD Mode"
+			htmlFor="gsd-mode"
+			description="Adds the GSD Mode switch under a session's reply box, and its limits to Settings > Sessions. Turning it off ends GSD Mode in every session."
+		>
+			<Switch id="gsd-mode" checked={enabled} onCheckedChange={setEnabled} />
+		</SettingRow>
 	);
 }
 
