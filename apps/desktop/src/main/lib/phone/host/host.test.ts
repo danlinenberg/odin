@@ -17,7 +17,7 @@ import {
 	websocketPipe,
 } from "@odin/channel";
 import { startRelay } from "@odin/relay";
-import { shell } from "./router";
+import { hostPhoneRouter, shell } from "./router";
 import { hostFiles, hostLink, pairingLink, startHostServer } from "./server";
 import {
 	hostPaths,
@@ -353,4 +353,16 @@ test("the last star line for a session stands; a broken line is skipped", () => 
 		["a", false],
 		["b", true],
 	]);
+});
+
+test("a session the phone started here is named after its task, not its opening instructions", async () => {
+	mkdirSync(join(home, ".odin", "night"), { recursive: true });
+	writeFileSync(
+		join(home, ".odin", "night", "ran.jsonl"),
+		`${JSON.stringify({ key: "task:1", sessionId: OTHER, title: "Ship the invoice export", away: true })}\n`,
+	);
+	const board = await hostPhoneRouter.createCaller({}).board();
+	expect(board.sessions.find((s) => s.paneId === OTHER)?.title).toBe(
+		"Ship the invoice export",
+	);
 });

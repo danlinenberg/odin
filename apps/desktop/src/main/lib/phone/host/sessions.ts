@@ -281,7 +281,11 @@ export function readAway(now = Date.now()): AwayList | null {
 }
 
 /** What the runner started here (its ledger). */
-export function ranRows(): { key: string; sessionId: string }[] {
+export function ranRows(): {
+	key: string;
+	sessionId: string;
+	title?: string;
+}[] {
 	try {
 		return readFileSync(join(hostPaths.odin, "night", "ran.jsonl"), "utf8")
 			.split("\n")
