@@ -42,8 +42,11 @@ import {
 import {
 	AWAY_DAYS,
 	awayInbox,
+	claimScheduledRun,
 	clearAwayTasks,
+	type HostSchedule,
 	pushAwayTasks,
+	pushSchedules,
 } from "main/lib/remote-host/away";
 import {
 	bringUpHost,
@@ -334,10 +337,14 @@ async function readyTasks(
  * task's text in place of NIGHT_TASK_PLACEHOLDER in `prompt`, base64 where
  * NIGHT_PROMPT_B64_PLACEHOLDER stands in the script.
  */
-async function sessionTemplate(host: RemoteHost, prompt: string) {
+async function sessionTemplate(
+	host: RemoteHost,
+	prompt: string,
+	repoPath: string | null = null,
+) {
 	const spec = await buildSessionSpec(host, {
 		pane: NIGHT_PANE_PLACEHOLDER,
-		repoPath: null,
+		repoPath,
 		claudeArgs: `--session-id ${NIGHT_PANE_PLACEHOLDER}`,
 		prompt,
 	});
@@ -1842,6 +1849,58 @@ export const createRemoteHostRouter = () =>
 				return { sent: tasks.length };
 			}),
 		/**
+		 * Automations on the host with this computer away (Tasks with the Mac
+		 * closed): each one's session, planned here as its launch would be,
+		 * goes as a template the host's runner starts a run in when this
+		 * computer didn't take it (main/lib/remote-host/away pushSchedules).
+		 */
+		schedulesPush: publicProcedure
+			.input(
+				z.object({
+					schedules: z
+						.array(plannedTask.extend({ at: z.array(z.number()).max(1000) }))
+						.max(50),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host?.on || !host.awayTasks)
+					throw new Error("Tasks with the Mac closed is off.");
+				const files: { local: string; remote: string }[] = [];
+				const schedules: HostSchedule[] = [];
+				for (const run of input.schedules) {
+					// The plan's own session id stands where the host puts a fresh one.
+					const prompt = run.prompt
+						.replaceAll(run.sessionId, NIGHT_PANE_PLACEHOLDER)
+						.replaceAll(
+							run.sessionId.slice(0, 8),
+							NIGHT_PANE_PLACEHOLDER.slice(0, 8),
+						);
+					const template = await sessionTemplate(host, prompt, run.repoPath);
+					files.push(...template.files);
+					schedules.push({
+						key: run.key,
+						title: run.title,
+						script: template.script,
+						prompt: template.prompt,
+						at: run.at,
+					});
+				}
+				await pushSchedules(host, schedules, await sessionSecrets(), files);
+				return { sent: schedules.length };
+			}),
+		/**
+		 * Takes an automation's run on the host before this computer starts it:
+		 * false when the host already started that run while this computer slept.
+		 */
+		claimRun: publicProcedure
+			.input(z.object({ key: z.string().min(1).max(500) }))
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host?.on || !host.awayTasks) return { taken: true };
+				return { taken: await claimScheduledRun(host, input.key) };
+			}),
+		/**
 		 * What the phone typed and marked Done on the host with this computer
 		 * away; with `before`, what this computer already took in is dropped.
 		 */
@@ -1870,7 +1929,13 @@ export const createRemoteHostRouter = () =>
 		nightStarted: publicProcedure.query(async () => {
 			const host = readOdinConfig().remoteHost;
 			if (!host?.on)
-				return { started: [], planFrom: null, planUntil: null, missed: [] };
+				return {
+					started: [],
+					planFrom: null,
+					planUntil: null,
+					missed: [],
+					scheduled: [],
+				};
 			const read = await readNightStarted(host);
 			// A message the host picked keeps Slack's raw text (<@U123>): names here,
 			// since the card is titled from it.

@@ -21,6 +21,7 @@
  */
 import { NIGHT_TASK_PLACEHOLDER } from "shared/away-tasks";
 import { MIN_HOST_FREE_MEMORY_SHARE } from "shared/launch-gate";
+import type { Client } from "ssh2";
 import { sh } from "./session";
 import { adminLogin, connectHost, type HostLogin, runOnHost } from "./ssh";
 
@@ -87,6 +88,19 @@ export interface NightStarted {
 	away?: boolean;
 }
 
+/** An automation's run the host's runner started with this computer away (away.ts pushSchedules). */
+export interface ScheduledRun {
+	/** auto:<automation id>:<run time>. */
+	key: string;
+	/** The automation's id. */
+	schedule: string;
+	/** The run time it was due at, epoch seconds. */
+	slot: number;
+	title: string;
+	sessionId: string;
+	at: number;
+}
+
 export const NIGHT_RUNNER_PY = `import base64, json, os, re, shutil, subprocess, tempfile, time, urllib.parse, urllib.request, uuid
 
 HOME = os.path.expanduser("~/.odin/night")
@@ -96,6 +110,13 @@ MISSED, LEDGER = HOME + "/missed.json", HOME + "/ran.jsonl"
 AWAY = HOME + "/away.json"
 BOARD = HOME + "/board.json"
 ADDED = HOME + "/added.jsonl"
+# Automations the laptop handed over (schedules.json), and who took each run.
+SCHEDULES = HOME + "/schedules.json"
+SCHEDULED = HOME + "/scheduled.jsonl"
+# A run waits this long for the laptop, which checks twice a minute, to take it first.
+CLAIM_WAIT = 90
+# A run this late is skipped, as the laptop skips one that came due while Odin was shut.
+LATE = 600
 DAY = 86400
 PANE = "${NIGHT_PANE_PLACEHOLDER}"
 PROMPT_B64 = "${NIGHT_PROMPT_B64_PLACEHOLDER}"
@@ -373,13 +394,80 @@ def main():
 
 def launch(task, row):
     """Starts a task's session in tmux. In the ledger before the start: a crash between the two never starts it twice."""
+    record(row)
+    start_session(task["script"], task["sessionId"])
+
+
+def start_session(script, session):
     secrets = tempfile.mkdtemp(prefix="odin.", dir="/dev/shm")
     shutil.copyfile(HOME + "/env", secrets + "/env")
     os.chmod(secrets + "/env", 0o600)
     with open(secrets + "/run.sh", "w") as f:
-        f.write(task["script"].replace("${SECRETS_DIR_PLACEHOLDER}", secrets))
-    record(row)
-    subprocess.run(["tmux", "new-session", "-d", "-s", session_name(task["sessionId"]), "bash " + secrets + "/run.sh"], check=True)
+        f.write(script.replace("${SECRETS_DIR_PLACEHOLDER}", secrets))
+    subprocess.run(["tmux", "new-session", "-d", "-s", session_name(session), "bash " + secrets + "/run.sh"], check=True)
+
+
+def take(row):
+    """
+    Puts a run in the schedule ledger unless that run (its key: the automation
+    and its minute) is there already. True when this caller took it. The
+    laptop takes a run here before it starts one, so a run starts once.
+    """
+    import fcntl
+    os.makedirs(HOME, exist_ok=True)
+    with open(SCHEDULED + ".lock", "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        rows = jsonl(SCHEDULED)
+        if any(r.get("key") == row["key"] for r in rows):
+            return False
+        rows = (rows + [row])[-2000:]
+        with open(SCHEDULED + ".new", "w") as f:
+            f.write("".join(json.dumps(r) + chr(10) for r in rows))
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(SCHEDULED + ".new", SCHEDULED)
+        return True
+
+
+def run_key(schedule, slot):
+    return "auto:%s:%d" % (schedule, slot)
+
+
+def run_schedules(now=None):
+    """
+    Starts an automation's run the laptop didn't take (asleep or shut): each
+    one's latest run time that is at least CLAIM_WAIT old and under LATE, in
+    the session the laptop built for it, a fresh id in place of the placeholder.
+    """
+    now = now or time.time()
+    data = load(SCHEDULES, None)
+    if not isinstance(data, dict) or now >= data.get("until", 0):
+        return
+    for s in data.get("schedules", []):
+        due = [a for a in s.get("at", []) if a + CLAIM_WAIT <= now < a + LATE]
+        if not due:
+            continue
+        slot = max(due)
+        key = run_key(s["key"], slot)
+        if any(r.get("key") == key for r in jsonl(SCHEDULED)):
+            continue
+        reason = hold_reason(read("/proc/meminfo"), read("/proc/loadavg"), os.cpu_count())
+        if reason:
+            print("holding " + s["title"] + ": this host " + reason)
+            return
+        sid = str(uuid.uuid4())
+        if not take({"key": key, "schedule": s["key"], "slot": slot, "title": s["title"], "sessionId": sid, "at": now}):
+            continue
+        prompt = s["prompt"].replace(PANE, sid).replace(PANE[:8], sid[:8])
+        script = (s["script"].replace(PROMPT_B64, base64.b64encode(prompt.encode()).decode())
+                  .replace(PANE, sid).replace(PANE[:8], sid[:8]))
+        start_session(script, sid)
+
+
+def claim(key, now=None):
+    """The laptop's run of an automation: prints taken, or already when the host started it."""
+    print("taken" if take({"key": key, "at": now or time.time(), "claimed": True}) else "already")
+    return 0
 
 
 def jsonl(path):
@@ -451,6 +539,12 @@ if __name__ == "__main__":
     import sys
     if len(sys.argv) == 3 and sys.argv[1] == "start":
         sys.exit(start_away(sys.argv[2]))
+    if len(sys.argv) == 3 and sys.argv[1] == "claim":
+        sys.exit(claim(sys.argv[2]))
+    try:
+        run_schedules()
+    except Exception as e:
+        print("automations: %s" % e)
     main()
 `;
 
@@ -494,6 +588,34 @@ export function nightInstallScript(user: string): string {
 }
 
 /**
+ * Installs this user's runner and its every-minute timer when the host has
+ * none, or has an older runner. Root's part goes through an administrator's
+ * AWS sign-in. The Night Agent and automations (away.ts) both need it.
+ */
+export async function ensureNightRunner(
+	client: Client,
+	host: HostLogin,
+): Promise<void> {
+	const installed = await runOnHost(
+		client,
+		`[ -f ${nightUnit(host.user)}.timer ] && cmp -s /usr/local/lib/odin/night-runner.py - && echo yes; true`,
+		NIGHT_RUNNER_PY,
+	);
+	if (installed === "yes") return;
+	try {
+		const admin = await connectHost(adminLogin(host));
+		await runOnHost(
+			admin,
+			`sudo -n bash -c ${sh(nightInstallScript(host.user))}`,
+		).finally(() => admin.end());
+	} catch (error) {
+		throw new Error(
+			`The night runner isn't installed on the host for ${host.user}, and installing it needs ssm:SendCommand on the host. Your AWS role needs the permissions in docs/remote-host.md (Who can use a host); ask an administrator to add them. (${error instanceof Error ? error.message : String(error)})`,
+		);
+	}
+}
+
+/**
  * Sends tonight's plan and the secrets its sessions start with. Installs the
  * runner when the host has none. Plan and secrets are the login user's files,
  * mode 0600, written over SSH stdin.
@@ -506,25 +628,7 @@ export async function pushNightPlan(
 ): Promise<void> {
 	const client = await connectHost(host);
 	try {
-		const installed = await runOnHost(
-			client,
-			`[ -f ${nightUnit(host.user)}.timer ] && cmp -s /usr/local/lib/odin/night-runner.py - && echo yes; true`,
-			NIGHT_RUNNER_PY,
-		);
-		if (installed !== "yes") {
-			// Root's work, which only an administrator's AWS sign-in may do.
-			try {
-				const admin = await connectHost(adminLogin(host));
-				await runOnHost(
-					admin,
-					`sudo -n bash -c ${sh(nightInstallScript(host.user))}`,
-				).finally(() => admin.end());
-			} catch (error) {
-				throw new Error(
-					`The night runner isn't installed on the host for ${host.user}, and installing it needs ssm:SendCommand on the host. Your AWS role needs the permissions in docs/remote-host.md (Who can use a host); ask an administrator to add them. (${error instanceof Error ? error.message : String(error)})`,
-				);
-			}
-		}
+		await ensureNightRunner(client, host);
 		const write = (path: string) =>
 			`umask 077; mkdir -p ~/.odin/night/stopped && cat > ~/.odin/night/${path}.new && mv ~/.odin/night/${path}.new ~/.odin/night/${path}`;
 		await runOnHost(client, write("env"), secrets);
@@ -554,6 +658,7 @@ export async function readNightStarted(host: HostLogin): Promise<{
 	planFrom: number | null;
 	planUntil: number | null;
 	missed: NightMissed[];
+	scheduled: ScheduledRun[];
 }> {
 	const client = await connectHost(host);
 	try {
@@ -586,9 +691,23 @@ def ran():
         state = load("state.json", {})
         rows = state.get("started") or [r for n in state.get("nights", {}).values() for r in n.get("started", [])]
     return rows[-200:]
+def scheduled():
+    rows = []
+    try:
+        with open(home + "/scheduled.jsonl") as f:
+            for line in f:
+                try:
+                    row = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(row, dict) and row.get("sessionId"):
+                    rows.append(row)
+    except OSError:
+        pass
+    return rows[-100:]
 plan = load("plan.json", None)
 plan = plan if isinstance(plan, dict) else {}
-print(json.dumps({"started": ran(), "planFrom": plan.get("from"), "planUntil": plan.get("until", plan.get("to")), "missed": load("missed.json", [])}))
+print(json.dumps({"started": ran(), "planFrom": plan.get("from"), "planUntil": plan.get("until", plan.get("to")), "missed": load("missed.json", []), "scheduled": scheduled()}))
 `;
 
 /** Stops a host's nights: the plan goes, the ledger stays. For a host this computer no longer sends plans to. */
@@ -607,17 +726,20 @@ export function parseNightRead(raw: string): {
 	/** When the host's plan ends: its last night's end. */
 	planUntil: number | null;
 	missed: NightMissed[];
+	scheduled: ScheduledRun[];
 } {
 	const read = JSON.parse(raw || "{}") as {
 		started?: NightStarted[];
 		planFrom?: number | null;
 		planUntil?: number | null;
 		missed?: NightMissed[];
+		scheduled?: ScheduledRun[];
 	};
 	return {
 		started: read.started ?? [],
 		planFrom: read.planFrom ?? null,
 		planUntil: read.planUntil ?? null,
 		missed: read.missed ?? [],
+		scheduled: read.scheduled ?? [],
 	};
 }

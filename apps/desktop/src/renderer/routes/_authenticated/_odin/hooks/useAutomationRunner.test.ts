@@ -1,7 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { buildPrompt } from "renderer/hooks/useLaunchTaskSession";
 import type { Pane } from "shared/tabs-types";
-import { automationRun, dueAutomations } from "./useAutomationRunner";
+import {
+	adoptableRun,
+	automationRun,
+	dueAutomations,
+	hostAutomations,
+	runKey,
+	upcomingRuns,
+} from "./useAutomationRunner";
 import type { OdinTask } from "./useOdinTasks";
 
 const task = (over: Partial<OdinTask>): OdinTask => ({
@@ -96,5 +103,57 @@ describe("automationRun", () => {
 		expect(prompt).not.toContain("Other");
 		expect(prompt).toContain("drop #codex-review from its tags");
 		expect(run?.brief).toContain("- Ship it - paneId p1");
+	});
+});
+
+describe("automations on the remote host", () => {
+	test("the host gets the scheduled, running, untagged ones not kept on this Mac", () => {
+		const rows = [
+			task({ id: "ok", cron: "0 9 * * *" }),
+			task({ id: "plain" }),
+			task({ id: "paused", cron: "0 9 * * *", paused: true }),
+			task({ id: "here", cron: "0 9 * * *", here: true }),
+			task({ id: "tagged", cron: "0 9 * * *", tags: ["review"] }),
+			task({ id: "bad", cron: "nope" }),
+		];
+		expect(hostAutomations(rows).map((t) => t.id)).toEqual(["ok"]);
+	});
+
+	test("run times cover the days ahead, on the minute, capped", () => {
+		const from = at("2026-09-20T08:30:20");
+		const runs = upcomingRuns("0 9 * * *", from, 3);
+		expect(runs.map((s) => new Date(s * 1000).toString())).toEqual([
+			at("2026-09-20T09:00").toString(),
+			at("2026-09-21T09:00").toString(),
+			at("2026-09-22T09:00").toString(),
+		]);
+		expect(upcomingRuns("*/15 * * * *", from, 3, 5)).toHaveLength(5);
+	});
+
+	test("a run goes by its automation and its minute, as the host keys it", () => {
+		expect(runKey("a", at("2026-09-20T09:00").getTime())).toBe(
+			`auto:a:${at("2026-09-20T09:00").getTime() / 1000}`,
+		);
+	});
+
+	test("a host run is taken in once, only when newer than the last run here", () => {
+		const slot = at("2026-09-20T09:00").getTime() / 1000;
+		const run = { schedule: "a", slot, sessionId: "s1", at: slot + 100 };
+		const now = (slot + 200) * 1000;
+		const rows = [task({ cron: "0 9 * * *" })];
+		expect(adoptableRun(run, rows, new Set(), now)?.id).toBe("a");
+		expect(adoptableRun(run, rows, new Set(["s1"]), now)).toBeNull();
+		expect(
+			adoptableRun(
+				run,
+				[task({ cron: "0 9 * * *", lastRunAt: slot * 1000 })],
+				new Set(),
+				now,
+			),
+		).toBeNull();
+		expect(
+			adoptableRun({ ...run, schedule: "gone" }, rows, new Set(), now),
+		).toBeNull();
+		expect(adoptableRun(run, rows, new Set(), now + 5 * 86_400_000)).toBeNull();
 	});
 });
