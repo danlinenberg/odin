@@ -214,7 +214,33 @@ test("a paired phone lists the host's sessions, reads one, and replies", async (
 	expect(script).toContain(Buffer.from("two\nlines").toString("base64"));
 	expect(script).toMatch(/send-keys -t 'odin-[^']+' Enter/);
 
-	// Files go through the laptop: refused here, nothing typed.
+	// A photo from the phone is kept here, 0600, and a reply names it above the text.
+	const sent = await channel.request({
+		method: "POST",
+		path: "/upload?ext=png",
+		headers: { "content-type": "image/png" },
+		body: new Uint8Array([1, 2, 3]),
+	});
+	expect(sent.status).toBe(200);
+	const photo = decode(sent.body).path as string;
+	expect(photo.startsWith(join(home, ".odin", "attachments"))).toBe(true);
+	expect(statSync(photo).mode & 0o777).toBe(0o600);
+	const withPhoto = await channel.request({
+		method: "POST",
+		path: "/trpc/reply",
+		headers: { "content-type": "application/json" },
+		body: new TextEncoder().encode(
+			JSON.stringify({
+				json: { paneId: "pane-abc", text: "see", paths: [photo] },
+			}),
+		),
+	});
+	expect(withPhoto.status).toBe(200);
+	expect(typed.at(-1)).toContain(
+		Buffer.from(`${photo}\nsee`).toString("base64"),
+	);
+
+	// A file that isn't one the phone uploaded here is refused, nothing typed.
 	const count = typed.length;
 	const files = await channel.request({
 		method: "POST",
@@ -228,6 +254,10 @@ test("a paired phone lists the host's sessions, reads one, and replies", async (
 	});
 	expect(files.status).toBe(412);
 	expect(typed.length).toBe(count);
+	expect(
+		(await channel.request({ ...get("board", null), path: "/upload?ext=sh;x" }))
+			.status,
+	).toBe(400);
 
 	// A star with the Mac away is kept here and shows on this board.
 	const star = await channel.request({
@@ -258,7 +288,7 @@ test("a paired phone lists the host's sessions, reads one, and replies", async (
 
 	// Only the API answers.
 	expect(
-		(await channel.request({ ...get("board", null), path: "/upload?ext=png" }))
+		(await channel.request({ ...get("board", null), path: "/odin?action=x" }))
 			.status,
 	).toBe(404);
 	channel.close();

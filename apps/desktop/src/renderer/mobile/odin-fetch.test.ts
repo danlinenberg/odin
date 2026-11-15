@@ -40,7 +40,8 @@ test("a Mac out of reach: the host answers what it can, and is asked first for a
 	]);
 	// What only the Mac does says so, not "Couldn't connect".
 	expect(fetch("/trpc/night")).rejects.toThrow("Your Mac is away");
-	expect(fetch("/upload?ext=png")).rejects.toThrow("Your Mac is away");
+	// A photo goes to the host too, for a reply to a session there.
+	expect(await (await fetch("/upload?ext=png")).text()).toBe("host");
 });
 
 test("no host paired: what the Mac's failure says stands", async () => {

@@ -327,6 +327,13 @@ const ON_HOST = new Set([
 const procedures = (path: string) =>
 	path.match(/^\/trpc\/([^?]+)/)?.[1]?.split(",") ?? null;
 
+/**
+ * Whether the remote host answers this path: every procedure it calls, or
+ * an upload, which the host keeps for a reply to a session there.
+ */
+const onHost = (path: string) =>
+	path === "/upload" || !!procedures(path)?.every((name) => ON_HOST.has(name));
+
 /** After the Mac was out of reach, how long before the phone looks for it again. */
 const AWAY_MS = 15_000;
 
@@ -396,9 +403,8 @@ export function routedFetch(
 			input instanceof Request ? input.url : input,
 			"http://odin",
 		);
-		const names = procedures(url.pathname);
 		const to = hostNow();
-		const hostCan = !!to && !!names?.every((name) => ON_HOST.has(name));
+		const hostCan = !!to && onHost(url.pathname);
 		if (hostCan && away) {
 			if (mac.reach && Date.now() >= lookAgainAt) void look(true);
 			else if (!mac.reach && Date.now() >= lookAgainAt) away = false;
@@ -448,8 +454,7 @@ export function hostOnlyFetch(host: OdinFetch): OdinFetch {
 			input instanceof Request ? input.url : input,
 			"http://odin",
 		);
-		const names = procedures(url.pathname);
-		if (!names?.every((name) => ON_HOST.has(name)))
+		if (!onHost(url.pathname))
 			throw new Unreachable(
 				"This needs Odin on your Mac: this phone is paired with the remote host only.",
 			);

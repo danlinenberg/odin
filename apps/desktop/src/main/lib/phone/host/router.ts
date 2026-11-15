@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { resolve, sep } from "node:path";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { hostReplyScript } from "main/lib/remote-host/session";
 import {
@@ -220,8 +221,9 @@ export const hostPhoneRouter = t.router({
 
 	/**
 	 * A reply, typed into the session's Claude here as the laptop types a
-	 * board reply into a host session. Text only: the phone's files go to
-	 * the laptop.
+	 * board reply into a host session. Its photos and files are the ones the
+	 * phone uploaded here (server.ts): named on their own lines above the
+	 * text, as the board's chat box names them.
 	 */
 	reply: t.procedure
 		.input(
@@ -232,13 +234,21 @@ export const hostPhoneRouter = t.router({
 			}),
 		)
 		.mutation(async ({ input }) => {
-			if (input.paths.length)
+			// Only what the phone uploaded here: a file sent to the laptop
+			// before it went away isn't on this host.
+			if (
+				input.paths.some(
+					(path) => !resolve(path).startsWith(`${hostPaths.attachments}${sep}`),
+				)
+			)
 				throw new TRPCError({
 					code: "PRECONDITION_FAILED",
 					message:
-						"Files go through your Mac, which is asleep. Send the text alone, or send them once it's back.",
+						"That file went to your Mac, which is away now. Attach it again and send.",
 				});
-			const text = input.text.trim();
+			const text = [...input.paths, input.text.trim()]
+				.filter(Boolean)
+				.join("\n");
 			if (!text) throw new TRPCError({ code: "BAD_REQUEST" });
 			const session = await sessionOrThrow(input.paneId);
 			const code = await shell.run(
