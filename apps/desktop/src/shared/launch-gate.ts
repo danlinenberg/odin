@@ -168,3 +168,33 @@ export function remoteFrozenReason(
 	if (reading.memAvailableMb >= HOST_FROZEN_FREE_MB) return null;
 	return `${name} is out of memory (${(reading.memAvailableMb / 1024).toFixed(1)} GB free), so its sessions are frozen and typing does nothing until memory frees. A build using most of it is usually the cause.`;
 }
+
+/**
+ * Which host of a cluster a new session starts on: the one with the most
+ * free memory among those remoteLaunchBlocker lets through. A host with no
+ * fresh reading goes after the ones with a reading, in list order (the main
+ * host first). `reason` is set only when every host would make it wait.
+ */
+export function pickClusterHost<H extends { name: string; instanceId: string }>(
+	hosts: H[],
+	readings: (HostLoadReading | null | undefined)[],
+	now: number,
+): { host: H; reason: string | null } | null {
+	if (!hosts.length) return null;
+	const fresh = (i: number) => {
+		const reading = readings[i];
+		return reading && now - reading.at <= HOST_LOAD_FRESH_MS ? reading : null;
+	};
+	const blockers = hosts.map((host, i) =>
+		remoteLaunchBlocker(readings[i], host.name || host.instanceId, now),
+	);
+	const open = hosts
+		.map((_, i) => i)
+		.filter((i) => !blockers[i])
+		.sort(
+			(a, b) =>
+				(fresh(b)?.memAvailableMb ?? -1) - (fresh(a)?.memAvailableMb ?? -1),
+		);
+	if (open.length) return { host: hosts[open[0]], reason: null };
+	return { host: hosts[0], reason: blockers.join("; ") };
+}

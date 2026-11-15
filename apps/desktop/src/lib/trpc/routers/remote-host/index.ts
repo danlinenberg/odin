@@ -96,7 +96,11 @@ import {
 	hostGithubLogin,
 	repoStaysLocal,
 } from "main/lib/remote-host/github-on-host";
-import { asLastRun, hostByName } from "main/lib/remote-host/host-by-name";
+import {
+	asLastRun,
+	clusterMember,
+	hostByName,
+} from "main/lib/remote-host/host-by-name";
 import { hostHasConversation } from "main/lib/remote-host/host-conversations";
 import {
 	hostFileSources,
@@ -170,7 +174,11 @@ import {
 	hostPackagesProblem,
 	hostPolicyArnProblem,
 } from "shared/host-setup";
-import { remoteFrozenReason, remoteLaunchBlocker } from "shared/launch-gate";
+import {
+	pickClusterHost,
+	remoteFrozenReason,
+	remoteLaunchBlocker,
+} from "shared/launch-gate";
 import { remoteShellCommand } from "shared/remote-shell-command";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
@@ -192,8 +200,37 @@ const run = promisify(execFile);
 
 /** The host a session runs on, by its pane's host name (see hostByName). */
 function hostNamed(name?: string | null) {
-	const { remoteHost, pastRemoteHosts } = readOdinConfig();
-	return hostByName(remoteHost, pastRemoteHosts, name);
+	const { remoteHost, pastRemoteHosts = [] } = readOdinConfig();
+	return hostByName(remoteHost, [...clusterExtras(), ...pastRemoteHosts], name);
+}
+
+/** The cluster's other hosts, each with the main host's settings. */
+function clusterExtras(): RemoteHost[] {
+	const { remoteHost, clusterHosts = [] } = readOdinConfig();
+	if (!remoteHost) return [];
+	return clusterHosts
+		.filter((extra) => extra.instanceId !== remoteHost.instanceId)
+		.map((extra) => clusterMember(remoteHost, extra));
+}
+
+/** Every host new sessions may start on: the main host first, then its cluster. */
+function clusterHostsNow(): RemoteHost[] {
+	const host = readOdinConfig().remoteHost;
+	return host ? [host, ...clusterExtras()] : [];
+}
+
+/**
+ * The cluster host a new session starts on (pickClusterHost), from each
+ * host's latest reading or a probe of `waitMs` at most. `reason` is set only
+ * when every host would make the launch wait.
+ */
+async function pickHost(waitMs: number, since = 0) {
+	const hosts = clusterHostsNow();
+	const readings = await Promise.all(
+		hosts.map((host) => hostLoad(host, waitMs, since).catch(() => null)),
+	);
+	const picked = pickClusterHost(hosts, readings, Date.now());
+	return picked && { ...picked, reading: readings[hosts.indexOf(picked.host)] };
 }
 
 /** Whether VS Code has the Remote-SSH extension. */
@@ -461,7 +498,11 @@ async function launchPlace(
 				why: `its repo belongs to ${owner}, a GitHub account kept off ${name} (Settings > Remote > GitHub accounts on the host)`,
 			};
 	}
-	return { host: name, why: null };
+	// With a cluster, the host with the most room; the queue's gate
+	// (launchGate) holds the launch while every one of them is full.
+	if (!clusterExtras().length) return { host: name, why: null };
+	const picked = (await pickHost(3_000))?.host ?? host;
+	return { host: picked.name || picked.instanceId, why: null };
 }
 
 const awsTarget = z.object({
@@ -565,10 +606,14 @@ async function ensureClaudeToken(renew = false): Promise<void> {
  * soon after a token here changes.
  */
 async function refreshHostTokens(): Promise<void> {
-	const host = readOdinConfig().remoteHost;
-	if (!host?.on) return;
-	await pushHostTokens(host, (host.connectors ?? []) as HostConnector[]).catch(
-		(error) => console.warn("[remote-host] token refresh:", error),
+	if (!readOdinConfig().remoteHost?.on) return;
+	await Promise.all(
+		clusterHostsNow().map((host) =>
+			pushHostTokens(host, (host.connectors ?? []) as HostConnector[]).catch(
+				(error) =>
+					console.warn(`[remote-host] token refresh on ${host.name}:`, error),
+			),
+		),
 	);
 }
 setInterval(() => void refreshHostTokens(), 30 * 60_000).unref();
@@ -803,6 +848,11 @@ export const createRemoteHostRouter = () =>
 		/** The host sessions start on; `on: false` keeps them on this computer. */
 		get: publicProcedure.query(() => ({
 			host: readOdinConfig().remoteHost ?? null,
+			/** The cluster's other hosts, by instance id and name. */
+			cluster: clusterExtras().map(({ instanceId, name }) => ({
+				instanceId,
+				name,
+			})),
 			/** The Linux user this computer's sessions run as on a host. */
 			hostUser: hostUser(),
 			hasClaudeToken: Boolean(claudeToken()),
@@ -834,18 +884,28 @@ export const createRemoteHostRouter = () =>
 					.optional(),
 			)
 			.query(async ({ input }) => {
-				const host = hostNamed(input?.host);
-				const reading = host
-					? await hostLoad(host, undefined, input?.since)
-					: null;
+				// A new session (no host yet) on a cluster: the host it would
+				// start on, waiting only while every host is full.
+				const picked =
+					!input?.host && clusterExtras().length
+						? await pickHost(15_000, input?.since)
+						: null;
+				const host = picked?.host ?? hostNamed(input?.host);
+				const reading = picked
+					? picked.reading
+					: host
+						? await hostLoad(host, undefined, input?.since)
+						: null;
 				return {
-					reason: host
-						? remoteLaunchBlocker(
-								reading,
-								host.name || host.instanceId,
-								Date.now(),
-							)
-						: null,
+					reason: picked
+						? picked.reason
+						: host
+							? remoteLaunchBlocker(
+									reading,
+									host.name || host.instanceId,
+									Date.now(),
+								)
+							: null,
 					/** Set while the host is too short of memory to run its sessions. */
 					frozen: host
 						? remoteFrozenReason(
@@ -884,8 +944,13 @@ export const createRemoteHostRouter = () =>
 						host.instanceId !== previous?.instanceId,
 				);
 				// `user` from the picker is the instance's login; sessions run as this user's own.
+				const { clusterHosts = [] } = readOdinConfig();
 				updateOdinConfig({
 					remoteHost: { ...input, user: hostUser(), adminUser: input.user },
+					// The new main host is no longer one of its own cluster.
+					clusterHosts: clusterHosts.filter(
+						(extra) => extra.instanceId !== input.instanceId,
+					),
 					// The host left behind keeps its sessions, so they can still find it.
 					pastRemoteHosts:
 						previous && previous.instanceId !== input.instanceId
@@ -894,14 +959,94 @@ export const createRemoteHostRouter = () =>
 				});
 				if (input.on) void refreshHostTokens();
 			}),
+		/**
+		 * Adds an instance Use set up to the main host's cluster: new sessions
+		 * may start there too. It gets the main host's tokens and Claude setup
+		 * straight away.
+		 */
+		clusterAdd: publicProcedure
+			.input(
+				awsTarget.extend({
+					instanceId: z.string().min(1),
+					name: z.string(),
+					/** The instance's own login, as Use reported it. */
+					user: z.string().min(1),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				const { remoteHost, clusterHosts = [] } = readOdinConfig();
+				if (!remoteHost) throw new Error("Pick a main host first.");
+				if (input.instanceId === remoteHost.instanceId) return;
+				const { user, ...where } = input;
+				updateOdinConfig({
+					clusterHosts: [
+						...clusterHosts.filter(
+							(extra) => extra.instanceId !== input.instanceId,
+						),
+						{ ...where, adminUser: user },
+					],
+				});
+				const member = clusterExtras().find(
+					(extra) => extra.instanceId === input.instanceId,
+				);
+				if (!member) return;
+				if (remoteHost.on)
+					await pushHostTokens(
+						member,
+						(member.connectors ?? []) as HostConnector[],
+					).catch((error) =>
+						console.warn("[remote-host] cluster tokens:", error),
+					);
+				if (member.claudeSetup?.length)
+					void syncClaudeSetup(
+						member,
+						member.claudeSetup as (typeof CLAUDE_SETUP_PARTS)[number][],
+					).catch((error) =>
+						console.warn("[remote-host] cluster Claude setup:", error),
+					);
+			}),
+		/**
+		 * Takes an instance out of the cluster: no new sessions start there.
+		 * Its sessions keep running and still find it (pastRemoteHosts).
+		 */
+		clusterRemove: publicProcedure
+			.input(z.object({ instanceId: z.string().min(1) }))
+			.mutation(async ({ input }) => {
+				const leaving = clusterExtras().find(
+					(extra) => extra.instanceId === input.instanceId,
+				);
+				const { clusterHosts = [], pastRemoteHosts = [] } = readOdinConfig();
+				updateOdinConfig({
+					clusterHosts: clusterHosts.filter(
+						(extra) => extra.instanceId !== input.instanceId,
+					),
+					...(leaving
+						? {
+								pastRemoteHosts: [
+									leaving,
+									...pastRemoteHosts.filter(
+										(host) => host.instanceId !== input.instanceId,
+									),
+								].slice(0, 5),
+							}
+						: {}),
+				});
+				// No connector tokens stay behind on it.
+				if (leaving?.connectors?.length)
+					await pushHostTokens(leaving, []).catch(() => {});
+			}),
 		setOn: publicProcedure.input(z.boolean()).mutation(async ({ input }) => {
 			const host = readOdinConfig().remoteHost;
 			if (!host) return;
 			if (input) await ensureClaudeToken();
 			updateOdinConfig({ remoteHost: { ...host, on: input } });
-			// Off: no connector tokens stay behind on the host.
+			// Off: no connector tokens stay behind on the hosts.
 			if (!input && host.connectors?.length)
-				await pushHostTokens(host, []).catch(() => {});
+				await Promise.all(
+					clusterHostsNow().map((each) =>
+						pushHostTokens(each, []).catch(() => {}),
+					),
+				);
 			else if (input) void refreshHostTokens();
 		}),
 		/** Settings > Remote > Auto-start new tasks: the sources switched on. */
@@ -989,6 +1134,17 @@ export const createRemoteHostRouter = () =>
 					if (!host) throw new Error("No remote host is set up.");
 					const { dropped } = await withAwsSignIn(host, () =>
 						syncClaudeSetup(host, parts),
+					);
+					// The cluster gets the same copy; one that fails says so in the log.
+					await Promise.all(
+						clusterExtras().map((extra) =>
+							syncClaudeSetup(extra, parts).catch((error) =>
+								console.warn(
+									`[remote-host] Claude setup on ${extra.name}:`,
+									error,
+								),
+							),
+						),
 					);
 					// The host as it is now, so a switch flipped meanwhile stays flipped.
 					updateOdinConfig({
@@ -1553,8 +1709,9 @@ export const createRemoteHostRouter = () =>
 			}),
 
 		/**
-		 * Where a session whose host is down can go instead: the remote host
-		 * new sessions run on, when that is another instance and it is up.
+		 * Where a session whose host is down can go instead: a host new
+		 * sessions run on (the main one or one in its cluster, the one with the
+		 * most free memory first), when that is another instance and it is up.
 		 * Null while the session's own host is up (unless its pane stopped
 		 * reconnecting), when there is no other
 		 * host, or when AWS didn't answer.
@@ -1569,10 +1726,6 @@ export const createRemoteHostRouter = () =>
 				}),
 			)
 			.query(async ({ input }) => {
-				const current = readOdinConfig().remoteHost;
-				if (!current) return null;
-				const name = current.name || current.instanceId;
-				if (name === input.host) return null;
 				const target = (host: RemoteHost) => ({
 					profile: host.profile ?? undefined,
 					region: host.region ?? undefined,
@@ -1583,16 +1736,33 @@ export const createRemoteHostRouter = () =>
 						found && (found.name || found.instanceId) === input.host
 							? found
 							: null;
-					if (own?.instanceId === current.instanceId) return null;
+					// The hosts new sessions go to, less the session's own; with a
+					// cluster, the one with the most free memory first.
+					const others = clusterHostsNow().filter(
+						(host) =>
+							(host.name || host.instanceId) !== input.host &&
+							host.instanceId !== own?.instanceId,
+					);
+					if (!others.length) return null;
 					if (
 						own &&
 						!input.stuck &&
 						(await hostUp(target(own), own.instanceId))
 					)
 						return null;
-					return (await hostUp(target(current), current.instanceId))
-						? name
-						: null;
+					const readings = await Promise.all(
+						others.map((host) => hostLoad(host, 3_000).catch(() => null)),
+					);
+					const ranked = others
+						.map((host, i) => ({
+							host,
+							free: readings[i]?.memAvailableMb ?? -1,
+						}))
+						.sort((a, b) => b.free - a.free);
+					for (const { host } of ranked)
+						if (await hostUp(target(host), host.instanceId))
+							return host.name || host.instanceId;
+					return null;
 				} catch (error) {
 					console.warn("[remote-host] fallback host:", error);
 					return null;

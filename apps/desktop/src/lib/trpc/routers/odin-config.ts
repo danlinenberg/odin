@@ -59,6 +59,18 @@ export interface OdinFileConfig {
 	 * running on the host it started on, and its pane finds it here by name.
 	 */
 	pastRemoteHosts?: NonNullable<OdinFileConfig["remoteHost"]>[];
+	/**
+	 * More instances new sessions may start on beside `remoteHost`, its
+	 * cluster: a launch picks the one with the most free memory. Each runs
+	 * with the main host's settings (main/lib/remote-host/host-by-name).
+	 */
+	clusterHosts?: {
+		instanceId: string;
+		name: string;
+		profile?: string;
+		region?: string;
+		adminUser?: string;
+	}[];
 	/** The EC2 host new sessions run on, reached through SSM, while `on` is true. */
 	remoteHost?: {
 		on: boolean;
