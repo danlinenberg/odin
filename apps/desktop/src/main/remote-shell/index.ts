@@ -28,7 +28,9 @@ import {
 	stashScript,
 } from "../lib/remote-host/session";
 import {
+	AWS_DOWN_MESSAGE,
 	accessDenied,
+	awsAnsweredHtml,
 	awsClientConfig,
 	hostLabel,
 	keyRefused,
@@ -577,6 +579,7 @@ async function connectOnce(
 ): Promise<Client> {
 	return loginWithin(spec, target).catch(async (err: unknown) => {
 		if (accessDenied(err)) throw new NoAccess(spec, err);
+		if (awsAnsweredHtml(err)) throw new Error(AWS_DOWN_MESSAGE);
 		if (keyRefused(err) && !keyOverSsm) {
 			keyOverSsm = true;
 			// Again in full: the SSM key push can find the user missing.
