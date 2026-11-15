@@ -122,6 +122,7 @@ import {
 	agentOnScreen,
 	escIsHandledOnScreen,
 	inputBoxEmpty,
+	missedStart,
 	odinScreenStatus,
 	odinScreenWrite,
 	remoteConnectLine,
@@ -3981,6 +3982,8 @@ function DevBoardPage() {
 	}, [drawerSessionId]);
 
 	const drawerPaneId = drawerCard?.pane.id;
+	/** Panes whose last drawer read showed Claude's spinner - see missedStart. */
+	const sawSpinnerRef = useRef(new Set<string>());
 	useEffect(() => {
 		if (!drawerPaneId || !alivePaneIds.has(drawerPaneId)) return;
 		let stopped = false;
@@ -3997,6 +4000,20 @@ function DevBoardPage() {
 					.catch(() => null)) ??
 					"");
 			if (stopped || !screen.trim()) return; // nothing to judge yet
+			// A turn whose Start hook never got here (the phone started it on
+			// the host with this computer asleep): the chat view drew it idle.
+			const read = odinScreenStatus(screen);
+			if (
+				missedStart(
+					read,
+					useTabsStore.getState().panes[drawerPaneId]?.status,
+					sawSpinnerRef.current.has(drawerPaneId),
+					Date.now() - (lastAgentHookAt.get(drawerPaneId) ?? 0),
+				)
+			)
+				useTabsStore.getState().setPaneStatus(drawerPaneId, "working");
+			if (read === "working") sawSpinnerRef.current.add(drawerPaneId);
+			else sawSpinnerRef.current.delete(drawerPaneId);
 			const gone = !agentOnScreen(screen);
 			const goneTwice = gone && sawNoAgentRef.current.has(drawerPaneId);
 			if (gone) sawNoAgentRef.current.add(drawerPaneId);
