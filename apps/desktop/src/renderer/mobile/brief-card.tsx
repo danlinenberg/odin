@@ -130,29 +130,76 @@ function LinkRow({
 	);
 }
 
+/** Collapsed PR list's line: "7 PRs · 1 open · 6 merged". */
+export function prSummary(states: (string | undefined)[]): string {
+	const counts = new Map<string, number>();
+	for (const s of states) {
+		const key = s === "MERGED" ? "merged" : s === "CLOSED" ? "closed" : "open";
+		counts.set(key, (counts.get(key) ?? 0) + 1);
+	}
+	const parts = ["open", "merged", "closed"]
+		.filter((k) => counts.get(k))
+		.map((k) => `${counts.get(k)} ${k}`);
+	return [
+		`${states.length} PR${states.length === 1 ? "" : "s"}`,
+		...parts,
+	].join(" · ");
+}
+
+const PRS_FOLDED_KEY = "odin.phone.prsFolded";
+const readFolded = () => {
+	try {
+		return localStorage.getItem(PRS_FOLDED_KEY) === "1";
+	} catch {
+		return false;
+	}
+};
+
 /**
  * A session's PRs under its title, each with its state and CI: whether it
- * merged shows without opening the brief. Nothing while there are none.
+ * merged shows without opening the brief. Nothing while there are none. The
+ * header folds the list to one line; the choice holds for every session.
  */
 export function PrStrip({ links }: { links: BriefLinks }) {
+	const [folded, setFolded] = useState(readFolded);
 	const hidden = links?.hidden ?? [];
 	const prs = links?.prs.filter((pr) => !hidden.includes(pr.url)) ?? [];
 	if (!prs.length) return null;
+	const toggle = () =>
+		setFolded((was) => {
+			try {
+				localStorage.setItem(PRS_FOLDED_KEY, was ? "0" : "1");
+			} catch {}
+			return !was;
+		});
+	const Chevron = folded ? LuChevronRight : LuChevronDown;
 	return (
 		<div className="mt-1.5 space-y-1">
-			{prs.map((pr) => (
-				<a
-					key={pr.url}
-					href={pr.url}
-					target="_blank"
-					rel="noreferrer"
-					className="flex items-center gap-1.5 text-[13px] text-link"
-				>
-					<span className="min-w-0 truncate">{pr.label}</span>
-					<StateChip status={pr.status} />
-					<ChecksChip status={pr.status} />
-				</a>
-			))}
+			<button
+				type="button"
+				onClick={toggle}
+				aria-expanded={!folded}
+				className="flex items-center gap-1 text-[12px] font-semibold text-faint-foreground"
+			>
+				<Chevron className="size-3.5" />
+				{folded
+					? prSummary(prs.map((pr) => pr.status?.state))
+					: `PRs (${prs.length})`}
+			</button>
+			{!folded &&
+				prs.map((pr) => (
+					<a
+						key={pr.url}
+						href={pr.url}
+						target="_blank"
+						rel="noreferrer"
+						className="flex items-center gap-1.5 text-[13px] text-link"
+					>
+						<span className="min-w-0 truncate">{pr.label}</span>
+						<StateChip status={pr.status} />
+						<ChecksChip status={pr.status} />
+					</a>
+				))}
 		</div>
 	);
 }
