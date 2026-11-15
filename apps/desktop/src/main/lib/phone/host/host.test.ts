@@ -68,7 +68,12 @@ writeFileSync(
 			timestamp: "2026-10-31T08:00:05.000Z",
 			message: {
 				role: "assistant",
-				content: [{ type: "text", text: "Looking at it now." }],
+				content: [
+					{
+						type: "text",
+						text: "Looking at it now. https://github.com/acme/app/pull/12",
+					},
+				],
 				stop_reason: "end_turn",
 			},
 		}),
@@ -175,7 +180,20 @@ test("a paired phone lists the host's sessions, reads one, and replies", async (
 	).result.data.json;
 	expect(session.messages.map((m: { text: string }) => m.text)).toEqual([
 		"Fix the flaky login test",
-		"Looking at it now.",
+		"Looking at it now. https://github.com/acme/app/pull/12",
+	]);
+
+	// Its PR, read from the conversation here; the state is the Mac's to ask.
+	const links = decode(
+		(await channel.request(get("links", { paneId: "pane-abc" }))).body,
+	).result.data.json;
+	expect(links.prs).toEqual([
+		{
+			url: "https://github.com/acme/app/pull/12",
+			label: "app #12",
+			repo: "app",
+			status: null,
+		},
 	]);
 	expect(session.status).toBe("working");
 
