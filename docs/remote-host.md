@@ -20,8 +20,8 @@ aws --profile <profile> --region <region> ec2 create-tags \
 ## A cluster of hosts
 
 Every other instance tagged `Odin = host` in your host's AWS profile and
-region joins its cluster by itself (Odin looks at start, every 30 minutes and
-when Settings > Remote opens), set up as Use does, and each new session starts
+region joins its cluster by itself, with nothing to set up (Odin looks at
+start, every 30 minutes and when you pick a host), set up as Use does, and each new session starts
 on the host with the most free memory. Terminate an instance, or take its
 `Odin` tag off, and it leaves the cluster; its sessions keep running.
 

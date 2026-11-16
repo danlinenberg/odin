@@ -66,14 +66,13 @@ test("every listed host joins the cluster, and one that is gone leaves", () => {
 			at("i-gone", "terminated"),
 		],
 		[
-			{ instanceId: "i-three", auto: true },
-			{ instanceId: "i-gone", auto: true },
-			{ instanceId: "i-old", auto: true },
-			{ instanceId: "i-hand" },
+			{ instanceId: "i-three" },
+			{ instanceId: "i-gone" },
+			{ instanceId: "i-old" },
 		],
 	);
 	// A stopped member stays; one SSM can't reach joins once it can.
 	expect(plan.join.map((instance) => instance.id)).toEqual(["i-two"]);
-	// Gone or no longer listed leaves; one added by hand never does.
+	// Gone or no longer listed leaves.
 	expect(plan.leave).toEqual(["i-gone", "i-old"]);
 });

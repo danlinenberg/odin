@@ -120,33 +120,6 @@ export function RemoteHostSection() {
 		onSuccess: refresh,
 		onError,
 	});
-	// Add to cluster runs Use's setup first; these instances then join the
-	// cluster instead of becoming the host.
-	const toCluster = useRef(new Set<string>());
-	const clusterAdd = electronTrpc.remoteHost.clusterAdd.useMutation({
-		onSuccess: (_, sent) => {
-			toast.success(`${sent.name} is in the cluster.`, {
-				description:
-					"New sessions start on the host with the most free memory.",
-			});
-			return refresh();
-		},
-		onError,
-	});
-	const clusterRemove = electronTrpc.remoteHost.clusterRemove.useMutation({
-		onSuccess: refresh,
-		onError,
-	});
-	// The other Odin = host instances join (and leave) the cluster by
-	// themselves: look once when the page opens, beside Odin's own runs.
-	const clusterSync = electronTrpc.remoteHost.clusterSync.useMutation({
-		onSettled: refresh,
-	});
-	const hasHost = !!current?.host;
-	const syncCluster = clusterSync.mutate;
-	useEffect(() => {
-		if (hasHost) syncCluster();
-	}, [hasHost, syncCluster]);
 	const setApiKeyFallback =
 		electronTrpc.remoteHost.setApiKeyFallback.useMutation({
 			onSuccess: refresh,
@@ -521,10 +494,6 @@ export function RemoteHostSection() {
 			toast.error("The host is up, but setup could not install Claude on it.");
 			return;
 		}
-		if (toCluster.current.delete(id)) {
-			clusterAdd.mutate({ ...target, instanceId: id, name, user });
-			return;
-		}
 		// The host in use already: picking it again would drop its connectors and setup.
 		if (current?.host?.instanceId === id) {
 			refresh();
@@ -548,7 +517,6 @@ export function RemoteHostSection() {
 				tools,
 			),
 		onError: (error, sent) => {
-			toCluster.current.delete(sent.id);
 			// The row says why, and Use stays there to try again once it is fixed.
 			setUses((prev) => ({ ...prev, [sent.id]: { error: error.message } }));
 			instances.refetch();
@@ -561,11 +529,7 @@ export function RemoteHostSection() {
 			bringUp.isPending || query.state.data ? 1000 : false,
 	});
 	/** A host under way, from here or a page opened before: every Use waits for it. */
-	const busy =
-		bringUp.isPending ||
-		use.isPending ||
-		clusterAdd.isPending ||
-		!!hostStep.data;
+	const busy = bringUp.isPending || use.isPending || !!hostStep.data;
 	/** The step Use is on for this instance, to read on its button; null when it is not under way. */
 	const stepOf = (id: string) =>
 		hostStep.data?.action === "use" && hostStep.data.id === id
@@ -672,6 +636,8 @@ export function RemoteHostSection() {
 							<span className="font-mono">{current.host.instanceId}</span>, you
 							are <span className="font-mono">{current.host.user}</span>, repos
 							in <span className="font-mono">{current.host.reposRoot}</span>
+							{current.cluster.length > 0 &&
+								`. New sessions also start on ${current.cluster.map((extra) => extra.name || extra.instanceId).join(", ")}, whichever host has the most free memory`}
 						</span>
 					}
 				>
@@ -681,46 +647,6 @@ export function RemoteHostSection() {
 						onClick={() => setChangingHost(true)}
 					>
 						Change host
-					</Button>
-				</SettingRow>
-			)}
-			{current?.host && !changingHost && (
-				<SettingRow
-					label="Cluster"
-					description={
-						current.cluster.length
-							? `New sessions start on ${[current.host, ...current.cluster].map((host) => host.name || host.instanceId).join(", ")}: whichever has the most free memory. A session stays on its host, and moves to another one in the cluster when its own is down.${current.cluster.some((extra) => extra.auto) ? " Your other Odin = host instances in this account and region join by themselves; terminate one, or take its Odin tag off, to take it out." : ""}`
-							: "More hosts new sessions can start on. Each new session goes to the host with the most free memory. Your other Odin = host instances in this account and region join by themselves."
-					}
-				>
-					{clusterSync.isPending && (
-						<span className="text-xs text-muted-foreground">
-							Looking for hosts...
-						</span>
-					)}
-					{current.cluster
-						.filter((extra) => !extra.auto)
-						.map((extra) => (
-							<Button
-								key={extra.instanceId}
-								size="sm"
-								variant="outline"
-								disabled={clusterRemove.isPending}
-								title="No new sessions start here. Its sessions keep running"
-								onClick={() =>
-									clusterRemove.mutate({ instanceId: extra.instanceId })
-								}
-							>
-								Remove {extra.name || extra.instanceId}
-							</Button>
-						))}
-					<Button
-						size="sm"
-						variant="outline"
-						title="Lists your hosts: Add to cluster on one sets it up and adds it"
-						onClick={() => setChangingHost(true)}
-					>
-						Add a host
 					</Button>
 				</SettingRow>
 			)}
@@ -1019,10 +945,6 @@ export function RemoteHostSection() {
 						const last = uses[instance.id];
 						const step = stepOf(instance.id);
 						const inUse = current?.host?.instanceId === instance.id;
-						const member = current?.cluster.find(
-							(extra) => extra.instanceId === instance.id,
-						);
-						const inCluster = !!member;
 						return (
 							<SettingRow
 								key={instance.id}
@@ -1062,28 +984,6 @@ export function RemoteHostSection() {
 								>
 									{step ?? (inUse ? "In use" : "Use")}
 								</Button>
-								{current?.host && !inUse && !member?.auto && (
-									<Button
-										size="sm"
-										variant="outline"
-										disabled={busy || clusterRemove.isPending}
-										title={
-											inCluster
-												? "No new sessions start here. Its sessions keep running"
-												: `Sets it up as Use does, then new sessions start on it or on ${current.host.name || current.host.instanceId}, whichever has more free memory`
-										}
-										onClick={() => {
-											if (inCluster) {
-												clusterRemove.mutate({ instanceId: instance.id });
-												return;
-											}
-											toCluster.current.add(instance.id);
-											bringUp.mutate({ ...target, id: instance.id });
-										}}
-									>
-										{inCluster ? "Remove from cluster" : "Add to cluster"}
-									</Button>
-								)}
 							</SettingRow>
 						);
 					})}
