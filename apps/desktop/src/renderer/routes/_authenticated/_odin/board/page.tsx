@@ -145,7 +145,23 @@ import { useReadableSlackTitles, useSlackReadable } from "./slack-titles";
 /** Tags the card shows as their own pill instead of in the #tag line. */
 const PILL_TAGS = ["automation", "auto-started", "off-hours"];
 
-import { closeHostScreen, useHostView } from "renderer/stores/host-view";
+/** The ▣ View button's dot: whether the open viewer reaches the app on the host. */
+const HOST_LINK_DOT: Record<HostLink, string> = {
+	connecting: "bg-amber-400 animate-pulse",
+	connected: "bg-emerald-500",
+	lost: "bg-red-500",
+};
+const HOST_LINK_LABEL: Record<HostLink, string> = {
+	connecting: "Connecting to the host",
+	connected: "Connected to the host",
+	lost: "Not connected to the host",
+};
+
+import {
+	closeHostScreen,
+	type HostLink,
+	useHostView,
+} from "renderer/stores/host-view";
 import { openUrl, useInAppBrowser } from "renderer/stores/in-app-browser";
 import { rowFinishedWith } from "../all/all-items";
 import { nextSelection, visibleSelection } from "../all/selection";
@@ -250,6 +266,7 @@ import { DiffView } from "./DiffView";
 import { drawerEscAction, escStaysWithTarget } from "./drawer-esc";
 import { drawerViewSwitch } from "./drawer-view-switch";
 import { HostScreenView } from "./HostScreenView";
+
 import { deliverOnHost } from "./host-delivery";
 import { hostStartDelay } from "./host-start-gap";
 import { type InboxSession, InboxView } from "./InboxView";
@@ -3148,6 +3165,9 @@ function DevBoardPage() {
 	const drawerLink = drawerCard ? sourceLink(drawerCard.pane.odinBrief) : null;
 	// The app a remote session runs on its host (its latest `!view` block), and
 	// whether the drawer shows it in the terminal's place, like the diff.
+	const hostLink = useHostView((state) =>
+		drawerCard ? state.link[drawerCard.pane.id] : undefined,
+	);
 	const hostScreen = useHostView((state) =>
 		drawerCard?.pane.odinRemote ? state.byPane[drawerCard.pane.id] : undefined,
 	);
@@ -7177,7 +7197,14 @@ function DevBoardPage() {
 				{hostScreen && !inCatchUp && (
 					<button
 						type="button"
-						title="Show the app this session runs on its host"
+						aria-label={
+							hostLink ? `▣ View - ${HOST_LINK_LABEL[hostLink]}` : undefined
+						}
+						title={
+							hostLink
+								? `${HOST_LINK_LABEL[hostLink]} - the app this session runs on its host`
+								: "Show the app this session runs on its host"
+						}
 						onClick={() => {
 							if (isViewOpen) return closeHostScreen();
 							setIsShellOpen(false);
@@ -7193,6 +7220,15 @@ function DevBoardPage() {
 						)}
 					>
 						▣ View
+						{hostLink && (
+							<span
+								aria-hidden
+								className={cn(
+									"ml-1.5 inline-block size-1.5 rounded-full align-middle",
+									HOST_LINK_DOT[hostLink],
+								)}
+							/>
+						)}
 					</button>
 				)}
 				{/* View and Agents come and go, so they sit left of Diff: Diff, Shell
