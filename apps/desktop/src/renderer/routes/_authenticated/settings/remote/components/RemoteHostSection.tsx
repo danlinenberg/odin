@@ -90,9 +90,10 @@ export function RemoteHostSection() {
 	const utils = electronTrpc.useUtils();
 	const { data: current } = electronTrpc.remoteHost.get.useQuery(undefined, {
 		// A Claude setup sync runs in the main process and goes on when this
-		// page is left; while one runs, watch for it to land.
+		// page is left; while one runs, watch for it to land. Otherwise look
+		// every 30s: hosts join and leave the cluster in the main process too.
 		refetchInterval: (query) =>
-			query.state.data?.claudeSetupSync.parts ? 1000 : false,
+			query.state.data?.claudeSetupSync.parts ? 1000 : 30_000,
 	});
 	const refresh = () => utils.remoteHost.get.invalidate();
 	// Turning the host on runs `claude setup-token` first when no token is saved.
