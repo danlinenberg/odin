@@ -36,6 +36,9 @@ export const LISTED_HOTKEYS: HotkeyId[] = [
 	"CATCH_UP_ACCEPT",
 	"CATCH_UP_SKIP",
 	"CATCH_UP_DONE",
+	"TODAY_NEXT",
+	"TODAY_PREV",
+	"TODAY_OPEN",
 	// Terminal
 	"FIND_IN_TERMINAL",
 	"CLEAR_TERMINAL",

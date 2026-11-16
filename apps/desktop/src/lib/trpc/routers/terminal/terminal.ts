@@ -630,6 +630,35 @@ export const createTerminalRouter = () => {
 				return warmBriefs(input.sessionIds, {}, input.settled);
 			}),
 
+		/**
+		 * The Today overview's plain lines: one per open piece of work and one
+		 * over all of it, written from the cached briefs by `claude -p`.
+		 */
+		todayOverviewLines: publicProcedure
+			.input(
+				z.object({
+					items: z
+						.array(
+							z.object({
+								key: z.string(),
+								sessionId: z.string().nullable(),
+								title: z.string(),
+								group: z.string(),
+								due: z.string().nullable(),
+								priority: z.string().nullable(),
+								waitingOn: z.string().nullable(),
+							}),
+						)
+						.max(200),
+					/** Bumped by Refresh: a new answer, not the cached one. */
+					refresh: z.number().optional(),
+				}),
+			)
+			.query(async ({ input }) => {
+				const { writeTodayLines } = await import("main/lib/today-overview");
+				return writeTodayLines(input.items, { fresh: !!input.refresh });
+			}),
+
 		killAllDaemonSessions: publicProcedure.mutation(async () => {
 			const client = getTerminalHostClient();
 			const before = await terminal.management.listSessions();

@@ -362,6 +362,24 @@ export const HOTKEYS_REGISTRY = {
 	// Catch up: one key per card. Only while Catch up is open, and never in a
 	// text box, so Enter and E still type. E is Done, as in Gmail: D is the
 	// Dev Board's rail key.
+	TODAY_NEXT: {
+		key: { mac: "down", windows: "down", linux: "down" },
+		label: "Today: Next Card",
+		category: "Navigation",
+		description: "Pick the next session card on the Today page",
+	},
+	TODAY_PREV: {
+		key: { mac: "up", windows: "up", linux: "up" },
+		label: "Today: Previous Card",
+		category: "Navigation",
+		description: "Pick the previous session card on the Today page",
+	},
+	TODAY_OPEN: {
+		key: { mac: "enter", windows: "enter", linux: "enter" },
+		label: "Today: Open Card",
+		category: "Navigation",
+		description: "Open the picked session on the Today page",
+	},
 	CATCH_UP_ACCEPT: {
 		key: { mac: "enter", windows: "enter", linux: "enter" },
 		label: "Catch up: Take Suggestion",

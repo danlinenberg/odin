@@ -443,34 +443,50 @@ for (const [label, line] of SCREENS) {
 	});
 }
 
-await step("the Inbox view opens from the top bar and back", async () => {
-	// The Inbox's header reads "N waiting on you" or "Nothing needs you".
-	const header = `!!document.querySelector('section[aria-label="Inbox"] h1')`;
-	const inboxShown = async (shown: boolean) => {
+await step("the Today view opens from the top bar and back", async () => {
+	const header = `!!document.querySelector('section[aria-label="Today"] h1')`;
+	const todayShown = async (shown: boolean) => {
 		for (const end = Date.now() + 15_000; Date.now() < end; await sleep(200))
 			if ((await page<boolean>(header)) === shown) return;
 		throw new Error(
-			`the Inbox header ${shown ? "never appeared" : "never went away"}`,
+			`the Today page ${shown ? "never appeared" : "never went away"}`,
 		);
 	};
-	// Off by default: no Inbox button until Settings > Advanced turns it on.
+	// Today took the Inbox view's slot: no Inbox button anywhere.
 	if (await page<boolean>(`!!__find("button", "Inbox view")`))
-		throw new Error("Inbox view button shown while the setting is off");
+		throw new Error("an Inbox view button is still in the top bar");
+	// Off by default: no Today button until Settings > Advanced turns it on.
+	if (await page<boolean>(`!!__find("button", "Today view")`))
+		throw new Error("Today view button shown while the setting is off");
 	await rail("Settings");
 	await click("a", "Advanced");
-	await waitForText("adds an inbox button");
+	await waitForText("adds a today icon");
 	const on = await page<string | null>(`(() => {
-		const e = document.getElementById("inbox-view");
+		const e = document.getElementById("today-view");
 		e?.click();
 		return e?.getAttribute("aria-checked") ?? null;
 	})()`);
-	if (!on) throw new Error("no Inbox view switch in Settings > Advanced");
+	if (!on) throw new Error("no Today switch in Settings > Advanced");
 	await click("a", "Back");
 	await rail("Dev Board");
-	await click("button", "Inbox view");
-	await inboxShown(true);
+	await click("button", "Today view");
+	await todayShown(true);
 	await click("button", "Board view");
-	await inboxShown(false);
+	await todayShown(false);
+	// Back off, as it ships: on, the board switches to Today by itself once a
+	// day when a session lands, and the steps below click the board's cards.
+	await rail("Settings");
+	await click("a", "Advanced");
+	await waitForText("adds a today icon");
+	await page(`document.getElementById("today-view")?.click()`);
+	if (
+		(await page<string | null>(
+			`document.getElementById("today-view")?.getAttribute("aria-checked") ?? null`,
+		)) !== "false"
+	)
+		throw new Error("the Today switch didn't turn off");
+	await click("a", "Back");
+	await rail("Dev Board");
 	await waitForText("idle");
 });
 

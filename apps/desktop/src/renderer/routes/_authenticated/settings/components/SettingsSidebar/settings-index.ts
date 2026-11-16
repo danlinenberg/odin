@@ -187,10 +187,11 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "skills plugins marketplace update upgrade latest version sync",
 	},
 	{
-		label: "Inbox view",
+		label: "Today",
 		to: "/settings/advanced",
 		section: "Experimental",
-		keywords: "inbox action items board view experimental beta",
+		keywords:
+			"today daily overview morning summary board view experimental beta",
 	},
 	{
 		label: "GSD Mode",
@@ -266,6 +267,13 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		to: "/settings/sessions",
 		section: "On the board",
 		keywords: "auto rename card title name",
+	},
+	{
+		label: "Show Today every morning",
+		to: "/settings/sessions",
+		section: "On the board",
+		keywords:
+			"today daily overview morning summary plain workload deadlines due priority",
 	},
 	{
 		label: "Compact conversations moved to Idle",

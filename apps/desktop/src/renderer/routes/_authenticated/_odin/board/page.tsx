@@ -50,7 +50,6 @@ import {
 	LuGitMerge,
 	LuGitPullRequest,
 	LuHourglass,
-	LuInbox,
 	LuLaptop,
 	LuLayers,
 	LuLayoutGrid,
@@ -65,6 +64,7 @@ import {
 	LuRotateCw,
 	LuSquareTerminal,
 	LuStar,
+	LuSun,
 	LuTerminal,
 	LuUser,
 } from "react-icons/lu";
@@ -100,13 +100,13 @@ import { useDangerMode } from "renderer/stores/danger-mode";
 import { sessionDocKey, useDoneStore } from "renderer/stores/done";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { useIdleCompact } from "renderer/stores/idle-compact";
-import { useInboxViewStore } from "renderer/stores/inbox-view";
 import { useRecentlyViewed } from "renderer/stores/recently-viewed";
 import { useSessionView } from "renderer/stores/session-view";
 import { useStartingPanes } from "renderer/stores/starting-panes";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane, PaneStatus } from "renderer/stores/tabs/types";
 import { lastAgentHookAt } from "renderer/stores/tabs/useAgentHookListener";
+import { useTodayOverview } from "renderer/stores/today-overview";
 import { boardColumn, withWaiting } from "shared/board-column";
 import {
 	type BoardSection,
@@ -201,7 +201,12 @@ import {
 } from "../components/OdinPromptDialog";
 import { PersonChip, personColor } from "../components/PersonChip";
 import { BUTTON, PILL } from "../components/pill";
-import { DueChip, OverdueMark, useReminders } from "../components/Reminders";
+import {
+	DueChip,
+	dayOf,
+	OverdueMark,
+	useReminders,
+} from "../components/Reminders";
 import {
 	conditionPrompt,
 	hasWatchFor,
@@ -291,7 +296,6 @@ import { HostScreenView } from "./HostScreenView";
 
 import { deliverOnHost } from "./host-delivery";
 import { hostStartDelay } from "./host-start-gap";
-import { type InboxSession, InboxView } from "./InboxView";
 import { onIdleArrival, restoreAfterCompact } from "./idle-compact";
 import { menuTop } from "./menu-fit";
 import {
@@ -333,6 +337,9 @@ import {
 	statusAt,
 } from "./session-order";
 import { mergePrompt, parkable, resumable } from "./session-pick";
+import { type TodayCard, TodayOverview } from "./TodayOverview";
+import { shouldShowToday } from "./today";
+import { prStateLabel } from "./today-side";
 import { TRANSIENT_RETRY, transientRetryKey } from "./transient-retry";
 import { moveToVsCode } from "./vscode-move";
 
@@ -401,24 +408,24 @@ interface BoardCard {
 /** The top bar's empty slot (layout.tsx) the board fills with ViewToggle. */
 const VIEW_TOGGLE_SLOT_ID = "odin-view-toggle";
 
-/** Sessions View / Board View: icon-only, in the top bar's slot. */
+/** Sessions view / Board view / Today: icon-only, in the top bar's slot. */
 function ViewToggle({
 	sessionsOpen,
 	sessionsDisabled,
 	sessionsKey,
-	inboxOpen,
+	todayOpen,
 	onSessions,
 	onBoard,
-	onInbox,
+	onToday,
 }: {
 	sessionsOpen: boolean;
 	sessionsDisabled?: boolean;
 	sessionsKey: string;
-	inboxOpen: boolean;
+	todayOpen: boolean;
 	onSessions: () => void;
 	onBoard: () => void;
-	/** Unset while the Inbox experiment is off: no Inbox button. */
-	onInbox?: () => void;
+	/** Opens the Today view. Unset while the Today experiment is off. */
+	onToday?: () => void;
 }) {
 	const segment = (active: boolean) =>
 		cn(
@@ -443,23 +450,23 @@ function ViewToggle({
 			<button
 				type="button"
 				aria-label="Board view"
-				aria-pressed={!sessionsOpen && !inboxOpen}
+				aria-pressed={!sessionsOpen && !todayOpen}
 				title="Board view (the sessions keep running)"
 				onClick={onBoard}
-				className={segment(!sessionsOpen && !inboxOpen)}
+				className={segment(!sessionsOpen && !todayOpen)}
 			>
 				<LuLayoutGrid className="size-3.5" aria-hidden />
 			</button>
-			{onInbox && (
+			{onToday && (
 				<button
 					type="button"
-					aria-label="Inbox view"
-					aria-pressed={!sessionsOpen && inboxOpen}
-					title="Inbox view - every open action item across sessions, quickest first, and the stuck ones on top"
-					onClick={onInbox}
-					className={segment(!sessionsOpen && inboxOpen)}
+					aria-label="Today view"
+					aria-pressed={!sessionsOpen && todayOpen}
+					title="Today view - your open work in plain words: what needs you, what is running, what waits on someone, and what is due"
+					onClick={onToday}
+					className={segment(!sessionsOpen && todayOpen)}
 				>
-					<LuInbox className="size-3.5" aria-hidden />
+					<LuSun className="size-3.5" aria-hidden />
 				</button>
 			)}
 		</div>
@@ -1050,6 +1057,81 @@ function DropPill({
 }) {
 	const row = useDropFor(card.pane);
 	return row ? <DropHint row={row} end={() => actions.endCard(card)} /> : null;
+}
+
+/**
+ * A Today card's facts, from the board's own pills: where it runs, its repo,
+ * how long since its last message, its PRs with their state, and its tags.
+ */
+function TodayMeta({
+	card,
+	hostState,
+	tags,
+}: {
+	card: BoardCard;
+	hostState: HostState;
+	tags: string[];
+}) {
+	const live = card.status === "working";
+	const host = card.pane.odinRemote;
+	return (
+		<>
+			<span className="inline-flex items-center">
+				<HostMark paneId={card.pane.id} state={hostState} showLocal />
+				{host ? `on ${host}` : "this computer"}
+			</span>
+			<RepoPill card={card} />
+			<AgePill card={card} live={live} fallback={undefined} />
+			<TodayPrLinks card={card} live={live} />
+			{tags.length > 0 && (
+				<span className="font-mono text-[10.5px] text-faint-foreground">
+					{tags.map((tag) => `#${tag}`).join(" ")}
+				</span>
+			)}
+		</>
+	);
+}
+
+/** A card's PRs as links, each with its state from GitHub. */
+function TodayPrLinks({ card, live }: { card: BoardCard; live: boolean }) {
+	const { prs } = useCardPrs(card, live);
+	const urls = prs.map((pr) => pr.url);
+	const { data } = electronTrpc.terminal.pullRequestStates.useQuery(
+		{ urls },
+		{ enabled: urls.length > 0, retry: false, staleTime: 60_000 },
+	);
+	if (!prs.length) return null;
+	return (
+		<>
+			{prs.slice(0, 4).map((pr) => {
+				const { label, tone } = prStateLabel(data?.[pr.url]);
+				return (
+					<button
+						key={pr.url}
+						type="button"
+						title={data?.[pr.url]?.title ?? pr.url}
+						onClick={(event) => {
+							event.stopPropagation();
+							openUrl(pr.url);
+						}}
+						className="inline-flex items-center gap-1 text-link hover:underline"
+					>
+						<LuGitPullRequest className="size-3" />#{pr.number}
+						{label && (
+							<span
+								className={cn(
+									"rounded-[5px] px-[6px] text-[10.5px] font-medium",
+									PILL[tone],
+								)}
+							>
+								{label}
+							</span>
+						)}
+					</button>
+				);
+			})}
+		</>
+	);
 }
 
 /** Another live card is on the same ask. The click opens it, to Done one. */
@@ -7196,45 +7278,118 @@ function DevBoardPage() {
 		const card = switchRows[at + step];
 		if (card) openDrawer(card);
 	};
-	// Inbox view: the board's action items as one list (InboxView). Closing a
-	// session opened from it lands back on it.
-	const inboxEnabled = useInboxViewStore((s) => s.enabled);
-	const [inboxShown, setInboxOpen] = useState(false);
-	const inboxOpen = inboxEnabled && inboxShown;
-	const inboxSessions: InboxSession[] = [...cardsByStatus.values()]
+	// Today: every open session in plain words, grouped by where it stands.
+	// Opens by itself once a day, the first time the board has work on it.
+	// Experimental, off by default (Settings > Advanced > Today).
+	const todayExperiment = useTodayOverview((s) => s.experiment);
+	const [todayShown, setTodayOpen] = useState(false);
+	const todayOpen = todayExperiment && todayShown;
+	const todayCards: TodayCard[] = [...cardsByStatus.values()]
 		.flat()
 		.map((card) => {
 			const pane = card.pane;
-			const since = statusSinceRef.current.get(pane.id)?.at;
-			const dead = card.status === "idle" && !pane.odinQueued;
+			const sessionId =
+				pane.claudeSessionId ?? sessionIdByPane[pane.id] ?? null;
+			const asks = card.status === "permission" || card.status === "review";
+			const call = asks ? catchUpSuggestionOf(card).kind : null;
 			return {
 				paneId: pane.id,
 				title: cardTitle(card),
-				sessionId: pane.claudeSessionId ?? sessionIdByPane[pane.id] ?? null,
-				live: agentPaneIds.has(pane.id),
-				asks: card.status === "permission" || card.status === "review",
-				stuck: {
-					ciGaveUp: ciGaveUpPaneIds.has(pane.id),
-					conflicts: conflictsByPane.get(pane.id),
-					// A status restored from disk has no known start (at 0).
-					queued:
-						pane.odinQueued && since
-							? { reason: pane.odinQueued.reason, since }
-							: undefined,
-					diedMidTurn: dead && pane.status === "working",
-					failed: dead && pane.status === "failed",
-					working:
-						card.status === "working" ? { lastMessageAt: null } : undefined,
+				sessionId,
+				status: sessionId ? (briefStatus[sessionId] ?? null) : null,
+				starred: !!pane.odinStarred,
+				signals: {
+					column: card.status,
+					queued: !!pane.odinQueued,
+					parked: !!pane.odinParked,
+					waitingOn:
+						card.status === "idle" && watchByPane.get(pane.id) === "waiting"
+							? "a reply (Ping me is on)"
+							: null,
+					almostDone: call === "merge" || call === "done",
+					urgency: urgencyByPane.get(pane.id) ?? null,
 				},
+				workspaceId: card.workspaceId,
+				live: agentPaneIds.has(pane.id),
+				meta: todayOpen ? (
+					<TodayMeta
+						card={card}
+						hostState={hostStateOf(pane.id)}
+						tags={boardTags(pane.odinTags, customTags).filter(
+							(tag) => !PILL_TAGS.includes(tag),
+						)}
+					/>
+				) : undefined,
+				actions: todayOpen ? (
+					<>
+						<button
+							type="button"
+							onClick={() => toggleStar(pane.id)}
+							title={pane.odinStarred ? "Unstar" : "Star - pin it to the top"}
+							className="shrink-0 rounded-[7px] px-2.5 py-1 text-[11.5px] font-semibold text-attention ring-1 ring-inset ring-attention/30 hover:bg-attention/15"
+						>
+							{pane.odinStarred ? "★ Starred" : "☆ Star"}
+						</button>
+						<button
+							type="button"
+							onClick={() => markDone(card)}
+							title="Done - end the session and remove it from the board"
+							className={cn(
+								"shrink-0 rounded-[7px] px-2.5 py-1 text-[11.5px] font-semibold",
+								BUTTON.done,
+							)}
+						>
+							✓ Done
+						</button>
+						<RemindButton
+							onPick={(day) => remindMe(card, day)}
+							label="Remind me"
+							className={cn(
+								"shrink-0 rounded-[7px] px-2.5 py-1 text-[11.5px] font-semibold",
+								BUTTON.remind,
+							)}
+						/>
+						{pane.odinQueued && (
+							<button
+								type="button"
+								onClick={() => void resumeCard(card)}
+								title="Start this session now, gate or no gate"
+								className={cn(
+									"shrink-0 rounded-[7px] px-2.5 py-1 text-[11.5px] font-semibold",
+									BUTTON.secondary,
+								)}
+							>
+								Start now
+							</button>
+						)}
+					</>
+				) : undefined,
 			};
 		});
-	const inboxCard = (paneId: string) =>
+	const todayEnabled = useTodayOverview((s) => s.enabled);
+	const todayLastShown = useTodayOverview((s) => s.lastShown);
+	const todayCount = todayCards.length;
+	useEffect(() => {
+		const today = dayOf(Date.now());
+		if (
+			!todayExperiment ||
+			!shouldShowToday({
+				enabled: todayEnabled,
+				lastShown: todayLastShown,
+				today,
+				count: todayCount,
+			})
+		)
+			return;
+		useTodayOverview.getState().markShown(today);
+		setTodayOpen(true);
+	}, [todayExperiment, todayEnabled, todayLastShown, todayCount]);
+	const cardById = (paneId: string) =>
 		[...cardsByStatus.values()].flat().find((card) => card.pane.id === paneId);
-	// The Inbox row whose brief shows beside the list.
-	const [inboxBriefId, setInboxBriefId] = useState<string | null>(null);
-	const inboxBriefCard = inboxBriefId ? inboxCard(inboxBriefId) : undefined;
-	const sendFromInbox = (paneId: string, text: string) => {
-		const card = inboxCard(paneId);
+	// Today's reply box and action items: typed into a live Claude, else the
+	// session resumes with the text.
+	const sendToSession = (paneId: string, text: string) => {
+		const card = cardById(paneId);
 		if (!card) return;
 		const sent = agentPaneIds.has(paneId)
 			? typeIntoClaude(terminalWrite.mutateAsync, paneId, text)
@@ -7921,19 +8076,19 @@ function DevBoardPage() {
 							sessionsOpen={!!drawerCard}
 							sessionsDisabled={switchCards.length === 0}
 							sessionsKey={openSessionsKey}
+							todayOpen={todayOpen}
 							onSessions={() => {
 								if (!drawerCard) openSessions();
 							}}
-							inboxOpen={inboxOpen}
 							onBoard={() => {
 								setDrawerCard(null);
-								setInboxOpen(false);
+								setTodayOpen(false);
 							}}
-							onInbox={
-								inboxEnabled
+							onToday={
+								todayExperiment
 									? () => {
 											setDrawerCard(null);
-											setInboxOpen(true);
+											setTodayOpen(true);
 										}
 									: undefined
 							}
@@ -8132,69 +8287,22 @@ function DevBoardPage() {
 				/>
 			)}
 
-			{inboxOpen && (
-				<div className="flex min-h-0 flex-1">
-					<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-						<InboxView
-							sessions={inboxSessions}
-							onPreview={setInboxBriefId}
-							onOpen={(paneId) => {
-								const card = inboxCard(paneId);
-								if (card) openDrawer(card);
-							}}
-							onSend={sendFromInbox}
-							onResume={(paneId) => {
-								const card = inboxCard(paneId);
-								if (card) void resumeCard(card);
-							}}
-						/>
-					</div>
-					{/* A clicked row's brief, beside the list: the list stays
-					    clickable, and another row switches the brief. */}
-					{inboxBriefCard && (
-						<SessionBrief
-							key={inboxBriefCard.pane.id}
-							paneId={inboxBriefCard.pane.id}
-							cwd={inboxBriefCard.pane.cwd ?? null}
-							claudeSessionId={inboxBriefCard.pane.claudeSessionId ?? null}
-							marker={cardTitle(inboxBriefCard)}
-							live={alivePaneIds.has(inboxBriefCard.pane.id)}
-							launch={inboxBriefCard.pane.odinBrief}
-							starting={
-								!!inboxBriefCard.pane.odinQueued ||
-								resumingPaneIds.includes(inboxBriefCard.pane.id) ||
-								startingPaneIds.includes(inboxBriefCard.pane.id) ||
-								inboxBriefCard.pane.status === "working"
-							}
-							actions={
-								<>
-									<button
-										type="button"
-										title="Open this session"
-										onClick={() => openDrawer(inboxBriefCard)}
-										className="rounded border border-border bg-card px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground hover:text-foreground"
-									>
-										Open session
-									</button>
-									<button
-										type="button"
-										aria-label="Close brief"
-										title="Close the brief"
-										onClick={() => setInboxBriefId(null)}
-										className="text-sm leading-none text-muted-foreground hover:text-foreground"
-									>
-										✕
-									</button>
-								</>
-							}
-						/>
-					)}
-				</div>
+			{/* Today is a page of its own: it takes the columns' place, and closing
+			    a session opened from it lands back on it. */}
+			{todayOpen && (
+				<TodayOverview
+					cards={todayCards}
+					onOpen={(paneId) => {
+						const card = cardById(paneId);
+						if (card) openDrawer(card);
+					}}
+					onSend={sendToSession}
+				/>
 			)}
 			<div
 				className={cn(
 					"flex min-h-0 flex-1 gap-3 overflow-x-auto px-[18px] pb-[18px] pt-1",
-					inboxOpen && "hidden",
+					todayOpen && "hidden",
 				)}
 			>
 				{COLUMNS.map((column) => {
