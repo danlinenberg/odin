@@ -320,6 +320,12 @@ function mirrorTranscript(
 	loop();
 	return () => {
 		stopped = true;
+		// A pass still reading must not append once a new connection's mirror
+		// has started: the same lines twice made the copy longer than the
+		// host's, and the next pass wrote it over from the start.
+		pass++;
+		reading?.destroy();
+		reading = null;
 	};
 }
 
