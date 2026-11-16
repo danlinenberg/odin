@@ -1275,13 +1275,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 					</label>
 					{/* Only with Start now: a task added to the list is asked where
 					    to run when its row is started, so a pick here would be lost. */}
-					{startNow && (
-						<WherePicker
-							value={onHost}
-							onChange={setOnHost}
-							className={cn(FIELD_MENU, "text-foreground")}
-						/>
-					)}
+					{startNow && <WherePicker value={onHost} onChange={setOnHost} />}
 					<span className="ml-auto text-[11px] text-faint-foreground">
 						esc to cancel
 					</span>

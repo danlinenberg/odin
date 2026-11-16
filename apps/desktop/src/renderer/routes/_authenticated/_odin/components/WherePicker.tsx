@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 
 /**
@@ -6,35 +6,51 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
  * the cluster host with the most free memory (remoteHost.hostFor). What it shows is what
  * the launch gets: untouched, it reports the host switch as the pick, so the
  * session runs where the menu said, not where the repo or connector rules
- * would send it. Nothing shows while no remote host is set up. `className` restyles the
- * menu to match the row it sits in; the default is the New Session dialog's.
+ * would send it. Nothing shows while no remote host is set up. Two radio
+ * buttons, Local and Remote, so both choices show at a glance.
  */
 export function WherePicker({
 	value,
 	onChange,
-	className = "h-7 shrink-0 rounded-[6px] bg-secondary px-2 text-[11.5px] font-semibold text-foreground outline-none [color-scheme:inherit]",
 }: {
 	value: boolean | undefined;
 	onChange: (onHost: boolean) => void;
-	className?: string;
 }) {
 	const { data } = electronTrpc.remoteHost.get.useQuery();
 	const host = data?.host;
 	const shown = (value ?? host?.on) === true;
+	const name = useId();
 	useEffect(() => {
 		if (host && value === undefined) onChange(shown);
 	}, [host, value, shown, onChange]);
 	if (!host) return null;
 	return (
-		<select
+		<div
+			role="radiogroup"
 			aria-label="Where the session runs"
 			title={`Where the session runs - this computer, or the remote host with the most free memory (${[host, ...(data?.cluster ?? [])].map((each) => each.name || each.instanceId).join(", ")})`}
-			value={shown ? "host" : "local"}
-			onChange={(event) => onChange(event.target.value === "host")}
-			className={className}
+			className="flex h-7 shrink-0 rounded-[7px] bg-secondary p-0.5 ring-1 ring-inset ring-border"
 		>
-			<option value="local">This computer</option>
-			<option value="host">Remote</option>
-		</select>
+			{(
+				[
+					[false, "Local"],
+					[true, "Remote"],
+				] as const
+			).map(([onHost, label]) => (
+				<label
+					key={label}
+					className="flex cursor-pointer items-center rounded-[5px] px-2.5 text-[11.5px] font-semibold text-muted-foreground has-checked:bg-background has-checked:text-foreground has-checked:shadow-sm has-focus-visible:outline-2 has-focus-visible:outline-primary"
+				>
+					<input
+						type="radio"
+						name={name}
+						checked={shown === onHost}
+						onChange={() => onChange(onHost)}
+						className="sr-only"
+					/>
+					{label}
+				</label>
+			))}
+		</div>
 	);
 }
