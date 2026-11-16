@@ -1,6 +1,24 @@
 import { Client, utils } from "ssh2";
 import { keyRefused, openSsmStream, pushOneTimeKey } from "./ssm";
 
+/**
+ * An ed25519 key pair ssh2 can sign with. Now and then ssh2 can't parse a
+ * key it just generated ("Malformed OpenSSH private key"), which failed the
+ * login and, for a host no session reports load for, every load probe: the
+ * cluster then never picked that host. Make another until one parses.
+ */
+export function loginKeyPair(
+	options?: Parameters<typeof utils.generateKeyPairSync>[1],
+): { private: string; public: string } {
+	for (let tries = 0; ; tries++) {
+		const key = options
+			? utils.generateKeyPairSync("ed25519", options)
+			: utils.generateKeyPairSync("ed25519");
+		if (!(utils.parseKey(key.private) instanceof Error) || tries >= 9)
+			return key;
+	}
+}
+
 export interface HostLogin {
 	instanceId: string;
 	/** The host's name in Odin, shown to the user instead of the id. */
@@ -47,7 +65,7 @@ async function connectOnce(
 		profile: host.profile,
 		region: host.region,
 	};
-	const key = utils.generateKeyPairSync("ed25519");
+	const key = loginKeyPair();
 	// An Instance Connect key lasts 60s, so it goes once the stream is open;
 	// the SSM one lasts 3 minutes and goes first.
 	if (overSsm)
