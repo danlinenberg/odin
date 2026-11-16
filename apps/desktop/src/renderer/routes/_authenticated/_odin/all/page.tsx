@@ -24,6 +24,8 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { usePersistedDraft } from "renderer/stores/chat-drafts";
 import { openUrl } from "renderer/stores/in-app-browser";
+import { useTabsStore } from "renderer/stores/tabs/store";
+import { MyTodos } from "../board/SessionBrief";
 import { DoneButton } from "../components/DoneButton";
 import { DROP_LABEL, SweepDrop } from "../components/DropHint";
 import {
@@ -51,6 +53,7 @@ import {
 	useMyTasks,
 	useOdinTasks,
 } from "../hooks/useOdinTasks";
+import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import {
 	type AllItem,
@@ -58,6 +61,7 @@ import {
 	bandOf,
 	matchesStatus,
 	NO_STATUS,
+	todoPanesOn,
 	type Urgency,
 } from "./all-items";
 import { ruleLabel, useDropRules } from "./drop-rules";
@@ -1003,6 +1007,7 @@ function AllFeedPage() {
 				</div>
 				{openItem && (
 					<DetailsPanel
+						onGoTo={goToPane}
 						item={openItem}
 						onClose={() => setOpenKey(null)}
 						onOpenFeed={() => navigate({ to: openItem.to })}
@@ -1250,6 +1255,7 @@ function Toggle({
  */
 function DetailsPanel({
 	item,
+	onGoTo,
 	onClose,
 	onOpenFeed,
 	notice,
@@ -1259,6 +1265,8 @@ function DetailsPanel({
 	children,
 }: {
 	item: AllItem;
+	/** Opens a session on the board. */
+	onGoTo: (paneId: string) => void;
 	onClose: () => void;
 	onOpenFeed: () => void;
 	/** Why the row isn't in the list beside the panel, when it isn't. */
@@ -1325,10 +1333,64 @@ function DetailsPanel({
 							{notes}
 						</div>
 					)}
+					<SessionTodos item={item} onGoTo={onGoTo} />
 				</TaskDetails>
 			</div>
 			{children}
 		</aside>
+	);
+}
+
+/**
+ * The to-dos from My notes on each session linked to this task, ticked and
+ * edited in the same store the session drawer uses. With several sessions,
+ * each list sits under its session's name.
+ */
+function SessionTodos({
+	item,
+	onGoTo,
+}: {
+	item: AllItem;
+	onGoTo: (paneId: string) => void;
+}) {
+	const panes = useTabsStore((s) => s.panes);
+	const todosByPane = usePaneMeta((s) => s.todosByPane);
+	const titleByPane = usePaneMeta((s) => s.titleByPane);
+	const linked = useMemo(
+		() => todoPanesOn(Object.values(panes), item, todosByPane),
+		[panes, item, todosByPane],
+	);
+	if (!linked.length) return null;
+	return (
+		<div>
+			<div
+				className={PANEL_LABEL}
+				title="From My notes in this task's sessions - ticking one here ticks it there too."
+			>
+				Session to-dos
+			</div>
+			<div className="flex flex-col gap-2">
+				{linked.map((pane) => (
+					<div key={pane.id} className="flex flex-col gap-1">
+						{linked.length > 1 && (
+							<button
+								type="button"
+								onClick={() => onGoTo(pane.id)}
+								title="Go to this session"
+								className="truncate text-left text-[11px] text-muted-foreground hover:text-foreground hover:underline"
+							>
+								{titleByPane[pane.id] ??
+									pane.odinTaskTitle ??
+									pane.userTitle ??
+									pane.name}{" "}
+								→
+							</button>
+						)}
+						<MyTodos paneId={pane.id} onGoToReply={() => onGoTo(pane.id)} />
+					</div>
+				))}
+			</div>
+		</div>
 	);
 }
 

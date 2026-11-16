@@ -9,6 +9,7 @@ import {
 	plainText,
 	previewPastTitle,
 	rowFinishedWith,
+	todoPanesOn,
 	upcomingMeetings,
 	urgencyOf,
 } from "./all-items";
@@ -484,4 +485,34 @@ test("one task, many sessions: newest first, and Done waits for the last", () =>
 	expect(rowFinishedWith(panes, older.id, task)).toBe(false);
 	// Done on the last one open finishes it.
 	expect(rowFinishedWith([older, ended, other], older.id, task)).toBe(true);
+});
+
+test("a task's session to-dos: sessions with to-dos, newest first, finished ones too", () => {
+	const [task] = allItems({
+		tasks: [{ id: "t1", title: "Write the thing", notes: "", createdAt: 1 }],
+		slack: [],
+		jira: [],
+		pulls: [],
+		notion: [],
+	});
+	if (!task) throw new Error("no row");
+	const older = { id: "pane-1000-a", odinTaskTitle: "Write the thing" };
+	const empty = { id: "pane-1500-e", odinTaskTitle: "Write the thing" };
+	const ended = {
+		id: "pane-3000-c",
+		odinTaskTitle: "Write the thing",
+		completed: true,
+	};
+	const other = { id: "pane-4000-d", odinTaskTitle: "Something else" };
+	const todo = [{ text: "ask about the tests" }];
+	const todos = {
+		[older.id]: todo,
+		[empty.id]: [],
+		[ended.id]: todo,
+		[other.id]: todo,
+	};
+	expect(
+		todoPanesOn([older, empty, ended, other], task, todos).map((p) => p.id),
+	).toEqual(["pane-3000-c", "pane-1000-a"]);
+	expect(todoPanesOn([older], task, {})).toEqual([]);
 });
