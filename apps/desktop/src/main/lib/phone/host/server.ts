@@ -170,21 +170,28 @@ export function startHostServer(
 	serving = true;
 	writeFileSync(files.pid, String(process.pid), { mode: 0o600 });
 	const trust = createTrust(files);
+	const stop = () => {
+		serving = false;
+		stopRelay();
+		if (runningServer(files.pid) === null)
+			try {
+				unlinkSync(files.pid);
+			} catch {}
+	};
 	const stopRelay = dialRelay(
 		config.relay,
 		relayId(trust.identity().publicKey),
 		(pipe) => serveChannel(pipe, trust, handleRequest),
-	);
-	return {
-		stop: () => {
-			serving = false;
-			stopRelay();
-			if (runningServer(files.pid) === null)
-				try {
-					unlinkSync(files.pid);
-				} catch {}
+		undefined,
+		undefined,
+		// A newer server for this user took the relay: it serves the phones now.
+		() => {
+			console.log("[phone-host] replaced by a newer server, exiting");
+			stop();
+			process.exit(0);
 		},
-	};
+	);
+	return { stop };
 }
 
 /**

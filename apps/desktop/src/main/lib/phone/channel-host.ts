@@ -58,6 +58,9 @@ export type RelayState = "connecting" | "connected";
  */
 const REDIAL_MS = 60_000;
 
+/** The relay's close code for a control connection a newer one under the same id replaced. */
+const REPLACED = 4000;
+
 /**
  * Keeps a control connection open to the relay under `id` and hands each
  * phone it announces to `onPhone`. Backs off and dials again after a close,
@@ -70,6 +73,8 @@ export function dialRelay(
 	onPhone: (pipe: Pipe) => void,
 	onState: (state: RelayState) => void = () => {},
 	redialMs = REDIAL_MS,
+	/** Another process took this id at the relay: stop, it's that one's now. Without it, dial again in a minute. */
+	onReplaced?: () => void,
 ): () => void {
 	let stopped = false;
 	let control: WebSocket | null = null;
@@ -99,13 +104,21 @@ export function dialRelay(
 			);
 			if (session) onPhone(websocketPipe(session));
 		});
-		socket.addEventListener("close", () => {
+		socket.addEventListener("close", (event) => {
 			// One a newer connection took over from: that one is the state now.
 			if (control !== socket) return;
 			old?.close();
 			onState("connecting");
 			if (stopped) return;
-			setTimeout(connect, delay);
+			// Another process dialed in under this id. Taking it back at once
+			// makes the two trade the id every second or two, forever.
+			if (event.code === REPLACED && onReplaced) {
+				stopped = true;
+				clearInterval(redial);
+				onReplaced();
+				return;
+			}
+			setTimeout(connect, event.code === REPLACED ? 60_000 : delay);
 			delay = Math.min(delay * 2, 60_000);
 		});
 	};
