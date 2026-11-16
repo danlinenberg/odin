@@ -45,6 +45,10 @@ export const GUIDELINES_HEADER =
  */
 export const DEFAULT_SESSION_INSTRUCTIONS = [
 	"Work in the current workspace. Investigate, make the changes, and verify them when practical.",
+	// A task can wait on the list for weeks while another session does the
+	// same work, and Odin can't know: the task was never started, so it looks
+	// new. Seen here building a second backlog next to the one already built.
+	"A task can wait on my list for weeks, and another session may have done it meanwhile. Before you build anything, look for what it would produce (the page, PR, ticket or rows). If it is already done, change nothing: say so with its link and end with ACTION ITEMS: none.",
 	// A subagent or a background Bash runs it where nobody can see it; the
 	// card's Shell is where I'd look for it.
 	"",
