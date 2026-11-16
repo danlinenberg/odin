@@ -7560,15 +7560,25 @@ function DevBoardPage() {
 	// the folder pill truncate with an ellipsis, while the status, the star
 	// and the toggles keep their full width. Chips used to sit in their own
 	// overflow-hidden group, which clipped its tail (the status and the
-	// star) instead.
+	// star) instead. A narrow row drops the person chip and the folder pill
+	// (the title's tooltip names both) rather than crushing the name to
+	// "rea…" and them to a bare dot and a "d".
 	const drawerHeader = drawerCard && (
 		// h-10 matches SessionBrief's header beside it, so the two bottom borders meet.
-		<div className="flex h-10 shrink-0 items-center border-b border-border px-4">
+		<div className="@container flex h-10 shrink-0 items-center border-b border-border px-4">
 			<div className="flex min-w-0 flex-1 items-center gap-2 whitespace-nowrap">
 				{renameDraft === null ? (
 					<button
 						type="button"
-						title="Click to rename this session"
+						title={[
+							cardTitle(drawerCard),
+							cardContact(drawerCard) && `With ${cardContact(drawerCard)}`,
+							sessionCwd(drawerCard.pane) &&
+								`In ${sessionCwd(drawerCard.pane)}`,
+							"Click to rename this session",
+						]
+							.filter(Boolean)
+							.join("\n")}
 						onClick={() => setRenameDraft(cardTitle(drawerCard))}
 						className="min-w-0 truncate text-left text-sm font-semibold hover:text-primary"
 					>
@@ -7590,7 +7600,10 @@ function DevBoardPage() {
 					/>
 				)}
 				{cardContact(drawerCard) && (
-					<PersonChip name={cardContact(drawerCard) as string} />
+					<PersonChip
+						name={cardContact(drawerCard) as string}
+						className="max-@2xl:hidden"
+					/>
 				)}
 				{drawerLink && (
 					<button
@@ -7609,7 +7622,7 @@ function DevBoardPage() {
 				{sessionCwd(drawerCard.pane) && (
 					<span
 						title={sessionCwd(drawerCard.pane)}
-						className="min-w-0 truncate rounded-[5px] bg-secondary px-[7px] text-[11px] text-muted-foreground"
+						className="min-w-0 truncate rounded-[5px] bg-secondary px-[7px] text-[11px] text-muted-foreground max-@3xl:hidden"
 					>
 						{sessionCwd(drawerCard.pane)?.split("/").slice(-1)[0]}
 					</span>
