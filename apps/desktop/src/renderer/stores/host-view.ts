@@ -14,12 +14,25 @@ export interface HostScreen {
 interface HostViewState {
 	byPane: Record<string, HostScreen>;
 	open: string | null;
+	/** Each open viewer's link to its host, which colors the ▣ View button's dot. */
+	link: Record<string, HostLink>;
 }
+
+export type HostLink = "connecting" | "connected" | "lost";
 
 export const useHostView = create<HostViewState>()(() => ({
 	byPane: {},
 	open: null,
+	link: {},
 }));
+
+/** Records this session's viewer link; null when no viewer is showing it. */
+export function setHostLink(paneId: string, link: HostLink | null): void {
+	useHostView.setState((state) => {
+		const { [paneId]: _, ...rest } = state.link;
+		return { link: link ? { ...rest, [paneId]: link } : rest };
+	});
+}
 
 /** Shows `screen` in this session's drawer, in the terminal's place. */
 export function showHostScreen(paneId: string, screen: HostScreen): void {
