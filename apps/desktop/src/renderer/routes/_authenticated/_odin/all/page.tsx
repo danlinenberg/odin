@@ -66,6 +66,7 @@ import { MetaOptionSelect, useMetaOptions } from "./MetaOptionSelect";
 import { applyNewTaskFields, NO_NEW_TASK_FIELDS } from "./new-task-fields";
 import { revealRow, rowPlace } from "./reveal-row";
 import { nextSelection, visibleSelection } from "./selection";
+import { TaskBoard, TaskViewSwitch } from "./TaskBoard";
 import { TaskDescription } from "./TaskDescription";
 import { TaskDetails } from "./TaskDetails";
 import type { BulkActions } from "./TaskRowMenu";
@@ -77,6 +78,7 @@ import {
 	TaskTableHeader,
 	useTaskRows,
 } from "./TaskTable";
+import { groupTasks, useTaskView } from "./task-board";
 import {
 	dayAfter,
 	type TaskStatus,
@@ -418,6 +420,8 @@ function AllFeedPage() {
 		[allRows, parkedBy],
 	);
 	// A finished row leaves Up next too, so an Undo doesn't bring it back there.
+	// List or Board, kept. The board lays out the same rows the list shows.
+	const { view, groupBy, setView, setGroupBy } = useTaskView();
 	const finish = (item: AllItem) => {
 		markDone(item);
 		dequeue(item.key);
@@ -469,6 +473,33 @@ function AllFeedPage() {
 			].push(item);
 		return out;
 	}, [items, reminders, readingKeys, now]);
+
+	// Odin's own status, so a Read later row keeps the column its status says.
+	const boardColumns = useMemo(
+		() =>
+			groupTasks([...queued, ...parked, ...items], groupBy, {
+				types,
+				statusOf: (item) => statuses[item.key] ?? "waiting",
+			}),
+		[queued, parked, items, groupBy, types, statuses],
+	);
+	// A card dragged to another column takes that column's value.
+	const moveCard = (item: AllItem, to: string) => {
+		if (groupBy === "type") setRowType(item.key, (to as TaskType) || null);
+		else if (groupBy === "status")
+			setRowStatus(item.key, to === "waiting" ? null : (to as TaskStatus));
+		else {
+			const own = tasks.find((task) => `task:${task.id}` === item.key);
+			const label = to ? to[0].toUpperCase() + to.slice(1) : "";
+			if (!own) setRowPriority(item.key, label);
+			else if (label)
+				setPriority(
+					own.id,
+					PRIORITY_LABELS.indexOf(label as (typeof PRIORITY_LABELS)[number]),
+				);
+		}
+	};
+	const board = view === "board" && !showDone;
 
 	// Ticked rows, for acting on many at once. Only rows still on screen count:
 	// a filter or a Done that hides a ticked row takes it out of the next action.
@@ -776,6 +807,12 @@ function AllFeedPage() {
 						<option value="updated">Newest activity</option>
 						<option value="created">Created at</option>
 					</FeedSelect>
+					<TaskViewSwitch
+						view={view}
+						groupBy={groupBy}
+						onView={setView}
+						onGroupBy={setGroupBy}
+					/>
 					<SyncButton isSyncing={isSyncing} onClick={() => void syncAll()} />
 				</div>
 			</FeedHeader>
@@ -838,7 +875,15 @@ function AllFeedPage() {
 			</div>
 
 			<div className="flex min-h-0 flex-1">
-				<div className={TABLE_LIST}>
+				{board && (
+					<TaskBoard
+						columns={boardColumns}
+						openKey={openKey}
+						onOpen={(key) => setOpenKey(key === openKey ? null : key)}
+						onMove={moveCard}
+					/>
+				)}
+				<div className={cn(TABLE_LIST, board && "hidden")}>
 					{!showDone && items.length + queued.length + parked.length > 0 && (
 						<TaskTableHeader
 							date={sortBy === "created" ? "Created" : "Updated"}
