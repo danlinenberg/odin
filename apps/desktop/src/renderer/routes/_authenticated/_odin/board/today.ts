@@ -104,6 +104,64 @@ export function todayGroups<T extends TodayEntry>(
 	})).filter(({ items }) => items.length > 0);
 }
 
+/** Which groups the page shows: the chips' toggles, kept between visits. */
+export interface TodayFilter {
+	/** Groups toggled off: their section shrinks to its heading line. */
+	hidden: readonly TodayGroup[];
+	/** Due or overdue: only cards with a due date, in every group. */
+	dueOnly: boolean;
+}
+
+/**
+ * Every group in TODAY_GROUPS order, empty ones kept: `count` is how many
+ * cards it holds under the due filter, `items` what the page lists (none
+ * when the group is hidden), sorted as todayGroups sorts them.
+ */
+export function todaySections<T extends TodayEntry>(
+	entries: T[],
+	filter: TodayFilter,
+): { group: TodayGroup; items: T[]; count: number; hidden: boolean }[] {
+	const kept = filter.dueOnly
+		? entries.filter((entry) => !!entry.due)
+		: entries;
+	const sorted = todayGroups(kept);
+	return TODAY_GROUPS.map(({ id }) => {
+		const items = sorted.find((g) => g.group === id)?.items ?? [];
+		const hidden = filter.hidden.includes(id);
+		return {
+			group: id,
+			items: hidden ? [] : items,
+			count: items.length,
+			hidden,
+		};
+	});
+}
+
+/** Hide a shown group, show a hidden one; kept in TODAY_GROUPS order. */
+export function toggleTodayGroup(
+	hidden: readonly TodayGroup[],
+	group: TodayGroup,
+): TodayGroup[] {
+	const next = hidden.includes(group)
+		? hidden.filter((g) => g !== group)
+		: [...hidden, group];
+	return TODAY_GROUPS.map((g) => g.id).filter((id) => next.includes(id));
+}
+
+/**
+ * A group's chip: on a shown group it hides it; on a hidden one it shows it
+ * and the page jumps to it.
+ */
+export function pressTodayChip(
+	hidden: readonly TodayGroup[],
+	group: TodayGroup,
+): { hidden: TodayGroup[]; jump: boolean } {
+	return {
+		hidden: toggleTodayGroup(hidden, group),
+		jump: hidden.includes(group),
+	};
+}
+
 /** "3 need you, 2 running, 1 waiting on someone" - the top line before the model's. */
 export function todayCounts(entries: { group: TodayGroup }[]): string {
 	const count = (id: TodayGroup) =>

@@ -2,10 +2,14 @@ import { describe, expect, it } from "bun:test";
 import {
 	dueLabel,
 	plainLine,
+	pressTodayChip,
 	shouldShowToday,
+	type TodayEntry,
 	todayCounts,
 	todayGroup,
 	todayGroups,
+	todaySections,
+	toggleTodayGroup,
 } from "./today";
 
 describe("todayGroup", () => {
@@ -126,5 +130,76 @@ describe("shouldShowToday", () => {
 	it("stays shut when off or when nothing is open", () => {
 		expect(shouldShowToday({ ...base, enabled: false, count: 2 })).toBe(false);
 		expect(shouldShowToday({ ...base, count: 0 })).toBe(false);
+	});
+});
+
+describe("todaySections", () => {
+	const entries: TodayEntry[] = [
+		{ key: "a", group: "needs-you" },
+		{ key: "b", group: "needs-you", due: "2026-01-02" },
+		{ key: "c", group: "running" },
+		{ key: "d", group: "paused", due: "2026-01-05" },
+	];
+	const view = (hidden: TodayEntry["group"][], dueOnly = false) =>
+		todaySections(entries, { hidden, dueOnly }).map((s) => [
+			s.group,
+			s.items.map((i) => i.key),
+			s.count,
+			s.hidden,
+		]);
+
+	it("lists every group, empty ones too, all shown by default", () => {
+		expect(view([])).toEqual([
+			["needs-you", ["b", "a"], 2, false],
+			["almost-done", [], 0, false],
+			["running", ["c"], 1, false],
+			["waiting", [], 0, false],
+			["paused", ["d"], 1, false],
+		]);
+	});
+
+	it("a hidden group lists nothing but keeps its count", () => {
+		expect(view(["needs-you"])[0]).toEqual(["needs-you", [], 2, true]);
+		expect(view(["needs-you"])[2]).toEqual(["running", ["c"], 1, false]);
+	});
+
+	it("due or overdue keeps only cards with a due date, in every group", () => {
+		expect(view([], true)).toEqual([
+			["needs-you", ["b"], 1, false],
+			["almost-done", [], 0, false],
+			["running", [], 0, false],
+			["waiting", [], 0, false],
+			["paused", ["d"], 1, false],
+		]);
+		expect(view(["paused"], true)[4]).toEqual(["paused", [], 1, true]);
+	});
+});
+
+describe("toggleTodayGroup", () => {
+	it("hides a shown group and shows a hidden one, in page order", () => {
+		expect(toggleTodayGroup([], "running")).toEqual(["running"]);
+		expect(toggleTodayGroup(["running"], "needs-you")).toEqual([
+			"needs-you",
+			"running",
+		]);
+		expect(toggleTodayGroup(["needs-you", "running"], "running")).toEqual([
+			"needs-you",
+		]);
+	});
+});
+
+describe("pressTodayChip", () => {
+	it("a shown group's chip hides it and stays put", () => {
+		expect(pressTodayChip([], "waiting")).toEqual({
+			hidden: ["waiting"],
+			jump: false,
+		});
+	});
+
+	it("a hidden group's chip shows it and jumps to it", () => {
+		expect(pressTodayChip(["waiting", "paused"], "waiting")).toEqual({
+			hidden: ["paused"],
+			jump: true,
+		});
 	});
 });
