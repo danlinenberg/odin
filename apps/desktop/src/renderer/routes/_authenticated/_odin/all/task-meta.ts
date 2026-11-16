@@ -13,7 +13,8 @@ export const TASK_STATUSES = [
 	{ id: "in-review", label: "In review" },
 	{ id: "on-hold", label: "On hold" },
 ] as const;
-export type TaskStatus = (typeof TASK_STATUSES)[number]["id"];
+/** A built-in status id, or one you added (`custom:...`). */
+export type TaskStatus = string;
 
 /** What kind of work a task is - set by hand, except a PR reads as a review. */
 export const TASK_TYPES = [
@@ -22,12 +23,90 @@ export const TASK_TYPES = [
 	{ id: "review", label: "Review code" },
 	{ id: "read", label: "Read" },
 ] as const;
-export type TaskType = (typeof TASK_TYPES)[number]["id"];
+/** A built-in type id, or one you added (`custom:...`). */
+export type TaskType = string;
+
+/** One choice in the Status or Type dropdown. */
+export interface MetaOption {
+	id: string;
+	label: string;
+}
+
+/** Which dropdown a value you added belongs to. */
+export type MetaKind = "status" | "type";
+
+/** Values you can add to one dropdown. Small, so the store stays a singleton. */
+export const MAX_CUSTOM_OPTIONS = 40;
+const MAX_LABEL = 40;
+
+/**
+ * The dropdown's choices: the built-in ones first, in their order, then yours
+ * in the order you added them. A value of yours that repeats a built-in or an
+ * earlier one (same id, or same label in any case) is left out.
+ */
+export function mergeOptions(
+	builtIn: readonly MetaOption[],
+	custom: readonly MetaOption[],
+): MetaOption[] {
+	const ids = new Set<string>();
+	const labels = new Set<string>();
+	const out: MetaOption[] = [];
+	for (const option of [...builtIn, ...custom]) {
+		const label = option.label.trim();
+		const key = label.toLowerCase();
+		if (!label || ids.has(option.id) || labels.has(key)) continue;
+		ids.add(option.id);
+		labels.add(key);
+		out.push({ id: option.id, label });
+	}
+	return out;
+}
+
+/** True for a value you added, which is the only kind you can remove. */
+export const isCustomOption = (id: string) => id.startsWith("custom:");
+
+/**
+ * The list with a value named `label` added, or null when the name is empty,
+ * already in the dropdown, or the list is full. The id is made from the name,
+ * so adding a removed value back again picks up the same id.
+ */
+export function addOption(
+	builtIn: readonly MetaOption[],
+	custom: readonly MetaOption[],
+	label: string,
+): { list: MetaOption[]; id: string } | null {
+	const name = label.trim().replace(/\s+/g, " ").slice(0, MAX_LABEL);
+	if (!name || custom.length >= MAX_CUSTOM_OPTIONS) return null;
+	const taken = mergeOptions(builtIn, custom);
+	if (taken.some((o) => o.label.toLowerCase() === name.toLowerCase()))
+		return null;
+	let id = `custom:${name.toLowerCase()}`;
+	for (let n = 2; taken.some((o) => o.id === id); n++)
+		id = `custom:${name.toLowerCase()}#${n}`;
+	return { list: [...custom, { id, label: name }], id };
+}
+
+const builtInOf = (kind: MetaKind): readonly MetaOption[] =>
+	kind === "status" ? TASK_STATUSES : TASK_TYPES;
+
+/** The Status dropdown's choices, built-in and yours. */
+export function statusOptions(
+	custom = useTaskMeta.getState().customStatuses,
+): MetaOption[] {
+	return mergeOptions(TASK_STATUSES, custom);
+}
+
+/** The Type dropdown's choices, built-in and yours. */
+export function typeOptions(
+	custom = useTaskMeta.getState().customTypes,
+): MetaOption[] {
+	return mergeOptions(TASK_TYPES, custom);
+}
 
 export const statusLabel = (id: string | undefined) =>
-	TASK_STATUSES.find((s) => s.id === id)?.label ?? null;
+	statusOptions().find((s) => s.id === id)?.label ?? null;
 export const typeLabel = (id: string | undefined) =>
-	TASK_TYPES.find((t) => t.id === id)?.label ?? null;
+	typeOptions().find((t) => t.id === id)?.label ?? null;
 
 /** The type in force: what you picked, else what the source implies (a PR is a review, a meeting is one to prepare for). */
 export function typeOf(
@@ -170,7 +249,8 @@ function drop<T>(map: Record<string, T>, key: string): Record<string, T> {
  * the order you'll take them. Keyed by the All-feed key, like Done.
  * Bounded by KEEP: setting a row moves it to the end, and the oldest fall
  * off. Notes are for rows from Slack, Jira and the rest; your own tasks keep
- * theirs on the task.
+ * theirs on the task. The values you add to Status and Type are capped at
+ * MAX_CUSTOM_OPTIONS each, and removing one clears it off its rows.
  */
 export const useTaskMeta = create<{
 	statuses: Record<string, TaskStatus>;
@@ -194,6 +274,14 @@ export const useTaskMeta = create<{
 	unwait: (key: string, back?: boolean) => void;
 	/** Every row whose day is `today` or past goes back on top of Up next. Returns their keys. */
 	wake: (today: string) => string[];
+	/** Statuses you added to the dropdown, after the built-in ones. */
+	customStatuses: MetaOption[];
+	/** Types you added to the dropdown, after the built-in ones. */
+	customTypes: MetaOption[];
+	/** Add a value to the Status or Type dropdown. Returns its id, or null when it isn't added. */
+	addCustomOption: (kind: MetaKind, label: string) => string | null;
+	/** Take a value you added off its dropdown; rows set to it go back to none. */
+	removeCustomOption: (kind: MetaKind, id: string) => void;
 }>()(
 	persist(
 		(set) => ({
@@ -202,6 +290,8 @@ export const useTaskMeta = create<{
 			notes: {},
 			queue: [],
 			waiting: {},
+			customStatuses: [],
+			customTypes: [],
 			setStatus: (key, status) =>
 				set((s) => ({ statuses: put(s.statuses, key, status) })),
 			setType: (key, type) => set((s) => ({ types: put(s.types, key, type) })),
@@ -258,6 +348,25 @@ export const useTaskMeta = create<{
 					return { queue, waiting };
 				});
 				return keys;
+			},
+			addCustomOption: (kind, label) => {
+				const state = useTaskMeta.getState();
+				const listKey = kind === "status" ? "customStatuses" : "customTypes";
+				const added = addOption(builtInOf(kind), state[listKey], label);
+				if (!added) return null;
+				set({ [listKey]: added.list });
+				return added.id;
+			},
+			removeCustomOption: (kind, id) => {
+				if (!isCustomOption(id)) return;
+				const listKey = kind === "status" ? "customStatuses" : "customTypes";
+				const mapKey = kind === "status" ? "statuses" : "types";
+				set((s) => ({
+					[listKey]: s[listKey].filter((o) => o.id !== id),
+					[mapKey]: Object.fromEntries(
+						Object.entries(s[mapKey]).filter(([, v]) => v !== id),
+					),
+				}));
 			},
 		}),
 		{ name: "odin-task-meta" },

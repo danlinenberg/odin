@@ -17,17 +17,12 @@ import { usePersistedDraft } from "renderer/stores/chat-drafts";
 import { useClaudeCommand } from "renderer/stores/claude-command";
 import { describeCron, nextRun } from "shared/cron";
 import { getImageMimeType, isVideoFile } from "shared/file-types";
+import { MetaOptionSelect } from "../all/MetaOptionSelect";
 import {
 	applyNewTaskFields,
 	type NewTaskFields,
 	NO_NEW_TASK_FIELDS,
 } from "../all/new-task-fields";
-import {
-	TASK_STATUSES,
-	TASK_TYPES,
-	type TaskStatus,
-	type TaskType,
-} from "../all/task-meta";
 import {
 	ATTACHMENT_URL,
 	PRIORITY_LABELS,
@@ -1043,42 +1038,46 @@ export function NewTaskFieldsPicker({
 					className={cn(FIELD_SELECT, "text-foreground")}
 				/>
 			</label>
-			<label className={FIELD}>
+			<div className={FIELD}>
 				<span className={FIELD_LABEL}>Status</span>
-				<select
-					aria-label="Status"
+				<MetaOptionSelect
+					kind="status"
 					value={value.status}
-					onChange={(event) =>
-						onChange({ ...value, status: event.target.value as TaskStatus })
-					}
-					className={cn(FIELD_SELECT, "text-foreground")}
-				>
-					<option value="">Waiting on you</option>
-					{TASK_STATUSES.map(({ id, label }) => (
-						<option key={id} value={id}>
-							{label}
-						</option>
-					))}
-				</select>
-			</label>
-			<label className={FIELD}>
+					onChange={(status) => onChange({ ...value, status })}
+					empty={<option value="">Waiting on you</option>}
+					inputClassName={cn(FIELD_INPUT, "w-[140px] text-foreground")}
+					select={(current, pick, options) => (
+						<select
+							aria-label="Status"
+							value={current}
+							onChange={(event) => pick(event.target.value)}
+							className={cn(FIELD_SELECT, "text-foreground")}
+						>
+							{options}
+						</select>
+					)}
+				/>
+			</div>
+			<div className={FIELD}>
 				<span className={FIELD_LABEL}>Type</span>
-				<select
-					aria-label="Type"
+				<MetaOptionSelect
+					kind="type"
 					value={value.type}
-					onChange={(event) =>
-						onChange({ ...value, type: event.target.value as TaskType })
-					}
-					className={cn(FIELD_SELECT, "text-foreground")}
-				>
-					<option value="">No type</option>
-					{TASK_TYPES.map(({ id, label }) => (
-						<option key={id} value={id}>
-							{label}
-						</option>
-					))}
-				</select>
-			</label>
+					onChange={(type) => onChange({ ...value, type })}
+					empty={<option value="">No type</option>}
+					inputClassName={cn(FIELD_INPUT, "w-[140px] text-foreground")}
+					select={(current, pick, options) => (
+						<select
+							aria-label="Type"
+							value={current}
+							onChange={(event) => pick(event.target.value)}
+							className={cn(FIELD_SELECT, "text-foreground")}
+						>
+							{options}
+						</select>
+					)}
+				/>
+			</div>
 		</>
 	);
 }
