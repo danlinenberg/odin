@@ -434,8 +434,11 @@ export function useLaunchTaskSession() {
 										: "here",
 							)
 					: null;
-			const remote =
-				(planOnly || onHost || savedOn === "host") && host
+			// A profile with no host set up never runs one there, whatever the
+			// phone's Where pick or a launch check from before a profile switch said.
+			const remote = !host
+				? null
+				: planOnly || onHost || savedOn === "host"
 					? host.name || host.instanceId
 					: onHost === false || savedOn === "here"
 						? null
@@ -479,7 +482,9 @@ export function useLaunchTaskSession() {
 			// board it is starting rather than ended. A plan starts nothing.
 			const { addTab, setTabAutoTitle, setPaneAutoTitle, setPaneStatus } =
 				useTabsStore.getState();
-			const odinProfile = profiles?.activeId;
+			// The profile read with the host above, so a remote session lands
+			// on the profile whose host it runs on.
+			const odinProfile = hostConfig?.profileId ?? profiles?.activeId;
 			if (!planOnly) {
 				// The worktree's path comes later; the repo picked at launch
 				// stands in until then.

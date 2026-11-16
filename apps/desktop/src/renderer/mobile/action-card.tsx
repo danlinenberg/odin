@@ -139,7 +139,7 @@ function ActionRow({
 						type="button"
 						aria-label="Dismiss this item"
 						onClick={onDismiss}
-						className="-mr-1 flex size-8 shrink-0 items-center justify-center text-muted-foreground"
+						className="-my-1.5 -mr-1 flex size-8 shrink-0 items-center justify-center text-muted-foreground"
 					>
 						<LuX className="size-4" />
 					</button>
