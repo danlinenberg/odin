@@ -5540,7 +5540,7 @@ function Composer({
 											? (el) => el?.scrollIntoView({ block: "nearest" })
 											: undefined
 									}
-									onMouseEnter={() => setSelected(index)}
+									onMouseMove={() => setSelected(index)}
 									// The textarea keeps focus: mousedown fires before blur.
 									onMouseDown={(event) => {
 										event.preventDefault();
@@ -5548,7 +5548,8 @@ function Composer({
 									}}
 									className={cn(
 										"flex w-full items-baseline gap-2 px-3 py-1 text-left",
-										index === activeIndex && "bg-secondary",
+										index === activeIndex &&
+											"bg-primary/15 shadow-[inset_2px_0_0_var(--primary)]",
 									)}
 								>
 									<span className="shrink-0 font-mono text-[12.5px] font-semibold text-foreground">
