@@ -1582,6 +1582,51 @@ export const createRemoteHostRouter = () =>
 			.query(({ input }) => launchPlace(input)),
 
 		/**
+		 * The host a session sent to the remote host runs on, by name. A new one:
+		 * the cluster host with the most free memory. A resume (`sessionId`): the
+		 * host that keeps its conversation, asked of every cluster and past host
+		 * at once; the main host when none answers that it does. Null with no
+		 * host set up.
+		 */
+		hostFor: publicProcedure
+			.input(z.object({ sessionId: z.string().nullable() }))
+			.query(async ({ input }) => {
+				const main = readOdinConfig().remoteHost;
+				if (!main) return null;
+				const nameOf = (host: { name?: string; instanceId: string }) =>
+					host.name || host.instanceId;
+				const id = input.sessionId;
+				if (!id) return nameOf((await pickHost(3_000))?.host ?? main);
+				if (!/^[\w-]+$/.test(id)) return nameOf(main);
+				const hosts = [
+					...clusterHostsNow(),
+					...(readOdinConfig().pastRemoteHosts ?? []),
+				];
+				const keeps = async (host: RemoteHost) => {
+					const client = await connectHost(host);
+					try {
+						const out = await runOnHost(
+							client,
+							`ls ~/.claude/projects/*/${id}.jsonl 2>/dev/null | head -1`,
+						);
+						if (!out.trim()) throw new Error("not here");
+						return nameOf(host);
+					} finally {
+						client.end();
+					}
+				};
+				// A host that is stopped or out of reach can hold a login for
+				// minutes: after 20s the resume goes to the main host.
+				const late = new Promise<string>((resolve) =>
+					setTimeout(() => resolve(nameOf(main)), 20_000).unref(),
+				);
+				return Promise.race([
+					Promise.any(hosts.map(keeps)).catch(() => nameOf(main)),
+					late,
+				]);
+			}),
+
+		/**
 		 * A message to a session on the host: the laptop files it names or
 		 * attaches, copied to ~/.odin/files there, and the text and paths
 		 * rewritten to the copies. Unchanged when nothing is a laptop file.

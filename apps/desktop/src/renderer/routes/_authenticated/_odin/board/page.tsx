@@ -5642,17 +5642,24 @@ function DevBoardPage() {
 				// whose card reports the host folder it started in is filed
 				// there too, and is still the host's.
 				const here = sessionCwd(card.pane);
-				const host =
+				// The cluster host that keeps the conversation (hostFor); the main
+				// host while this Odin's main process predates that procedure.
+				const hostName =
 					transcript.local === false &&
 					!card.pane.odinRemote &&
 					!(here && movedHere(transcript.path, here, transcript.cwd, sessionId))
-						? (await utils.client.remoteHost.get.query().catch(() => null))
-								?.host
+						? ((await utils.client.remoteHost.hostFor
+								.query({ sessionId })
+								.catch(() => null)) ??
+							(await utils.client.remoteHost.get
+								.query()
+								.then(({ host }) => host && (host.name || host.instanceId))
+								.catch(() => null)))
 						: null;
-				if (host) {
+				if (hostName) {
 					const pane = {
 						...card.pane,
-						odinRemote: host.name || host.instanceId,
+						odinRemote: hostName,
 					};
 					useTabsStore.setState((state) => ({
 						panes: {
@@ -5666,7 +5673,7 @@ function DevBoardPage() {
 				// folder it started in: `claude --resume` there finds no folder on
 				// this computer and exits 1. Resume where its copy is filed.
 				if (
-					!host &&
+					!hostName &&
 					!card.pane.odinRemote &&
 					transcript.local &&
 					transcript.cwd &&
