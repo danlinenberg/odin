@@ -88,15 +88,15 @@ const GONE = new Set(["shutting-down", "terminated"]);
  * The cluster Odin keeps by itself: every instance it lists for the main
  * host's account and region (each tagged Odin = host) besides the main host.
  * `join` is the ones not in it yet that can be set up now (running, SSM
- * online); `leave` is the ids of hosts that joined this way and are gone or
- * no longer listed. Hosts added by hand stay as they are.
+ * online); `leave` is the ids of hosts in it that are gone or no longer
+ * listed.
  */
 export function autoCluster<
 	I extends { id: string; state: string; ssmOnline: boolean },
 >(
 	mainId: string,
 	instances: I[],
-	current: { instanceId: string; auto?: boolean }[],
+	current: { instanceId: string }[],
 ): { join: I[]; leave: string[] } {
 	const members = instances.filter(
 		(instance) => instance.id !== mainId && !GONE.has(instance.state),
@@ -111,7 +111,7 @@ export function autoCluster<
 				instance.ssmOnline,
 		),
 		leave: current
-			.filter((extra) => extra.auto && !ids.has(extra.instanceId))
+			.filter((extra) => !ids.has(extra.instanceId))
 			.map((extra) => extra.instanceId),
 	};
 }
