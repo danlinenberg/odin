@@ -1,11 +1,18 @@
 import { execFile } from "node:child_process";
-import { resolve, sep } from "node:path";
+import { existsSync } from "node:fs";
+import { join, resolve, sep } from "node:path";
 import { initTRPC, TRPCError } from "@trpc/server";
 import {
 	createNameLookup,
 	type SlackUser,
 	slackUserName,
 } from "lib/trpc/routers/slack/name-lookup";
+import {
+	type GhExec,
+	type PullRequestStatus,
+	pullRequestState,
+} from "lib/trpc/routers/terminal/pr-state";
+import { hostPorts } from "main/lib/remote-host/host-service";
 import { hostReplyScript } from "main/lib/remote-host/session";
 import {
 	jiraIssue,
@@ -58,6 +65,44 @@ const hostName = () => readSnapshot().host || "the remote host";
 
 /** The runner the laptop sent with its task list (remote-host/away). */
 const RUNNER = () => `${hostPaths.home}/.odin/night/runner.py`;
+
+/**
+ * gh signed in as the account that owns `owner`'s repos. The host service
+ * keeps the token and answers with the Mac closed. Its gh wrapper picks the
+ * account from the folder's git remote, and this server's folder has none,
+ * so the real gh runs here with the owner's token.
+ */
+async function ghFor(owner: string): Promise<GhExec> {
+	const token = await fetch(
+		`http://127.0.0.1:${hostPorts(process.getuid?.() ?? 0).service}/token?service=github&owner=${encodeURIComponent(owner)}`,
+		{ signal: AbortSignal.timeout(10_000) },
+	)
+		.then((answer) => (answer.ok ? answer.text() : ""))
+		.then((text) => text.trim())
+		.catch(() => "");
+	const real = join(hostPaths.odin, "bin", "gh");
+	const bin = existsSync(real) ? real : "gh";
+	return (args, extra) =>
+		new Promise((done, fail) =>
+			execFile(
+				bin,
+				args,
+				{
+					env: { ...process.env, ...(token && { GH_TOKEN: token }), ...extra },
+					maxBuffer: 10 * 1024 * 1024,
+				},
+				(error, stdout) => (error ? fail(error) : done({ stdout })),
+			),
+		);
+}
+
+/** A PR's state and CI, as the Mac asks gh for it. Swapped in tests. */
+export const github = {
+	state: async (url: string): Promise<PullRequestStatus | null> => {
+		const owner = url.match(/^https:\/\/github\.com\/([\w.-]+)\//)?.[1] ?? "";
+		return pullRequestState(url, await ghFor(owner)).catch(() => null);
+	},
+};
 
 /** Runs a shell script as this user; resolves with its exit code. */
 export const shell = {
@@ -380,8 +425,9 @@ export const hostPhoneRouter = t.router({
 	brief: t.procedure.input(paneInput).query(() => null),
 	/**
 	 * The session's PRs, ticket, thread and page, read from its conversation
-	 * here as the laptop reads them. Their states (Open, Merged, CI) are the
-	 * laptop's to ask: none here, so each shows as a plain link.
+	 * here as the laptop reads them. Each PR's state and CI come from gh on
+	 * this host, as the laptop gets them; one gh can't read shows as a plain
+	 * link. The Jira status stays the laptop's to ask.
 	 */
 	links: t.procedure.input(paneInput).query(async ({ input }) => {
 		const session = await findSession(input.paneId);
@@ -393,15 +439,15 @@ export const hostPhoneRouter = t.router({
 			: null;
 		const source = transcript ? (transcript.links ?? transcript.messages) : [];
 		const issue = jiraIssue(source);
+		const prs = pullRequests(source).slice(-8);
+		const states = await Promise.all(prs.map((pr) => github.state(pr.url)));
 		return {
-			prs: pullRequests(source)
-				.slice(-8)
-				.map((pr) => ({
-					url: pr.url,
-					label: prLabel(pr),
-					repo: pr.repo.split("/").pop() ?? pr.repo,
-					status: null,
-				})),
+			prs: prs.map((pr, i) => ({
+				url: pr.url,
+				label: prLabel(pr, states[i]?.title),
+				repo: pr.repo.split("/").pop() ?? pr.repo,
+				status: states[i],
+			})),
 			jira: issue && { ...issue, status: null },
 			slack: slackThread(source),
 			notion: notionPage(source),

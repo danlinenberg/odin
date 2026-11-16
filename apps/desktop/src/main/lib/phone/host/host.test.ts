@@ -17,7 +17,7 @@ import {
 	websocketPipe,
 } from "@odin/channel";
 import { startRelay } from "@odin/relay";
-import { hostPhoneRouter, shell } from "./router";
+import { github, hostPhoneRouter, shell } from "./router";
 import { hostFiles, hostLink, pairingLink, startHostServer } from "./server";
 import {
 	hostPaths,
@@ -45,6 +45,26 @@ tmux.run = async (args) => {
 	if (args[0] === "capture-pane")
 		return "✻ Cogitating… (5s · esc to interrupt)\n";
 	return "";
+};
+// gh on the host answers for the PR the conversation links.
+const asked: string[] = [];
+github.state = async (url) => {
+	asked.push(url);
+	return {
+		state: "MERGED",
+		isDraft: false,
+		approved: true,
+		pending: [],
+		awaiting: [],
+		failed: [],
+		passed: 3,
+		conflicting: false,
+		base: "main",
+		author: "me",
+		mine: true,
+		title: "Fix the flaky login test",
+		summary: null,
+	};
 };
 const typed: string[] = [];
 shell.run = async (script) => {
@@ -183,18 +203,16 @@ test("a paired phone lists the host's sessions, reads one, and replies", async (
 		"Looking at it now. https://github.com/acme/app/pull/12",
 	]);
 
-	// Its PR, read from the conversation here; the state is the Mac's to ask.
+	// Its PR, read from the conversation here, with its state from gh here.
 	const links = decode(
 		(await channel.request(get("links", { paneId: "pane-abc" }))).body,
 	).result.data.json;
-	expect(links.prs).toEqual([
-		{
-			url: "https://github.com/acme/app/pull/12",
-			label: "app #12",
-			repo: "app",
-			status: null,
-		},
-	]);
+	expect(asked).toEqual(["https://github.com/acme/app/pull/12"]);
+	expect(links.prs).toHaveLength(1);
+	expect(links.prs[0].url).toBe("https://github.com/acme/app/pull/12");
+	expect(links.prs[0].repo).toBe("app");
+	expect(links.prs[0].label).toBe("#12 Fix the flaky login test");
+	expect(links.prs[0].status).toMatchObject({ state: "MERGED", passed: 3 });
 	expect(session.status).toBe("working");
 
 	const reply = await channel.request({

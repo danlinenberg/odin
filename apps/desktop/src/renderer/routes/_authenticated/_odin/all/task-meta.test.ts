@@ -1,11 +1,17 @@
 import { expect, test } from "bun:test";
 import {
+	addOption,
 	dayAfter,
+	MAX_CUSTOM_OPTIONS,
+	mergeOptions,
 	moveKey,
 	parseDueDay,
 	parseQueuePlace,
 	placeKey,
+	TASK_TYPES,
+	typeLabel,
 	typeOf,
+	typeOptions,
 	useTaskMeta,
 	wokenKeys,
 } from "./task-meta";
@@ -136,4 +142,74 @@ test("setNote keeps notes on any row, and empty clears them", () => {
 		"slack:C1/123": "ask Dana first",
 	});
 	useTaskMeta.setState({ notes: {} });
+});
+
+test("mergeOptions lists the built-in values first, then yours, without repeats", () => {
+	const builtIn = [
+		{ id: "code", label: "Write code" },
+		{ id: "read", label: "Read" },
+	];
+	expect(
+		mergeOptions(builtIn, [
+			{ id: "custom:design", label: "Design" },
+			{ id: "custom:read", label: " read " },
+			{ id: "code", label: "Something else" },
+			{ id: "custom:design#2", label: "DESIGN" },
+			{ id: "custom:blank", label: "  " },
+			{ id: "custom:hiring", label: "Hiring" },
+		]),
+	).toEqual([
+		{ id: "code", label: "Write code" },
+		{ id: "read", label: "Read" },
+		{ id: "custom:design", label: "Design" },
+		{ id: "custom:hiring", label: "Hiring" },
+	]);
+	expect(mergeOptions(builtIn, [])).toEqual(builtIn);
+});
+
+test("addOption adds a new name once, and refuses empty, taken or too many", () => {
+	const added = addOption(TASK_TYPES, [], "  Design   review ");
+	expect(added).toEqual({
+		id: "custom:design review",
+		list: [{ id: "custom:design review", label: "Design review" }],
+	});
+	expect(addOption(TASK_TYPES, added?.list ?? [], "design REVIEW")).toBeNull();
+	expect(addOption(TASK_TYPES, [], "write code")).toBeNull();
+	expect(addOption(TASK_TYPES, [], "   ")).toBeNull();
+	const full = Array.from({ length: MAX_CUSTOM_OPTIONS }, (_, i) => ({
+		id: `custom:${i}`,
+		label: `Kind ${i}`,
+	}));
+	expect(addOption(TASK_TYPES, full, "One more")).toBeNull();
+});
+
+test("a type you add is in the dropdown; removing it clears it off its rows", () => {
+	useTaskMeta.setState({ types: {}, statuses: {}, customTypes: [] });
+	const meta = useTaskMeta.getState();
+	const id = meta.addCustomOption("type", "Design");
+	expect(id).toBe("custom:design");
+	expect(meta.addCustomOption("type", "design")).toBeNull();
+	meta.setType("task:1", id);
+	meta.setType("task:2", "code");
+	expect(typeOptions().map((o) => o.label)).toEqual([
+		...TASK_TYPES.map((t) => t.label),
+		"Design",
+	]);
+	expect(typeLabel("custom:design")).toBe("Design");
+	// A built-in value can't be removed.
+	meta.removeCustomOption("type", "code");
+	meta.removeCustomOption("type", "custom:design");
+	expect(useTaskMeta.getState().customTypes).toEqual([]);
+	expect(useTaskMeta.getState().types).toEqual({ "task:2": "code" });
+	useTaskMeta.setState({ types: {} });
+});
+
+test("a status you add sits after the built-in ones", () => {
+	useTaskMeta.setState({ statuses: {}, customStatuses: [] });
+	const id = useTaskMeta.getState().addCustomOption("status", "Blocked");
+	useTaskMeta.getState().setStatus("jira:A-1", id);
+	expect(useTaskMeta.getState().statuses).toEqual({
+		"jira:A-1": "custom:blocked",
+	});
+	useTaskMeta.setState({ statuses: {}, customStatuses: [] });
 });

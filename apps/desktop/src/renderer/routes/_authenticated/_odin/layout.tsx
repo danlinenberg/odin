@@ -58,6 +58,7 @@ import {
 	useBoardCountsByProfile,
 } from "./hooks/useBoardCountsByProfile";
 import { crowPane, useCrow, useCrowDialog } from "./hooks/useCrow";
+import { useHostRulesSync } from "./hooks/useHostRulesSync";
 import { useNightAgentRunner } from "./hooks/useNightAgentRunner";
 import { useOdinFeeds } from "./hooks/useOdinFeeds";
 import { useOdinProfile } from "./hooks/useOdinProfile";
@@ -254,6 +255,8 @@ const ShellRunners = memo(function ShellRunners({
 	useAutomationRunner();
 	useNightAgentRunner();
 	useAwayTasksSync();
+	// Host sessions get the rules from main, so main needs the current ones.
+	useHostRulesSync();
 	// And the backlog sweep, on its interval, so Review is already filled in.
 	usePeriodicSweep();
 	// Same reason: tasks held back by the capacity gate wait in Idle → Queued,
