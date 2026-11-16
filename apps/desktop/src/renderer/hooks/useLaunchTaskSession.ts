@@ -440,15 +440,28 @@ export function useLaunchTaskSession() {
 					: null;
 			// A profile with no host set up never runs one there, whatever the
 			// phone's Where pick or a launch check from before a profile switch said.
+			// Sent to the remote host: a new session to the cluster host with
+			// the most free memory, a resume to the host that keeps it.
+			const clusterHost = async (sessionId: string | null) =>
+				(await utils.client.remoteHost?.hostFor
+					.query({ sessionId })
+					.catch(() => null)) ??
+				host?.name ??
+				host?.instanceId ??
+				null;
 			const remote = !host
 				? null
-				: planOnly || onHost || savedOn === "host"
+				: planOnly
 					? host.name || host.instanceId
-					: onHost === false || savedOn === "here"
-						? null
-						: target !== undefined
-							? target
-							: await launchTarget();
+					: savedOn === "host"
+						? await clusterHost(resumeSessionId ?? null)
+						: onHost
+							? await clusterHost(null)
+							: onHost === false || savedOn === "here"
+								? null
+								: target !== undefined
+									? target
+									: await launchTarget();
 			// A pinned --session-id is not proof Claude ever wrote the
 			// conversation: a card Done'd or snoozed before Claude took its prompt
 			// has none, and `claude --resume` then prints "No conversation found"

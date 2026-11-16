@@ -2,7 +2,8 @@ import { useEffect } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 
 /**
- * This computer or the remote host, for one session. What it shows is what
+ * This computer or the remote hosts, for one session: "Remote" starts it on
+ * the cluster host with the most free memory (remoteHost.hostFor). What it shows is what
  * the launch gets: untouched, it reports the host switch as the pick, so the
  * session runs where the menu said, not where the repo or connector rules
  * would send it. Nothing shows while no remote host is set up. `className` restyles the
@@ -27,13 +28,13 @@ export function WherePicker({
 	return (
 		<select
 			aria-label="Where the session runs"
-			title="Where the session runs - this computer or the remote host"
+			title={`Where the session runs - this computer, or the remote host with the most free memory (${[host, ...(data?.cluster ?? [])].map((each) => each.name || each.instanceId).join(", ")})`}
 			value={shown ? "host" : "local"}
 			onChange={(event) => onChange(event.target.value === "host")}
 			className={className}
 		>
 			<option value="local">This computer</option>
-			<option value="host">Remote: {host.name || host.instanceId}</option>
+			<option value="host">Remote</option>
 		</select>
 	);
 }
