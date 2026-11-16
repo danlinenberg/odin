@@ -4,6 +4,7 @@ import {
 	PR_SCREENSHOT_RULE,
 	voiceRuleWith,
 } from "../../../shared/constants";
+import { PR_COMMAND } from "../../../shared/odin-rules";
 import { tmuxSession } from "../../../shared/remote-reconnect";
 import {
 	SLACK_ALLOW_RULES,
@@ -48,6 +49,12 @@ export interface RemoteSessionSpec {
 	odinPane?: string | null;
 	/** Laptop files the prompt names, copied to the host before Claude starts. */
 	files?: RemoteFile[];
+	/**
+	 * What the PR-rules hook prints (rulesHookOutput), or null. Claude takes
+	 * one --settings and the host's hooks hold it, so the rules go to a file
+	 * the host's own PostToolUse hook prints after a PR command.
+	 */
+	rules?: string | null;
 	/** End the session's tmux session first, so Claude starts over (Restart). */
 	fresh?: boolean;
 	/**
@@ -503,7 +510,18 @@ export const hostSettings = JSON.stringify({
 			},
 			notify(),
 		],
-		PostToolUse: [notify("*")],
+		PostToolUse: [
+			notify("*"),
+			{
+				matcher: "Bash",
+				hooks: [
+					{
+						type: "command",
+						command: `[ -s "$ODIN_RULES" ] && grep -qE ${sh(PR_COMMAND)} && cat "$ODIN_RULES"; exit 0`,
+					},
+				],
+			},
+		],
 		PostToolUseFailure: [notify("*")],
 		PreToolUse: [notify("AskUserQuestion|ExitPlanMode")],
 		PreCompact: [notify()],
@@ -705,6 +723,11 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		'fallback="$ODIN_FALLBACK_API_KEY"',
 		"unset ODIN_FALLBACK_API_KEY ODIN_PLAN_LIMITED_UNTIL",
 		'export ODIN_RUN_PID=$$; [ -n "$fallback" ] && export ODIN_HAS_FALLBACK_KEY=1',
+		// The PR rules for the host's hook; a launch with none clears the old file.
+		`export ODIN_RULES="$HOME/.odin/rules-"${sh(spec.pane)}.json`,
+		spec.rules
+			? `printf %s ${sh(Buffer.from(spec.rules).toString("base64"))} | base64 -d > "$ODIN_RULES"`
+			: 'rm -f "$ODIN_RULES"',
 		`rm -f ${idleMarker(spec.pane)}`,
 		'[ -n "$TMUX_PANE" ] && command -v pgrep >/dev/null && ' +
 			idleWatcher(spec.pane),

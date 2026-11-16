@@ -9,6 +9,7 @@ import { usePaneMeta } from "renderer/routes/_authenticated/_odin/hooks/usePaneM
 import { claudeLaunch } from "renderer/stores/claude-command";
 import {
 	type OdinRule,
+	rulesHookOutput,
 	rulesPrompt,
 	rulesSettings,
 	useOdinRules,
@@ -728,10 +729,14 @@ export function useLaunchTaskSession() {
 						prompt: remotePrompt,
 					}
 				: null;
+			const remoteRules = remote
+				? rulesHookOutput(useOdinRules.getState().rules, checkout)
+				: null;
 			const command = remoteLaunch
 				? await utils.client.remoteHost.sessionCommand.mutate({
 						...remoteLaunch,
 						odinPane: paneId,
+						rules: remoteRules,
 					})
 				: `cd ${quote(sessionCwd)} && ${claudeLaunch(title, claudeArgs, paneId)}`;
 			// Held back: the pane stays process-less and the command rides on it
