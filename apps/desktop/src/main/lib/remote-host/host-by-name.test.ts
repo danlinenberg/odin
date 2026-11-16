@@ -4,6 +4,7 @@ import {
 	autoCluster,
 	clusterMember,
 	hostByName,
+	pickedHost,
 } from "./host-by-name";
 
 const prod = { name: "odin-prod", instanceId: "i-prod" };
@@ -75,4 +76,28 @@ test("every listed host joins the cluster, and one that is gone leaves", () => {
 	expect(plan.join.map((instance) => instance.id)).toEqual(["i-two"]);
 	// Gone or no longer listed leaves.
 	expect(plan.leave).toEqual(["i-gone", "i-old"]);
+});
+
+test("a host picked again comes back with its settings", () => {
+	const past = {
+		instanceId: "i-prod",
+		name: "odin-prod",
+		awayTasks: true,
+		awsProfiles: ["dev"],
+	};
+	const picked = { instanceId: "i-prod", name: "odin-prod", on: true };
+	expect(pickedHost(picked, [undefined, past])).toEqual({
+		host: {
+			instanceId: "i-prod",
+			name: "odin-prod",
+			on: true,
+			awayTasks: true,
+			awsProfiles: ["dev"],
+		},
+		restored: true,
+	});
+	expect(pickedHost({ instanceId: "i-new", name: "new" }, [past])).toEqual({
+		host: { instanceId: "i-new", name: "new" },
+		restored: false,
+	});
 });
