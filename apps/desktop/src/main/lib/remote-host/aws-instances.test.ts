@@ -202,10 +202,7 @@ describe("aws-instances", () => {
 									InstanceType: "c8g.4xlarge",
 									State: { Name: "running" },
 									PrivateIpAddress: "10.1.0.5",
-									Tags: [
-										{ Key: "Name", Value: "odin-remote" },
-										{ Key: "OdinCluster", Value: "team" },
-									],
+									Tags: [{ Key: "Name", Value: "odin-remote" }],
 								},
 							],
 						},
@@ -222,8 +219,6 @@ describe("aws-instances", () => {
 				privateIp: null,
 				publicIp: null,
 				ssmOnline: false,
-
-				cluster: null,
 			},
 			{
 				id: "i-1",
@@ -233,8 +228,6 @@ describe("aws-instances", () => {
 				privateIp: "10.1.0.5",
 				publicIp: null,
 				ssmOnline: true,
-
-				cluster: "team",
 			},
 		]);
 	});

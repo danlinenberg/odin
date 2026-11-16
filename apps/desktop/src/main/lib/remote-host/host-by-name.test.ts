@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import {
 	asLastRun,
+	autoCluster,
 	clusterMember,
 	hostByName,
-	tagCluster,
 } from "./host-by-name";
 
 const prod = { name: "odin-prod", instanceId: "i-prod" };
@@ -50,34 +50,30 @@ test("a cluster host takes the main host's settings, not its own sign-ins", () =
 	});
 });
 
-test("hosts sharing the main host's cluster tag join it, and leave without it", () => {
-	const at = (id: string, cluster: string | null, state = "running") => ({
+test("every listed host joins the cluster, and one that is gone leaves", () => {
+	const at = (id: string, state = "running", ssmOnline = true) => ({
 		id,
 		state,
-		ssmOnline: true,
-		cluster,
+		ssmOnline,
 	});
-	const instances = [
-		at("i-main", "prod"),
-		at("i-two", "prod"),
-		at("i-three", "prod", "stopped"),
-		at("i-dev", "dev"),
-		at("i-gone", "prod", "terminated"),
-	];
-	const plan = tagCluster("i-main", instances, [
-		{ instanceId: "i-three", byTag: true },
-		{ instanceId: "i-gone", byTag: true },
-		{ instanceId: "i-old", byTag: true },
-		{ instanceId: "i-hand" },
-	]);
+	const plan = autoCluster(
+		"i-main",
+		[
+			at("i-main"),
+			at("i-two"),
+			at("i-three", "stopped"),
+			at("i-four", "running", false),
+			at("i-gone", "terminated"),
+		],
+		[
+			{ instanceId: "i-three", auto: true },
+			{ instanceId: "i-gone", auto: true },
+			{ instanceId: "i-old", auto: true },
+			{ instanceId: "i-hand" },
+		],
+	);
+	// A stopped member stays; one SSM can't reach joins once it can.
 	expect(plan.join.map((instance) => instance.id)).toEqual(["i-two"]);
+	// Gone or no longer listed leaves; one added by hand never does.
 	expect(plan.leave).toEqual(["i-gone", "i-old"]);
-	// A main host with no tag: every host the tag brought in leaves.
-	expect(
-		tagCluster(
-			"i-main",
-			[at("i-main", null)],
-			[{ instanceId: "i-two", byTag: true }, { instanceId: "i-hand" }],
-		),
-	).toEqual({ join: [], leave: ["i-two"] });
 });
