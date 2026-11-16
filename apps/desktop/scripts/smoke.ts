@@ -1358,7 +1358,7 @@ await step(
 		// card doesn't toggle it shut instead.
 		const drawerOpen = () =>
 			page<boolean>(
-				`!!document.querySelector('button[title="Click to rename this session"]')`,
+				`!!document.querySelector('button[title$="Click to rename this session"]')`,
 			);
 		for (const end = Date.now() + 5_000; await drawerOpen(); await sleep(250)) {
 			await page(
@@ -1497,7 +1497,7 @@ await step(
 		await start(third);
 		const drawerTitle = () =>
 			page<string>(
-				`document.querySelector('button[title="Click to rename this session"]')?.textContent ?? ""`,
+				`document.querySelector('button[title$="Click to rename this session"]')?.textContent ?? ""`,
 			);
 		for (
 			const end = Date.now() + 30_000;
@@ -1572,7 +1572,7 @@ await step(
 		);
 		// Open the session: the drawer's title row gets ⋔ Agents beside ⑂ Diff.
 		await page(`(() => {
-			if (document.querySelector('button[title="Click to rename this session"]')?.textContent.includes(${JSON.stringify(title)})) return;
+			if (document.querySelector('button[title$="Click to rename this session"]')?.textContent.includes(${JSON.stringify(title)})) return;
 			[...document.querySelectorAll('[role="button"][draggable="true"]')]
 				.find((c) => c.textContent.includes(${JSON.stringify(title)}))
 				?.click();
