@@ -135,6 +135,21 @@ export function livePanesOn<P extends RowPane>(panes: P[], item: AllItem): P[] {
 }
 
 /**
+ * The sessions on this row that have to-dos in My notes, newest first, so the
+ * task's side panel can list them. A finished session still on the board
+ * counts: its to-dos are still there to tick.
+ */
+export function todoPanesOn<P extends RowPane>(
+	panes: P[],
+	item: AllItem,
+	todosByPane: Record<string, readonly unknown[] | undefined>,
+): P[] {
+	return panes
+		.filter((pane) => todosByPane[pane.id]?.length && paneWorksOn(pane, item))
+		.sort((a, b) => paneBorn(b.id) - paneBorn(a.id));
+}
+
+/**
  * Done on session `paneId` finishes its row too, unless another session on
  * the same row is still open.
  */

@@ -75,7 +75,14 @@ import { phoneReply } from "./phone-resume";
  * Notes you submitted, as a list to tick off once the agent is free - the
  * question you didn't want to interrupt the current change with.
  */
-export function MyTodos({ paneId }: { paneId: string }) {
+export function MyTodos({
+	paneId,
+	onGoToReply,
+}: {
+	paneId: string;
+	/** Off the board (the Tasks panel), Go to reply also has to open it. */
+	onGoToReply?: () => void;
+}) {
 	const todos = usePaneMeta((s) => s.todosByPane[paneId]) ?? [];
 	const moveTodo = usePaneMeta((s) => s.moveTodo);
 	// The row you're editing, by id: a drag moves it, and the edit box goes
@@ -110,6 +117,7 @@ export function MyTodos({ paneId }: { paneId: string }) {
 							todo={todo}
 							editing={editing === ids[i]}
 							setEditing={(on) => setEditing(on ? ids[i] : null)}
+							onGoToReply={onGoToReply}
 						/>
 					))}
 				</ul>
@@ -138,6 +146,7 @@ function MyTodo({
 	todo,
 	editing,
 	setEditing,
+	onGoToReply,
 }: {
 	id: string;
 	paneId: string;
@@ -145,6 +154,7 @@ function MyTodo({
 	todo: BriefTodo;
 	editing: boolean;
 	setEditing: (on: boolean) => void;
+	onGoToReply?: () => void;
 }) {
 	const updateTodo = usePaneMeta((s) => s.updateTodo);
 	const editTodo = usePaneMeta((s) => s.editTodo);
@@ -226,7 +236,10 @@ function MyTodo({
 				<button
 					type="button"
 					title="Go to the reply this was saved from"
-					onClick={() => useReplyJump.getState().jump(paneId, todo.reply ?? "")}
+					onClick={() => {
+						useReplyJump.getState().jump(paneId, todo.reply ?? "");
+						onGoToReply?.();
+					}}
 					className="mt-[1px] shrink-0 text-[11px] text-link hover:underline"
 				>
 					Go to reply
