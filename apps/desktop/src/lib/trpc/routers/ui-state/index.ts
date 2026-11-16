@@ -88,6 +88,7 @@ export const paneSchema = z.object({
 	odinRemote: z.string().optional(),
 	odinLocalWhy: z.string().optional(),
 	odinStarred: z.boolean().optional(),
+	odinPriority: z.enum(["high", "medium", "low"]).optional(),
 	odinAutoTagged: z.boolean().optional(),
 	odinAutoTitled: z.boolean().optional(),
 	odinParked: z.boolean().optional(),

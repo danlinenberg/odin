@@ -9,6 +9,7 @@ import { usePaneMeta } from "renderer/routes/_authenticated/_odin/hooks/usePaneM
 import { claudeLaunch } from "renderer/stores/claude-command";
 import {
 	type OdinRule,
+	rulesHookOutput,
 	rulesPrompt,
 	rulesSettings,
 	useOdinRules,
@@ -45,6 +46,10 @@ export const GUIDELINES_HEADER =
  */
 export const DEFAULT_SESSION_INSTRUCTIONS = [
 	"Work in the current workspace. Investigate, make the changes, and verify them when practical.",
+	// A task can wait on the list for weeks while another session does the
+	// same work, and Odin can't know: the task was never started, so it looks
+	// new. Seen here building a second backlog next to the one already built.
+	"A task can wait on my list for weeks, and another session may have done it meanwhile. Before you build anything, look for what it would produce (the page, PR, ticket or rows). If it is already done, change nothing: say so with its link and end with ACTION ITEMS: none.",
 	// A subagent or a background Bash runs it where nobody can see it; the
 	// card's Shell is where I'd look for it.
 	"",
@@ -434,14 +439,30 @@ export function useLaunchTaskSession() {
 										: "here",
 							)
 					: null;
-			const remote =
-				(planOnly || onHost || savedOn === "host") && host
+			// A profile with no host set up never runs one there, whatever the
+			// phone's Where pick or a launch check from before a profile switch said.
+			// Sent to the remote host: a new session to the cluster host with
+			// the most free memory, a resume to the host that keeps it.
+			const clusterHost = async (sessionId: string | null) =>
+				(await utils.client.remoteHost?.hostFor
+					.query({ sessionId })
+					.catch(() => null)) ??
+				host?.name ??
+				host?.instanceId ??
+				null;
+			const remote = !host
+				? null
+				: planOnly
 					? host.name || host.instanceId
-					: onHost === false || savedOn === "here"
-						? null
-						: target !== undefined
-							? target
-							: await launchTarget();
+					: savedOn === "host"
+						? await clusterHost(resumeSessionId ?? null)
+						: onHost
+							? await clusterHost(null)
+							: onHost === false || savedOn === "here"
+								? null
+								: target !== undefined
+									? target
+									: await launchTarget();
 			// A pinned --session-id is not proof Claude ever wrote the
 			// conversation: a card Done'd or snoozed before Claude took its prompt
 			// has none, and `claude --resume` then prints "No conversation found"
@@ -479,7 +500,9 @@ export function useLaunchTaskSession() {
 			// board it is starting rather than ended. A plan starts nothing.
 			const { addTab, setTabAutoTitle, setPaneAutoTitle, setPaneStatus } =
 				useTabsStore.getState();
-			const odinProfile = profiles?.activeId;
+			// The profile read with the host above, so a remote session lands
+			// on the profile whose host it runs on.
+			const odinProfile = hostConfig?.profileId ?? profiles?.activeId;
 			if (!planOnly) {
 				// The worktree's path comes later; the repo picked at launch
 				// stands in until then.
@@ -706,10 +729,14 @@ export function useLaunchTaskSession() {
 						prompt: remotePrompt,
 					}
 				: null;
+			const remoteRules = remote
+				? rulesHookOutput(useOdinRules.getState().rules, checkout)
+				: null;
 			const command = remoteLaunch
 				? await utils.client.remoteHost.sessionCommand.mutate({
 						...remoteLaunch,
 						odinPane: paneId,
+						rules: remoteRules,
 					})
 				: `cd ${quote(sessionCwd)} && ${claudeLaunch(title, claudeArgs, paneId)}`;
 			// Held back: the pane stays process-less and the command rides on it

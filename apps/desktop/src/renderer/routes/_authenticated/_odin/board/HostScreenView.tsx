@@ -2,7 +2,11 @@ import RFB from "@novnc/novnc";
 import { useEffect, useRef, useState } from "react";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { tuneForLink } from "renderer/lib/vnc-screen";
-import { closeHostScreen, type HostScreen } from "renderer/stores/host-view";
+import {
+	closeHostScreen,
+	type HostScreen,
+	setHostLink,
+} from "renderer/stores/host-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
 
 /**
@@ -48,6 +52,11 @@ export function HostScreenView({
 		let untune = () => {};
 		let gone = false;
 		setStatus("Connecting to the host…");
+		setHostLink(paneId, "connecting");
+		const lose = (message: string) => {
+			setStatus(message);
+			setHostLink(paneId, "lost");
+		};
 		electronTrpcClient.remoteHost.viewOnMac
 			.mutate({
 				host: useTabsStore.getState().panes[paneId]?.odinRemote,
@@ -59,13 +68,16 @@ export function HostScreenView({
 					credentials: { password: screen.password },
 				});
 				untune = tuneForLink(rfb, target.current);
-				rfb.addEventListener("connect", () => setStatus(null));
+				rfb.addEventListener("connect", () => {
+					setStatus(null);
+					setHostLink(paneId, "connected");
+				});
 				rfb.addEventListener("desktopname", (event) =>
 					setName(event.detail.name),
 				);
 				rfb.addEventListener("disconnect", (event) => {
 					if (gone) return;
-					setStatus(
+					lose(
 						event.detail.clean
 							? "The app's screen closed."
 							: "Lost the connection to the app on the host.",
@@ -73,10 +85,11 @@ export function HostScreenView({
 				});
 			})
 			.catch((error: Error) => {
-				if (!gone) setStatus(error.message);
+				if (!gone) lose(error.message);
 			});
 		return () => {
 			gone = true;
+			setHostLink(paneId, null);
 			untune();
 			rfb?.disconnect();
 		};

@@ -699,6 +699,18 @@ export function splitEarlier(
 }
 
 /**
+ * True when a read's file (its `revision`, "mtimeMs:size") is now shorter
+ * than where the reader stopped: it was rewritten, not appended to.
+ */
+export function shrankBelow(
+	revision: string | undefined,
+	offset: number,
+): boolean {
+	const size = Number(revision?.split(":")[1]);
+	return Number.isFinite(size) && size < offset;
+}
+
+/**
  * The transcript, tailed: one read of the last TAIL_BYTES, then only the bytes
  * appended since. The old full read re-parsed the whole file every poll.
  * `loadEarlier` reads the TAIL_BYTES before what's loaded - a long session's
@@ -723,7 +735,7 @@ function useLiveItems(path: string | null, workspaceId: string) {
 		let offset: number | null = saved?.offset ?? null;
 		let skipFirstLine = saved?.skipFirstLine ?? false;
 		let remainder = saved?.remainder ?? "";
-		const decoder = saved?.decoder ?? new TextDecoder();
+		let decoder = saved?.decoder ?? new TextDecoder();
 		// Where the loaded window starts, and the cut line it starts with: the
 		// earlier chunk ends with that line's first half.
 		let start = saved?.start ?? 0;
@@ -771,6 +783,24 @@ function useLiveItems(path: string | null, workspaceId: string) {
 					maxBytes: TAIL_BYTES,
 				});
 				if (cancelled) return;
+				// The file was rewritten shorter (a remote session's copy here is
+				// written again from the host's after a reconnect): reading on past
+				// its end showed nothing new ever again. Read its tail afresh.
+				if (shrankBelow(read.revision, offset)) {
+					offset = null;
+					skipFirstLine = false;
+					remainder = "";
+					decoder = new TextDecoder();
+					start = 0;
+					head = new Uint8Array(0);
+					shown = [];
+					shownQueue = [];
+					setItems(shown);
+					setQueued(shownQueue);
+					running = false;
+					timer = setTimeout(tick, 0);
+					return;
+				}
 				if (read.byteLength > 0) {
 					offset += read.byteLength;
 					const bytes = readBytes(read);
@@ -5540,7 +5570,7 @@ function Composer({
 											? (el) => el?.scrollIntoView({ block: "nearest" })
 											: undefined
 									}
-									onMouseEnter={() => setSelected(index)}
+									onMouseMove={() => setSelected(index)}
 									// The textarea keeps focus: mousedown fires before blur.
 									onMouseDown={(event) => {
 										event.preventDefault();
@@ -5548,7 +5578,8 @@ function Composer({
 									}}
 									className={cn(
 										"flex w-full items-baseline gap-2 px-3 py-1 text-left",
-										index === activeIndex && "bg-secondary",
+										index === activeIndex &&
+											"bg-primary/15 shadow-[inset_2px_0_0_var(--primary)]",
 									)}
 								>
 									<span className="shrink-0 font-mono text-[12.5px] font-semibold text-foreground">
@@ -5688,7 +5719,7 @@ function Composer({
 						)}
 					/>
 				</div>
-				<div className="mt-1.5 flex items-center gap-2">
+				<div className="mt-1.5 flex items-center gap-2 whitespace-nowrap">
 					{!noTerminal && (
 						<button
 							type="button"
@@ -5730,11 +5761,11 @@ function Composer({
 					)}
 					{!noTerminal && !onResume && <DangerModeToggle paneId={paneId} />}
 					{bash ? (
-						<span className="ml-auto text-[11px] text-pink-500">
+						<span className="ml-auto min-w-0 truncate text-[11px] text-pink-500">
 							Bash mode · Backspace on empty to exit
 						</span>
 					) : (
-						<span className="ml-auto text-right text-[11px] text-faint-foreground">
+						<span className="ml-auto min-w-0 truncate text-right text-[11px] text-faint-foreground">
 							Enter to send · {sendNowKeys} to send now · Shift+Enter for a new
 							line · ! for bash · / for skills
 							{fileCwd && " · @ for files"}

@@ -3,6 +3,7 @@ import stripAnsi from "strip-ansi";
 import {
 	agentOnScreen,
 	awaitsAwsSignIn,
+	backgroundAgentsOnScreen,
 	blockedOnAwsSignIn,
 	escIsHandledOnScreen,
 	inputBoxEmpty,
@@ -218,6 +219,41 @@ describe("odinScreenWrite", () => {
 
 	it("says nothing about a screen the classifier didn't recognise", () => {
 		expect(odinScreenWrite(undefined, "working")).toBeUndefined();
+	});
+
+	it("keeps a working card Working while background agents run", () => {
+		expect(odinScreenWrite("review", "working", true)).toBeUndefined();
+		expect(odinScreenWrite("permission", "working", true)).toBe("permission");
+	});
+});
+
+// At its prompt with no spinner, but agents still out under the input box.
+const AGENTS_OUT = [
+	"⏺ Three research agents are running. I'll write it up when they're back.",
+	"─".repeat(60),
+	"❯ ",
+	"─".repeat(60),
+	"  ⏵⏵ bypass permissions on (shift+tab to cycle) · /tasks to see subagents",
+	"  ● main",
+	"  ◯ general-purpose  Searching the docs… 3m 9s · ↓ 143.6k tokens",
+].join("\n");
+
+describe("backgroundAgentsOnScreen", () => {
+	it("sees an agent row under the input box", () => {
+		expect(odinScreenStatus(AGENTS_OUT)).toBe("review");
+		expect(backgroundAgentsOnScreen(AGENTS_OUT)).toBe(true);
+	});
+
+	it("ignores the same text above the box, and a screen with no agents", () => {
+		const above = [
+			"  ◯ general-purpose  Searching… 3m 9s · ↓ 143.6k tokens",
+			"─".repeat(60),
+			"❯ ",
+			"─".repeat(60),
+			"  ⏵⏵ bypass permissions on (shift+tab to cycle)",
+		].join("\n");
+		expect(backgroundAgentsOnScreen(above)).toBe(false);
+		expect(backgroundAgentsOnScreen("? for shortcuts")).toBe(false);
 	});
 });
 

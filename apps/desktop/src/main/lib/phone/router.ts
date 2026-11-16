@@ -48,6 +48,7 @@ import { typedText } from "../../../shared/typed-text";
 import { attachments } from "./attachments";
 import { forSession } from "./host-files";
 import { hostLinkFor } from "./host-link";
+import { namedMessages } from "./mention-names";
 import { readableTitle, readableTitles } from "./readable-title";
 import { readScreens } from "./screens";
 import { rememberFromPhone } from "./sent";
@@ -330,7 +331,7 @@ export const phoneRouter = t.router({
 				.catch(() => undefined),
 		]);
 		const readAt = Date.now();
-		const messages = await Promise.all(
+		const withImages = await Promise.all(
 			tail.map(async (message) =>
 				message.images
 					? {
@@ -339,6 +340,10 @@ export const phoneRouter = t.router({
 						}
 					: message,
 			),
+		);
+		// A draft's <@U123> reads "@Name", as the desktop's draft card shows it.
+		const messages = await namedMessages(withImages, async (id) =>
+			(await import("lib/trpc/routers/slack")).slackUserNameById(id),
 		);
 		const fullScreen = stripAnsi(rawScreen ?? "");
 		// What the board's chat answers in cards: Claude's question or plan,

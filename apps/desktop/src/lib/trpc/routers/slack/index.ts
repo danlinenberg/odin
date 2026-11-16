@@ -275,6 +275,12 @@ async function lookupUserName(
 	});
 }
 
+/** A Slack user's name by id, cached; null with Slack not connected. */
+export function slackUserNameById(userId: string): Promise<string | null> {
+	const token = slackToken();
+	return token ? lookupUserName(userId, token) : Promise.resolve(null);
+}
+
 /** Is this user a bot (an app's bot user, or Slackbot)? Cached; unknown counts as a person. */
 async function isBotUser(userId: string, token: string): Promise<boolean> {
 	if (userId === "USLACKBOT") return true;

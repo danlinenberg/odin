@@ -380,14 +380,16 @@ export function OdinPromptDialog({
 								<button
 									key={skill.name}
 									type="button"
-									onMouseEnter={() => setSelected(index)}
+									onMouseMove={() => setSelected(index)}
 									// The textarea keeps focus: mousedown fires before blur.
 									onMouseDown={(event) => {
 										event.preventDefault();
 										pickSkill(skill.name);
 									}}
 									className={`flex w-full items-baseline gap-2 px-2.5 py-1 text-left ${
-										index === activeIndex ? "bg-secondary" : ""
+										index === activeIndex
+											? "bg-primary/15 shadow-[inset_2px_0_0_var(--primary)]"
+											: ""
 									}`}
 								>
 									<span className="shrink-0 font-mono text-[12px] font-semibold text-foreground">

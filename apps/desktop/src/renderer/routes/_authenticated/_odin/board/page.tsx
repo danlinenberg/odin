@@ -100,6 +100,7 @@ import { sessionDocKey, useDoneStore } from "renderer/stores/done";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { useIdleCompact } from "renderer/stores/idle-compact";
 import { useInboxViewStore } from "renderer/stores/inbox-view";
+import { rulesHookOutput, useOdinRules } from "renderer/stores/odin-rules";
 import { useRecentlyViewed } from "renderer/stores/recently-viewed";
 import { useSessionView } from "renderer/stores/session-view";
 import { useStartingPanes } from "renderer/stores/starting-panes";
@@ -120,6 +121,7 @@ import { sessionUsageLabel } from "shared/machine-load";
 import { profileOf } from "shared/odin-profile";
 import {
 	agentOnScreen,
+	backgroundAgentsOnScreen,
 	escIsHandledOnScreen,
 	inputBoxEmpty,
 	missedStart,
@@ -137,6 +139,11 @@ import {
 } from "shared/odin-tags";
 import { isQueuedResume } from "shared/queued-resume";
 import { remoteCardsToReconnect, tmuxSession } from "shared/remote-reconnect";
+import {
+	PRIORITY_LABEL,
+	SESSION_PRIORITIES,
+	type SessionPriority,
+} from "shared/session-priority";
 import { hostsNotTakingLogins, loginFailing } from "./host-stuck";
 import { setPhoneReply, setPhoneStart } from "./phone-resume";
 import { useReadableSlackTitles, useSlackReadable } from "./slack-titles";
@@ -144,7 +151,23 @@ import { useReadableSlackTitles, useSlackReadable } from "./slack-titles";
 /** Tags the card shows as their own pill instead of in the #tag line. */
 const PILL_TAGS = ["automation", "auto-started", "off-hours"];
 
-import { closeHostScreen, useHostView } from "renderer/stores/host-view";
+/** The ▣ View button's dot: whether the open viewer reaches the app on the host. */
+const HOST_LINK_DOT: Record<HostLink, string> = {
+	connecting: "bg-amber-400 animate-pulse",
+	connected: "bg-emerald-500",
+	lost: "bg-red-500",
+};
+const HOST_LINK_LABEL: Record<HostLink, string> = {
+	connecting: "Connecting to the host",
+	connected: "Connected to the host",
+	lost: "Not connected to the host",
+};
+
+import {
+	closeHostScreen,
+	type HostLink,
+	useHostView,
+} from "renderer/stores/host-view";
 import { openUrl, useInAppBrowser } from "renderer/stores/in-app-browser";
 import { rowFinishedWith } from "../all/all-items";
 import { nextSelection, visibleSelection } from "../all/selection";
@@ -249,6 +272,7 @@ import { DiffView } from "./DiffView";
 import { drawerEscAction, escStaysWithTarget } from "./drawer-esc";
 import { drawerViewSwitch } from "./drawer-view-switch";
 import { HostScreenView } from "./HostScreenView";
+
 import { deliverOnHost } from "./host-delivery";
 import { hostStartDelay } from "./host-start-gap";
 import { type InboxSession, InboxView } from "./InboxView";
@@ -1765,9 +1789,24 @@ const HOST_MARK: Record<
  * green while connected to Claude there, yellow and pulsing while connecting,
  * red and struck through while not.
  */
-function HostMark({ paneId, state }: { paneId: string; state: HostState }) {
+function HostMark({
+	paneId,
+	state,
+	showLocal = false,
+}: {
+	paneId: string;
+	state: HostState;
+	/** A session on this computer wears a muted laptop (the session header), not nothing. */
+	showLocal?: boolean;
+}) {
 	const host = useTabsStore((s) => s.panes[paneId]?.odinRemote);
-	if (!host) return null;
+	if (!host)
+		return showLocal ? (
+			<LuLaptop
+				title="On this computer"
+				className="mr-1 inline size-3.5 align-[-2px] text-muted-foreground"
+			/>
+		) : null;
 	const { Icon, ink, title } = HOST_MARK[state];
 	return (
 		<Icon
@@ -1924,6 +1963,46 @@ function PlanLimitNotice({
 	);
 }
 
+/**
+ * A session's priority as a pill: red High, blue Medium, grey Low. It sits in
+ * front of the title on the card and the drawer's row, so the order a column
+ * is in reads at a glance.
+ */
+const PRIORITY_PILL: Record<SessionPriority, string> = {
+	high: PILL.danger,
+	medium: PILL.working,
+	low: PILL.neutral,
+};
+/** The card's left edge in the priority's hue; Low gets none. */
+const PRIORITY_EDGE: Record<SessionPriority, string | undefined> = {
+	high: "shadow-[inset_3px_0_0_var(--danger),inset_0_1px_0_rgb(255_255_255/0.04)]",
+	medium:
+		"shadow-[inset_3px_0_0_var(--working),inset_0_1px_0_rgb(255_255_255/0.04)]",
+	low: undefined,
+};
+
+function PriorityMark({
+	priority,
+	short = false,
+}: {
+	priority?: SessionPriority;
+	short?: boolean;
+}) {
+	if (!priority) return null;
+	return (
+		<span
+			data-priority={priority}
+			title={`${PRIORITY_LABEL[priority]} priority - right-click to change`}
+			className={cn(
+				"mr-1.5 inline-block rounded-[5px] px-[6px] py-[1px] align-[1px] text-[10px] font-bold uppercase tracking-[.3px]",
+				PRIORITY_PILL[priority],
+			)}
+		>
+			{short ? PRIORITY_LABEL[priority][0] : PRIORITY_LABEL[priority]}
+		</span>
+	);
+}
+
 function TagMenu({
 	x,
 	y,
@@ -1932,6 +2011,8 @@ function TagMenu({
 	customTags,
 	starred,
 	onStar,
+	priority,
+	onPriority,
 	onDone,
 	onPark,
 	onDocs,
@@ -1962,6 +2043,9 @@ function TagMenu({
 	customTags: string[];
 	starred: boolean;
 	onStar: () => void;
+	priority?: SessionPriority;
+	/** Picking the priority it already has clears it. */
+	onPriority: (priority: SessionPriority | undefined) => void;
 	onDone: () => void;
 	/** Set unless it already sits in Idle. */
 	onPark?: () => void;
@@ -2072,6 +2156,37 @@ function TagMenu({
 				<span className="w-3 text-attention">★</span>
 				{starred ? "Unstar" : "Star"}
 			</button>
+			<fieldset
+				aria-label="Priority"
+				className="mb-1.5 flex min-w-0 items-center gap-1 border-0 border-b border-border px-1.5 pb-2 text-[12px] text-muted-foreground"
+			>
+				<span className="mr-auto">Priority</span>
+				{SESSION_PRIORITIES.map((level) => (
+					<button
+						key={level}
+						type="button"
+						aria-pressed={priority === level}
+						title={
+							priority === level
+								? `Clear the ${PRIORITY_LABEL[level]} priority`
+								: `${PRIORITY_LABEL[level]} priority - sorts it inside its section`
+						}
+						onClick={() => {
+							onPriority(priority === level ? undefined : level);
+							onClose();
+						}}
+						className={cn(
+							"rounded-[5px] px-1.5 py-0.5 text-[11px] font-semibold transition-opacity",
+							PRIORITY_PILL[level],
+							priority === level
+								? "ring-1 ring-foreground/60"
+								: "opacity-55 hover:opacity-100",
+						)}
+					>
+						{PRIORITY_LABEL[level]}
+					</button>
+				))}
+			</fieldset>
 			<button
 				type="button"
 				onClick={() => {
@@ -2643,6 +2758,7 @@ const SwitchRow = memo(function SwitchRow({
 							/>
 						)}
 						<span className="truncate">
+							<PriorityMark priority={card.pane.odinPriority} short />
 							<WatchMark paneId={card.pane.id} />
 							<RemoteMark paneId={card.pane.id} />
 							<HostMark paneId={card.pane.id} state={hostState} />
@@ -2729,10 +2845,16 @@ const BoardCardTile = memo(
 							// so it reads at a glance in a busy column.
 							card.pane.odinStarred &&
 								"bg-[color:color-mix(in_oklab,var(--attention)_10%,var(--card))] shadow-[inset_3px_0_0_var(--attention),inset_0_1px_0_rgb(255_255_255/0.04)]",
+							// A priority paints the left edge in its hue (the star's
+							// amber edge wins on a starred card; the pill still shows).
+							!card.pane.odinStarred &&
+								card.pane.odinPriority &&
+								PRIORITY_EDGE[card.pane.odinPriority],
 						)}
 					>
 						<div className="flex items-start gap-2">
 							<div className="min-w-0 flex-1 break-words text-[12.5px] font-semibold">
+								<PriorityMark priority={card.pane.odinPriority} />
 								<OverdueMark itemKey={`session:${card.pane.id}`} />
 								<WatchMark paneId={card.pane.id} />
 								<RemoteMark paneId={card.pane.id} />
@@ -3147,6 +3269,9 @@ function DevBoardPage() {
 	const drawerLink = drawerCard ? sourceLink(drawerCard.pane.odinBrief) : null;
 	// The app a remote session runs on its host (its latest `!view` block), and
 	// whether the drawer shows it in the terminal's place, like the diff.
+	const hostLink = useHostView((state) =>
+		drawerCard ? state.link[drawerCard.pane.id] : undefined,
+	);
 	const hostScreen = useHostView((state) =>
 		drawerCard?.pane.odinRemote ? state.byPane[drawerCard.pane.id] : undefined,
 	);
@@ -4250,7 +4375,11 @@ function DevBoardPage() {
 						} else {
 							sawIdlePromptRef.current.delete(pane.id);
 						}
-						const status = odinScreenWrite(read, current);
+						const status = odinScreenWrite(
+							read,
+							current,
+							backgroundAgentsOnScreen(screen),
+						);
 						// An unreadable screen, or one that can't improve on what the
 						// hooks already said, leaves the status alone.
 						if (status) setPaneStatusFromStore(pane.id, status);
@@ -5529,17 +5658,24 @@ function DevBoardPage() {
 				// whose card reports the host folder it started in is filed
 				// there too, and is still the host's.
 				const here = sessionCwd(card.pane);
-				const host =
+				// The cluster host that keeps the conversation (hostFor); the main
+				// host while this Odin's main process predates that procedure.
+				const hostName =
 					transcript.local === false &&
 					!card.pane.odinRemote &&
 					!(here && movedHere(transcript.path, here, transcript.cwd, sessionId))
-						? (await utils.client.remoteHost.get.query().catch(() => null))
-								?.host
+						? ((await utils.client.remoteHost.hostFor
+								.query({ sessionId })
+								.catch(() => null)) ??
+							(await utils.client.remoteHost.get
+								.query()
+								.then(({ host }) => host && (host.name || host.instanceId))
+								.catch(() => null)))
 						: null;
-				if (host) {
+				if (hostName) {
 					const pane = {
 						...card.pane,
-						odinRemote: host.name || host.instanceId,
+						odinRemote: hostName,
 					};
 					useTabsStore.setState((state) => ({
 						panes: {
@@ -5553,7 +5689,7 @@ function DevBoardPage() {
 				// folder it started in: `claude --resume` there finds no folder on
 				// this computer and exits 1. Resume where its copy is filed.
 				if (
-					!host &&
+					!hostName &&
 					!card.pane.odinRemote &&
 					transcript.local &&
 					transcript.cwd &&
@@ -5752,6 +5888,10 @@ function DevBoardPage() {
 							prompt: prompt ?? null,
 							fresh: restart,
 							host: card.pane.odinRemote,
+							rules: rulesHookOutput(
+								useOdinRules.getState().rules,
+								card.pane.odinCwd,
+							),
 						})
 					: cwd
 						? `cd '${cwd}' && ${resumeCmd}`
@@ -6537,6 +6677,20 @@ function DevBoardPage() {
 		toast.success("Parked in Idle - session still open", undoAction(undo));
 	};
 
+	const setPriority = (paneId: string, priority?: SessionPriority) =>
+		useTabsStore.setState((state) => {
+			const current = state.panes[paneId];
+			if (!current) return state;
+			// Cleared means the key is gone, not stored as undefined.
+			const { odinPriority: _, ...pane } = current;
+			return {
+				panes: {
+					...state.panes,
+					[paneId]: priority ? { ...pane, odinPriority: priority } : pane,
+				},
+			};
+		});
+
 	const toggleStar = (paneId: string) =>
 		useTabsStore.setState((state) => ({
 			panes: {
@@ -7165,14 +7319,29 @@ function DevBoardPage() {
 					aria-label={drawerStarred ? "Unstar" : "Star"}
 					aria-pressed={drawerStarred}
 					onClick={() => toggleStar(drawerCard.pane.id)}
-					className="mr-auto shrink-0 rounded-[5px] px-1 text-[13px] text-attention hover:bg-attention/15"
+					className="shrink-0 rounded-[5px] px-1 text-[13px] text-attention hover:bg-attention/15"
 				>
 					{drawerStarred ? "★" : "☆"}
 				</button>
+				{/* Where this session runs - this computer, or which host of the cluster: in the tooltip. */}
+				<span className="mr-auto flex shrink-0 items-center">
+					<HostMark
+						paneId={drawerCard.pane.id}
+						state={hostStateOf(drawerCard.pane.id)}
+						showLocal
+					/>
+				</span>
 				{hostScreen && !inCatchUp && (
 					<button
 						type="button"
-						title="Show the app this session runs on its host"
+						aria-label={
+							hostLink ? `▣ View - ${HOST_LINK_LABEL[hostLink]}` : undefined
+						}
+						title={
+							hostLink
+								? `${HOST_LINK_LABEL[hostLink]} - the app this session runs on its host`
+								: "Show the app this session runs on its host"
+						}
 						onClick={() => {
 							if (isViewOpen) return closeHostScreen();
 							setIsShellOpen(false);
@@ -7188,6 +7357,15 @@ function DevBoardPage() {
 						)}
 					>
 						▣ View
+						{hostLink && (
+							<span
+								aria-hidden
+								className={cn(
+									"ml-1.5 inline-block size-1.5 rounded-full align-middle",
+									HOST_LINK_DOT[hostLink],
+								)}
+							/>
+						)}
 					</button>
 				)}
 				{/* View and Agents come and go, so they sit left of Diff: Diff, Shell
@@ -7486,6 +7664,8 @@ function DevBoardPage() {
 							: undefined
 					}
 					onStar={() => toggleStar(tagMenu.paneId)}
+					priority={panes[tagMenu.paneId]?.odinPriority}
+					onPriority={(priority) => setPriority(tagMenu.paneId, priority)}
 					onDone={() => tagMenuCard && doneAnywhere(tagMenuCard)}
 					onPark={
 						tagMenuCard && tagMenuCard.status !== "idle"

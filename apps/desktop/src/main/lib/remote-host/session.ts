@@ -4,6 +4,7 @@ import {
 	PR_SCREENSHOT_RULE,
 	voiceRuleWith,
 } from "../../../shared/constants";
+import { PR_COMMAND } from "../../../shared/odin-rules";
 import { tmuxSession } from "../../../shared/remote-reconnect";
 import {
 	SLACK_ALLOW_RULES,
@@ -48,6 +49,12 @@ export interface RemoteSessionSpec {
 	odinPane?: string | null;
 	/** Laptop files the prompt names, copied to the host before Claude starts. */
 	files?: RemoteFile[];
+	/**
+	 * What the PR-rules hook prints (rulesHookOutput), or null. Claude takes
+	 * one --settings and the host's hooks hold it, so the rules go to a file
+	 * the host's own PostToolUse hook prints after a PR command.
+	 */
+	rules?: string | null;
 	/** End the session's tmux session first, so Claude starts over (Restart). */
 	fresh?: boolean;
 	/**
@@ -503,7 +510,18 @@ export const hostSettings = JSON.stringify({
 			},
 			notify(),
 		],
-		PostToolUse: [notify("*")],
+		PostToolUse: [
+			notify("*"),
+			{
+				matcher: "Bash",
+				hooks: [
+					{
+						type: "command",
+						command: `[ -s "$ODIN_RULES" ] && grep -qE ${sh(PR_COMMAND)} && cat "$ODIN_RULES"; exit 0`,
+					},
+				],
+			},
+		],
 		PostToolUseFailure: [notify("*")],
 		PreToolUse: [notify("AskUserQuestion|ExitPlanMode")],
 		PreCompact: [notify()],
@@ -566,11 +584,12 @@ export const MEMORY_LIMIT_SCRIPT = [
  * never comes because each pass frees a little. Every 5 s this reads the
  * session's memory pressure (the share of time all its processes waited on
  * memory over the last 10 s) and, at 40% or more, kills its biggest process
- * and says so in the pane. Runs only inside a capped scope. ODIN_CGROUP
+ * and says so in the pane and in the host's journal (tag odin-memory).
+ * Runs only inside a capped scope. ODIN_CGROUP
  * points it at another cgroup folder (tests).
  */
 const MEMORY_PRESSURE_PERCENT = 40;
-export const MEMORY_PRESSURE_WATCHER = `cg=\${ODIN_CGROUP:-/sys/fs/cgroup$(cut -d: -f3- /proc/self/cgroup 2>/dev/null)}; [ -r "$cg/memory.pressure" ] && [ "$(cat "$cg/memory.max" 2>/dev/null)" != max ] && ( while sleep 5; do kill -0 $$ 2>/dev/null || exit; f=$(awk '/^full/ { split($2, a, "="); print int(a[2]) }' "$cg/memory.pressure"); [ "\${f:-0}" -ge ${MEMORY_PRESSURE_PERCENT} ] || continue; set -- $(ps -o pid=,rss=,comm= -p "$(paste -sd, "$cg/cgroup.procs")" | sort -k2 -nr | head -1); [ -n "$1" ] && [ "$1" != $$ ] || continue; kill -KILL "$1" && tmux display-message -t "$TMUX_PANE" "Odin stopped $3 ($(( $2 / 1024 )) MB): this session ran out of memory" 2>/dev/null; sleep 30; done ) >/dev/null 2>&1 &`;
+export const MEMORY_PRESSURE_WATCHER = `cg=\${ODIN_CGROUP:-/sys/fs/cgroup$(cut -d: -f3- /proc/self/cgroup 2>/dev/null)}; [ -r "$cg/memory.pressure" ] && [ "$(cat "$cg/memory.max" 2>/dev/null)" != max ] && ( while sleep 5; do kill -0 $$ 2>/dev/null || exit; f=$(awk '/^full/ { split($2, a, "="); print int(a[2]) }' "$cg/memory.pressure"); [ "\${f:-0}" -ge ${MEMORY_PRESSURE_PERCENT} ] || continue; set -- $(ps -o pid=,rss=,comm= -p "$(paste -sd, "$cg/cgroup.procs")" | sort -k2 -nr | head -1); [ -n "$1" ] && [ "$1" != $$ ] || continue; kill -KILL "$1" && { m="Odin stopped $3 ($(( $2 / 1024 )) MB): this session ran out of memory"; tmux display-message -t "$TMUX_PANE" "$m"; logger -t odin-memory "$m (user $(id -un), pid $1)"; } 2>/dev/null; sleep 30; done ) >/dev/null 2>&1 &`;
 
 /**
  * The host's /etc/environment, for each name the session lacks. PAM reads it
@@ -704,6 +723,11 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		'fallback="$ODIN_FALLBACK_API_KEY"',
 		"unset ODIN_FALLBACK_API_KEY ODIN_PLAN_LIMITED_UNTIL",
 		'export ODIN_RUN_PID=$$; [ -n "$fallback" ] && export ODIN_HAS_FALLBACK_KEY=1',
+		// The PR rules for the host's hook; a launch with none clears the old file.
+		`export ODIN_RULES="$HOME/.odin/rules-"${sh(spec.pane)}.json`,
+		spec.rules
+			? `printf %s ${sh(Buffer.from(spec.rules).toString("base64"))} | base64 -d > "$ODIN_RULES"`
+			: 'rm -f "$ODIN_RULES"',
 		`rm -f ${idleMarker(spec.pane)}`,
 		'[ -n "$TMUX_PANE" ] && command -v pgrep >/dev/null && ' +
 			idleWatcher(spec.pane),

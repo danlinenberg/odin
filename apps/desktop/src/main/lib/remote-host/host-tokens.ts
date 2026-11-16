@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { promisify } from "node:util";
 import {
 	readOdinConfig,
@@ -20,6 +20,7 @@ import {
 	hostGithubTokens,
 } from "./github-on-host";
 import {
+	HOST_MEMORY_WATCH_SH,
 	HOST_PORT_SH,
 	HOST_SERVICE_PY,
 	type HostConnector,
@@ -154,9 +155,12 @@ export function gitIdentityScript(identity: {
 		.join("\n");
 }
 
-/** Prints "current" when this user's service is installed and runs this Odin's script; read as the user. */
+/**
+ * Prints "current" when this user's service is installed and runs this Odin's
+ * script, and the host's memory watch runs this Odin's; read as the user.
+ */
 export const SERVICE_CURRENT_SCRIPT = (user: string) =>
-	`[ -f /etc/systemd/system/odin-host-${user}.service ] && cmp -s /usr/local/lib/odin/host-service.py - && echo current; true`;
+	`[ -f /etc/systemd/system/odin-host-${user}.service ] && cmp -s /usr/local/lib/odin/host-service.py - && [ "$(md5sum < /usr/local/lib/odin/memory-watch.sh 2>/dev/null | cut -c1-32)" = ${createHash("md5").update(HOST_MEMORY_WATCH_SH).digest("hex")} ] && echo current; true`;
 
 /** Sends `body` to the user's own host service at `path`, from stdin: no sudo, and no token on a command line. */
 export const postToServiceScript = (path: string) =>

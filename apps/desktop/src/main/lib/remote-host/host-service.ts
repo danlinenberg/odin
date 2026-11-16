@@ -617,6 +617,29 @@ ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
 `;
 
 /**
+ * All users' sessions on a host share one memory cap (user.slice, see
+ * aws-instances.ts HOST_MEMORY_GUARD_SCRIPT). When their total reaches it,
+ * every session thrashes at once - the kernel keeps reclaiming cached files
+ * and reading them back - and its out-of-memory kill rarely comes. Each
+ * session's own watcher (session.ts MEMORY_PRESSURE_WATCHER) can't tell
+ * whose session filled the cap. This one, run by root, watches the shared
+ * cap: when all sessions together wait on memory 40% of the time or more,
+ * it kills the biggest process any host user runs and writes why to the
+ * journal (tag odin-memory). ODIN_CGROUP points it at another folder (tests).
+ */
+export const HOST_MEMORY_WATCH_SH = `#!/bin/bash
+cg=\${ODIN_CGROUP:-/sys/fs/cgroup/user.slice}
+while sleep 5; do
+  f=$(awk '/^full/ { split($2, a, "="); print int(a[2]) }' "$cg/memory.pressure" 2>/dev/null)
+  [ "\${f:-0}" -ge 40 ] || continue
+  set -- $(ps -eo pid=,rss=,uid=,user:32=,comm= --sort=-rss | awk '$3 >= 1000 && $3 < 65534 { print; exit }')
+  [ -n "$1" ] || continue
+  kill -KILL "$1" && logger -t odin-memory "Odin stopped $5 ($(( $2 / 1024 )) MB) of $4: all sessions on this host were out of memory (pressure $f%)"
+  sleep 30
+done
+`;
+
+/**
  * Root's part of setup, for one host user: the `odin` user, the service and
  * its systemd unit. Skipped without systemd; sessions then reach the laptop
  * directly. Replaces the one service all users shared before.
@@ -636,6 +659,9 @@ export function hostServiceInstallScript(user: string): string {
 		// Every user's service runs the one script: all of them restart onto a new one,
 		// or theirs would keep the old one - which, for one, sent no tunnel secret.
 		`  systemctl daemon-reload && systemctl enable ${unit} >/dev/null 2>&1 && systemctl restart ${unit} 'odin-host-*.service'`,
+		`  printf %s '${Buffer.from(HOST_MEMORY_WATCH_SH).toString("base64")}' | base64 -d > /usr/local/lib/odin/memory-watch.sh`,
+		"  printf '%s\\n' '[Unit]' 'Description=Odin: stops the biggest session process when all sessions run out of memory' '[Service]' 'ExecStart=/bin/bash /usr/local/lib/odin/memory-watch.sh' 'Restart=always' 'RestartSec=5' '[Install]' 'WantedBy=multi-user.target' > /etc/systemd/system/odin-memory-watch.service",
+		"  systemctl daemon-reload && systemctl enable odin-memory-watch >/dev/null 2>&1 && systemctl restart odin-memory-watch",
 		"fi",
 	].join("\n");
 }

@@ -756,7 +756,7 @@ function SkillMenu({
 				<button
 					key={skill.name}
 					type="button"
-					onMouseEnter={() => onHover(index)}
+					onMouseMove={() => onHover(index)}
 					// The box keeps focus: mousedown fires before blur, so the pick
 					// lands instead of the blur closing or committing the search.
 					onMouseDown={(event) => {
@@ -765,7 +765,8 @@ function SkillMenu({
 					}}
 					className={cn(
 						"flex w-full items-baseline gap-2 px-2.5 py-1 text-left",
-						index === active && "bg-secondary",
+						index === active &&
+							"bg-primary/15 shadow-[inset_2px_0_0_var(--primary)]",
 					)}
 				>
 					<span className="shrink-0 font-mono text-[11px] font-semibold text-foreground">

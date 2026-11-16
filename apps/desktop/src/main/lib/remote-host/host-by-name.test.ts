@@ -1,5 +1,11 @@
 import { expect, test } from "bun:test";
-import { asLastRun, clusterMember, hostByName } from "./host-by-name";
+import {
+	asLastRun,
+	autoCluster,
+	clusterMember,
+	hostByName,
+	pickedHost,
+} from "./host-by-name";
 
 const prod = { name: "odin-prod", instanceId: "i-prod" };
 const dev = { name: "odin-remote", instanceId: "i-dev" };
@@ -42,5 +48,56 @@ test("a cluster host takes the main host's settings, not its own sign-ins", () =
 		user: "odin-me",
 		profile: "work",
 		connectors: ["slack"],
+	});
+});
+
+test("every listed host joins the cluster, and one that is gone leaves", () => {
+	const at = (id: string, state = "running", ssmOnline = true) => ({
+		id,
+		state,
+		ssmOnline,
+	});
+	const plan = autoCluster(
+		"i-main",
+		[
+			at("i-main"),
+			at("i-two"),
+			at("i-three", "stopped"),
+			at("i-four", "running", false),
+			at("i-gone", "terminated"),
+		],
+		[
+			{ instanceId: "i-three" },
+			{ instanceId: "i-gone" },
+			{ instanceId: "i-old" },
+		],
+	);
+	// A stopped member stays; one SSM can't reach joins once it can.
+	expect(plan.join.map((instance) => instance.id)).toEqual(["i-two"]);
+	// Gone or no longer listed leaves.
+	expect(plan.leave).toEqual(["i-gone", "i-old"]);
+});
+
+test("a host picked again comes back with its settings", () => {
+	const past = {
+		instanceId: "i-prod",
+		name: "odin-prod",
+		awayTasks: true,
+		awsProfiles: ["dev"],
+	};
+	const picked = { instanceId: "i-prod", name: "odin-prod", on: true };
+	expect(pickedHost(picked, [undefined, past])).toEqual({
+		host: {
+			instanceId: "i-prod",
+			name: "odin-prod",
+			on: true,
+			awayTasks: true,
+			awsProfiles: ["dev"],
+		},
+		restored: true,
+	});
+	expect(pickedHost({ instanceId: "i-new", name: "new" }, [past])).toEqual({
+		host: { instanceId: "i-new", name: "new" },
+		restored: false,
 	});
 });

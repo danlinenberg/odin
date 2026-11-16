@@ -200,6 +200,7 @@ describe("remote session scripts", () => {
 
 	test("a capped session under memory pressure loses its biggest process", () => {
 		expect(runScript(spec, "/d")).toContain(MEMORY_PRESSURE_WATCHER);
+		expect(MEMORY_PRESSURE_WATCHER).toContain("logger -t odin-memory");
 		const dir = mkdtempSync(join(tmpdir(), "odin-psi-"));
 		const big = spawnSync("/bin/sh", [
 			"-c",
@@ -734,6 +735,32 @@ test("the host reports Working and Done to the card through Odin's notify hook",
 		`$HOME/${HOST_NOTIFY_HOOK}`,
 	);
 	expect(hooks.Stop[1].hooks[0].command).toContain(`$HOME/${HOST_NOTIFY_HOOK}`);
+});
+
+test("a remote session's PR rules reach Claude through the host's hook", () => {
+	const rules = '{"hookSpecificOutput":{"additionalContext":"run /land-pr"}}';
+	// The run script writes the rules where the hook reads them.
+	const run = runScript({ ...spec, pane: "abc", rules }, "/tmp/s");
+	const write = run.match(/printf %s '([^']+)' \| base64 -d > "\$ODIN_RULES"/);
+	expect(Buffer.from(write?.[1] ?? "", "base64").toString()).toBe(rules);
+	expect(runScript({ ...spec, pane: "abc" }, "/tmp/s")).toContain(
+		'rm -f "$ODIN_RULES"',
+	);
+	const dir = mkdtempSync(join(tmpdir(), "rules-"));
+	const file = join(dir, "rules.json");
+	writeFileSync(file, rules);
+	const { command } = JSON.parse(hostSettings).hooks.PostToolUse.find(
+		(h: { matcher?: string }) => h.matcher === "Bash",
+	).hooks[0];
+	const fire = (cmd: string, path = file) =>
+		spawnSync("sh", ["-c", command], {
+			input: JSON.stringify({ tool_input: { command: cmd } }),
+			env: { PATH: "/usr/bin:/bin", ODIN_RULES: path },
+		}).stdout.toString();
+	expect(fire("gh pr create --base main")).toBe(rules);
+	expect(fire("ls")).toBe("");
+	expect(fire("git push", join(dir, "none"))).toBe("");
+	rmSync(dir, { recursive: true });
 });
 
 test("files sent later get a prefix, so they never overwrite earlier copies", () => {

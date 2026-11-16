@@ -81,15 +81,45 @@ export function requestClaudeSync(
 }
 
 /**
- * After a sync, on the host: hooks (settings.json's and plugins') and the
- * status line whose command names a file the host doesn't have - a Mac app,
- * a repo that isn't cloned there - are dropped from the host's copy, so they
- * don't fail on every tool call. A plugin whose MCP server is also one of the
+ * After a sync, on the host: a hook (settings.json's and plugins') or the
+ * status line whose command names a file the host doesn't have is pointed at
+ * the same file in a clone under the host's repo folder (ODIN_REPOS, ~/repos
+ * by default) when there is one: ~/dev/acme/tools/x.sh here is
+ * ~/repos/tools/x.sh there. Else it is dropped from the host's copy - a Mac
+ * app, a repo not cloned there - so it doesn't fail on every tool call. A plugin whose MCP server is also one of the
  * account's claude.ai connectors is turned off there, so the connector loads.
  * Prints what it dropped, as JSON.
  */
 export const PRUNE_HOOKS_PY = `import glob, json, os, shlex
 home = os.path.expanduser("~")
+repos = os.path.expanduser(os.environ.get("ODIN_REPOS") or "~/repos")
+
+
+def in_repos(path):
+    """The same file in a clone under the repo folder: the path's tail after
+    each of its folders, tried longest first. None when no clone has it."""
+    if not path.startswith(home + "/"):
+        return None
+    parts = path[len(home) + 1:].split("/")
+    for i in range(len(parts) - 1):
+        found = os.path.join(repos, *parts[i:])
+        if os.path.exists(found):
+            return found
+    return None
+
+
+def relocate(command):
+    """The command with each missing file swapped for its copy in the repo
+    folder, or None while one is missing everywhere (its path then)."""
+    while True:
+        gone = missing(command)
+        if not gone:
+            return command, None
+        found = in_repos(gone)
+        # Not written as such in the command ($HOME/...): nothing to swap.
+        if not found or gone not in command:
+            return None, gone
+        command = command.replace(gone, found)
 
 
 def missing(command):
@@ -121,8 +151,12 @@ def prune(path):
     changed = False
     line = data.get("statusLine")
     if isinstance(line, dict) and missing(line.get("command", "")):
-        dropped.append("statusLine: " + missing(line["command"]))
-        del data["statusLine"]
+        fixed, gone = relocate(line["command"])
+        if fixed:
+            line["command"] = fixed
+        else:
+            dropped.append("statusLine: " + gone)
+            del data["statusLine"]
         changed = True
     hooks = data.get("hooks")
     if isinstance(hooks, dict):
@@ -131,12 +165,17 @@ def prune(path):
             for group in groups:
                 kept = []
                 for hook in group.get("hooks", []):
-                    gone = missing(hook.get("command", "")) if hook.get("type") == "command" else None
-                    if gone:
-                        dropped.append(event + ": " + gone)
-                        changed = True
-                    else:
+                    command = hook.get("command", "") if hook.get("type") == "command" else ""
+                    if not missing(command):
                         kept.append(hook)
+                        continue
+                    changed = True
+                    fixed, gone = relocate(command)
+                    if fixed:
+                        hook["command"] = fixed
+                        kept.append(hook)
+                    else:
+                        dropped.append(event + ": " + gone)
                 group["hooks"] = kept
             hooks[event] = [g for g in groups if g.get("hooks")]
             if not hooks[event]:
@@ -214,6 +253,29 @@ export function claudeMdImports(claudeMd: string): string[] {
 		.filter((path) => !path.startsWith("/") && !path.startsWith("~"));
 }
 
+/**
+ * The status line's script when it lives in ~/.claude (~/.claude/statusline.sh),
+ * relative to it, so the host's status line has it too.
+ */
+export function statusLineFiles(settingsPath: string, root: string): string[] {
+	try {
+		const command: unknown = JSON.parse(readFileSync(settingsPath, "utf-8"))
+			?.statusLine?.command;
+		if (typeof command !== "string") return [];
+		return command
+			.split(/\s+/)
+			.map((token) =>
+				token
+					.replace(/^["']|["']$/g, "")
+					.replace(/^(~|\$HOME)\/\.claude\//, `${root}/`),
+			)
+			.filter((token) => token.startsWith(`${root}/`) && !token.includes(".."))
+			.map((token) => token.slice(root.length + 1));
+	} catch {
+		return [];
+	}
+}
+
 /** The paths under ~/.claude each part copies; ones that don't exist are skipped. */
 export function partPaths(part: ClaudeSetupPart, root: string): string[] {
 	const paths = {
@@ -232,7 +294,11 @@ export function partPaths(part: ClaudeSetupPart, root: string): string[] {
 			"plugins/marketplaces",
 			"plugins/cache",
 		],
-		settings: () => ["settings.json", "hooks"],
+		settings: () => [
+			"settings.json",
+			"hooks",
+			...statusLineFiles(join(root, "settings.json"), root),
+		],
 	}[part]();
 	return paths.filter((path) => existsSync(join(root, path)));
 }
@@ -278,7 +344,7 @@ export function streamToHost(
  * host user's in the files that name it. Returns the bytes sent.
  */
 export async function syncClaudeSetup(
-	host: HostLogin,
+	host: HostLogin & { reposRoot?: string },
 	parts: readonly ClaudeSetupPart[],
 ): Promise<{ bytes: number; dropped: string[] }> {
 	const root = join(homedir(), ".claude");
@@ -323,7 +389,10 @@ export async function syncClaudeSetup(
 			);
 		});
 		const dropped = JSON.parse(
-			(await runOnHost(client, `python3 -c ${sh(PRUNE_HOOKS_PY)}`)) || "[]",
+			(await runOnHost(
+				client,
+				`ODIN_REPOS=${sh(host.reposRoot ?? "~/repos")} python3 -c ${sh(PRUNE_HOOKS_PY)}`,
+			)) || "[]",
 		) as string[];
 		return { bytes, dropped };
 	} finally {

@@ -118,7 +118,14 @@ export function nextRun(expr: string, from: Date = new Date()): Date | null {
 // string. Anything a picker can't express stays a cron and is shown as one.
 // ---------------------------------------------------------------------------
 
-export type Repeat = "15m" | "30m" | "hourly" | "daily" | "days" | "monthly";
+export type Repeat =
+	| "once"
+	| "15m"
+	| "30m"
+	| "hourly"
+	| "daily"
+	| "days"
+	| "monthly";
 
 export interface Schedule {
 	repeat: Repeat;
@@ -132,6 +139,11 @@ export interface Schedule {
 	weekdays: number[];
 	/** 1–28 - monthly only. The 29th-31st don't exist in every month. */
 	day: number;
+	/**
+	 * "MM-DD" - once only. Cron has no year, so the run is the next time that
+	 * date comes round, and the runner pauses the row after it (isOnce).
+	 */
+	date: string;
 }
 
 /** What a new automation starts as: weekdays at 09:00. */
@@ -140,6 +152,7 @@ export const DEFAULT_SCHEDULE: Schedule = {
 	time: "09:00",
 	weekdays: [1, 2, 3, 4, 5],
 	day: 1,
+	date: "01-01",
 };
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -173,6 +186,10 @@ export function cronOf(schedule: Schedule): string {
 	const h = Number(hh) || 0;
 	const m = Number(mm) || 0;
 	switch (schedule.repeat) {
+		case "once": {
+			const [mo = "1", d = "1"] = schedule.date.split("-");
+			return `${m} ${h} ${Number(d) || 1} ${Number(mo) || 1} *`;
+		}
 		case "15m":
 			return "*/15 * * * *";
 		case "30m":
@@ -200,8 +217,21 @@ export function scheduleOf(expr: string): Schedule | null {
 	const text = ALIASES[expr.trim().toLowerCase()] ?? expr.trim();
 	const [mi = "", ho = "", dom = "", mon = "", dow = "", extra] =
 		text.split(/\s+/);
-	if (extra !== undefined || dow === "" || mon !== "*") return null;
+	if (extra !== undefined || dow === "") return null;
 	const num = (s: string) => (/^\d{1,2}$/.test(s) ? Number(s) : null);
+	if (mon !== "*") {
+		// One day of one month at one time: a single run (isOnce).
+		const [m, h, d, mo] = [num(mi), num(ho), num(dom), num(mon)];
+		if (m === null || h === null || d === null || mo === null) return null;
+		if (dow !== "*" || m > 59 || h > 23 || mo < 1 || mo > 12) return null;
+		if (d < 1 || d > 31) return null;
+		return {
+			...DEFAULT_SCHEDULE,
+			repeat: "once",
+			time: `${pad(h)}:${pad(m)}`,
+			date: `${pad(mo)}-${pad(d)}`,
+		};
+	}
 	const at = (h: number, m: number) => ({
 		...DEFAULT_SCHEDULE,
 		time: `${pad(h)}:${pad(m)}`,
@@ -272,6 +302,9 @@ export function describeCron(expr: string): string {
 	const s = scheduleOf(expr);
 	if (!s) return expr.trim();
 	switch (s.repeat) {
+		case "once":
+			// The date sits beside it as the next run, wherever this is shown.
+			return "once";
 		case "15m":
 			return "every 15 minutes";
 		case "30m":
@@ -285,6 +318,20 @@ export function describeCron(expr: string): string {
 		case "monthly":
 			return `on the ${ordinal(s.day)} at ${s.time}`;
 	}
+}
+
+/**
+ * A one-off: one date at one time (`0 9 20 11 *`). The runner pauses it once
+ * it has run, so it doesn't come round again next year.
+ */
+export const isOnce = (expr: string): boolean =>
+	scheduleOf(expr)?.repeat === "once";
+
+/** The date input's "YYYY-MM-DD" for a once schedule's next run. */
+export function onceInputDate(expr: string): string {
+	const at = nextRun(expr);
+	if (!at) return "";
+	return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
 }
 
 /** Sunday-first, matching cron's own numbering - for the weekday picker. */

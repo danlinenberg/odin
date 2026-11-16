@@ -20,7 +20,7 @@ writeFileSync(
 	join(home, ".odin", "bin", "bun"),
 	`#!/bin/sh
 [ "$1" = --version ] && { echo 1.3.14; exit 0; }
-[ "$2" = serve ] && { echo $$ > "$HOME/.odin/phone-host/server.pid"; echo start >> "$HOME/starts"; exec sleep 30; }
+[ "$2" = serve ] && { echo $$ > "$HOME/.odin/phone-host/server.pid"; echo start >> "$HOME/starts"; sleep 30; }
 `,
 );
 chmodSync(join(home, ".odin", "bin", "bun"), 0o755);
@@ -53,6 +53,11 @@ const config = {
 	],
 };
 const hasSetsid = spawnSync("sh", ["-c", "command -v setsid"]).status === 0;
+const hasProc =
+	hasSetsid &&
+	spawnSync("sh", ["-c", "command -v pgrep && [ -d /proc/self ]"]).status === 0;
+const alive = (pid: number) =>
+	spawnSync("kill", ["-0", String(pid)]).status === 0;
 
 afterAll(() => {
 	spawnSync("sh", ["-c", `kill $(cat ${dir}/server.pid) 2>/dev/null`]);
@@ -125,5 +130,26 @@ test.skipIf(!hasSetsid)(
 		expect(other.status).toBe(4);
 		expect(other.stderr).toContain("belongs to another Odin user");
 		expect(readFileSync(join(dir, "laptop-devices.json"), "utf8")).toBe(before);
+	},
+);
+
+test.skipIf(!hasProc)(
+	"a new build stops a stray second server too, not only the pid file's",
+	async () => {
+		const pidFile = join(dir, "server.pid");
+		const first = readFileSync(pidFile, "utf8").trim();
+		// A second server an overlapping push started, then lost the pid file to the first.
+		const stray = Bun.spawn(
+			[join(home, ".odin", "bin", "bun"), join(dir, "phone-host.js"), "serve"],
+			{ env: { PATH: process.env.PATH, HOME: home } },
+		);
+		await Bun.sleep(300);
+		writeFileSync(pidFile, first);
+		const before = starts();
+		expect(run(phoneHostScript(config), "// v3").status).toBe(0);
+		await Bun.sleep(1_500);
+		expect(alive(stray.pid)).toBe(false);
+		expect(alive(Number(first))).toBe(false);
+		expect(starts()).toBe(before + 1);
 	},
 );

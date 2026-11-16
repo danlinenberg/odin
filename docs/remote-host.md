@@ -1,9 +1,10 @@
 # Remote host: make an instance Odin can use
 
 Settings > Remote > Remote host lists only EC2 instances tagged `Odin = host`
-in the AWS profile and region you pick (under Advanced). **Use** on one of them
-does the rest: it gives the instance SSM access, starts it, installs Claude,
-gh, tmux and git, and picks it as your host.
+in the AWS profile and region you pick (under Advanced). **Connect** does the
+rest: it gives the instances SSM access, starts them, installs Claude, gh,
+tmux and git, and from then on starts each new session on the one with the
+most free memory. You never pick a host.
 
 So a host needs only two things: an instance, and the tag.
 
@@ -16,6 +17,18 @@ the internet (or to the SSM endpoints), and no open port or SSH key.
 aws --profile <profile> --region <region> ec2 create-tags \
   --resources <instance-id> --tags Key=Odin,Value=host
 ```
+
+## A cluster of hosts
+
+Every other instance tagged `Odin = host` in your host's AWS profile and
+region joins its cluster by itself, with nothing to set up (Odin looks at
+start, every 30 minutes and when you pick a host), set up as Use does, and each new session starts
+on the host with the most free memory. Terminate an instance, or take its
+`Odin` tag off, and it leaves the cluster; its sessions keep running.
+
+So keep a host meant for one person out of the tag (or in another region or
+account): everyone using that host's account and region sends sessions to it,
+and Odin copies their tokens there.
 
 ## A new instance from the account's launch template
 
@@ -39,7 +52,7 @@ aws --profile <profile> --region <region> ec2 describe-instances \
 ```
 
 Then open Settings > Remote > Remote host, pick the same profile and region
-under Advanced, and select **Use** on it. The first setup takes a few minutes.
+under Advanced, and select **Connect**. The first setup takes a few minutes.
 
 ## It is not in the list
 

@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { hostGithubLoginFile } from "./host-service";
+import { HOST_MEMORY_WATCH_SH, hostGithubLoginFile } from "./host-service";
 import {
 	gitIdentityScript,
 	HELPERS_AS_USER,
@@ -37,8 +38,11 @@ test("tokens go to the user's own service on loopback, from stdin, with no sudo"
 	);
 	expect(post).not.toContain("sudo");
 	// Whether the service runs this Odin's script is read as the user too.
+	// So is whether the host's memory watch runs this Odin's: a changed watch
+	// makes the service out of date, and Odin's update reinstalls both.
+	const watchMd5 = createHash("md5").update(HOST_MEMORY_WATCH_SH).digest("hex");
 	expect(SERVICE_CURRENT_SCRIPT("odin-dan")).toBe(
-		"[ -f /etc/systemd/system/odin-host-odin-dan.service ] && cmp -s /usr/local/lib/odin/host-service.py - && echo current; true",
+		`[ -f /etc/systemd/system/odin-host-odin-dan.service ] && cmp -s /usr/local/lib/odin/host-service.py - && [ "$(md5sum < /usr/local/lib/odin/memory-watch.sh 2>/dev/null | cut -c1-32)" = ${watchMd5} ] && echo current; true`,
 	);
 	// A login is letters, digits and hyphens: nothing a path or a shell reads.
 	expect(() => hostGithubLoginFile("../tokens")).toThrow("Not a GitHub login");

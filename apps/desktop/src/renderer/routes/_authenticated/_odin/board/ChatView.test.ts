@@ -46,6 +46,7 @@ import {
 	outputTokens,
 	segments,
 	shownTldr,
+	shrankBelow,
 	slackDraftText,
 	splitActionItems,
 	splitEarlier,
@@ -1459,5 +1460,16 @@ describe("ActionItemRow", () => {
 	test("with a button column, Merged takes the button's place before the number", () => {
 		const html = row(true);
 		expect(html.indexOf("Merged")).toBeLessThan(html.indexOf("2."));
+	});
+});
+
+describe("shrankBelow", () => {
+	test("a file rewritten shorter than the read offset", () => {
+		expect(shrankBelow("1700000000000:500", 900)).toBe(true);
+	});
+	test("a file that only grew, or no revision", () => {
+		expect(shrankBelow("1700000000000:900", 900)).toBe(false);
+		expect(shrankBelow("1700000000000:1200", 900)).toBe(false);
+		expect(shrankBelow(undefined, 900)).toBe(false);
 	});
 });

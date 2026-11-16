@@ -337,6 +337,15 @@ test("status: the screen's dialog or spinner wins; at the prompt the laptop's la
 	);
 	expect(hostStatus("? for shortcuts", true, "permission")).toBe("permission");
 	expect(hostStatus("? for shortcuts", true, "working")).toBe("review");
+	const agentsOut = [
+		"─".repeat(40),
+		"❯ ",
+		"─".repeat(40),
+		"  ⏵⏵ bypass permissions on (shift+tab to cycle)",
+		"  ◯ general-purpose  Searching… 1m 2s · ↓ 9.1k tokens",
+	].join("\n");
+	expect(hostStatus(agentsOut, true, "working")).toBe("working");
+	expect(hostStatus(agentsOut, true, "permission")).toBe("permission");
 });
 
 test("a session the Mac's board no longer has is left out, unless it started after the board was sent", async () => {

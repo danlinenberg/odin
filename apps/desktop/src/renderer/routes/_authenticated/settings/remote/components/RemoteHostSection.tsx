@@ -81,25 +81,27 @@ const HOST_STEPS = {
 
 /**
  * Settings > Remote > Remote host: every instance tagged Odin = host in the
- * AWS profile and region, and Use on one of them -
- * which gives it SSM access, starts it and installs what sessions need,
- * whichever it still lacks, then picks it. Its sessions then run there in
- * tmux. docs/remote-host.md says how to make a host.
+ * AWS profile and region, and Connect, which sets one up (SSM access, start,
+ * what sessions need) and the rest join its cluster. Nobody picks a host:
+ * each new session starts on the one with the most free memory, in tmux.
+ * docs/remote-host.md says how to make a host.
  */
 export function RemoteHostSection() {
 	const utils = electronTrpc.useUtils();
 	const { data: current } = electronTrpc.remoteHost.get.useQuery(undefined, {
 		// A Claude setup sync runs in the main process and goes on when this
-		// page is left; while one runs, watch for it to land.
+		// page is left; while one runs, watch for it to land. Otherwise look
+		// every 30s: hosts join and leave the cluster in the main process too.
 		refetchInterval: (query) =>
-			query.state.data?.claudeSetupSync.parts ? 1000 : false,
+			query.state.data?.claudeSetupSync.parts ? 1000 : 30_000,
 	});
 	const refresh = () => utils.remoteHost.get.invalidate();
 	// Turning the host on runs `claude setup-token` first when no token is saved.
 	const onError = (error: { message: string }) => toast.error(error.message);
 	const use = electronTrpc.remoteHost.set.useMutation({
-		onSuccess: () => {
-			setChangingHost(false);
+		onSuccess: ({ restored }) => {
+			// A host Odin used before is back as it was: nothing to set up again.
+			if (restored) return refresh();
 			// A new host gets everything: every connector and the whole Claude
 			// setup, so its sessions work as they do here. Choose narrows it.
 			setConnectorList(CONNECTORS.map(([id]) => id));
@@ -117,23 +119,6 @@ export function RemoteHostSection() {
 		onError,
 	});
 	const setOn = electronTrpc.remoteHost.setOn.useMutation({
-		onSuccess: refresh,
-		onError,
-	});
-	// Add to cluster runs Use's setup first; these instances then join the
-	// cluster instead of becoming the host.
-	const toCluster = useRef(new Set<string>());
-	const clusterAdd = electronTrpc.remoteHost.clusterAdd.useMutation({
-		onSuccess: (_, sent) => {
-			toast.success(`${sent.name} is in the cluster.`, {
-				description:
-					"New sessions start on the host with the most free memory.",
-			});
-			return refresh();
-		},
-		onError,
-	});
-	const clusterRemove = electronTrpc.remoteHost.clusterRemove.useMutation({
 		onSuccess: refresh,
 		onError,
 	});
@@ -443,9 +428,6 @@ export function RemoteHostSection() {
 	const [hostPolicyArn, setHostPolicyArn] = useState("");
 	const [hostPackages, setHostPackages] = useState("");
 	const [loaded, setLoaded] = useState(false);
-	// With a host in use, the picker (profile, region, user, instances)
-	// folds behind Change host - it only matters when choosing one.
-	const [changingHost, setChangingHost] = useState(false);
 	useEffect(() => {
 		if (!saved || loaded) return;
 		setProfile(saved.profile ?? "");
@@ -511,10 +493,6 @@ export function RemoteHostSection() {
 			toast.error("The host is up, but setup could not install Claude on it.");
 			return;
 		}
-		if (toCluster.current.delete(id)) {
-			clusterAdd.mutate({ ...target, instanceId: id, name, user });
-			return;
-		}
 		// The host in use already: picking it again would drop its connectors and setup.
 		if (current?.host?.instanceId === id) {
 			refresh();
@@ -538,7 +516,6 @@ export function RemoteHostSection() {
 				tools,
 			),
 		onError: (error, sent) => {
-			toCluster.current.delete(sent.id);
 			// The row says why, and Use stays there to try again once it is fixed.
 			setUses((prev) => ({ ...prev, [sent.id]: { error: error.message } }));
 			instances.refetch();
@@ -551,11 +528,7 @@ export function RemoteHostSection() {
 			bringUp.isPending || query.state.data ? 1000 : false,
 	});
 	/** A host under way, from here or a page opened before: every Use waits for it. */
-	const busy =
-		bringUp.isPending ||
-		use.isPending ||
-		clusterAdd.isPending ||
-		!!hostStep.data;
+	const busy = bringUp.isPending || use.isPending || !!hostStep.data;
 	/** The step Use is on for this instance, to read on its button; null when it is not under way. */
 	const stepOf = (id: string) =>
 		hostStep.data?.action === "use" && hostStep.data.id === id
@@ -577,6 +550,13 @@ export function RemoteHostSection() {
 			instance.name.toLowerCase().includes(needle) ||
 			instance.id.toLowerCase().includes(needle),
 	);
+	// Connect picks the host itself: one that is running and SSM can reach,
+	// else one that is running, else any. Every other one joins its cluster.
+	const rank = (instance: { state: string; ssmOnline: boolean }) =>
+		(instance.state === "running" ? 2 : 0) + (instance.ssmOnline ? 1 : 0);
+	const best = [...(instances.data?.instances ?? [])].sort(
+		(a, b) => rank(b) - rank(a),
+	)[0];
 
 	return (
 		<SettingsSection
@@ -649,63 +629,24 @@ export function RemoteHostSection() {
 					)}
 				</SettingRow>
 			)}
-			{current?.host && !changingHost && (
+			{current?.host && (
 				<SettingRow
 					label={
 						<span className="flex items-center gap-2">
-							{current.host.name || current.host.instanceId}
+							{[current.host, ...current.cluster]
+								.map((host) => host.name || host.instanceId)
+								.join(", ")}
 							<HostStatusPill />
 						</span>
 					}
 					description={
 						<span className="select-text cursor-text">
-							<span className="font-mono">{current.host.instanceId}</span>, you
+							Each new session starts on the host with the most free memory. You
 							are <span className="font-mono">{current.host.user}</span>, repos
 							in <span className="font-mono">{current.host.reposRoot}</span>
 						</span>
 					}
-				>
-					<Button
-						size="sm"
-						variant="outline"
-						onClick={() => setChangingHost(true)}
-					>
-						Change host
-					</Button>
-				</SettingRow>
-			)}
-			{current?.host && !changingHost && (
-				<SettingRow
-					label="Cluster"
-					description={
-						current.cluster.length
-							? `New sessions start on ${[current.host, ...current.cluster].map((host) => host.name || host.instanceId).join(", ")}: whichever has the most free memory. A session stays on its host, and moves to another one in the cluster when its own is down.`
-							: "More hosts new sessions can start on. Each new session goes to the host with the most free memory."
-					}
-				>
-					{current.cluster.map((extra) => (
-						<Button
-							key={extra.instanceId}
-							size="sm"
-							variant="outline"
-							disabled={clusterRemove.isPending}
-							title="No new sessions start here. Its sessions keep running"
-							onClick={() =>
-								clusterRemove.mutate({ instanceId: extra.instanceId })
-							}
-						>
-							Remove {extra.name || extra.instanceId}
-						</Button>
-					))}
-					<Button
-						size="sm"
-						variant="outline"
-						title="Lists your hosts: Add to cluster on one sets it up and adds it"
-						onClick={() => setChangingHost(true)}
-					>
-						Add a host
-					</Button>
-				</SettingRow>
+				/>
 			)}
 			{current?.host && (
 				<SettingRow
@@ -713,7 +654,7 @@ export function RemoteHostSection() {
 					htmlFor="remote-host-on"
 					description={
 						current.host.on
-							? `On. Turn it off to start new sessions on this computer.${current.host.adminUser ? "" : " Everyone on this instance shares one login: pick it again under Change host (Use) to get your own user."}`
+							? "On. Turn it off to start new sessions on this computer."
 							: "Off: new sessions start on this computer."
 					}
 				>
@@ -920,7 +861,7 @@ export function RemoteHostSection() {
 					</SettingRow>
 				</>
 			)}
-			{(!current?.host || changingHost) && (
+			{!current?.host && (
 				<>
 					{error && awsSignInNeeded(error.message) ? (
 						<SettingRow
@@ -954,7 +895,7 @@ export function RemoteHostSection() {
 					{loaded && (
 						<SettingRow
 							label="Hosts in this account"
-							description={`Instances tagged Odin = host in the ${profile || fallbackProfile || "default"} profile, ${region || DEFAULT_REGION}. A host made or tagged since the list loaded shows after Search again; one in another account shows after you change the profile under Advanced.`}
+							description={`Instances tagged Odin = host in the ${profile || fallbackProfile || "default"} profile, ${region || DEFAULT_REGION}. Connect runs new sessions on them, each on the one with the most free memory. A host made or tagged since the list loaded shows after Search again; one in another account shows after you change the profile under Advanced.`}
 						>
 							<Button
 								size="sm"
@@ -964,6 +905,16 @@ export function RemoteHostSection() {
 							>
 								{instances.isFetching ? "Searching..." : "Search again"}
 							</Button>
+							{best && (
+								<Button
+									size="sm"
+									disabled={busy}
+									title="Sets up the hosts here (SSM access, start, Claude, gh, tmux, git and the packages under Advanced) and starts each new session on the one with the most free memory"
+									onClick={() => bringUp.mutate({ ...target, id: best.id })}
+								>
+									{stepOf(best.id) ?? "Connect"}
+								</Button>
+							)}
 						</SettingRow>
 					)}
 					{instances.data && !error && shownInstances.length === 0 && (
@@ -1001,10 +952,6 @@ export function RemoteHostSection() {
 						const host = instance.privateIp ?? instance.publicIp;
 						const last = uses[instance.id];
 						const step = stepOf(instance.id);
-						const inUse = current?.host?.instanceId === instance.id;
-						const inCluster = !!current?.cluster.some(
-							(extra) => extra.instanceId === instance.id,
-						);
 						return (
 							<SettingRow
 								key={instance.id}
@@ -1018,9 +965,9 @@ export function RemoteHostSection() {
 											host,
 											instance.ssmOnline ? "SSM online" : "SSM offline",
 											step
-												? "Use is on it - a few minutes when it needs starting or access"
+												? "Connecting - a few minutes when it needs starting or access"
 												: last && "error" in last
-													? `Use failed: ${last.error}`
+													? `Connect failed: ${last.error}`
 													: last && "claude" in last
 														? last.claude
 															? "set up for sessions"
@@ -1031,58 +978,9 @@ export function RemoteHostSection() {
 											.join(" - ")}
 									</span>
 								}
-							>
-								<Button
-									size="sm"
-									disabled={busy}
-									title={
-										inUse
-											? "Starts it if it is stopped and installs what is missing"
-											: "Gives it SSM access, starts it and installs what sessions need - Claude, gh, tmux, git and the packages above - whichever it still lacks, then picks it"
-									}
-									onClick={() => bringUp.mutate({ ...target, id: instance.id })}
-								>
-									{step ?? (inUse ? "In use" : "Use")}
-								</Button>
-								{current?.host && !inUse && (
-									<Button
-										size="sm"
-										variant="outline"
-										disabled={busy || clusterRemove.isPending}
-										title={
-											inCluster
-												? "No new sessions start here. Its sessions keep running"
-												: `Sets it up as Use does, then new sessions start on it or on ${current.host.name || current.host.instanceId}, whichever has more free memory`
-										}
-										onClick={() => {
-											if (inCluster) {
-												clusterRemove.mutate({ instanceId: instance.id });
-												return;
-											}
-											toCluster.current.add(instance.id);
-											bringUp.mutate({ ...target, id: instance.id });
-										}}
-									>
-										{inCluster ? "Remove from cluster" : "Add to cluster"}
-									</Button>
-								)}
-							</SettingRow>
+							></SettingRow>
 						);
 					})}
-					{changingHost && (
-						<SettingRow
-							label="Keep this host"
-							description="Close the list without changing anything."
-						>
-							<Button
-								size="sm"
-								variant="outline"
-								onClick={() => setChangingHost(false)}
-							>
-								Cancel
-							</Button>
-						</SettingRow>
-					)}
 				</>
 			)}
 			<Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>

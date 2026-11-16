@@ -15,6 +15,7 @@ import {
 	DEFAULT_SCHEDULE,
 	isValidCron,
 	nextRun,
+	onceInputDate,
 	type Repeat,
 	SHORT_DAYS,
 	scheduleOf,
@@ -72,6 +73,8 @@ const CRON_HELP =
 
 /** What the Repeat menu offers, in order. */
 const REPEATS: [Repeat, string][] = [
+	// "On Thursday, do X": one run on a date, then the row pauses itself.
+	["once", "Once"],
 	["15m", "Every 15 minutes"],
 	["30m", "Every 30 minutes"],
 	["hourly", "Every hour"],
@@ -189,7 +192,15 @@ function ScheduleFields({
 				onChange={(event) => {
 					const value = event.target.value;
 					setWantsCustom(value === "custom");
-					if (value !== "custom") set({ repeat: value as Repeat });
+					if (value === "once") {
+						// Tomorrow, not the placeholder date: the likeliest pick.
+						const at = new Date(Date.now() + 86_400_000);
+						const two = (n: number) => String(n).padStart(2, "0");
+						set({
+							repeat: "once",
+							date: `${two(at.getMonth() + 1)}-${two(at.getDate())}`,
+						});
+					} else if (value !== "custom") set({ repeat: value as Repeat });
 				}}
 				className={FIELD}
 			>
@@ -260,6 +271,19 @@ function ScheduleFields({
 								);
 							})}
 						</span>
+					)}
+					{schedule.repeat === "once" && (
+						<input
+							type="date"
+							aria-label="Date"
+							value={onceInputDate(cron)}
+							onChange={(event) => {
+								// "YYYY-MM-DD"; cron keeps the month and day.
+								if (event.target.value)
+									set({ date: event.target.value.slice(5) });
+							}}
+							className={FIELD}
+						/>
 					)}
 					{schedule.repeat === "monthly" && (
 						<select
@@ -1020,6 +1044,13 @@ function SchedulesPanel() {
 			return toast.error(`Not a schedule. ${CRON_HELP}`);
 		add(draft, draftCron.trim());
 		setDraft("");
+		// Say when it will run, so a wrong day or time is caught now, not after.
+		const next = nextRun(draftCron);
+		toast.success(
+			next
+				? `Scheduled - runs ${next.toLocaleString(undefined, NEXT_RUN_FORMAT)}`
+				: "Scheduled - but this schedule never fires",
+		);
 	};
 
 	return (

@@ -58,3 +58,36 @@ test("a relay that lost this computer during sleep gets it back, with no close t
 		stop();
 	}
 });
+
+test("a second process under the same id takes over and the first stops, instead of the two trading it", async () => {
+	const id = "zyxwvutsrqponmlkjihgfe";
+	let replaced = 0;
+	let secondPhones = 0;
+	const first = dialRelay(
+		`ws://127.0.0.1:${relay.port}`,
+		id,
+		() => {},
+		() => {},
+		60_000,
+		() => replaced++,
+	);
+	await Bun.sleep(100);
+	const second = dialRelay(
+		`ws://127.0.0.1:${relay.port}`,
+		id,
+		() => secondPhones++,
+	);
+	try {
+		await Bun.sleep(2_500);
+		expect(replaced).toBe(1);
+		const phone = await connectSocket(
+			`ws://127.0.0.1:${relay.port}/connect/${id}`,
+		);
+		await Bun.sleep(100);
+		expect(secondPhones).toBe(1);
+		phone.close();
+	} finally {
+		first();
+		second();
+	}
+});

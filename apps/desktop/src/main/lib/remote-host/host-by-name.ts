@@ -80,3 +80,55 @@ export function clusterMember<T extends NamedHost>(
 		if (value !== undefined) member[key] = value;
 	return member as T;
 }
+
+/** States after which an instance never runs a session again. */
+const GONE = new Set(["shutting-down", "terminated"]);
+
+/**
+ * The cluster Odin keeps by itself: every instance it lists for the main
+ * host's account and region (each tagged Odin = host) besides the main host.
+ * `join` is the ones not in it yet that can be set up now (running, SSM
+ * online); `leave` is the ids of hosts in it that are gone or no longer
+ * listed.
+ */
+export function autoCluster<
+	I extends { id: string; state: string; ssmOnline: boolean },
+>(
+	mainId: string,
+	instances: I[],
+	current: { instanceId: string }[],
+): { join: I[]; leave: string[] } {
+	const members = instances.filter(
+		(instance) => instance.id !== mainId && !GONE.has(instance.state),
+	);
+	const ids = new Set(members.map((instance) => instance.id));
+	const inCluster = new Set(current.map((extra) => extra.instanceId));
+	return {
+		join: members.filter(
+			(instance) =>
+				!inCluster.has(instance.id) &&
+				instance.state === "running" &&
+				instance.ssmOnline,
+		),
+		leave: current
+			.filter((extra) => !ids.has(extra.instanceId))
+			.map((extra) => extra.instanceId),
+	};
+}
+
+/**
+ * The host as it is picked: a host picked before (the current one or a past
+ * one) comes back with the settings it had (connectors, GitHub accounts, its
+ * own sign-ins, AWS profiles, Tasks with the Mac closed), the picker's fields
+ * on top. `restored` is false for a host Odin never used.
+ */
+export function pickedHost<
+	T extends { instanceId: string },
+	P extends { instanceId: string },
+>(
+	picked: P,
+	known: (T | undefined)[],
+): { host: Partial<T> & P; restored: boolean } {
+	const saved = known.find((host) => host?.instanceId === picked.instanceId);
+	return { host: { ...(saved as Partial<T>), ...picked }, restored: !!saved };
+}

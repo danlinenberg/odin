@@ -98,8 +98,10 @@ import {
 } from "main/lib/remote-host/github-on-host";
 import {
 	asLastRun,
+	autoCluster,
 	clusterMember,
 	hostByName,
+	pickedHost,
 } from "main/lib/remote-host/host-by-name";
 import { hostHasConversation } from "main/lib/remote-host/host-conversations";
 import {
@@ -183,7 +185,11 @@ import { remoteShellCommand } from "shared/remote-shell-command";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import {
+	activeProfileId,
+	listProfiles,
+	type OdinFileConfig,
 	readOdinConfig,
+	readProfileConfig,
 	resolveGithubClientId,
 	updateOdinConfig,
 } from "../odin-config";
@@ -200,13 +206,29 @@ const run = promisify(execFile);
 
 /** The host a session runs on, by its pane's host name (see hostByName). */
 function hostNamed(name?: string | null) {
-	const { remoteHost, pastRemoteHosts = [] } = readOdinConfig();
-	return hostByName(remoteHost, [...clusterExtras(), ...pastRemoteHosts], name);
+	const here = hostIn(readOdinConfig(), name);
+	if (!name || (here && (here.name || here.instanceId) === name)) return here;
+	// A session started under another profile: that profile's host, as the
+	// user it ran as. Without this, switching profiles left it unmovable.
+	const elsewhere = listProfiles()
+		.filter((profile) => !profile.active)
+		.map((profile) => hostIn(readProfileConfig(profile.id), name))
+		.find((host) => host && (host.name || host.instanceId) === name);
+	return elsewhere ?? here;
+}
+
+function hostIn(config: OdinFileConfig, name?: string | null) {
+	const { remoteHost, pastRemoteHosts = [] } = config;
+	return hostByName(
+		remoteHost,
+		[...clusterExtras(config), ...pastRemoteHosts],
+		name,
+	);
 }
 
 /** The cluster's other hosts, each with the main host's settings. */
-function clusterExtras(): RemoteHost[] {
-	const { remoteHost, clusterHosts = [] } = readOdinConfig();
+function clusterExtras(config = readOdinConfig()): RemoteHost[] {
+	const { remoteHost, clusterHosts = [] } = config;
 	if (!remoteHost) return [];
 	return clusterHosts
 		.filter((extra) => extra.instanceId !== remoteHost.instanceId)
@@ -292,6 +314,7 @@ async function buildSessionSpec(
 		prompt: string | null;
 		odinPane?: string | null;
 		fresh?: boolean;
+		rules?: string | null;
 	},
 ): Promise<RemoteSessionSpec> {
 	const { repoPath, ...rest } = input;
@@ -616,8 +639,128 @@ async function refreshHostTokens(): Promise<void> {
 		),
 	);
 }
-setInterval(() => void refreshHostTokens(), 30 * 60_000).unref();
-setTimeout(() => void refreshHostTokens(), 20_000).unref();
+type ClusterEntry = NonNullable<
+	ReturnType<typeof readOdinConfig>["clusterHosts"]
+>[number];
+
+/**
+ * Adds an instance to the main host's cluster: new sessions may start there
+ * too. It gets the main host's tokens and Claude setup straight away.
+ */
+async function addClusterMember(extra: ClusterEntry): Promise<void> {
+	const { remoteHost, clusterHosts = [] } = readOdinConfig();
+	if (!remoteHost || extra.instanceId === remoteHost.instanceId) return;
+	updateOdinConfig({
+		clusterHosts: [
+			...clusterHosts.filter((each) => each.instanceId !== extra.instanceId),
+			extra,
+		],
+	});
+	const member = clusterExtras().find(
+		(each) => each.instanceId === extra.instanceId,
+	);
+	if (!member) return;
+	if (remoteHost.on)
+		await pushHostTokens(
+			member,
+			(member.connectors ?? []) as HostConnector[],
+		).catch((error) => console.warn("[remote-host] cluster tokens:", error));
+	if (member.claudeSetup?.length)
+		void syncClaudeSetup(
+			member,
+			member.claudeSetup as (typeof CLAUDE_SETUP_PARTS)[number][],
+		).catch((error) =>
+			console.warn("[remote-host] cluster Claude setup:", error),
+		);
+}
+
+/**
+ * Takes an instance out of the cluster: no new sessions start there. Its
+ * sessions keep running and still find it (pastRemoteHosts).
+ */
+async function removeClusterMember(instanceId: string): Promise<void> {
+	const leaving = clusterExtras().find(
+		(extra) => extra.instanceId === instanceId,
+	);
+	const { clusterHosts = [], pastRemoteHosts = [] } = readOdinConfig();
+	updateOdinConfig({
+		clusterHosts: clusterHosts.filter(
+			(extra) => extra.instanceId !== instanceId,
+		),
+		...(leaving
+			? {
+					pastRemoteHosts: [
+						leaving,
+						...pastRemoteHosts.filter((host) => host.instanceId !== instanceId),
+					].slice(0, 5),
+				}
+			: {}),
+	});
+	// No connector tokens stay behind on it.
+	if (leaving?.connectors?.length)
+		await pushHostTokens(leaving, []).catch(() => {});
+}
+
+let clusterSyncing: Promise<void> | null = null;
+/**
+ * Every other instance Odin lists for the main host's account and region
+ * (tagged Odin = host) joins its cluster, set up as Use sets up a host
+ * (autoCluster); a member leaves once it is terminated or no longer
+ * listed. Runs at start, every 30 minutes and when a host is picked. One run at a time; a failed AWS call waits for the next run,
+ * with no sign-in prompt.
+ */
+function syncAutoCluster(): Promise<void> {
+	if (clusterSyncing) return clusterSyncing;
+	clusterSyncing = (async () => {
+		const host = readOdinConfig().remoteHost;
+		if (!host) return;
+		const target = {
+			...(host.profile ? { profile: host.profile } : {}),
+			...(host.region ? { region: host.region } : {}),
+		};
+		const { instances } = await listInstances(target, []);
+		const { join, leave } = autoCluster(
+			host.instanceId,
+			instances,
+			readOdinConfig().clusterHosts ?? [],
+		);
+		for (const id of leave) await removeClusterMember(id);
+		for (const instance of join) {
+			const tools = await setUpHost(
+				target,
+				instance.id,
+				hostUser(),
+				readOdinConfig().awsInstances?.hostPackages,
+			);
+			if (!tools.claude) {
+				console.warn(
+					`[remote-host] cluster: setup could not install Claude on ${instance.name}`,
+				);
+				continue;
+			}
+			await addClusterMember({
+				instanceId: instance.id,
+				name: instance.name,
+				...target,
+				...(host.adminUser ? { adminUser: host.adminUser } : {}),
+			});
+		}
+	})()
+		.catch((error) => console.warn("[remote-host] cluster by tag:", error))
+		.finally(() => {
+			clusterSyncing = null;
+		});
+	return clusterSyncing;
+}
+
+setInterval(() => {
+	void refreshHostTokens();
+	void syncAutoCluster();
+}, 30 * 60_000).unref();
+setTimeout(() => {
+	void refreshHostTokens();
+	void syncAutoCluster();
+}, 20_000).unref();
 // The half-hourly timer doesn't run while this computer sleeps: send fresh
 // copies the moment it wakes or unlocks, not up to half an hour later.
 void app.whenReady().then(() => {
@@ -846,27 +989,33 @@ export const createRemoteHostRouter = () =>
 				setTimeout(() => void markHostUp(host.instanceId), 60_000);
 			}),
 		/** The host sessions start on; `on: false` keeps them on this computer. */
-		get: publicProcedure.query(() => ({
-			host: readOdinConfig().remoteHost ?? null,
-			/** The cluster's other hosts, by instance id and name. */
-			cluster: clusterExtras().map(({ instanceId, name }) => ({
-				instanceId,
-				name,
-			})),
-			/** The Linux user this computer's sessions run as on a host. */
-			hostUser: hostUser(),
-			hasClaudeToken: Boolean(claudeToken()),
-			/** Whether sessions there move to the API key at the plan limit. */
-			apiKeyFallback: apiKeyFallbackOn(
-				readOdinConfig().remoteHost?.apiKeyFallback,
-			),
-			/** The last 4 characters of the key saved in Settings; null: ANTHROPIC_API_KEY. */
-			customApiKeyEnd: customApiKey()?.slice(-4) ?? null,
-			/** The connected GitHub accounts and which may go to the host. */
-			githubAccounts: hostGithubAccounts(readOdinConfig()),
-			/** The Claude setup copy under way, if any, and why the last one failed. */
-			claudeSetupSync: claudeSyncStatus(),
-		})),
+		get: publicProcedure.query(() => {
+			// The host and the profile from one read: a launch stamps the session
+			// with this profile, so the two can't come from either side of a switch.
+			const profileId = activeProfileId();
+			return {
+				profileId,
+				host: readProfileConfig(profileId).remoteHost ?? null,
+				/** The cluster's other hosts, by instance id and name. */
+				cluster: clusterExtras().map(({ instanceId, name }) => ({
+					instanceId,
+					name,
+				})),
+				/** The Linux user this computer's sessions run as on a host. */
+				hostUser: hostUser(),
+				hasClaudeToken: Boolean(claudeToken()),
+				/** Whether sessions there move to the API key at the plan limit. */
+				apiKeyFallback: apiKeyFallbackOn(
+					readOdinConfig().remoteHost?.apiKeyFallback,
+				),
+				/** The last 4 characters of the key saved in Settings; null: ANTHROPIC_API_KEY. */
+				customApiKeyEnd: customApiKey()?.slice(-4) ?? null,
+				/** The connected GitHub accounts and which may go to the host. */
+				githubAccounts: hostGithubAccounts(readOdinConfig()),
+				/** The Claude setup copy under way, if any, and why the last one failed. */
+				claudeSetupSync: claudeSyncStatus(),
+			};
+		}),
 		/**
 		 * Whether a launch to the host should wait: `reason` from a remote
 		 * pane's latest memory and load reading, else from one probe, and `at`,
@@ -944,9 +1093,14 @@ export const createRemoteHostRouter = () =>
 						host.instanceId !== previous?.instanceId,
 				);
 				// `user` from the picker is the instance's login; sessions run as this user's own.
+				// A host picked before gets back the settings it had there.
+				const { host, restored } = pickedHost(
+					{ ...input, user: hostUser(), adminUser: input.user },
+					[previous, ...pastRemoteHosts],
+				);
 				const { clusterHosts = [] } = readOdinConfig();
 				updateOdinConfig({
-					remoteHost: { ...input, user: hostUser(), adminUser: input.user },
+					remoteHost: host,
 					// The new main host is no longer one of its own cluster.
 					clusterHosts: clusterHosts.filter(
 						(extra) => extra.instanceId !== input.instanceId,
@@ -958,82 +1112,10 @@ export const createRemoteHostRouter = () =>
 							: kept,
 				});
 				if (input.on) void refreshHostTokens();
-			}),
-		/**
-		 * Adds an instance Use set up to the main host's cluster: new sessions
-		 * may start there too. It gets the main host's tokens and Claude setup
-		 * straight away.
-		 */
-		clusterAdd: publicProcedure
-			.input(
-				awsTarget.extend({
-					instanceId: z.string().min(1),
-					name: z.string(),
-					/** The instance's own login, as Use reported it. */
-					user: z.string().min(1),
-				}),
-			)
-			.mutation(async ({ input }) => {
-				const { remoteHost, clusterHosts = [] } = readOdinConfig();
-				if (!remoteHost) throw new Error("Pick a main host first.");
-				if (input.instanceId === remoteHost.instanceId) return;
-				const { user, ...where } = input;
-				updateOdinConfig({
-					clusterHosts: [
-						...clusterHosts.filter(
-							(extra) => extra.instanceId !== input.instanceId,
-						),
-						{ ...where, adminUser: user },
-					],
-				});
-				const member = clusterExtras().find(
-					(extra) => extra.instanceId === input.instanceId,
-				);
-				if (!member) return;
-				if (remoteHost.on)
-					await pushHostTokens(
-						member,
-						(member.connectors ?? []) as HostConnector[],
-					).catch((error) =>
-						console.warn("[remote-host] cluster tokens:", error),
-					);
-				if (member.claudeSetup?.length)
-					void syncClaudeSetup(
-						member,
-						member.claudeSetup as (typeof CLAUDE_SETUP_PARTS)[number][],
-					).catch((error) =>
-						console.warn("[remote-host] cluster Claude setup:", error),
-					);
-			}),
-		/**
-		 * Takes an instance out of the cluster: no new sessions start there.
-		 * Its sessions keep running and still find it (pastRemoteHosts).
-		 */
-		clusterRemove: publicProcedure
-			.input(z.object({ instanceId: z.string().min(1) }))
-			.mutation(async ({ input }) => {
-				const leaving = clusterExtras().find(
-					(extra) => extra.instanceId === input.instanceId,
-				);
-				const { clusterHosts = [], pastRemoteHosts = [] } = readOdinConfig();
-				updateOdinConfig({
-					clusterHosts: clusterHosts.filter(
-						(extra) => extra.instanceId !== input.instanceId,
-					),
-					...(leaving
-						? {
-								pastRemoteHosts: [
-									leaving,
-									...pastRemoteHosts.filter(
-										(host) => host.instanceId !== input.instanceId,
-									),
-								].slice(0, 5),
-							}
-						: {}),
-				});
-				// No connector tokens stay behind on it.
-				if (leaving?.connectors?.length)
-					await pushHostTokens(leaving, []).catch(() => {});
+				// The new host's cluster: its other Odin = host instances.
+				void syncAutoCluster();
+				/** Picked before: Settings leaves its connectors and setup as they were. */
+				return { restored };
 			}),
 		setOn: publicProcedure.input(z.boolean()).mutation(async ({ input }) => {
 			const host = readOdinConfig().remoteHost;
@@ -1501,6 +1583,51 @@ export const createRemoteHostRouter = () =>
 			.query(({ input }) => launchPlace(input)),
 
 		/**
+		 * The host a session sent to the remote host runs on, by name. A new one:
+		 * the cluster host with the most free memory. A resume (`sessionId`): the
+		 * host that keeps its conversation, asked of every cluster and past host
+		 * at once; the main host when none answers that it does. Null with no
+		 * host set up.
+		 */
+		hostFor: publicProcedure
+			.input(z.object({ sessionId: z.string().nullable() }))
+			.query(async ({ input }) => {
+				const main = readOdinConfig().remoteHost;
+				if (!main) return null;
+				const nameOf = (host: { name?: string; instanceId: string }) =>
+					host.name || host.instanceId;
+				const id = input.sessionId;
+				if (!id) return nameOf((await pickHost(3_000))?.host ?? main);
+				if (!/^[\w-]+$/.test(id)) return nameOf(main);
+				const hosts = [
+					...clusterHostsNow(),
+					...(readOdinConfig().pastRemoteHosts ?? []),
+				];
+				const keeps = async (host: RemoteHost) => {
+					const client = await connectHost(host);
+					try {
+						const out = await runOnHost(
+							client,
+							`ls ~/.claude/projects/*/${id}.jsonl 2>/dev/null | head -1`,
+						);
+						if (!out.trim()) throw new Error("not here");
+						return nameOf(host);
+					} finally {
+						client.end();
+					}
+				};
+				// A host that is stopped or out of reach can hold a login for
+				// minutes: after 20s the resume goes to the main host.
+				const late = new Promise<string>((resolve) =>
+					setTimeout(() => resolve(nameOf(main)), 20_000).unref(),
+				);
+				return Promise.race([
+					Promise.any(hosts.map(keeps)).catch(() => nameOf(main)),
+					late,
+				]);
+			}),
+
+		/**
 		 * A message to a session on the host: the laptop files it names or
 		 * attaches, copied to ~/.odin/files there, and the text and paths
 		 * rewritten to the copies. Unchanged when nothing is a laptop file.
@@ -1610,6 +1737,8 @@ export const createRemoteHostRouter = () =>
 					fresh: z.boolean().optional(),
 					/** The host the session runs on; unset for a new session (the current host). */
 					host: paneHost,
+					/** What the PR-rules hook prints (rulesHookOutput); null without PR rules. */
+					rules: z.string().nullable().optional(),
 				}),
 			)
 			.mutation(async ({ input }) => {
