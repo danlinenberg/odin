@@ -142,4 +142,25 @@ describe("sessionOrder", () => {
 		expect(statusAt(card("x", "working", 42))).toBe(42);
 		expect(statusAt(card("x", "working"))).toBe(0);
 	});
+
+	it("priority sorts after the star and before the picked sort", () => {
+		const cards: Card[] = [
+			card("plain new", "working", 300),
+			{
+				...card("low", "working", 400),
+				pane: { odinStatusAt: 400, odinPriority: "low" },
+			},
+			{
+				...card("high old", "working", 100),
+				pane: { odinStatusAt: 100, odinPriority: "high" },
+			},
+			card("starred", "working", 50, true),
+		];
+		expect(sorted(cards, "updated", false)).toEqual([
+			"starred",
+			"high old",
+			"plain new",
+			"low",
+		]);
+	});
 });

@@ -138,6 +138,11 @@ import {
 } from "shared/odin-tags";
 import { isQueuedResume } from "shared/queued-resume";
 import { remoteCardsToReconnect, tmuxSession } from "shared/remote-reconnect";
+import {
+	PRIORITY_LABEL,
+	SESSION_PRIORITIES,
+	type SessionPriority,
+} from "shared/session-priority";
 import { hostsNotTakingLogins, loginFailing } from "./host-stuck";
 import { setPhoneReply, setPhoneStart } from "./phone-resume";
 import { useReadableSlackTitles, useSlackReadable } from "./slack-titles";
@@ -1942,6 +1947,46 @@ function PlanLimitNotice({
 	);
 }
 
+/**
+ * A session's priority as a pill: red High, blue Medium, grey Low. It sits in
+ * front of the title on the card and the drawer's row, so the order a column
+ * is in reads at a glance.
+ */
+const PRIORITY_PILL: Record<SessionPriority, string> = {
+	high: PILL.danger,
+	medium: PILL.working,
+	low: PILL.neutral,
+};
+/** The card's left edge in the priority's hue; Low gets none. */
+const PRIORITY_EDGE: Record<SessionPriority, string | undefined> = {
+	high: "shadow-[inset_3px_0_0_var(--danger),inset_0_1px_0_rgb(255_255_255/0.04)]",
+	medium:
+		"shadow-[inset_3px_0_0_var(--working),inset_0_1px_0_rgb(255_255_255/0.04)]",
+	low: undefined,
+};
+
+function PriorityMark({
+	priority,
+	short = false,
+}: {
+	priority?: SessionPriority;
+	short?: boolean;
+}) {
+	if (!priority) return null;
+	return (
+		<span
+			data-priority={priority}
+			title={`${PRIORITY_LABEL[priority]} priority - right-click to change`}
+			className={cn(
+				"mr-1.5 inline-block rounded-[5px] px-[6px] py-[1px] align-[1px] text-[10px] font-bold uppercase tracking-[.3px]",
+				PRIORITY_PILL[priority],
+			)}
+		>
+			{short ? PRIORITY_LABEL[priority][0] : PRIORITY_LABEL[priority]}
+		</span>
+	);
+}
+
 function TagMenu({
 	x,
 	y,
@@ -1950,6 +1995,8 @@ function TagMenu({
 	customTags,
 	starred,
 	onStar,
+	priority,
+	onPriority,
 	onDone,
 	onPark,
 	onDocs,
@@ -1980,6 +2027,9 @@ function TagMenu({
 	customTags: string[];
 	starred: boolean;
 	onStar: () => void;
+	priority?: SessionPriority;
+	/** Picking the priority it already has clears it. */
+	onPriority: (priority: SessionPriority | undefined) => void;
 	onDone: () => void;
 	/** Set unless it already sits in Idle. */
 	onPark?: () => void;
@@ -2090,6 +2140,37 @@ function TagMenu({
 				<span className="w-3 text-attention">★</span>
 				{starred ? "Unstar" : "Star"}
 			</button>
+			<fieldset
+				aria-label="Priority"
+				className="mb-1.5 flex min-w-0 items-center gap-1 border-0 border-b border-border px-1.5 pb-2 text-[12px] text-muted-foreground"
+			>
+				<span className="mr-auto">Priority</span>
+				{SESSION_PRIORITIES.map((level) => (
+					<button
+						key={level}
+						type="button"
+						aria-pressed={priority === level}
+						title={
+							priority === level
+								? `Clear the ${PRIORITY_LABEL[level]} priority`
+								: `${PRIORITY_LABEL[level]} priority - sorts it inside its section`
+						}
+						onClick={() => {
+							onPriority(priority === level ? undefined : level);
+							onClose();
+						}}
+						className={cn(
+							"rounded-[5px] px-1.5 py-0.5 text-[11px] font-semibold transition-opacity",
+							PRIORITY_PILL[level],
+							priority === level
+								? "ring-1 ring-foreground/60"
+								: "opacity-55 hover:opacity-100",
+						)}
+					>
+						{PRIORITY_LABEL[level]}
+					</button>
+				))}
+			</fieldset>
 			<button
 				type="button"
 				onClick={() => {
@@ -2661,6 +2742,7 @@ const SwitchRow = memo(function SwitchRow({
 							/>
 						)}
 						<span className="truncate">
+							<PriorityMark priority={card.pane.odinPriority} short />
 							<WatchMark paneId={card.pane.id} />
 							<RemoteMark paneId={card.pane.id} />
 							<HostMark paneId={card.pane.id} state={hostState} />
@@ -2747,10 +2829,16 @@ const BoardCardTile = memo(
 							// so it reads at a glance in a busy column.
 							card.pane.odinStarred &&
 								"bg-[color:color-mix(in_oklab,var(--attention)_10%,var(--card))] shadow-[inset_3px_0_0_var(--attention),inset_0_1px_0_rgb(255_255_255/0.04)]",
+							// A priority paints the left edge in its hue (the star's
+							// amber edge wins on a starred card; the pill still shows).
+							!card.pane.odinStarred &&
+								card.pane.odinPriority &&
+								PRIORITY_EDGE[card.pane.odinPriority],
 						)}
 					>
 						<div className="flex items-start gap-2">
 							<div className="min-w-0 flex-1 break-words text-[12.5px] font-semibold">
+								<PriorityMark priority={card.pane.odinPriority} />
 								<OverdueMark itemKey={`session:${card.pane.id}`} />
 								<WatchMark paneId={card.pane.id} />
 								<RemoteMark paneId={card.pane.id} />
@@ -6562,6 +6650,20 @@ function DevBoardPage() {
 		toast.success("Parked in Idle - session still open", undoAction(undo));
 	};
 
+	const setPriority = (paneId: string, priority?: SessionPriority) =>
+		useTabsStore.setState((state) => {
+			const current = state.panes[paneId];
+			if (!current) return state;
+			// Cleared means the key is gone, not stored as undefined.
+			const { odinPriority: _, ...pane } = current;
+			return {
+				panes: {
+					...state.panes,
+					[paneId]: priority ? { ...pane, odinPriority: priority } : pane,
+				},
+			};
+		});
+
 	const toggleStar = (paneId: string) =>
 		useTabsStore.setState((state) => ({
 			panes: {
@@ -7527,6 +7629,8 @@ function DevBoardPage() {
 							: undefined
 					}
 					onStar={() => toggleStar(tagMenu.paneId)}
+					priority={panes[tagMenu.paneId]?.odinPriority}
+					onPriority={(priority) => setPriority(tagMenu.paneId, priority)}
 					onDone={() => tagMenuCard && doneAnywhere(tagMenuCard)}
 					onPark={
 						tagMenuCard && tagMenuCard.status !== "idle"

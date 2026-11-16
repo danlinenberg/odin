@@ -1,3 +1,4 @@
+import { byPriority } from "./session-priority";
 import type { Pane } from "./tabs-types";
 
 /**
@@ -68,6 +69,10 @@ function isParked(pane: Pane): boolean {
  * one hasn't started yet, one waits on someone else (`isWaiting`), and the
  * other you put down on purpose, so none is an Idle card asking to be
  * resumed, whichever feed started it.
+ *
+ * Inside every section, cards sort by their priority (High, Medium, none,
+ * Low), and keep the order they came in otherwise. The priority travels with
+ * the session, so its place holds when it changes column.
  */
 export function bySection<T extends { pane: Pane }>(
 	all: T[],
@@ -104,5 +109,7 @@ export function bySection<T extends { pane: Pane }>(
 				rest.filter((card) => boardSection(card.pane) === section),
 			]),
 		] as [BoardSection, T[]][]
-	).filter(([, group]) => group.length > 0);
+	)
+		.filter(([, group]) => group.length > 0)
+		.map(([section, group]) => [section, group.toSorted(byPriority)]);
 }
