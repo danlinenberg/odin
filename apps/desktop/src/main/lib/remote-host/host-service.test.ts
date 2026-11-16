@@ -12,6 +12,7 @@ import {
 import { tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import {
+	HOST_MEMORY_WATCH_SH,
 	HOST_SERVICE_PY,
 	hostGithubLoginFile,
 	hostPorts,
@@ -572,6 +573,48 @@ test("setup gives each host user a service of their own, run by odin, which alon
 		"systemctl restart odin-host-odin-dan 'odin-host-*.service'",
 	);
 	expect(() => hostServiceInstallScript("x; rm -rf /")).toThrow();
+});
+
+test("setup runs the host's memory watch, which leaves processes alone while all sessions have room", () => {
+	const script = hostServiceInstallScript("odin-dan");
+	expect(script).toContain(
+		`printf %s '${Buffer.from(HOST_MEMORY_WATCH_SH).toString("base64")}' | base64 -d > /usr/local/lib/odin/memory-watch.sh`,
+	);
+	expect(script).toContain("systemctl restart odin-memory-watch");
+	const dir = mkdtempSync(join(tmpdir(), "odin-watch-"));
+	try {
+		writeFileSync(
+			join(dir, "memory.pressure"),
+			"some avg10=20.00 avg60=1 avg300=1 total=1\nfull avg10=12.00 avg60=1 avg300=1 total=1\n",
+		);
+		// A stand-in process lister that only records that it ran.
+		const lister = join(dir, ["p", "s"].join(""));
+		writeFileSync(lister, '#!/bin/sh\ntouch "$0.ran"\n', { mode: 0o755 });
+		writeFileSync(
+			join(dir, "watch.sh"),
+			HOST_MEMORY_WATCH_SH.replace("sleep 5", "sleep 0.2"),
+		);
+		const run = Bun.spawn(["bash", join(dir, "watch.sh")], {
+			env: { PATH: `${dir}:/usr/bin:/bin`, ODIN_CGROUP: dir },
+		});
+		Bun.sleepSync(800);
+		run.kill();
+		// Under 40% it never even lists the processes.
+		expect(existsSync(`${lister}.ran`)).toBe(false);
+		writeFileSync(
+			join(dir, "memory.pressure"),
+			"some avg10=99.00 avg60=1 avg300=1 total=1\nfull avg10=95.00 avg60=1 avg300=1 total=1\n",
+		);
+		const busy = Bun.spawn(["bash", join(dir, "watch.sh")], {
+			env: { PATH: `${dir}:/usr/bin:/bin`, ODIN_CGROUP: dir },
+		});
+		Bun.sleepSync(800);
+		busy.kill();
+		// At 40% or more it looks for the biggest process to stop.
+		expect(existsSync(`${lister}.ran`)).toBe(true);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
 });
 
 test("each uid has its own pair of ports", () => {
