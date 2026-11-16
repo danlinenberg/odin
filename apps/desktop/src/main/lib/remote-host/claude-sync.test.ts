@@ -13,6 +13,7 @@ import {
 	PRUNE_HOOKS_PY,
 	partPaths,
 	requestClaudeSync,
+	statusLineFiles,
 	streamToHost,
 } from "./claude-sync";
 
@@ -218,5 +219,62 @@ describe("a sync runs in the main process, one at a time", () => {
 			next: null,
 			error: null,
 		});
+	});
+});
+
+describe("hooks on the host", () => {
+	test("a hook whose file is in a clone under the repo folder points there; one nowhere is dropped", () => {
+		const home = mkdtempSync(join(tmpdir(), "claude-host-"));
+		mkdirSync(join(home, "repos", "tools", "hooks"), { recursive: true });
+		writeFileSync(join(home, "repos", "tools", "hooks", "check.py"), "");
+		mkdirSync(join(home, ".claude"), { recursive: true });
+		const settings = join(home, ".claude", "settings.json");
+		const moved = `python3 ${home}/dev/acme/tools/hooks/check.py --fast`;
+		const gone = `${home}/Library/App/cli hook`;
+		writeFileSync(
+			settings,
+			JSON.stringify({
+				hooks: {
+					PreToolUse: [{ hooks: [{ type: "command", command: moved }] }],
+					Stop: [{ hooks: [{ type: "command", command: gone }] }],
+				},
+				statusLine: {
+					type: "command",
+					command: `${home}/dev/acme/tools/hooks/check.py`,
+				},
+			}),
+		);
+		const out = spawnSync("python3", ["-c", PRUNE_HOOKS_PY], {
+			env: { PATH: process.env.PATH, HOME: home, ODIN_REPOS: "~/repos" },
+		}).stdout.toString();
+		expect(JSON.parse(out)).toEqual([`Stop: ${home}/Library/App/cli`]);
+		const saved = JSON.parse(readFileSync(settings, "utf8"));
+		expect(saved.hooks.PreToolUse[0].hooks[0].command).toBe(
+			`python3 ${home}/repos/tools/hooks/check.py --fast`,
+		);
+		expect(saved.hooks.Stop).toBeUndefined();
+		expect(saved.statusLine.command).toBe(`${home}/repos/tools/hooks/check.py`);
+	});
+
+	test("the status line's script in ~/.claude comes along with the settings", () => {
+		const root = mkdtempSync(join(tmpdir(), "claude-sync-"));
+		const settings = join(root, "settings.json");
+		writeFileSync(
+			settings,
+			JSON.stringify({
+				statusLine: { command: "bash ~/.claude/statusline.sh" },
+			}),
+		);
+		expect(statusLineFiles(settings, root)).toEqual(["statusline.sh"]);
+		writeFileSync(
+			settings,
+			JSON.stringify({ statusLine: { command: `${root}/bin/line.sh` } }),
+		);
+		expect(statusLineFiles(settings, root)).toEqual(["bin/line.sh"]);
+		writeFileSync(
+			settings,
+			JSON.stringify({ statusLine: { command: "/usr/bin/x" } }),
+		);
+		expect(statusLineFiles(settings, root)).toEqual([]);
 	});
 });
