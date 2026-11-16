@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { isOnce } from "shared/cron";
 import { profileOf } from "shared/odin-profile";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -239,7 +240,15 @@ export const useOdinTasks = create<{
 			markRun: (id, at) =>
 				set((s) => ({
 					tasks: s.tasks.map((t) =>
-						t.id === id ? { ...t, lastRunAt: at } : t,
+						// A once schedule has had its one run: pause it so the same
+						// date next year doesn't start it again.
+						t.id === id
+							? {
+									...t,
+									lastRunAt: at,
+									...(isOnce(t.cron ?? "") && { paused: true }),
+								}
+							: t,
 					),
 				})),
 			installBuiltins: (profileId, builtins) =>
