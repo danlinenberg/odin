@@ -1,9 +1,10 @@
 # Remote host: make an instance Odin can use
 
 Settings > Remote > Remote host lists only EC2 instances tagged `Odin = host`
-in the AWS profile and region you pick (under Advanced). **Use** on one of them
-does the rest: it gives the instance SSM access, starts it, installs Claude,
-gh, tmux and git, and picks it as your host.
+in the AWS profile and region you pick (under Advanced). **Connect** does the
+rest: it gives the instances SSM access, starts them, installs Claude, gh,
+tmux and git, and from then on starts each new session on the one with the
+most free memory. You never pick a host.
 
 So a host needs only two things: an instance, and the tag.
 
@@ -51,7 +52,7 @@ aws --profile <profile> --region <region> ec2 describe-instances \
 ```
 
 Then open Settings > Remote > Remote host, pick the same profile and region
-under Advanced, and select **Use** on it. The first setup takes a few minutes.
+under Advanced, and select **Connect**. The first setup takes a few minutes.
 
 ## It is not in the list
 
