@@ -17,6 +17,20 @@ aws --profile <profile> --region <region> ec2 create-tags \
   --resources <instance-id> --tags Key=Odin,Value=host
 ```
 
+## A cluster of hosts
+
+Give every host in the cluster the same `OdinCluster` tag value, the host you
+picked included. Odin adds each instance that shares your host's value to its
+cluster by itself (at start, every 30 minutes and when Settings > Remote
+opens), sets it up as Use does, and starts each new session on the host with
+the most free memory. Take the tag off an instance, or terminate it, and it
+leaves the cluster; its sessions keep running.
+
+```sh
+aws --profile <profile> --region <region> ec2 create-tags \
+  --resources <instance-id> <instance-id> --tags Key=OdinCluster,Value=team
+```
+
 ## A new instance from the account's launch template
 
 If the account has an `odin-host` launch template (tagged `Odin = host`), it

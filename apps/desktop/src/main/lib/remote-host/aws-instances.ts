@@ -64,7 +64,12 @@ export interface AwsInstance {
 	publicIp: string | null;
 	/** SSM's agent on it is reporting in: Start, the Claude check and SSM access work. */
 	ssmOnline: boolean;
+	/** Its CLUSTER_TAG value: hosts that share the main host's value join its cluster. */
+	cluster: string | null;
 }
+
+/** The tag whose value names a host's cluster (see tagCluster in host-by-name). */
+export const CLUSTER_TAG = "OdinCluster";
 
 export { listAwsProfiles, profileNames } from "./aws-profile";
 
@@ -145,6 +150,8 @@ export function toInstances(
 			privateIp: instance.PrivateIpAddress ?? null,
 			publicIp: instance.PublicIpAddress ?? null,
 			ssmOnline: online.has(instance.InstanceId),
+			cluster:
+				instance.Tags?.find((tag) => tag.Key === CLUSTER_TAG)?.Value ?? null,
 		}))
 		.sort((a, b) => a.name.localeCompare(b.name));
 }
