@@ -9,6 +9,7 @@ import { useGsdModeEnabled } from "renderer/stores/gsd-mode-enabled";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { useIdleCompact } from "renderer/stores/idle-compact";
 import { useLaunchLimits } from "renderer/stores/launch-limits";
+import { useTodayOverview } from "renderer/stores/today-overview";
 import type { LaunchLimits } from "shared/machine-load";
 import {
 	NumberSetting,
@@ -91,6 +92,7 @@ function SessionsSettingsPage() {
 				description="What the board does with a session once it is running."
 			>
 				<AutoRenameRow />
+				<TodayOverviewRow />
 				<IdleCompactRow />
 				<IdleCloseRow />
 			</SettingsSection>
@@ -402,6 +404,25 @@ function IdleCompactRow() {
 		>
 			<Switch
 				id="idle-compact"
+				checked={enabled}
+				onCheckedChange={(checked) => setEnabled(checked)}
+			/>
+		</SettingRow>
+	);
+}
+
+/** The Today overview opening by itself once a day. */
+function TodayOverviewRow() {
+	const enabled = useTodayOverview((s) => s.enabled);
+	const setEnabled = useTodayOverview((s) => s.setEnabled);
+	return (
+		<SettingRow
+			label="Show Today every morning"
+			htmlFor="today-overview"
+			description="The first time the board opens each day with sessions on it, it switches to the Today view: your open work in plain words - what needs you, what is almost done, what is running, what waits on someone, and what is due. Off, it only opens from the Today view icon in the top bar."
+		>
+			<Switch
+				id="today-overview"
 				checked={enabled}
 				onCheckedChange={(checked) => setEnabled(checked)}
 			/>

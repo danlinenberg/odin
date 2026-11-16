@@ -8,8 +8,8 @@ import { DEFAULT_SESSION_INSTRUCTIONS } from "renderer/hooks/useLaunchTaskSessio
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useClaudeCommand } from "renderer/stores/claude-command";
 import { useGsdModeEnabled } from "renderer/stores/gsd-mode-enabled";
-import { useInboxViewStore } from "renderer/stores/inbox-view";
 import { useSessionInstructions } from "renderer/stores/session-instructions";
+import { useTodayOverview } from "renderer/stores/today-overview";
 import {
 	SettingRow,
 	SettingsPage,
@@ -48,10 +48,25 @@ function AdvancedSettingsPage() {
 				title="Experimental"
 				description="Early features, off until you turn them on."
 			>
-				<InboxViewRow />
+				<TodayViewRow />
 				<GsdModeRow />
 			</SettingsSection>
 		</SettingsPage>
+	);
+}
+
+/** The board's Today view: off by default, the Board is the view. */
+function TodayViewRow() {
+	const enabled = useTodayOverview((s) => s.experiment);
+	const setEnabled = useTodayOverview((s) => s.setExperiment);
+	return (
+		<SettingRow
+			label="Today"
+			htmlFor="today-view"
+			description="Adds a Today icon beside Board view in the top bar: your open work in plain words on a page of its own, grouped by where each piece stands, with due dates."
+		>
+			<Switch id="today-view" checked={enabled} onCheckedChange={setEnabled} />
+		</SettingRow>
 	);
 }
 
@@ -66,21 +81,6 @@ function GsdModeRow() {
 			description="Adds the GSD Mode switch under a session's reply box, and its limits to Settings > Sessions. Turning it off ends GSD Mode in every session."
 		>
 			<Switch id="gsd-mode" checked={enabled} onCheckedChange={setEnabled} />
-		</SettingRow>
-	);
-}
-
-/** The board's Inbox view: off by default, the Board is the view. */
-function InboxViewRow() {
-	const enabled = useInboxViewStore((s) => s.enabled);
-	const setEnabled = useInboxViewStore((s) => s.setEnabled);
-	return (
-		<SettingRow
-			label="Inbox view"
-			htmlFor="inbox-view"
-			description="Adds an Inbox button beside Board view in the top bar: every open action item across sessions in one list."
-		>
-			<Switch id="inbox-view" checked={enabled} onCheckedChange={setEnabled} />
 		</SettingRow>
 	);
 }

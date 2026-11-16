@@ -2505,7 +2505,7 @@ function ItemDetail({
  * item asking you to tell Claude something gets a reply box, plus a button per
  * choice when Claude listed them.
  */
-function ActionItems({
+export function ActionItems({
 	text,
 	body = "",
 	onDo,
@@ -2713,7 +2713,7 @@ function RunCommands({
 export { commandItem };
 
 /** The reply's notes on its `! commands`, for the Run buttons wherever they sit. */
-const CommandNotes = createContext<Record<string, string>>({});
+export const CommandNotes = createContext<Record<string, string>>({});
 
 /** Moves this remote session to this computer; unset when it already runs here. */
 const MoveHere = createContext<(() => void) | undefined>(undefined);
@@ -3871,14 +3871,8 @@ export function ChatView({
 		},
 		[paneId, write.mutateAsync],
 	);
-	// "!" alone first: it switches Claude's prompt to bash mode, which a paste can't.
 	const runInClaude = useCallback(
-		async (command: string) => {
-			sentAsBash.add(command.trim());
-			await write.mutateAsync({ paneId, data: "!" });
-			await new Promise((resolve) => setTimeout(resolve, 50));
-			await typeIntoClaude(write.mutateAsync, paneId, command);
-		},
+		(command: string) => runInClaudePrompt(write.mutateAsync, paneId, command),
 		[paneId, write.mutateAsync],
 	);
 	// A `!local` block runs on this computer, in the session's Shell, which then
@@ -3888,38 +3882,16 @@ export function ChatView({
 	// with no session to run in says so, rather than the button claiming it
 	// started.
 	const runCommand = useCallback(
-		async (command: string) => {
-			const download = downloadPath(command);
-			if (download) {
-				const { path } =
-					await electronTrpcClient.remoteHost.downloadFromHost.mutate({
-						host: useTabsStore.getState().panes[paneId]?.odinRemote,
-						path: download,
-					});
-				toast.success(`Downloaded to ${path}`);
-				return;
-			}
-			const view = viewTarget(command);
-			if (view) {
-				showHostScreen(paneId, view);
-				return;
-			}
-			const local = localCommand(command);
-			if (!local) return runInClaude(command);
-			const run = await electronTrpcClient.terminal.startLocalRun.mutate({
-				command: local,
-			});
-			if (!(await runInSessionShell(paneId, workspaceId, run.command, "local")))
-				throw new Error(
-					"Odin couldn't find this session to run the command in. Open its Shell and run it there.",
-				);
-			onShellStarted?.("local");
-			void localRunEnd(run.id).then((result) => {
-				if (!result) return;
-				sendToClaude(localRunMessage(local, result));
-				onShellDoneRef.current?.();
-			});
-		},
+		(command: string) =>
+			runSessionCommand({
+				paneId,
+				workspaceId,
+				command,
+				runInClaude,
+				sendToClaude,
+				onShellStarted: () => onShellStarted?.("local"),
+				onShellDone: () => onShellDoneRef.current?.(),
+			}),
 		[paneId, workspaceId, runInClaude, onShellStarted, sendToClaude],
 	);
 	const doItem = useCallback(
@@ -5134,6 +5106,73 @@ async function localRunEnd(
  * input slowly, and text plus Enter caught in one read is taken as a paste:
  * the text sits in the input box and nothing is sent.
  */
+/** "!" alone first: it switches Claude's prompt to bash mode, which a paste can't. */
+export async function runInClaudePrompt(
+	write: (input: { paneId: string; data: string }) => Promise<unknown>,
+	paneId: string,
+	command: string,
+) {
+	sentAsBash.add(command.trim());
+	await write({ paneId, data: "!" });
+	await new Promise((resolve) => setTimeout(resolve, 50));
+	await typeIntoClaude(write, paneId, command);
+}
+
+/**
+ * A reply's `!` command, run the way its Run button does: a download comes
+ * off the host, a view opens the host's screen, a `!local` block runs in the
+ * session's Shell on this computer (its output then goes to Claude), and the
+ * rest go to Claude's own prompt.
+ */
+export async function runSessionCommand({
+	paneId,
+	workspaceId,
+	command,
+	runInClaude,
+	sendToClaude,
+	onShellStarted,
+	onShellDone,
+}: {
+	paneId: string;
+	workspaceId: string;
+	command: string;
+	runInClaude: (command: string) => Promise<void>;
+	sendToClaude: (text: string) => void;
+	onShellStarted?: () => void;
+	onShellDone?: () => void;
+}): Promise<void> {
+	const download = downloadPath(command);
+	if (download) {
+		const { path } =
+			await electronTrpcClient.remoteHost.downloadFromHost.mutate({
+				host: useTabsStore.getState().panes[paneId]?.odinRemote,
+				path: download,
+			});
+		toast.success(`Downloaded to ${path}`);
+		return;
+	}
+	const view = viewTarget(command);
+	if (view) {
+		showHostScreen(paneId, view);
+		return;
+	}
+	const local = localCommand(command);
+	if (!local) return runInClaude(command);
+	const run = await electronTrpcClient.terminal.startLocalRun.mutate({
+		command: local,
+	});
+	if (!(await runInSessionShell(paneId, workspaceId, run.command, "local")))
+		throw new Error(
+			"Odin couldn't find this session to run the command in. Open its Shell and run it there.",
+		);
+	onShellStarted?.();
+	void localRunEnd(run.id).then((result) => {
+		if (!result) return;
+		sendToClaude(localRunMessage(local, result));
+		onShellDone?.();
+	});
+}
+
 export async function typeIntoClaude(
 	write: (input: { paneId: string; data: string }) => Promise<unknown>,
 	paneId: string,
