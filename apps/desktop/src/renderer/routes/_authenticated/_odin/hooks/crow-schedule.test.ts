@@ -51,3 +51,14 @@ test("addSchedule: paused starts held, with no next run", () => {
 	expect(reply).toMatchObject({ paused: true, next: null, here: false });
 	expect(useOdinTasks.getState().tasks[0]?.paused).toBe(true);
 });
+
+test("addSchedule: a one-off says when it runs and pauses after its run", () => {
+	const reply = JSON.parse(
+		addSchedule({ text: "Send the report", cron: "0 9 20 11 *" }, add),
+	);
+	expect(reply.once).toBe(true);
+	expect(reply.nextLocal).not.toBeNull();
+	const id = useOdinTasks.getState().tasks[0]?.id as string;
+	useOdinTasks.getState().markRun(id, Date.now());
+	expect(useOdinTasks.getState().tasks[0]?.paused).toBe(true);
+});

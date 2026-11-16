@@ -4,8 +4,10 @@ import {
 	cronOf,
 	DEFAULT_SCHEDULE,
 	describeCron,
+	isOnce,
 	isValidCron,
 	nextRun,
+	onceInputDate,
 	parseCron,
 	scheduleOf,
 } from "./cron";
@@ -188,4 +190,16 @@ describe("the picker's schedules", () => {
 			expect(isValidCron(expr)).toBe(true);
 		}
 	});
+});
+
+test("once: one date at one time round-trips and reads as once", () => {
+	const s = scheduleOf("30 9 20 11 *");
+	expect(s).toMatchObject({ repeat: "once", time: "09:30", date: "11-20" });
+	expect(cronOf(s as NonNullable<typeof s>)).toBe("30 9 20 11 *");
+	expect(isOnce("30 9 20 11 *")).toBe(true);
+	expect(isOnce("0 9 * * 4")).toBe(false);
+	expect(describeCron("30 9 20 11 *")).toBe("once");
+	const next = nextRun("30 9 20 11 *", new Date(2026, 10, 16));
+	expect(next?.getDate()).toBe(20);
+	expect(onceInputDate("30 9 20 11 *")).toMatch(/^\d{4}-11-20$/);
 });

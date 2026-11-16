@@ -1,4 +1,4 @@
-import { isValidCron, nextRun } from "shared/cron";
+import { isOnce, isValidCron, nextRun } from "shared/cron";
 import { useOdinTasks } from "./useOdinTasks";
 
 /** useMyTasks().add: text, cron, repo - in the active profile, returns the id. */
@@ -40,6 +40,17 @@ export function addSchedule(
 		id,
 		cron,
 		next: next ? next.toISOString() : null,
+		// In local time, the words to confirm it in: "Thu 20 Nov, 09:00".
+		nextLocal: next
+			? next.toLocaleString(undefined, {
+					weekday: "short",
+					day: "numeric",
+					month: "short",
+					hour: "2-digit",
+					minute: "2-digit",
+				})
+			: null,
+		once: isOnce(cron),
 		here: task?.here ?? false,
 		tags: task?.tags ?? [],
 		paused: task?.paused ?? false,
