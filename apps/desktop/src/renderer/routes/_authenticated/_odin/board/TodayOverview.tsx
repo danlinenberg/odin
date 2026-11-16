@@ -1,8 +1,10 @@
 import { cn } from "@odin/ui/utils";
-import type { ComponentType, ReactNode } from "react";
-import { useMemo, useState } from "react";
+import type { ComponentType, CSSProperties, ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
 	LuCalendarClock,
+	LuChevronDown,
+	LuChevronRight,
 	LuCircleCheck,
 	LuHourglass,
 	LuListOrdered,
@@ -41,6 +43,7 @@ import {
 import {
 	dueLabel,
 	plainLine,
+	pressTodayChip,
 	TODAY_GROUPS,
 	type TodayEntry,
 	type TodayGroup,
@@ -48,7 +51,8 @@ import {
 	todayCounts,
 	todayGroup,
 	todayGroupLabel,
-	todayGroups,
+	todaySections,
+	toggleTodayGroup,
 } from "./today";
 import { moveSelection, type SideRow, todaySide } from "./today-side";
 
@@ -132,10 +136,14 @@ const GROUP_ICON: Record<
 const MARK = "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium";
 const BTN = "shrink-0 rounded-[7px] px-2.5 py-1 text-[11.5px] font-semibold";
 const CHIP =
-	"inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-[11.5px] font-medium text-soft-foreground ring-1 ring-inset ring-border hover:bg-accent hover:text-foreground";
+	"inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11.5px] font-medium transition-opacity";
+/** A chip that is on: its group shows, or the due filter applies. */
+const CHIP_ON = BUTTON.selected;
+/** A chip that is off: dimmed, so a hidden group reads as hidden. */
+const CHIP_OFF =
+	"bg-transparent text-muted-foreground ring-1 ring-inset ring-border opacity-60 hover:opacity-100";
 
 const groupId = (group: TodayGroup) => `today-${group}`;
-const DUE_ID = "today-due";
 
 const jump = (id: string) =>
 	document
@@ -163,7 +171,28 @@ export function TodayOverview({
 		() => new Map(cards.map((card) => [card.paneId, card])),
 		[cards],
 	);
-	const groups = todayGroups(items);
+	const hidden = useTodayOverview((s) => s.hidden);
+	const setHidden = useTodayOverview((s) => s.setHidden);
+	const dueOnly = useTodayOverview((s) => s.dueOnly);
+	const setDueOnly = useTodayOverview((s) => s.setDueOnly);
+	const sections = todaySections(items, { hidden, dueOnly });
+	const dueCount = items.filter((item) => !!item.due).length;
+	// The header stays pinned: its height keeps a jump's section, and the side
+	// column, below it.
+	const head = useRef<HTMLElement>(null);
+	const [headHeight, setHeadHeight] = useState(0);
+	useEffect(() => {
+		const el = head.current;
+		if (!el) return;
+		const observer = new ResizeObserver(() => setHeadHeight(el.offsetHeight));
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, []);
+	const pressChip = (group: TodayGroup) => {
+		const next = pressTodayChip(hidden, group);
+		setHidden(next.hidden);
+		if (next.jump) requestAnimationFrame(() => jump(groupId(group)));
+	};
 	const [refresh, setRefresh] = useState(0);
 	const { data, isFetching } =
 		electronTrpc.terminal.todayOverviewLines.useQuery(
@@ -199,7 +228,7 @@ export function TodayOverview({
 
 	// Today: Next / Previous Card move between session cards, Open Card opens
 	// the picked one (down, up and Enter unless rebound in Settings -> Keyboard).
-	const order = groups.flatMap(({ items: rows }) => rows.map((r) => r.key));
+	const order = sections.flatMap(({ items: rows }) => rows.map((r) => r.key));
 	const [selected, setSelected] = useState(-1);
 	const step = (by: 1 | -1) => {
 		const next = moveSelection(by, selected, order.length);
@@ -222,15 +251,17 @@ export function TodayOverview({
 	);
 	const selectedKey = order[selected];
 
-	const count = (group: TodayGroup) =>
-		items.filter((item) => item.group === group).length;
 	return (
 		<section
 			aria-label="Today"
 			data-testid="today-overview"
-			className="flex min-h-0 flex-1 flex-col overflow-y-auto px-[18px] pb-[18px] pt-2"
+			style={{ "--today-head": `${headHeight}px` } as CSSProperties}
+			className="flex min-h-0 flex-1 flex-col overflow-y-auto px-[18px] pb-[18px]"
 		>
-			<header className="mb-4 flex flex-col gap-2">
+			<header
+				ref={head}
+				className="sticky top-0 z-10 -mx-[18px] mb-4 flex flex-col gap-2 border-b border-border bg-background px-[18px] pb-3 pt-2"
+			>
 				<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
 					<h1 className="text-[19px] font-semibold tracking-[-.2px]">Today</h1>
 					<span className="text-xs text-muted-foreground">{dateLine}</span>
@@ -262,45 +293,77 @@ export function TodayOverview({
 					)}
 				</div>
 				<div className="flex flex-wrap gap-1.5">
-					{TODAY_GROUPS.map(({ id, label }) => {
+					{sections.map(({ group: id, count, hidden: off }) => {
 						const { Icon, tone } = GROUP_ICON[id];
+						const label = todayGroupLabel(id);
 						return (
 							<button
 								key={id}
 								type="button"
-								onClick={() => jump(groupId(id))}
-								className={CHIP}
+								aria-pressed={!off}
+								title={off ? `Show ${label} and jump to it` : `Hide ${label}`}
+								onClick={() => pressChip(id)}
+								className={cn(CHIP, off ? CHIP_OFF : CHIP_ON)}
 							>
 								<Icon className={cn("size-3", tone)} />
-								{label} {count(id)}
+								{label} {count}
 							</button>
 						);
 					})}
-					<button type="button" onClick={() => jump(DUE_ID)} className={CHIP}>
+					<button
+						type="button"
+						aria-pressed={dueOnly}
+						title={
+							dueOnly
+								? "Show every card again"
+								: "Show only cards with a due date, in every group"
+						}
+						onClick={() => setDueOnly(!dueOnly)}
+						className={cn(CHIP, dueOnly ? CHIP_ON : CHIP_OFF)}
+					>
 						<LuCalendarClock className="size-3 text-danger" />
-						Due or overdue {side.due.length}
+						Due or overdue {dueCount}
 					</button>
 				</div>
 			</header>
 			<div className="flex min-w-0 flex-col gap-5 lg:flex-row lg:items-start">
 				<div className="flex min-w-0 flex-1 flex-col gap-5">
 					{TODAY_GROUPS.map(({ id, label, hint }) => {
-						const rows = groups.find((g) => g.group === id)?.items ?? [];
+						const section = sections.find((g) => g.group === id);
+						const rows = section?.items ?? [];
+						const off = !!section?.hidden;
 						const { Icon, tone } = GROUP_ICON[id];
+						const Chevron = off ? LuChevronRight : LuChevronDown;
 						return (
-							<section key={id} id={groupId(id)} className="scroll-mt-2">
-								<div className="mb-2 flex items-baseline gap-2">
+							<section key={id} id={groupId(id)} className={SCROLL_MARGIN}>
+								<button
+									type="button"
+									aria-expanded={!off}
+									title={off ? `Show ${label}` : `Hide ${label}`}
+									onClick={() => setHidden(toggleTodayGroup(hidden, id))}
+									className={cn(
+										"flex w-full items-baseline gap-2 text-left",
+										!off && "mb-2",
+									)}
+								>
+									<Chevron className="size-3.5 self-center text-muted-foreground" />
 									<Icon className={cn("size-4 self-center", tone)} />
 									<h2 className="text-[13.5px] font-semibold">
-										{label} ({rows.length})
+										{label} ({section?.count ?? 0})
 									</h2>
-									<span className="text-[12px] text-muted-foreground">
-										{hint}
-									</span>
-								</div>
-								{rows.length === 0 ? (
+									{off ? (
+										<span className="text-[12px] italic text-muted-foreground">
+											hidden
+										</span>
+									) : (
+										<span className="text-[12px] text-muted-foreground">
+											{hint}
+										</span>
+									)}
+								</button>
+								{off ? null : rows.length === 0 ? (
 									<div className="rounded-lg border border-dashed border-border px-3 py-2.5 text-[12.5px] text-muted-foreground">
-										{EMPTY[id]}
+										{dueOnly ? "No card here has a due date." : EMPTY[id]}
 									</div>
 								) : (
 									<ul className="flex flex-col gap-2">
@@ -341,6 +404,9 @@ export function TodayOverview({
 		</section>
 	);
 }
+
+/** A jump lands a section just below the pinned header. */
+const SCROLL_MARGIN = "scroll-mt-[calc(var(--today-head,0px)+8px)]";
 
 const EMPTY: Record<TodayGroup, string> = {
 	"needs-you": "Nothing waits on you.",
@@ -625,7 +691,7 @@ function TodaySideColumn({
 		empty: string,
 		children: ReactNode[],
 	) => (
-		<section id={id} className="scroll-mt-2">
+		<section id={id} className={SCROLL_MARGIN}>
 			<h2 className="mb-1.5 flex items-center gap-1.5 text-[12.5px] font-semibold">
 				<Icon className="size-3.5 text-muted-foreground" />
 				{title} ({children.length})
@@ -640,11 +706,11 @@ function TodaySideColumn({
 	return (
 		<aside
 			aria-label="Due and up next"
-			className="flex w-full shrink-0 flex-col gap-4 rounded-xl border border-border bg-card/60 p-3.5 lg:sticky lg:top-0 lg:w-[340px]"
+			className="flex w-full shrink-0 flex-col gap-4 rounded-xl border border-border bg-card/60 p-3.5 lg:sticky lg:top-[calc(var(--today-head,0px)+8px)] lg:w-[340px]"
 		>
 			<div className="text-[13.5px] font-semibold">Due and up next</div>
 			{block(
-				DUE_ID,
+				undefined,
 				LuCalendarClock,
 				"Due",
 				"Nothing due this week.",
