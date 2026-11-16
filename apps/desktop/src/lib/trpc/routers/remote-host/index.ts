@@ -181,6 +181,7 @@ import {
 	remoteFrozenReason,
 	remoteLaunchBlocker,
 } from "shared/launch-gate";
+import { type OdinRule, ruleHooks } from "shared/odin-rules";
 import { remoteShellCommand } from "shared/remote-shell-command";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
@@ -302,6 +303,13 @@ const nightCleared = new Set<string>();
 type RemoteHost = NonNullable<ReturnType<typeof readOdinConfig>["remoteHost"]>;
 
 /**
+ * The rules from Automations, as the renderer last sent them (setRules). They
+ * live in the renderer's store; every host session, the ones the host starts
+ * by itself included, gets its rule hooks from here.
+ */
+let hostRules: OdinRule[] = [];
+
+/**
  * A session's spec for the host: the repo from the local checkout's origin, the
  * prompt with laptop files swapped for their copies and the host note added.
  */
@@ -314,7 +322,6 @@ async function buildSessionSpec(
 		prompt: string | null;
 		odinPane?: string | null;
 		fresh?: boolean;
-		rules?: string | null;
 	},
 ): Promise<RemoteSessionSpec> {
 	const { repoPath, ...rest } = input;
@@ -332,6 +339,7 @@ async function buildSessionSpec(
 	return {
 		...host,
 		...rest,
+		rules: ruleHooks(hostRules, repoPath ?? ""),
 		// A resumed conversation already has the host note.
 		prompt:
 			prompt === null || /--resume\b/.test(rest.claudeArgs)
@@ -1722,6 +1730,15 @@ export const createRemoteHostRouter = () =>
 		 */
 		fileSources: publicProcedure.query(() => hostFileSources()),
 
+		/** The renderer's rules, for the host sessions' rule hooks. */
+		setRules: publicProcedure
+			.input(z.array(z.unknown()))
+			.mutation(({ input }) => {
+				hostRules = input.filter(
+					(rule): rule is OdinRule => typeof rule === "object" && rule !== null,
+				);
+			}),
+
 		/** The command a remote session's pane runs. */
 		sessionCommand: publicProcedure
 			.input(
@@ -1737,8 +1754,6 @@ export const createRemoteHostRouter = () =>
 					fresh: z.boolean().optional(),
 					/** The host the session runs on; unset for a new session (the current host). */
 					host: paneHost,
-					/** What the PR-rules hook prints (rulesHookOutput); null without PR rules. */
-					rules: z.string().nullable().optional(),
 				}),
 			)
 			.mutation(async ({ input }) => {
