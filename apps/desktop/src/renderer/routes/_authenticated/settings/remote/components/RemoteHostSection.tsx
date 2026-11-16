@@ -137,7 +137,7 @@ export function RemoteHostSection() {
 		onSuccess: refresh,
 		onError,
 	});
-	// Hosts that share the main host's OdinCluster tag join (and leave) by
+	// The other Odin = host instances join (and leave) the cluster by
 	// themselves: look once when the page opens, beside Odin's own runs.
 	const clusterSync = electronTrpc.remoteHost.clusterSync.useMutation({
 		onSettled: refresh,
@@ -689,17 +689,17 @@ export function RemoteHostSection() {
 					label="Cluster"
 					description={
 						current.cluster.length
-							? `New sessions start on ${[current.host, ...current.cluster].map((host) => host.name || host.instanceId).join(", ")}: whichever has the most free memory. A session stays on its host, and moves to another one in the cluster when its own is down.${current.cluster.some((extra) => extra.byTag) ? " Hosts that share this host's OdinCluster tag joined by themselves; take the tag off one to take it out." : ""}`
-							: "More hosts new sessions can start on. Each new session goes to the host with the most free memory. Instances that share this host's OdinCluster tag join by themselves."
+							? `New sessions start on ${[current.host, ...current.cluster].map((host) => host.name || host.instanceId).join(", ")}: whichever has the most free memory. A session stays on its host, and moves to another one in the cluster when its own is down.${current.cluster.some((extra) => extra.auto) ? " Your other Odin = host instances in this account and region join by themselves; terminate one, or take its Odin tag off, to take it out." : ""}`
+							: "More hosts new sessions can start on. Each new session goes to the host with the most free memory. Your other Odin = host instances in this account and region join by themselves."
 					}
 				>
 					{clusterSync.isPending && (
 						<span className="text-xs text-muted-foreground">
-							Looking for tagged hosts...
+							Looking for hosts...
 						</span>
 					)}
 					{current.cluster
-						.filter((extra) => !extra.byTag)
+						.filter((extra) => !extra.auto)
 						.map((extra) => (
 							<Button
 								key={extra.instanceId}
@@ -1062,7 +1062,7 @@ export function RemoteHostSection() {
 								>
 									{step ?? (inUse ? "In use" : "Use")}
 								</Button>
-								{current?.host && !inUse && !member?.byTag && (
+								{current?.host && !inUse && !member?.auto && (
 									<Button
 										size="sm"
 										variant="outline"

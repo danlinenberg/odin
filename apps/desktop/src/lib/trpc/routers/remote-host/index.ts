@@ -98,9 +98,9 @@ import {
 } from "main/lib/remote-host/github-on-host";
 import {
 	asLastRun,
+	autoCluster,
 	clusterMember,
 	hostByName,
-	tagCluster,
 } from "main/lib/remote-host/host-by-name";
 import { hostHasConversation } from "main/lib/remote-host/host-conversations";
 import {
@@ -701,13 +701,13 @@ async function removeClusterMember(instanceId: string): Promise<void> {
 
 let clusterSyncing: Promise<void> | null = null;
 /**
- * Every instance that shares the main host's OdinCluster tag joins its
- * cluster, set up as Use sets up a host (tagCluster); a host the tag brought
- * in leaves once it no longer carries it or is terminated. No tag on the main
- * host: only hosts added by hand. One run at a time; a failed AWS call waits
- * for the next run, with no sign-in prompt.
+ * Every other instance Odin lists for the main host's account and region
+ * (tagged Odin = host) joins its cluster, set up as Use sets up a host
+ * (autoCluster); one that joined this way leaves once it is terminated or no
+ * longer listed. One run at a time; a failed AWS call waits for the next run,
+ * with no sign-in prompt.
  */
-function syncTaggedCluster(): Promise<void> {
+function syncAutoCluster(): Promise<void> {
 	if (clusterSyncing) return clusterSyncing;
 	clusterSyncing = (async () => {
 		const host = readOdinConfig().remoteHost;
@@ -717,7 +717,7 @@ function syncTaggedCluster(): Promise<void> {
 			...(host.region ? { region: host.region } : {}),
 		};
 		const { instances } = await listInstances(target, []);
-		const { join, leave } = tagCluster(
+		const { join, leave } = autoCluster(
 			host.instanceId,
 			instances,
 			readOdinConfig().clusterHosts ?? [],
@@ -741,7 +741,7 @@ function syncTaggedCluster(): Promise<void> {
 				name: instance.name,
 				...target,
 				...(host.adminUser ? { adminUser: host.adminUser } : {}),
-				byTag: true,
+				auto: true,
 			});
 		}
 	})()
@@ -754,11 +754,11 @@ function syncTaggedCluster(): Promise<void> {
 
 setInterval(() => {
 	void refreshHostTokens();
-	void syncTaggedCluster();
+	void syncAutoCluster();
 }, 30 * 60_000).unref();
 setTimeout(() => {
 	void refreshHostTokens();
-	void syncTaggedCluster();
+	void syncAutoCluster();
 }, 20_000).unref();
 // The half-hourly timer doesn't run while this computer sleeps: send fresh
 // copies the moment it wakes or unlocks, not up to half an hour later.
@@ -999,10 +999,10 @@ export const createRemoteHostRouter = () =>
 				cluster: clusterExtras().map(({ instanceId, name }) => ({
 					instanceId,
 					name,
-					/** Joined by its OdinCluster tag: it leaves when the tag goes. */
-					byTag: !!readOdinConfig().clusterHosts?.find(
+					/** Joined by itself: it leaves once it is gone. */
+					auto: !!readOdinConfig().clusterHosts?.find(
 						(extra) => extra.instanceId === instanceId,
-					)?.byTag,
+					)?.auto,
 				})),
 				/** The Linux user this computer's sessions run as on a host. */
 				hostUser: hostUser(),
@@ -1139,10 +1139,10 @@ export const createRemoteHostRouter = () =>
 			.input(z.object({ instanceId: z.string().min(1) }))
 			.mutation(({ input }) => removeClusterMember(input.instanceId)),
 		/**
-		 * Brings the cluster in line with the main host's OdinCluster tag
-		 * (syncTaggedCluster), for Settings to call when it opens.
+		 * Adds every other Odin = host instance to the cluster
+		 * (syncAutoCluster), for Settings to call when it opens.
 		 */
-		clusterSync: publicProcedure.mutation(() => syncTaggedCluster()),
+		clusterSync: publicProcedure.mutation(() => syncAutoCluster()),
 		setOn: publicProcedure.input(z.boolean()).mutation(async ({ input }) => {
 			const host = readOdinConfig().remoteHost;
 			if (!host) return;
