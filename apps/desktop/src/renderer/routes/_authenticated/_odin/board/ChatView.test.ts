@@ -3,7 +3,6 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { remoteConnectLine } from "shared/odin-screen-status";
 import {
-	shrankBelow,
 	ActionItemRow,
 	actionItemEntries,
 	actionItemList,
@@ -47,6 +46,7 @@ import {
 	outputTokens,
 	segments,
 	shownTldr,
+	shrankBelow,
 	slackDraftText,
 	splitActionItems,
 	splitEarlier,
