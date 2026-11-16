@@ -122,8 +122,10 @@ git worktree add --quiet -b "$BRANCH" "$WORK/wt" origin/main
 # build before it starts. The anchor is the one tab-indented "version" line, so
 # no dependency's pinned version is touched.
 cd "$WORK/wt"
-sed -i '' "s/^\(	\"version\": \)\"[^\"]*\"/\1\"$NEW\"/" \
+# -i.bak works on both BSD (macOS) and GNU (Linux) sed; -i '' is BSD-only.
+sed -i.bak "s/^\(	\"version\": \)\"[^\"]*\"/\1\"$NEW\"/" \
 	apps/desktop/package.json packages/host-service/package.json
+rm -f apps/desktop/package.json.bak packages/host-service/package.json.bak
 bun install --lockfile-only
 git add apps/desktop/package.json packages/host-service/package.json bun.lock
 git commit --quiet -m "Odin $NEW"
@@ -161,7 +163,7 @@ gh release download "$TAG" --repo "$SLUG" --pattern Odin-arm64.dmg --dir "$TMP"
 SHA=$(shasum -a 256 "$TMP/Odin-arm64.dmg" | cut -d' ' -f1)
 gh api "$CASK" -H "Accept: application/vnd.github.raw" |
 	sed -E "s/^(  version )\"[^\"]*\"/\1\"$NEW\"/; s/^(  sha256 )\"[^\"]*\"/\1\"$SHA\"/" >"$TMP/odin.rb"
-gh api -X PUT "$CASK" -f message="odin $NEW" -f content="$(base64 -i "$TMP/odin.rb")" \
+gh api -X PUT "$CASK" -f message="odin $NEW" -f content="$(base64 < "$TMP/odin.rb" | tr -d '\n')" \
 	-f sha="$(gh api "$CASK" -q .sha)" >/dev/null
 rm -rf "$TMP"
 
