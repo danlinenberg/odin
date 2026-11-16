@@ -1788,9 +1788,24 @@ const HOST_MARK: Record<
  * green while connected to Claude there, yellow and pulsing while connecting,
  * red and struck through while not.
  */
-function HostMark({ paneId, state }: { paneId: string; state: HostState }) {
+function HostMark({
+	paneId,
+	state,
+	showLocal = false,
+}: {
+	paneId: string;
+	state: HostState;
+	/** A session on this computer wears a muted laptop (the session header), not nothing. */
+	showLocal?: boolean;
+}) {
 	const host = useTabsStore((s) => s.panes[paneId]?.odinRemote);
-	if (!host) return null;
+	if (!host)
+		return showLocal ? (
+			<LuLaptop
+				title="On this computer"
+				className="mr-1 inline size-3.5 align-[-2px] text-muted-foreground"
+			/>
+		) : null;
 	const { Icon, ink, title } = HOST_MARK[state];
 	return (
 		<Icon
@@ -7303,11 +7318,12 @@ function DevBoardPage() {
 				>
 					{drawerStarred ? "★" : "☆"}
 				</button>
-				{/* Which host of the cluster this session runs on: in the cloud's tooltip. */}
+				{/* Where this session runs - this computer, or which host of the cluster: in the tooltip. */}
 				<span className="mr-auto flex shrink-0 items-center">
 					<HostMark
 						paneId={drawerCard.pane.id}
 						state={hostStateOf(drawerCard.pane.id)}
+						showLocal
 					/>
 				</span>
 				{hostScreen && !inCatchUp && (
