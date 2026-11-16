@@ -7299,10 +7299,17 @@ function DevBoardPage() {
 					aria-label={drawerStarred ? "Unstar" : "Star"}
 					aria-pressed={drawerStarred}
 					onClick={() => toggleStar(drawerCard.pane.id)}
-					className="mr-auto shrink-0 rounded-[5px] px-1 text-[13px] text-attention hover:bg-attention/15"
+					className="shrink-0 rounded-[5px] px-1 text-[13px] text-attention hover:bg-attention/15"
 				>
 					{drawerStarred ? "★" : "☆"}
 				</button>
+				{/* Which host of the cluster this session runs on: in the cloud's tooltip. */}
+				<span className="mr-auto flex shrink-0 items-center">
+					<HostMark
+						paneId={drawerCard.pane.id}
+						state={hostStateOf(drawerCard.pane.id)}
+					/>
+				</span>
 				{hostScreen && !inCatchUp && (
 					<button
 						type="button"
