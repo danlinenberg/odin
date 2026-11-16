@@ -49,6 +49,7 @@ import { SearchAll } from "./components/SearchAll";
 import { SessionContextDialog } from "./components/SessionContextDialog";
 import { QuickAddTask } from "./components/TaskBox";
 import { UpdateBanner } from "./components/UpdateBanner";
+import { useMeetingActionItemsRunner } from "./hooks/meeting-action-items";
 import { useAutomationRunner } from "./hooks/useAutomationRunner";
 import { useAwayTasksSync } from "./hooks/useAwayTasksSync";
 import { usePeriodicSweep } from "./hooks/useBacklogReview";
@@ -208,7 +209,13 @@ const ShellRunners = memo(function ShellRunners({
 	// opens - the
 	// shell mounts on boot and on reload - so switching views shows rows
 	// instead of an empty "syncing…".
-	const { jira } = useOdinFeeds();
+	const { jira, meetings } = useOdinFeeds();
+	// Marked meetings add "Write action items" to Up next when they end.
+	useMeetingActionItemsRunner(
+		meetings.data?.meetings,
+		activeProfileId,
+		!isProfileLoading,
+	);
 	// "Drop tasks like this" rules put new matching rows away as they arrive.
 	useApplyDropRules();
 	// Due dates ping from the shell, not from the feed that set them: the feed
