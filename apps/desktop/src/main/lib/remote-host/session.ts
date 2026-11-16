@@ -566,11 +566,12 @@ export const MEMORY_LIMIT_SCRIPT = [
  * never comes because each pass frees a little. Every 5 s this reads the
  * session's memory pressure (the share of time all its processes waited on
  * memory over the last 10 s) and, at 40% or more, kills its biggest process
- * and says so in the pane. Runs only inside a capped scope. ODIN_CGROUP
+ * and says so in the pane and in the host's journal (tag odin-memory).
+ * Runs only inside a capped scope. ODIN_CGROUP
  * points it at another cgroup folder (tests).
  */
 const MEMORY_PRESSURE_PERCENT = 40;
-export const MEMORY_PRESSURE_WATCHER = `cg=\${ODIN_CGROUP:-/sys/fs/cgroup$(cut -d: -f3- /proc/self/cgroup 2>/dev/null)}; [ -r "$cg/memory.pressure" ] && [ "$(cat "$cg/memory.max" 2>/dev/null)" != max ] && ( while sleep 5; do kill -0 $$ 2>/dev/null || exit; f=$(awk '/^full/ { split($2, a, "="); print int(a[2]) }' "$cg/memory.pressure"); [ "\${f:-0}" -ge ${MEMORY_PRESSURE_PERCENT} ] || continue; set -- $(ps -o pid=,rss=,comm= -p "$(paste -sd, "$cg/cgroup.procs")" | sort -k2 -nr | head -1); [ -n "$1" ] && [ "$1" != $$ ] || continue; kill -KILL "$1" && tmux display-message -t "$TMUX_PANE" "Odin stopped $3 ($(( $2 / 1024 )) MB): this session ran out of memory" 2>/dev/null; sleep 30; done ) >/dev/null 2>&1 &`;
+export const MEMORY_PRESSURE_WATCHER = `cg=\${ODIN_CGROUP:-/sys/fs/cgroup$(cut -d: -f3- /proc/self/cgroup 2>/dev/null)}; [ -r "$cg/memory.pressure" ] && [ "$(cat "$cg/memory.max" 2>/dev/null)" != max ] && ( while sleep 5; do kill -0 $$ 2>/dev/null || exit; f=$(awk '/^full/ { split($2, a, "="); print int(a[2]) }' "$cg/memory.pressure"); [ "\${f:-0}" -ge ${MEMORY_PRESSURE_PERCENT} ] || continue; set -- $(ps -o pid=,rss=,comm= -p "$(paste -sd, "$cg/cgroup.procs")" | sort -k2 -nr | head -1); [ -n "$1" ] && [ "$1" != $$ ] || continue; kill -KILL "$1" && { m="Odin stopped $3 ($(( $2 / 1024 )) MB): this session ran out of memory"; tmux display-message -t "$TMUX_PANE" "$m"; logger -t odin-memory "$m (user $(id -un), pid $1)"; } 2>/dev/null; sleep 30; done ) >/dev/null 2>&1 &`;
 
 /**
  * The host's /etc/environment, for each name the session lacks. PAM reads it
