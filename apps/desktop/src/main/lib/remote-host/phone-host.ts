@@ -80,8 +80,12 @@ export function phoneHostScript(config: {
 		),
 		`printf %s ${sh(Buffer.from(JSON.stringify(config.board)).toString("base64"))} | base64 -d > ${DIR}/board.json.new && mv -f ${DIR}/board.json.new ${DIR}/board.json${config.starsTaken ? ` && rm -f ${DIR}/stars.jsonl.taken` : ""}`,
 		`printf %s ${sh(Buffer.from(JSON.stringify(phones)).toString("base64"))} | base64 -d > ${DIR}/laptop-devices.json.new && mv -f ${DIR}/laptop-devices.json.new ${DIR}/laptop-devices.json`,
-		`pid=$(cat ${DIR}/server.pid 2>/dev/null)`,
-		'if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then [ -z "$changed" ] && exit 0; kill "$pid"; sleep 1; fi',
+		// Every server of this user, not only the pid file's: two pushes that
+		// overlap can each start one, and the two then take the relay from each
+		// other every second or two for as long as they live.
+		`pids=; pid=$(cat ${DIR}/server.pid 2>/dev/null); [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && pids=$pid`,
+		`for p in $(pgrep -u "$(id -u)" -x bun 2>/dev/null); do [ "$p" = "$pid" ] || ! tr '\\0' ' ' < /proc/$p/cmdline 2>/dev/null | grep -q 'phone-host\\.js serve' || pids="$pids $p"; done`,
+		'if [ -n "$pids" ]; then [ -z "$changed" ] && [ "$pids" = "$pid" ] && exit 0; kill $pids; sleep 1; fi',
 		`setsid nohup ${PHONE_HOST_BUN} ${SCRIPT} serve > ${DIR}/log 2>&1 < /dev/null &`,
 		"true",
 	].join("\n");
