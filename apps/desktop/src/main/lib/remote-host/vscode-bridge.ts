@@ -7,10 +7,15 @@ import {
 	awsSsoLogin,
 	isAwsSignInExpired,
 } from "lib/trpc/routers/terminal/aws-sso";
-import { utils } from "ssh2";
 import { ODIN_HOME_DIR } from "../app-environment";
 import { sh } from "./session";
-import { adminLogin, connectHost, type HostLogin, runOnHost } from "./ssh";
+import {
+	adminLogin,
+	connectHost,
+	type HostLogin,
+	loginKeyPair,
+	runOnHost,
+} from "./ssh";
 import { openSsmStream, pushOneTimeKey } from "./ssm";
 
 /**
@@ -29,9 +34,7 @@ async function bridgeKey(dir = DIR): Promise<{ path: string; public: string }> {
 	const path = join(dir, "id_ed25519");
 	if (!existsSync(path) || !existsSync(`${path}.pub`)) {
 		await mkdir(dir, { recursive: true, mode: 0o700 });
-		const key = utils.generateKeyPairSync("ed25519", {
-			comment: "odin-vscode",
-		});
+		const key = loginKeyPair({ comment: "odin-vscode" });
 		await writeFile(path, key.private, { mode: 0o600 });
 		await writeFile(`${path}.pub`, `${key.public}\n`);
 	}

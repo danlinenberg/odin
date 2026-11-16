@@ -12,7 +12,7 @@ import { connect } from "node:net";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { EC2Client, RebootInstancesCommand } from "@aws-sdk/client-ec2";
-import { Client, type SFTPWrapper, utils } from "ssh2";
+import { Client, type SFTPWrapper } from "ssh2";
 import { HOST_LOAD_COMMAND, parseHostLoad } from "../../shared/host-load";
 import { ODIN_HOME_DIR } from "../lib/app-environment";
 import { canRebootInstance, setUpHost } from "../lib/remote-host/aws-instances";
@@ -27,6 +27,7 @@ import {
 	sh,
 	stashScript,
 } from "../lib/remote-host/session";
+import { loginKeyPair } from "../lib/remote-host/ssh";
 import {
 	AWS_DOWN_MESSAGE,
 	accessDenied,
@@ -519,7 +520,7 @@ async function login(
 	spec: RemoteSessionSpec,
 	target: Parameters<typeof openSsmStream>[0],
 ): Promise<Client> {
-	const key = utils.generateKeyPairSync("ed25519");
+	const key = loginKeyPair();
 	// An Instance Connect key lasts 60s: pushed before a slow SSM session
 	// start, it ran out before the handshake, and every retry did the same
 	// ("All configured authentication methods failed"). So it goes once the
