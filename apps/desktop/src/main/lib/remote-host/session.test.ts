@@ -200,6 +200,7 @@ describe("remote session scripts", () => {
 
 	test("a capped session under memory pressure loses its biggest process", () => {
 		expect(runScript(spec, "/d")).toContain(MEMORY_PRESSURE_WATCHER);
+		expect(MEMORY_PRESSURE_WATCHER).toContain("logger -t odin-memory");
 		const dir = mkdtempSync(join(tmpdir(), "odin-psi-"));
 		const big = spawnSync("/bin/sh", [
 			"-c",
