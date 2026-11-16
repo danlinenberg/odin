@@ -140,6 +140,22 @@ import {
 import { isQueuedResume } from "shared/queued-resume";
 import { remoteCardsToReconnect, tmuxSession } from "shared/remote-reconnect";
 import {
+	GROUP_COLORS,
+	GROUP_HEX,
+	type GroupColor,
+	type GroupSummary,
+	groupName,
+	leaderNote,
+	leaderNoteTargets,
+	listGroups,
+	type SessionGroup,
+	turnEnded,
+	withGroup,
+	withGroupColor,
+	withGroupNotify,
+	withLeader,
+} from "shared/session-group";
+import {
 	PRIORITY_LABEL,
 	SESSION_PRIORITIES,
 	type SessionPriority,
@@ -2013,6 +2029,182 @@ function PriorityMark({
 	);
 }
 
+/**
+ * A session's group as a chip in its colour, before the title on the card;
+ * `short` is the drawer row's dot. The leader's chip carries a crown.
+ */
+function GroupMark({
+	group,
+	short = false,
+}: {
+	group?: SessionGroup;
+	short?: boolean;
+}) {
+	if (!group) return null;
+	const hex = GROUP_HEX[group.color];
+	const title = `Group: ${group.name}${group.leader ? " (leader)" : ""} - right-click to change`;
+	if (short)
+		return (
+			<span
+				data-group={group.name}
+				title={title}
+				className="mr-1.5 inline-block size-2 rounded-full align-[1px]"
+				style={{ background: hex }}
+			/>
+		);
+	return (
+		<span
+			data-group={group.name}
+			title={title}
+			className="mr-1.5 inline-block max-w-[140px] truncate rounded-[5px] px-[6px] py-[1px] align-[-2px] text-[10px] font-bold tracking-[.3px]"
+			style={{
+				color: hex,
+				background: `color-mix(in oklab, ${hex} 18%, transparent)`,
+			}}
+		>
+			{group.leader && "♛ "}
+			{group.name}
+		</span>
+	);
+}
+
+/**
+ * The right-click menu's Group section: join an existing group or type a new
+ * one, leave it, and, once in one, lead it, turn on the leader's note and
+ * pick the colour.
+ */
+function GroupSection({
+	group,
+	groups,
+	onGroup,
+	onLeader,
+	onNotify,
+	onColor,
+}: {
+	group?: SessionGroup;
+	groups: GroupSummary[];
+	onGroup: (name: string | undefined) => void;
+	onLeader: (leader: boolean) => void;
+	onNotify: (notify: boolean) => void;
+	onColor: (color: GroupColor) => void;
+}) {
+	const [isOpen, setIsOpen] = useState(false);
+	const [draft, setDraft] = useState("");
+	return (
+		<>
+			<button
+				type="button"
+				aria-expanded={isOpen}
+				onClick={() => setIsOpen(!isOpen)}
+				className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+			>
+				<span className="w-3">{isOpen ? "▾" : "▸"}</span>
+				Group
+				{group && (
+					<span
+						className="min-w-0 flex-1 truncate text-right"
+						style={{ color: GROUP_HEX[group.color] }}
+					>
+						{group.name}
+					</span>
+				)}
+			</button>
+			{isOpen && (
+				<div className="mb-1 flex flex-col">
+					{groups.map((option) => {
+						const on = group?.name === option.name;
+						return (
+							<button
+								key={option.name}
+								type="button"
+								title={
+									on
+										? "Take it out of this group"
+										: `Put it in ${option.name} (${option.count} now)`
+								}
+								onClick={() => onGroup(on ? undefined : option.name)}
+								className={cn(
+									"flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] transition-colors",
+									on
+										? "text-foreground"
+										: "text-muted-foreground hover:text-foreground",
+								)}
+							>
+								<span className="w-3">{on ? "✓" : ""}</span>
+								<span
+									className="size-2 shrink-0 rounded-full"
+									style={{ background: GROUP_HEX[option.color] }}
+								/>
+								<span className="min-w-0 flex-1 truncate">{option.name}</span>
+								<span className="text-faint-foreground">{option.count}</span>
+							</button>
+						);
+					})}
+					<input
+						value={draft}
+						onChange={(event) => setDraft(event.target.value)}
+						onKeyDown={(event) => {
+							if (event.key !== "Enter" || !groupName(draft)) return;
+							onGroup(draft);
+							setDraft("");
+						}}
+						placeholder="New group…"
+						className="mt-1 w-full rounded-md border border-border bg-transparent px-1.5 py-1 text-[12px] text-foreground outline-none placeholder:text-faint-foreground focus:border-primary"
+					/>
+					{group && (
+						<>
+							<fieldset
+								aria-label="Group colour"
+								className="mt-1.5 flex items-center gap-1 border-0 px-1.5"
+							>
+								{GROUP_COLORS.map((color) => (
+									<button
+										key={color}
+										type="button"
+										title={`Colour the group ${color}`}
+										aria-pressed={group.color === color}
+										onClick={() => onColor(color)}
+										className={cn(
+											"size-3.5 rounded-full",
+											group.color === color &&
+												"ring-2 ring-foreground/70 ring-offset-1 ring-offset-card",
+										)}
+										style={{ background: GROUP_HEX[color] }}
+									/>
+								))}
+							</fieldset>
+							<label
+								title="The group's leader: one session that the others follow"
+								className="mt-1.5 flex cursor-pointer items-center gap-2 px-1.5 py-0.5 text-[12px] text-muted-foreground hover:text-foreground"
+							>
+								<input
+									type="checkbox"
+									checked={!!group.leader}
+									onChange={(event) => onLeader(event.target.checked)}
+									className="size-3 accent-primary"
+								/>
+								Leader of this group
+							</label>
+							<label
+								title="Each time the leader's turn ends, Odin types a short note into the other sessions in the group (the ones at their prompt), pointing at the leader's transcript"
+								className="flex cursor-pointer items-center gap-2 px-1.5 py-0.5 text-[12px] text-muted-foreground hover:text-foreground"
+							>
+								<input
+									type="checkbox"
+									checked={!!group.notify}
+									onChange={(event) => onNotify(event.target.checked)}
+									className="size-3 accent-primary"
+								/>
+								Leader notes the others
+							</label>
+						</>
+					)}
+				</div>
+			)}
+		</>
+	);
+}
+
 function TagMenu({
 	x,
 	y,
@@ -2023,6 +2215,12 @@ function TagMenu({
 	onStar,
 	priority,
 	onPriority,
+	group,
+	groups,
+	onGroup,
+	onLeader,
+	onGroupNotify,
+	onGroupColor,
 	onDone,
 	onPark,
 	onDocs,
@@ -2056,6 +2254,14 @@ function TagMenu({
 	priority?: SessionPriority;
 	/** Picking the priority it already has clears it. */
 	onPriority: (priority: SessionPriority | undefined) => void;
+	group?: SessionGroup;
+	/** Every group on the board, to join from the menu. */
+	groups: GroupSummary[];
+	/** A name joins (or makes) that group; undefined leaves it. */
+	onGroup: (name: string | undefined) => void;
+	onLeader: (leader: boolean) => void;
+	onGroupNotify: (notify: boolean) => void;
+	onGroupColor: (color: GroupColor) => void;
 	onDone: () => void;
 	/** Set unless it already sits in Idle. */
 	onPark?: () => void;
@@ -2454,6 +2660,14 @@ function TagMenu({
 					)}
 				</div>
 			)}
+			<GroupSection
+				group={group}
+				groups={groups}
+				onGroup={onGroup}
+				onLeader={onLeader}
+				onNotify={onGroupNotify}
+				onColor={onGroupColor}
+			/>
 			<button
 				type="button"
 				aria-expanded={isTagsOpen}
@@ -2768,6 +2982,7 @@ const SwitchRow = memo(function SwitchRow({
 							/>
 						)}
 						<span className="truncate">
+							<GroupMark group={card.pane.odinGroup} short />
 							<PriorityMark priority={card.pane.odinPriority} short />
 							<WatchMark paneId={card.pane.id} />
 							<RemoteMark paneId={card.pane.id} />
@@ -2862,8 +3077,18 @@ const BoardCardTile = memo(
 								PRIORITY_EDGE[card.pane.odinPriority],
 						)}
 					>
+						{card.pane.odinGroup && (
+							// The group's colour runs down the card's right edge, so a
+							// group's cards read as a set across the columns.
+							<span
+								aria-hidden
+								className="pointer-events-none absolute inset-y-2 right-0 w-[3px] rounded-l-full"
+								style={{ background: GROUP_HEX[card.pane.odinGroup.color] }}
+							/>
+						)}
 						<div className="flex items-start gap-2">
 							<div className="min-w-0 flex-1 break-words text-[12.5px] font-semibold">
+								<GroupMark group={card.pane.odinGroup} />
 								<PriorityMark priority={card.pane.odinPriority} />
 								<OverdueMark itemKey={`session:${card.pane.id}`} />
 								<WatchMark paneId={card.pane.id} />
@@ -4884,6 +5109,8 @@ function DevBoardPage() {
 					(boardFilter.startsWith("person:") &&
 						person !== boardFilter.slice(7)) ||
 					(boardFilter.startsWith("repo:") && repo !== boardFilter.slice(5)) ||
+					(boardFilter.startsWith("group:") &&
+						pane.odinGroup?.name !== boardFilter.slice(6)) ||
 					(boardFilter.startsWith("tag:") &&
 						!boardTags(pane.odinTags, customTags).includes(
 							boardFilter.slice(4),
@@ -6198,6 +6425,67 @@ function DevBoardPage() {
 		const id = setInterval(() => void ciWakeRef.current(), 30_000);
 		return () => clearInterval(id);
 	}, []);
+	// A group leader's turn ended: with "Leader notes the others" on, each
+	// other member gets a short note typed at its prompt, pointing at the
+	// leader's transcript (shared/session-group.ts). A member that is closed,
+	// asking you something, or has text in its input box is skipped.
+	const leaderStatusRef = useRef(new Map<string, string | undefined>());
+	const noteGroupRef = useRef<(leaderId: string, targets: string[]) => void>(
+		() => undefined,
+	);
+	noteGroupRef.current = (leaderId, targets) => {
+		const leader = panes[leaderId];
+		const group = leader?.odinGroup;
+		if (!leader || !group) return;
+		const sessionId =
+			leader.claudeSessionId ??
+			usePaneMeta.getState().sessionIdByPane[leaderId];
+		const leaderTitle =
+			leader.odinTaskTitle ??
+			titleByPane[leaderId] ??
+			leader.userTitle ??
+			leader.name;
+		void (async () => {
+			for (const paneId of targets) {
+				if (!agentPaneIds.has(paneId)) continue;
+				const text = await utils.client.terminal.readScreen
+					.query({ paneId })
+					.then((result) => result.text)
+					.catch(() => null);
+				const status = text ? odinScreenStatus(text) : undefined;
+				if (
+					!text ||
+					(status !== "review" && status !== "working") ||
+					!inputBoxEmpty(text)
+				)
+					continue;
+				const note = leaderNote({
+					group: group.name,
+					leaderTitle,
+					// The transcript path only helps a member on the same machine.
+					sessionId:
+						panes[paneId]?.odinRemote === leader.odinRemote
+							? sessionId
+							: undefined,
+				});
+				await typeIntoClaude(utils.client.terminal.write.mutate, paneId, note);
+			}
+		})().catch((error) => console.warn("[board] group note failed:", error));
+	};
+	useEffect(() => {
+		const seen = leaderStatusRef.current;
+		for (const [paneId, pane] of Object.entries(panes)) {
+			if (!pane.odinGroup?.leader) {
+				seen.delete(paneId);
+				continue;
+			}
+			const previous = seen.get(paneId);
+			seen.set(paneId, pane.status);
+			if (!turnEnded(previous, pane.status)) continue;
+			const targets = leaderNoteTargets(panes, paneId);
+			if (targets.length > 0) noteGroupRef.current(paneId, targets);
+		}
+	}, [panes]);
 	// A reply from the phone to a session Claude has exited resumes it, as
 	// this board's chat box does - on the remote host too.
 	useEffect(() => {
@@ -6696,6 +6984,16 @@ function DevBoardPage() {
 				},
 			};
 		});
+
+	// Session groups live on the panes (shared/session-group.ts), so they
+	// persist with the session state like the star and priority.
+	const updatePanes = (update: (current: typeof panes) => typeof panes) => {
+		useTabsStore.setState((state) => {
+			const next = update(state.panes);
+			return next === state.panes ? state : { panes: next };
+		});
+	};
+	const groups = useMemo(() => listGroups(panes), [panes]);
 
 	const toggleStar = (paneId: string) =>
 		useTabsStore.setState((state) => ({
@@ -7532,6 +7830,7 @@ function DevBoardPage() {
 
 				{/* filter - right-click a card to tag it; people are the card's contact */}
 				{(allTags.length > 0 ||
+					groups.length > 0 ||
 					allPeople.length > 0 ||
 					allRepos.length > 1 ||
 					starredCount > 0 ||
@@ -7539,7 +7838,7 @@ function DevBoardPage() {
 					<select
 						value={boardFilter}
 						onChange={(e) => setBoardFilter(e.target.value)}
-						title="Show only starred or recently viewed sessions, or those with this tag, repo or person"
+						title="Show only starred or recently viewed sessions, or those in this group or with this tag, repo or person"
 						className={cn(
 							"max-w-[220px] cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none",
 							boardFilter
@@ -7553,6 +7852,15 @@ function DevBoardPage() {
 						)}
 						{viewedCount > 0 && (
 							<option value="viewed">Recently viewed ({viewedCount})</option>
+						)}
+						{groups.length > 0 && (
+							<optgroup label="Groups">
+								{groups.map((group) => (
+									<option key={group.name} value={`group:${group.name}`}>
+										Group: {group.name} ({group.count})
+									</option>
+								))}
+							</optgroup>
 						)}
 						{allTags.length > 0 && (
 							<optgroup label="Tags">
@@ -7672,6 +7980,26 @@ function DevBoardPage() {
 					onStar={() => toggleStar(tagMenu.paneId)}
 					priority={panes[tagMenu.paneId]?.odinPriority}
 					onPriority={(priority) => setPriority(tagMenu.paneId, priority)}
+					group={panes[tagMenu.paneId]?.odinGroup}
+					groups={groups}
+					onGroup={(name) =>
+						updatePanes((current) => withGroup(current, tagMenu.paneId, name))
+					}
+					onLeader={(leader) =>
+						updatePanes((current) =>
+							withLeader(current, tagMenu.paneId, leader),
+						)
+					}
+					onGroupNotify={(notify) => {
+						const name = panes[tagMenu.paneId]?.odinGroup?.name;
+						if (name)
+							updatePanes((current) => withGroupNotify(current, name, notify));
+					}}
+					onGroupColor={(color) => {
+						const name = panes[tagMenu.paneId]?.odinGroup?.name;
+						if (name)
+							updatePanes((current) => withGroupColor(current, name, color));
+					}}
 					onDone={() => tagMenuCard && doneAnywhere(tagMenuCard)}
 					onPark={
 						tagMenuCard && tagMenuCard.status !== "idle"
