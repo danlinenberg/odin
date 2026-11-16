@@ -7197,6 +7197,9 @@ function DevBoardPage() {
 				{hostScreen && !inCatchUp && (
 					<button
 						type="button"
+						aria-label={
+							hostLink ? `▣ View - ${HOST_LINK_LABEL[hostLink]}` : undefined
+						}
 						title={
 							hostLink
 								? `${HOST_LINK_LABEL[hostLink]} - the app this session runs on its host`
@@ -7219,7 +7222,7 @@ function DevBoardPage() {
 						▣ View
 						{hostLink && (
 							<span
-								aria-label={HOST_LINK_LABEL[hostLink]}
+								aria-hidden
 								className={cn(
 									"ml-1.5 inline-block size-1.5 rounded-full align-middle",
 									HOST_LINK_DOT[hostLink],
