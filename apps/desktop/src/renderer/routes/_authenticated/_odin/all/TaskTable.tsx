@@ -219,7 +219,8 @@ export function useTaskRows(onSlackStarted?: () => void) {
 	const start = useStartAllItem(onSlackStarted);
 	const { markDone, markReading, undo, reading } = useDone();
 	const dropByHand = useDropByHand();
-	const { statuses, types, enqueue, dequeue, waiting, unwait } = useTaskMeta();
+	const { statuses, types, queue, enqueue, dequeue, waiting, unwait } =
+		useTaskMeta();
 	const reminders = useReminders((s) => s.reminders);
 	const readingKeys = useMemo(
 		() => new Set(reading.map((row) => row.key)),
@@ -231,6 +232,8 @@ export function useTaskRows(onSlackStarted?: () => void) {
 		types,
 		reminders,
 		readingKeys,
+		/** On Up next - a feed tab's row has no drag handle to say so. */
+		queued: (key: string) => queue.includes(key),
 		enqueue,
 		dequeue,
 		waiting,
@@ -547,7 +550,7 @@ export function TaskRow({
 									<LuHourglass className="size-3.5" aria-hidden />
 								</button>
 							</IconTip>
-						) : drag ? (
+						) : drag || rows.queued(item.key) ? (
 							<IconTip label="Take it off Up next">
 								<button
 									type="button"
