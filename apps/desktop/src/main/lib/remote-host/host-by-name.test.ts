@@ -1,5 +1,10 @@
 import { expect, test } from "bun:test";
-import { asLastRun, clusterMember, hostByName } from "./host-by-name";
+import {
+	asLastRun,
+	clusterMember,
+	hostByName,
+	tagCluster,
+} from "./host-by-name";
 
 const prod = { name: "odin-prod", instanceId: "i-prod" };
 const dev = { name: "odin-remote", instanceId: "i-dev" };
@@ -43,4 +48,36 @@ test("a cluster host takes the main host's settings, not its own sign-ins", () =
 		profile: "work",
 		connectors: ["slack"],
 	});
+});
+
+test("hosts sharing the main host's cluster tag join it, and leave without it", () => {
+	const at = (id: string, cluster: string | null, state = "running") => ({
+		id,
+		state,
+		ssmOnline: true,
+		cluster,
+	});
+	const instances = [
+		at("i-main", "prod"),
+		at("i-two", "prod"),
+		at("i-three", "prod", "stopped"),
+		at("i-dev", "dev"),
+		at("i-gone", "prod", "terminated"),
+	];
+	const plan = tagCluster("i-main", instances, [
+		{ instanceId: "i-three", byTag: true },
+		{ instanceId: "i-gone", byTag: true },
+		{ instanceId: "i-old", byTag: true },
+		{ instanceId: "i-hand" },
+	]);
+	expect(plan.join.map((instance) => instance.id)).toEqual(["i-two"]);
+	expect(plan.leave).toEqual(["i-gone", "i-old"]);
+	// A main host with no tag: every host the tag brought in leaves.
+	expect(
+		tagCluster(
+			"i-main",
+			[at("i-main", null)],
+			[{ instanceId: "i-two", byTag: true }, { instanceId: "i-hand" }],
+		),
+	).toEqual({ join: [], leave: ["i-two"] });
 });

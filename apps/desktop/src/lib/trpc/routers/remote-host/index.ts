@@ -100,6 +100,7 @@ import {
 	asLastRun,
 	clusterMember,
 	hostByName,
+	tagCluster,
 } from "main/lib/remote-host/host-by-name";
 import { hostHasConversation } from "main/lib/remote-host/host-conversations";
 import {
@@ -636,8 +637,129 @@ async function refreshHostTokens(): Promise<void> {
 		),
 	);
 }
-setInterval(() => void refreshHostTokens(), 30 * 60_000).unref();
-setTimeout(() => void refreshHostTokens(), 20_000).unref();
+type ClusterEntry = NonNullable<
+	ReturnType<typeof readOdinConfig>["clusterHosts"]
+>[number];
+
+/**
+ * Adds an instance to the main host's cluster: new sessions may start there
+ * too. It gets the main host's tokens and Claude setup straight away.
+ */
+async function addClusterMember(extra: ClusterEntry): Promise<void> {
+	const { remoteHost, clusterHosts = [] } = readOdinConfig();
+	if (!remoteHost || extra.instanceId === remoteHost.instanceId) return;
+	updateOdinConfig({
+		clusterHosts: [
+			...clusterHosts.filter((each) => each.instanceId !== extra.instanceId),
+			extra,
+		],
+	});
+	const member = clusterExtras().find(
+		(each) => each.instanceId === extra.instanceId,
+	);
+	if (!member) return;
+	if (remoteHost.on)
+		await pushHostTokens(
+			member,
+			(member.connectors ?? []) as HostConnector[],
+		).catch((error) => console.warn("[remote-host] cluster tokens:", error));
+	if (member.claudeSetup?.length)
+		void syncClaudeSetup(
+			member,
+			member.claudeSetup as (typeof CLAUDE_SETUP_PARTS)[number][],
+		).catch((error) =>
+			console.warn("[remote-host] cluster Claude setup:", error),
+		);
+}
+
+/**
+ * Takes an instance out of the cluster: no new sessions start there. Its
+ * sessions keep running and still find it (pastRemoteHosts).
+ */
+async function removeClusterMember(instanceId: string): Promise<void> {
+	const leaving = clusterExtras().find(
+		(extra) => extra.instanceId === instanceId,
+	);
+	const { clusterHosts = [], pastRemoteHosts = [] } = readOdinConfig();
+	updateOdinConfig({
+		clusterHosts: clusterHosts.filter(
+			(extra) => extra.instanceId !== instanceId,
+		),
+		...(leaving
+			? {
+					pastRemoteHosts: [
+						leaving,
+						...pastRemoteHosts.filter((host) => host.instanceId !== instanceId),
+					].slice(0, 5),
+				}
+			: {}),
+	});
+	// No connector tokens stay behind on it.
+	if (leaving?.connectors?.length)
+		await pushHostTokens(leaving, []).catch(() => {});
+}
+
+let clusterSyncing: Promise<void> | null = null;
+/**
+ * Every instance that shares the main host's OdinCluster tag joins its
+ * cluster, set up as Use sets up a host (tagCluster); a host the tag brought
+ * in leaves once it no longer carries it or is terminated. No tag on the main
+ * host: only hosts added by hand. One run at a time; a failed AWS call waits
+ * for the next run, with no sign-in prompt.
+ */
+function syncTaggedCluster(): Promise<void> {
+	if (clusterSyncing) return clusterSyncing;
+	clusterSyncing = (async () => {
+		const host = readOdinConfig().remoteHost;
+		if (!host) return;
+		const target = {
+			...(host.profile ? { profile: host.profile } : {}),
+			...(host.region ? { region: host.region } : {}),
+		};
+		const { instances } = await listInstances(target, []);
+		const { join, leave } = tagCluster(
+			host.instanceId,
+			instances,
+			readOdinConfig().clusterHosts ?? [],
+		);
+		for (const id of leave) await removeClusterMember(id);
+		for (const instance of join) {
+			const tools = await setUpHost(
+				target,
+				instance.id,
+				hostUser(),
+				readOdinConfig().awsInstances?.hostPackages,
+			);
+			if (!tools.claude) {
+				console.warn(
+					`[remote-host] cluster: setup could not install Claude on ${instance.name}`,
+				);
+				continue;
+			}
+			await addClusterMember({
+				instanceId: instance.id,
+				name: instance.name,
+				...target,
+				...(host.adminUser ? { adminUser: host.adminUser } : {}),
+				byTag: true,
+			});
+		}
+	})()
+		.catch((error) => console.warn("[remote-host] cluster by tag:", error))
+		.finally(() => {
+			clusterSyncing = null;
+		});
+	return clusterSyncing;
+}
+
+setInterval(() => {
+	void refreshHostTokens();
+	void syncTaggedCluster();
+}, 30 * 60_000).unref();
+setTimeout(() => {
+	void refreshHostTokens();
+	void syncTaggedCluster();
+}, 20_000).unref();
 // The half-hourly timer doesn't run while this computer sleeps: send fresh
 // copies the moment it wakes or unlocks, not up to half an hour later.
 void app.whenReady().then(() => {
@@ -877,6 +999,10 @@ export const createRemoteHostRouter = () =>
 				cluster: clusterExtras().map(({ instanceId, name }) => ({
 					instanceId,
 					name,
+					/** Joined by its OdinCluster tag: it leaves when the tag goes. */
+					byTag: !!readOdinConfig().clusterHosts?.find(
+						(extra) => extra.instanceId === instanceId,
+					)?.byTag,
 				})),
 				/** The Linux user this computer's sessions run as on a host. */
 				hostUser: hostUser(),
@@ -1000,36 +1126,10 @@ export const createRemoteHostRouter = () =>
 				}),
 			)
 			.mutation(async ({ input }) => {
-				const { remoteHost, clusterHosts = [] } = readOdinConfig();
-				if (!remoteHost) throw new Error("Pick a main host first.");
-				if (input.instanceId === remoteHost.instanceId) return;
+				if (!readOdinConfig().remoteHost)
+					throw new Error("Pick a main host first.");
 				const { user, ...where } = input;
-				updateOdinConfig({
-					clusterHosts: [
-						...clusterHosts.filter(
-							(extra) => extra.instanceId !== input.instanceId,
-						),
-						{ ...where, adminUser: user },
-					],
-				});
-				const member = clusterExtras().find(
-					(extra) => extra.instanceId === input.instanceId,
-				);
-				if (!member) return;
-				if (remoteHost.on)
-					await pushHostTokens(
-						member,
-						(member.connectors ?? []) as HostConnector[],
-					).catch((error) =>
-						console.warn("[remote-host] cluster tokens:", error),
-					);
-				if (member.claudeSetup?.length)
-					void syncClaudeSetup(
-						member,
-						member.claudeSetup as (typeof CLAUDE_SETUP_PARTS)[number][],
-					).catch((error) =>
-						console.warn("[remote-host] cluster Claude setup:", error),
-					);
+				await addClusterMember({ ...where, adminUser: user });
 			}),
 		/**
 		 * Takes an instance out of the cluster: no new sessions start there.
@@ -1037,30 +1137,12 @@ export const createRemoteHostRouter = () =>
 		 */
 		clusterRemove: publicProcedure
 			.input(z.object({ instanceId: z.string().min(1) }))
-			.mutation(async ({ input }) => {
-				const leaving = clusterExtras().find(
-					(extra) => extra.instanceId === input.instanceId,
-				);
-				const { clusterHosts = [], pastRemoteHosts = [] } = readOdinConfig();
-				updateOdinConfig({
-					clusterHosts: clusterHosts.filter(
-						(extra) => extra.instanceId !== input.instanceId,
-					),
-					...(leaving
-						? {
-								pastRemoteHosts: [
-									leaving,
-									...pastRemoteHosts.filter(
-										(host) => host.instanceId !== input.instanceId,
-									),
-								].slice(0, 5),
-							}
-						: {}),
-				});
-				// No connector tokens stay behind on it.
-				if (leaving?.connectors?.length)
-					await pushHostTokens(leaving, []).catch(() => {});
-			}),
+			.mutation(({ input }) => removeClusterMember(input.instanceId)),
+		/**
+		 * Brings the cluster in line with the main host's OdinCluster tag
+		 * (syncTaggedCluster), for Settings to call when it opens.
+		 */
+		clusterSync: publicProcedure.mutation(() => syncTaggedCluster()),
 		setOn: publicProcedure.input(z.boolean()).mutation(async ({ input }) => {
 			const host = readOdinConfig().remoteHost;
 			if (!host) return;

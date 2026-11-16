@@ -70,6 +70,8 @@ export interface OdinFileConfig {
 		profile?: string;
 		region?: string;
 		adminUser?: string;
+		/** Joined by its OdinCluster tag (tagCluster): leaves by itself when the tag goes. */
+		byTag?: boolean;
 	}[];
 	/** The EC2 host new sessions run on, reached through SSM, while `on` is true. */
 	remoteHost?: {

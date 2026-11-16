@@ -137,6 +137,16 @@ export function RemoteHostSection() {
 		onSuccess: refresh,
 		onError,
 	});
+	// Hosts that share the main host's OdinCluster tag join (and leave) by
+	// themselves: look once when the page opens, beside Odin's own runs.
+	const clusterSync = electronTrpc.remoteHost.clusterSync.useMutation({
+		onSettled: refresh,
+	});
+	const hasHost = !!current?.host;
+	const syncCluster = clusterSync.mutate;
+	useEffect(() => {
+		if (hasHost) syncCluster();
+	}, [hasHost, syncCluster]);
 	const setApiKeyFallback =
 		electronTrpc.remoteHost.setApiKeyFallback.useMutation({
 			onSuccess: refresh,
@@ -679,24 +689,31 @@ export function RemoteHostSection() {
 					label="Cluster"
 					description={
 						current.cluster.length
-							? `New sessions start on ${[current.host, ...current.cluster].map((host) => host.name || host.instanceId).join(", ")}: whichever has the most free memory. A session stays on its host, and moves to another one in the cluster when its own is down.`
-							: "More hosts new sessions can start on. Each new session goes to the host with the most free memory."
+							? `New sessions start on ${[current.host, ...current.cluster].map((host) => host.name || host.instanceId).join(", ")}: whichever has the most free memory. A session stays on its host, and moves to another one in the cluster when its own is down.${current.cluster.some((extra) => extra.byTag) ? " Hosts that share this host's OdinCluster tag joined by themselves; take the tag off one to take it out." : ""}`
+							: "More hosts new sessions can start on. Each new session goes to the host with the most free memory. Instances that share this host's OdinCluster tag join by themselves."
 					}
 				>
-					{current.cluster.map((extra) => (
-						<Button
-							key={extra.instanceId}
-							size="sm"
-							variant="outline"
-							disabled={clusterRemove.isPending}
-							title="No new sessions start here. Its sessions keep running"
-							onClick={() =>
-								clusterRemove.mutate({ instanceId: extra.instanceId })
-							}
-						>
-							Remove {extra.name || extra.instanceId}
-						</Button>
-					))}
+					{clusterSync.isPending && (
+						<span className="text-xs text-muted-foreground">
+							Looking for tagged hosts...
+						</span>
+					)}
+					{current.cluster
+						.filter((extra) => !extra.byTag)
+						.map((extra) => (
+							<Button
+								key={extra.instanceId}
+								size="sm"
+								variant="outline"
+								disabled={clusterRemove.isPending}
+								title="No new sessions start here. Its sessions keep running"
+								onClick={() =>
+									clusterRemove.mutate({ instanceId: extra.instanceId })
+								}
+							>
+								Remove {extra.name || extra.instanceId}
+							</Button>
+						))}
 					<Button
 						size="sm"
 						variant="outline"
@@ -1002,9 +1019,10 @@ export function RemoteHostSection() {
 						const last = uses[instance.id];
 						const step = stepOf(instance.id);
 						const inUse = current?.host?.instanceId === instance.id;
-						const inCluster = !!current?.cluster.some(
+						const member = current?.cluster.find(
 							(extra) => extra.instanceId === instance.id,
 						);
+						const inCluster = !!member;
 						return (
 							<SettingRow
 								key={instance.id}
@@ -1044,7 +1062,7 @@ export function RemoteHostSection() {
 								>
 									{step ?? (inUse ? "In use" : "Use")}
 								</Button>
-								{current?.host && !inUse && (
+								{current?.host && !inUse && !member?.byTag && (
 									<Button
 										size="sm"
 										variant="outline"

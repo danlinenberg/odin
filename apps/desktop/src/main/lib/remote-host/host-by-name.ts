@@ -80,3 +80,48 @@ export function clusterMember<T extends NamedHost>(
 		if (value !== undefined) member[key] = value;
 	return member as T;
 }
+
+/** States after which an instance never runs a session again. */
+const GONE = new Set(["shutting-down", "terminated"]);
+
+/**
+ * The cluster its tag asks for: the instances that share the main host's
+ * OdinCluster value. `join` is the ones not in it yet that can be set up now
+ * (running, SSM online); `leave` is the ids of hosts that joined by the tag
+ * and no longer carry it, or are gone. Hosts added by hand stay as they are.
+ */
+export function tagCluster<
+	I extends {
+		id: string;
+		state: string;
+		ssmOnline: boolean;
+		cluster: string | null;
+	},
+>(
+	mainId: string,
+	instances: I[],
+	current: { instanceId: string; byTag?: boolean }[],
+): { join: I[]; leave: string[] } {
+	const tag = instances.find((instance) => instance.id === mainId)?.cluster;
+	const members = tag
+		? instances.filter(
+				(instance) =>
+					instance.id !== mainId &&
+					instance.cluster === tag &&
+					!GONE.has(instance.state),
+			)
+		: [];
+	const ids = new Set(members.map((instance) => instance.id));
+	const inCluster = new Set(current.map((extra) => extra.instanceId));
+	return {
+		join: members.filter(
+			(instance) =>
+				!inCluster.has(instance.id) &&
+				instance.state === "running" &&
+				instance.ssmOnline,
+		),
+		leave: current
+			.filter((extra) => extra.byTag && !ids.has(extra.instanceId))
+			.map((extra) => extra.instanceId),
+	};
+}
