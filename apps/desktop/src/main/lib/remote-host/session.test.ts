@@ -737,29 +737,48 @@ test("the host reports Working and Done to the card through Odin's notify hook",
 	expect(hooks.Stop[1].hooks[0].command).toContain(`$HOME/${HOST_NOTIFY_HOOK}`);
 });
 
-test("a remote session's PR rules reach Claude through the host's hook", () => {
-	const rules = '{"hookSpecificOutput":{"additionalContext":"run /land-pr"}}';
-	// The run script writes the rules where the hook reads them.
-	const run = runScript({ ...spec, pane: "abc", rules }, "/tmp/s");
-	const write = run.match(/printf %s '([^']+)' \| base64 -d > "\$ODIN_RULES"/);
-	expect(Buffer.from(write?.[1] ?? "", "base64").toString()).toBe(rules);
-	expect(runScript({ ...spec, pane: "abc" }, "/tmp/s")).toContain(
-		'rm -f "$ODIN_RULES"',
-	);
+test("a remote session's rules reach Claude through the host's hooks", () => {
+	const pr = '{"hookSpecificOutput":{"additionalContext":"run /land-pr"}}';
+	const turn = '{"hookSpecificOutput":{"additionalContext":"every rule"}}';
+	// The run script writes each answer where its hook reads it.
+	const run = runScript({ ...spec, pane: "abc", rules: { pr, turn } }, "/s");
+	const written = (variable: string) =>
+		Buffer.from(
+			run.match(
+				new RegExp(`printf %s '([^']+)' \\| base64 -d > "\\$${variable}"`),
+			)?.[1] ?? "",
+			"base64",
+		).toString();
+	expect(written("ODIN_RULES")).toBe(pr);
+	expect(written("ODIN_RULES_TURN")).toBe(turn);
+	const none = runScript({ ...spec, pane: "abc" }, "/s");
+	expect(none).toContain('rm -f "$ODIN_RULES"');
+	expect(none).toContain('rm -f "$ODIN_RULES_TURN"');
+
 	const dir = mkdtempSync(join(tmpdir(), "rules-"));
-	const file = join(dir, "rules.json");
-	writeFileSync(file, rules);
-	const { command } = JSON.parse(hostSettings).hooks.PostToolUse.find(
-		(h: { matcher?: string }) => h.matcher === "Bash",
-	).hooks[0];
-	const fire = (cmd: string, path = file) =>
+	const prFile = join(dir, "pr.json");
+	const turnFile = join(dir, "turn.json");
+	writeFileSync(prFile, pr);
+	writeFileSync(turnFile, turn);
+	const { hooks } = JSON.parse(hostSettings);
+	const fire = (command: string, input: string, env: Record<string, string>) =>
 		spawnSync("sh", ["-c", command], {
-			input: JSON.stringify({ tool_input: { command: cmd } }),
-			env: { PATH: "/usr/bin:/bin", ODIN_RULES: path },
+			input,
+			env: { PATH: "/usr/bin:/bin", ...env },
 		}).stdout.toString();
-	expect(fire("gh pr create --base main")).toBe(rules);
-	expect(fire("ls")).toBe("");
-	expect(fire("git push", join(dir, "none"))).toBe("");
+	const onPush = hooks.PostToolUse.find(
+		(h: { matcher?: string }) => h.matcher === "Bash",
+	).hooks[0].command;
+	const bash = (cmd: string) =>
+		JSON.stringify({ tool_input: { command: cmd } });
+	expect(fire(onPush, bash("gh pr create"), { ODIN_RULES: prFile })).toBe(pr);
+	expect(fire(onPush, bash("ls"), { ODIN_RULES: prFile })).toBe("");
+	expect(fire(onPush, bash("git push"), { ODIN_RULES: join(dir, "x") })).toBe(
+		"",
+	);
+	const onPrompt = hooks.UserPromptSubmit[1].hooks[0].command;
+	expect(fire(onPrompt, "{}", { ODIN_RULES_TURN: turnFile })).toBe(turn);
+	expect(fire(onPrompt, "{}", { ODIN_RULES_TURN: join(dir, "x") })).toBe("");
 	rmSync(dir, { recursive: true });
 });
 

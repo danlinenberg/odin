@@ -38,9 +38,24 @@ describe("rulesSettings", () => {
 		expect(fire(JSON.stringify({ tool_input: { command: "ls" } }))).toBe("");
 	});
 
-	it("is null without a live PR rule", () => {
+	it("is null without a live rule", () => {
 		expect(rulesSettings([{ ...rule, paused: true }])).toBeNull();
-		expect(rulesSettings([{ ...rule, when: "a test fails" }])).toBeNull();
+		expect(rulesSettings([])).toBeNull();
+	});
+
+	it("hands every live rule back on each prompt, PR hook only for PR rules", () => {
+		const other = { ...rule, when: "you finish a change", action: "run /ship" };
+		const settings = JSON.parse(rulesSettings([other]) ?? "{}");
+		expect(settings.hooks.PostToolUse).toBeUndefined();
+		const run = Bun.spawnSync(
+			["sh", "-c", settings.hooks.UserPromptSubmit[0].hooks[0].command],
+			{ stdin: Buffer.from("{}") },
+		);
+		const out = JSON.parse(run.stdout.toString()).hookSpecificOutput;
+		expect(out.hookEventName).toBe("UserPromptSubmit");
+		expect(out.additionalContext).toContain(
+			"When you finish a change: run /ship",
+		);
 	});
 });
 

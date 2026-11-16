@@ -4,7 +4,7 @@ import {
 	PR_SCREENSHOT_RULE,
 	voiceRuleWith,
 } from "../../../shared/constants";
-import { PR_COMMAND } from "../../../shared/odin-rules";
+import { PR_COMMAND, type RuleHooks } from "../../../shared/odin-rules";
 import { tmuxSession } from "../../../shared/remote-reconnect";
 import {
 	SLACK_ALLOW_RULES,
@@ -50,11 +50,12 @@ export interface RemoteSessionSpec {
 	/** Laptop files the prompt names, copied to the host before Claude starts. */
 	files?: RemoteFile[];
 	/**
-	 * What the PR-rules hook prints (rulesHookOutput), or null. Claude takes
-	 * one --settings and the host's hooks hold it, so the rules go to a file
-	 * the host's own PostToolUse hook prints after a PR command.
+	 * What the rule hooks print (ruleHooks), or null. Claude takes one
+	 * --settings and the host's hooks hold it, so the rules go to files the
+	 * host's own hooks print: every rule on each prompt, the PR rules after
+	 * a PR command.
 	 */
-	rules?: string | null;
+	rules?: RuleHooks | null;
 	/** End the session's tmux session first, so Claude starts over (Restart). */
 	fresh?: boolean;
 	/**
@@ -494,7 +495,18 @@ const notify = (matcher?: string) => ({
 
 export const hostSettings = JSON.stringify({
 	hooks: {
-		UserPromptSubmit: [notify()],
+		UserPromptSubmit: [
+			notify(),
+			{
+				hooks: [
+					{
+						type: "command",
+						command:
+							'[ -s "$ODIN_RULES_TURN" ] && cat "$ODIN_RULES_TURN"; exit 0',
+					},
+				],
+			},
+		],
 		Stop: [
 			{ hooks: [{ type: "command", command: "python3 ~/.odin/turn-end.py" }] },
 			notify(),
@@ -723,11 +735,10 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		'fallback="$ODIN_FALLBACK_API_KEY"',
 		"unset ODIN_FALLBACK_API_KEY ODIN_PLAN_LIMITED_UNTIL",
 		'export ODIN_RUN_PID=$$; [ -n "$fallback" ] && export ODIN_HAS_FALLBACK_KEY=1',
-		// The PR rules for the host's hook; a launch with none clears the old file.
-		`export ODIN_RULES="$HOME/.odin/rules-"${sh(spec.pane)}.json`,
-		spec.rules
-			? `printf %s ${sh(Buffer.from(spec.rules).toString("base64"))} | base64 -d > "$ODIN_RULES"`
-			: 'rm -f "$ODIN_RULES"',
+		// The rules for the host's hooks; a launch without one clears the old file.
+		`export ODIN_RULES="$HOME/.odin/rules-"${sh(spec.pane)}.json ODIN_RULES_TURN="$HOME/.odin/rules-"${sh(spec.pane)}-turn.json`,
+		ruleFile("ODIN_RULES", spec.rules?.pr),
+		ruleFile("ODIN_RULES_TURN", spec.rules?.turn),
 		`rm -f ${idleMarker(spec.pane)}`,
 		'[ -n "$TMUX_PANE" ] && command -v pgrep >/dev/null && ' +
 			idleWatcher(spec.pane),
@@ -743,6 +754,12 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		.filter(Boolean)
 		.join("\n");
 }
+
+/** Writes one rule hook's answer to the file named in `variable`, or clears it. */
+const ruleFile = (variable: string, output: string | null | undefined) =>
+	output
+		? `printf %s ${sh(Buffer.from(output).toString("base64"))} | base64 -d > "$${variable}"`
+		: `rm -f "$${variable}"`;
 
 /** The prompt, base64 so no quoting can break it, decoded in the shell. */
 const promptB64 = (spec: RemoteSessionSpec) =>

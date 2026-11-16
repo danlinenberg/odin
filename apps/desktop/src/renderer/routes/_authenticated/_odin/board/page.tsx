@@ -101,7 +101,6 @@ import { sessionDocKey, useDoneStore } from "renderer/stores/done";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { useIdleCompact } from "renderer/stores/idle-compact";
 import { useInboxViewStore } from "renderer/stores/inbox-view";
-import { rulesHookOutput, useOdinRules } from "renderer/stores/odin-rules";
 import { useRecentlyViewed } from "renderer/stores/recently-viewed";
 import { useSessionView } from "renderer/stores/session-view";
 import { useStartingPanes } from "renderer/stores/starting-panes";
@@ -5899,10 +5898,6 @@ function DevBoardPage() {
 							prompt: prompt ?? null,
 							fresh: restart,
 							host: card.pane.odinRemote,
-							rules: rulesHookOutput(
-								useOdinRules.getState().rules,
-								card.pane.odinCwd,
-							),
 						})
 					: cwd
 						? `cd '${cwd}' && ${resumeCmd}`

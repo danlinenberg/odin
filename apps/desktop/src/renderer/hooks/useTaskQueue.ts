@@ -3,7 +3,6 @@ import { quote, worktreeMadeLine } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { claudeLaunch } from "renderer/stores/claude-command";
 import { launchLimits, useLaunchLimits } from "renderer/stores/launch-limits";
-import { rulesHookOutput, useOdinRules } from "renderer/stores/odin-rules";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
 import { claimedCheckout, launchBlocker } from "shared/launch-gate";
@@ -205,7 +204,6 @@ async function spawnQueuedPane(client: TrpcClient, pane: Pane): Promise<void> {
 		? await client.remoteHost.sessionCommand.mutate({
 				...queued.remote,
 				odinPane: pane.id,
-				rules: rulesHookOutput(useOdinRules.getState().rules, pane.odinCwd),
 			})
 		: queued.command;
 	await client.terminal.kill.mutate({ paneId: pane.id }).catch(() => {});
