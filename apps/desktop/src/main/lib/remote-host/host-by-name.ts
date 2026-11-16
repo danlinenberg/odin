@@ -115,3 +115,20 @@ export function autoCluster<
 			.map((extra) => extra.instanceId),
 	};
 }
+
+/**
+ * The host as it is picked: a host picked before (the current one or a past
+ * one) comes back with the settings it had (connectors, GitHub accounts, its
+ * own sign-ins, AWS profiles, Tasks with the Mac closed), the picker's fields
+ * on top. `restored` is false for a host Odin never used.
+ */
+export function pickedHost<
+	T extends { instanceId: string },
+	P extends { instanceId: string },
+>(
+	picked: P,
+	known: (T | undefined)[],
+): { host: Partial<T> & P; restored: boolean } {
+	const saved = known.find((host) => host?.instanceId === picked.instanceId);
+	return { host: { ...(saved as Partial<T>), ...picked }, restored: !!saved };
+}

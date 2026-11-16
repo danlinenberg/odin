@@ -98,8 +98,10 @@ export function RemoteHostSection() {
 	// Turning the host on runs `claude setup-token` first when no token is saved.
 	const onError = (error: { message: string }) => toast.error(error.message);
 	const use = electronTrpc.remoteHost.set.useMutation({
-		onSuccess: () => {
+		onSuccess: ({ restored }) => {
 			setChangingHost(false);
+			// A host picked before is back as it was: nothing to set up again.
+			if (restored) return refresh();
 			// A new host gets everything: every connector and the whole Claude
 			// setup, so its sessions work as they do here. Choose narrows it.
 			setConnectorList(CONNECTORS.map(([id]) => id));

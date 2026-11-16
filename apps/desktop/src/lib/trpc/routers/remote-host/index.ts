@@ -101,6 +101,7 @@ import {
 	autoCluster,
 	clusterMember,
 	hostByName,
+	pickedHost,
 } from "main/lib/remote-host/host-by-name";
 import { hostHasConversation } from "main/lib/remote-host/host-conversations";
 import {
@@ -1091,9 +1092,14 @@ export const createRemoteHostRouter = () =>
 						host.instanceId !== previous?.instanceId,
 				);
 				// `user` from the picker is the instance's login; sessions run as this user's own.
+				// A host picked before gets back the settings it had there.
+				const { host, restored } = pickedHost(
+					{ ...input, user: hostUser(), adminUser: input.user },
+					[previous, ...pastRemoteHosts],
+				);
 				const { clusterHosts = [] } = readOdinConfig();
 				updateOdinConfig({
-					remoteHost: { ...input, user: hostUser(), adminUser: input.user },
+					remoteHost: host,
 					// The new main host is no longer one of its own cluster.
 					clusterHosts: clusterHosts.filter(
 						(extra) => extra.instanceId !== input.instanceId,
@@ -1107,6 +1113,8 @@ export const createRemoteHostRouter = () =>
 				if (input.on) void refreshHostTokens();
 				// The new host's cluster: its other Odin = host instances.
 				void syncAutoCluster();
+				/** Picked before: Settings leaves its connectors and setup as they were. */
+				return { restored };
 			}),
 		setOn: publicProcedure.input(z.boolean()).mutation(async ({ input }) => {
 			const host = readOdinConfig().remoteHost;
