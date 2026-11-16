@@ -183,6 +183,7 @@ import { remoteShellCommand } from "shared/remote-shell-command";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import {
+	activeProfileId,
 	listProfiles,
 	type OdinFileConfig,
 	readOdinConfig,
@@ -865,27 +866,33 @@ export const createRemoteHostRouter = () =>
 				setTimeout(() => void markHostUp(host.instanceId), 60_000);
 			}),
 		/** The host sessions start on; `on: false` keeps them on this computer. */
-		get: publicProcedure.query(() => ({
-			host: readOdinConfig().remoteHost ?? null,
-			/** The cluster's other hosts, by instance id and name. */
-			cluster: clusterExtras().map(({ instanceId, name }) => ({
-				instanceId,
-				name,
-			})),
-			/** The Linux user this computer's sessions run as on a host. */
-			hostUser: hostUser(),
-			hasClaudeToken: Boolean(claudeToken()),
-			/** Whether sessions there move to the API key at the plan limit. */
-			apiKeyFallback: apiKeyFallbackOn(
-				readOdinConfig().remoteHost?.apiKeyFallback,
-			),
-			/** The last 4 characters of the key saved in Settings; null: ANTHROPIC_API_KEY. */
-			customApiKeyEnd: customApiKey()?.slice(-4) ?? null,
-			/** The connected GitHub accounts and which may go to the host. */
-			githubAccounts: hostGithubAccounts(readOdinConfig()),
-			/** The Claude setup copy under way, if any, and why the last one failed. */
-			claudeSetupSync: claudeSyncStatus(),
-		})),
+		get: publicProcedure.query(() => {
+			// The host and the profile from one read: a launch stamps the session
+			// with this profile, so the two can't come from either side of a switch.
+			const profileId = activeProfileId();
+			return {
+				profileId,
+				host: readProfileConfig(profileId).remoteHost ?? null,
+				/** The cluster's other hosts, by instance id and name. */
+				cluster: clusterExtras().map(({ instanceId, name }) => ({
+					instanceId,
+					name,
+				})),
+				/** The Linux user this computer's sessions run as on a host. */
+				hostUser: hostUser(),
+				hasClaudeToken: Boolean(claudeToken()),
+				/** Whether sessions there move to the API key at the plan limit. */
+				apiKeyFallback: apiKeyFallbackOn(
+					readOdinConfig().remoteHost?.apiKeyFallback,
+				),
+				/** The last 4 characters of the key saved in Settings; null: ANTHROPIC_API_KEY. */
+				customApiKeyEnd: customApiKey()?.slice(-4) ?? null,
+				/** The connected GitHub accounts and which may go to the host. */
+				githubAccounts: hostGithubAccounts(readOdinConfig()),
+				/** The Claude setup copy under way, if any, and why the last one failed. */
+				claudeSetupSync: claudeSyncStatus(),
+			};
+		}),
 		/**
 		 * Whether a launch to the host should wait: `reason` from a remote
 		 * pane's latest memory and load reading, else from one probe, and `at`,

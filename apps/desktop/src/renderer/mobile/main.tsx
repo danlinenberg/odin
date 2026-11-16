@@ -488,6 +488,8 @@ function ProfilePicker({ macAway }: { macAway: boolean }) {
 	const switchTo = phone.setProfile.useMutation({
 		onSuccess: async () => {
 			await profiles.refetch();
+			// New task's Where picker offers the new profile's host, or none.
+			void utils.host.invalidate();
 			// Spinner, not the old profile's board, until the new one lands.
 			await utils.board.reset();
 		},
