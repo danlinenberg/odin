@@ -114,7 +114,7 @@ export function dialRelay(
 			// makes the two trade the id every second or two, forever.
 			if (event.code === REPLACED && onReplaced) {
 				stopped = true;
-				clearInterval(redial);
+				clearInterval(redialTimer);
 				onReplaced();
 				return;
 			}
@@ -124,12 +124,12 @@ export function dialRelay(
 	};
 	connect();
 	// Only over an open one: a closed one is already dialing again above.
-	const redial = setInterval(() => {
+	const redialTimer = setInterval(() => {
 		if (control?.readyState === WebSocket.OPEN) connect(true);
 	}, redialMs);
 	return () => {
 		stopped = true;
-		clearInterval(redial);
+		clearInterval(redialTimer);
 		control?.close();
 	};
 }
