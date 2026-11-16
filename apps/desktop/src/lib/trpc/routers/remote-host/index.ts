@@ -183,7 +183,10 @@ import { remoteShellCommand } from "shared/remote-shell-command";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import {
+	listProfiles,
+	type OdinFileConfig,
 	readOdinConfig,
+	readProfileConfig,
 	resolveGithubClientId,
 	updateOdinConfig,
 } from "../odin-config";
@@ -200,13 +203,29 @@ const run = promisify(execFile);
 
 /** The host a session runs on, by its pane's host name (see hostByName). */
 function hostNamed(name?: string | null) {
-	const { remoteHost, pastRemoteHosts = [] } = readOdinConfig();
-	return hostByName(remoteHost, [...clusterExtras(), ...pastRemoteHosts], name);
+	const here = hostIn(readOdinConfig(), name);
+	if (!name || (here && (here.name || here.instanceId) === name)) return here;
+	// A session started under another profile: that profile's host, as the
+	// user it ran as. Without this, switching profiles left it unmovable.
+	const elsewhere = listProfiles()
+		.filter((profile) => !profile.active)
+		.map((profile) => hostIn(readProfileConfig(profile.id), name))
+		.find((host) => host && (host.name || host.instanceId) === name);
+	return elsewhere ?? here;
+}
+
+function hostIn(config: OdinFileConfig, name?: string | null) {
+	const { remoteHost, pastRemoteHosts = [] } = config;
+	return hostByName(
+		remoteHost,
+		[...clusterExtras(config), ...pastRemoteHosts],
+		name,
+	);
 }
 
 /** The cluster's other hosts, each with the main host's settings. */
-function clusterExtras(): RemoteHost[] {
-	const { remoteHost, clusterHosts = [] } = readOdinConfig();
+function clusterExtras(config = readOdinConfig()): RemoteHost[] {
+	const { remoteHost, clusterHosts = [] } = config;
 	if (!remoteHost) return [];
 	return clusterHosts
 		.filter((extra) => extra.instanceId !== remoteHost.instanceId)
