@@ -5719,7 +5719,7 @@ function Composer({
 						)}
 					/>
 				</div>
-				<div className="mt-1.5 flex items-center gap-2">
+				<div className="mt-1.5 flex items-center gap-2 whitespace-nowrap">
 					{!noTerminal && (
 						<button
 							type="button"
@@ -5761,11 +5761,11 @@ function Composer({
 					)}
 					{!noTerminal && !onResume && <DangerModeToggle paneId={paneId} />}
 					{bash ? (
-						<span className="ml-auto text-[11px] text-pink-500">
+						<span className="ml-auto min-w-0 truncate text-[11px] text-pink-500">
 							Bash mode · Backspace on empty to exit
 						</span>
 					) : (
-						<span className="ml-auto text-right text-[11px] text-faint-foreground">
+						<span className="ml-auto min-w-0 truncate text-right text-[11px] text-faint-foreground">
 							Enter to send · {sendNowKeys} to send now · Shift+Enter for a new
 							line · ! for bash · / for skills
 							{fileCwd && " · @ for files"}
