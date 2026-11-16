@@ -62,6 +62,7 @@ import {
 } from "./all-items";
 import { ruleLabel, useDropRules } from "./drop-rules";
 import { droppedWhy, putAwayWhy } from "./graveyard";
+import { MetaOptionSelect, useMetaOptions } from "./MetaOptionSelect";
 import { applyNewTaskFields, NO_NEW_TASK_FIELDS } from "./new-task-fields";
 import { revealRow, rowPlace } from "./reveal-row";
 import { nextSelection, visibleSelection } from "./selection";
@@ -78,8 +79,6 @@ import {
 } from "./TaskTable";
 import {
 	dayAfter,
-	TASK_STATUSES,
-	TASK_TYPES,
 	type TaskStatus,
 	type TaskType,
 	typeOf,
@@ -143,11 +142,8 @@ const URGENCIES: { id: Exclude<Urgency, null> | "none"; label: string }[] = [
 	{ id: "none", label: "Unrated" },
 ];
 
-/** The status filter: Odin's own statuses, plus Waiting on you, which every row starts as. */
-const STATUS_FILTERS: { id: string; label: string }[] = [
-	{ id: "waiting", label: "Waiting on you" },
-	...TASK_STATUSES,
-];
+/** The status filter's first choice: Waiting on you, which every row starts as. Odin's own statuses follow. */
+const WAITING_FILTER = { id: "waiting", label: "Waiting on you" };
 
 /** The bands, top to bottom, and what each one says it holds. */
 const BANDS: { id: Band; label: string; hint: string }[] = [
@@ -173,6 +169,8 @@ function readStatusFilter(): string {
 function AllFeedPage() {
 	const { reactions, syncAll, isSyncing } = useOdinFeeds();
 	const navigate = useNavigate();
+	const taskStatuses = useMetaOptions("status");
+	const statusFilters = [WAITING_FILTER, ...taskStatuses];
 	// The ways to cut the list. Local state: All is the "what now" view, and it
 	// should open saying everything, every time.
 	const [source, setSource] = useState<AllItem["source"] | "">("");
@@ -573,7 +571,7 @@ function AllFeedPage() {
 	}, [reveal, openKey, openItem]);
 
 	const statusFilterLabel = statusFilter.startsWith("odin:")
-		? STATUS_FILTERS.find(({ id }) => id === statusFilter.slice(5))?.label
+		? statusFilters.find(({ id }) => id === statusFilter.slice(5))?.label
 		: statusFilter.startsWith("hide:")
 			? `Hide ${statusFilter.slice(5)}`
 			: statusFilter.slice(5);
@@ -717,7 +715,7 @@ function AllFeedPage() {
 							>
 								<option value="">Any status</option>
 								<optgroup label="Odin">
-									{STATUS_FILTERS.map(({ id, label }) => (
+									{statusFilters.map(({ id, label }) => (
 										<option key={id} value={`odin:${id}`}>
 											{label} ({statusCounts.get(id) ?? 0})
 										</option>
@@ -876,7 +874,7 @@ function AllFeedPage() {
 									Set status
 								</option>
 								<option value="waiting">Waiting on you</option>
-								{TASK_STATUSES.map(({ id, label }) => (
+								{taskStatuses.map(({ id, label }) => (
 									<option key={id} value={id}>
 										{label}
 									</option>
@@ -1442,6 +1440,10 @@ const SOURCE_PRIORITIES: [string, string][] = ["High", "Medium", "Low"].map(
 	(label) => [label, label],
 );
 
+/** The name box "+ Add status..." / "+ Add type..." opens, sized like the pill it replaces. */
+const PANEL_INPUT =
+	"w-[180px] rounded-full border border-primary bg-card px-2.5 py-1 text-[12px] text-foreground outline-none";
+
 /**
  * Status, type, priority and Up next for any row. Priority on another
  * source's row is yours only - Jira and Slack keep their own.
@@ -1479,24 +1481,32 @@ function TaskFields({
 		<>
 			<div className="mb-2.5 flex flex-wrap items-end gap-1.5">
 				<PanelField label="Status">
-					<FeedSelect value={status} onChange={onStatus} title="Status">
-						<option value="">Waiting on you</option>
-						{TASK_STATUSES.map(({ id, label }) => (
-							<option key={id} value={id}>
-								{label}
-							</option>
-						))}
-					</FeedSelect>
+					<MetaOptionSelect
+						kind="status"
+						value={status}
+						onChange={onStatus}
+						empty={<option value="">Waiting on you</option>}
+						inputClassName={PANEL_INPUT}
+						select={(value, onChange, options) => (
+							<FeedSelect value={value} onChange={onChange} title="Status">
+								{options}
+							</FeedSelect>
+						)}
+					/>
 				</PanelField>
 				<PanelField label="Type">
-					<FeedSelect value={type} onChange={onType} title="Task type">
-						<option value="">No type</option>
-						{TASK_TYPES.map(({ id, label }) => (
-							<option key={id} value={id}>
-								{label}
-							</option>
-						))}
-					</FeedSelect>
+					<MetaOptionSelect
+						kind="type"
+						value={type}
+						onChange={onType}
+						empty={<option value="">No type</option>}
+						inputClassName={PANEL_INPUT}
+						select={(value, onChange, options) => (
+							<FeedSelect value={value} onChange={onChange} title="Task type">
+								{options}
+							</FeedSelect>
+						)}
+					/>
 				</PanelField>
 				<PanelField label="Priority">
 					<FeedSelect value={priority} onChange={onPriority} title="Priority">
