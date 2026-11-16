@@ -14,6 +14,7 @@ import {
 	HoverCardTrigger,
 } from "@odin/ui/hover-card";
 import { toast } from "@odin/ui/sonner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import {
@@ -1800,19 +1801,29 @@ function HostMark({
 	showLocal?: boolean;
 }) {
 	const host = useTabsStore((s) => s.panes[paneId]?.odinRemote);
-	if (!host)
-		return showLocal ? (
-			<LuLaptop
-				title="On this computer"
-				className="mr-1 inline size-3.5 align-[-2px] text-muted-foreground"
-			/>
-		) : null;
-	const { Icon, ink, title } = HOST_MARK[state];
+	if (!host && !showLocal) return null;
+	const { Icon, ink, title } = host
+		? HOST_MARK[state]
+		: {
+				Icon: LuLaptop,
+				ink: "text-muted-foreground",
+				title: () => "On this computer",
+			};
+	// Odin's tooltip, not the browser's: that one took seconds to show.
 	return (
-		<Icon
-			title={title(host)}
-			className={cn("mr-1 inline size-3.5 align-[-2px]", ink)}
-		/>
+		<Tooltip delayDuration={150}>
+			<TooltipTrigger asChild>
+				<span className="mr-1 inline-flex align-[-2px]">
+					<Icon
+						aria-label={title(host ?? "")}
+						className={cn("size-3.5", ink)}
+					/>
+				</span>
+			</TooltipTrigger>
+			<TooltipContent side="bottom" className="max-w-[280px]">
+				{title(host ?? "")}
+			</TooltipContent>
+		</Tooltip>
 	);
 }
 
