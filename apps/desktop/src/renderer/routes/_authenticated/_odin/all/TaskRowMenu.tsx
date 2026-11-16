@@ -17,6 +17,7 @@ import {
 import { useNightAgentIntro } from "../board/NightAgentIntro";
 import { DROP_LABEL } from "../components/DropHint";
 import { useReminders } from "../components/Reminders";
+import { seriesOf, useMeetingActionItems } from "../hooks/meeting-action-items";
 import type { AllItem } from "./all-items";
 import { DropRuleMenu, WAITS } from "./DropRuleMenu";
 import type { TaskRows } from "./TaskTable";
@@ -87,6 +88,29 @@ export function TaskRowMenu({
 			</DropRuleMenu>
 			{nightIntro.dialog}
 		</>
+	);
+}
+
+/**
+ * A meeting you write action items after: when it ends, "Write action items"
+ * lands on top of Up next. Marks every occurrence of a recurring meeting.
+ */
+function ActionItemsToggle({ item }: { item: AllItem }) {
+	const meetingId = item.key.slice("meeting:".length);
+	const marked = useMeetingActionItems(
+		(s) => s.series[seriesOf(meetingId)] !== undefined,
+	);
+	return (
+		<ContextMenuItem
+			onSelect={() =>
+				useMeetingActionItems.getState().toggle(meetingId, item.title)
+			}
+			className={ITEM}
+		>
+			{marked
+				? "Stop adding action items after it"
+				: "Add a task to write action items after it"}
+		</ContextMenuItem>
 	);
 }
 
@@ -214,6 +238,7 @@ function RowItems({
 					)}
 				</ContextMenuSubContent>
 			</ContextMenuSub>
+			{item.source === "Calendar" && <ActionItemsToggle item={item} />}
 			<ContextMenuSeparator />
 			{canPickForTonight(item) && (
 				<ContextMenuItem
