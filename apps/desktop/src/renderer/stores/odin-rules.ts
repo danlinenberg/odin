@@ -166,19 +166,31 @@ const sh = (s: string) => `'${s.replaceAll("'", `'\\''`)}'`;
  * Null when no live rule is about PRs.
  */
 export function rulesSettings(rules: OdinRule[], checkout = ""): string | null {
-	const live = liveRules(rules, checkout).filter((r) => PR_RULE.test(r.when));
-	if (live.length === 0) return null;
-	const context = [PR_RULES_HEADER, ...live.map(ruleLine)].join("\n");
-	const output = JSON.stringify({
-		hookSpecificOutput: {
-			hookEventName: "PostToolUse",
-			additionalContext: context,
-		},
-	});
+	const output = rulesHookOutput(rules, checkout);
+	if (!output) return null;
 	const command = `grep -qE ${sh(PR_COMMAND)} && printf '%s' ${sh(output)}; exit 0`;
 	return JSON.stringify({
 		hooks: {
 			PostToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command }] }],
+		},
+	});
+}
+
+/**
+ * What the PR-rules hook prints - null when no live rule is about PRs. A
+ * remote session can't take a second --settings (the host's own hooks hold
+ * that flag), so it gets just this, and the host's hook prints it.
+ */
+export function rulesHookOutput(
+	rules: OdinRule[],
+	checkout = "",
+): string | null {
+	const live = liveRules(rules, checkout).filter((r) => PR_RULE.test(r.when));
+	if (live.length === 0) return null;
+	return JSON.stringify({
+		hookSpecificOutput: {
+			hookEventName: "PostToolUse",
+			additionalContext: [PR_RULES_HEADER, ...live.map(ruleLine)].join("\n"),
 		},
 	});
 }

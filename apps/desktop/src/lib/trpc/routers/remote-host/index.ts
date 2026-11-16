@@ -314,6 +314,7 @@ async function buildSessionSpec(
 		prompt: string | null;
 		odinPane?: string | null;
 		fresh?: boolean;
+		rules?: string | null;
 	},
 ): Promise<RemoteSessionSpec> {
 	const { repoPath, ...rest } = input;
@@ -1736,6 +1737,8 @@ export const createRemoteHostRouter = () =>
 					fresh: z.boolean().optional(),
 					/** The host the session runs on; unset for a new session (the current host). */
 					host: paneHost,
+					/** What the PR-rules hook prints (rulesHookOutput); null without PR rules. */
+					rules: z.string().nullable().optional(),
 				}),
 			)
 			.mutation(async ({ input }) => {
