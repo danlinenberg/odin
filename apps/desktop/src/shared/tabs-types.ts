@@ -1,3 +1,4 @@
+import type { SessionGroup } from "./session-group";
 import type { SessionPriority } from "./session-priority";
 /**
  * Shared types for tabs/panes used by both main and renderer processes.
@@ -180,6 +181,8 @@ export interface Pane {
 	odinStarred?: boolean;
 	/** High, Medium or Low from the card's right-click menu: sorts the card inside its section. */
 	odinPriority?: SessionPriority;
+	/** The session group it sits in, from the card's right-click menu: a named, coloured set of sessions, optionally with a leader. */
+	odinGroup?: SessionGroup;
 	/**
 	 * The generated tags have been applied to this card once. Set so a tag you
 	 * deleted stays deleted - without it, the next brief puts it straight back.

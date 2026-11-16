@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { appState } from "main/lib/app-state";
 import type { TabsState, ThemeState } from "main/lib/app-state/schemas";
 import { rememberCardTitles } from "main/lib/card-titles";
+import { GROUP_COLORS } from "shared/session-group";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 
@@ -89,6 +90,14 @@ export const paneSchema = z.object({
 	odinLocalWhy: z.string().optional(),
 	odinStarred: z.boolean().optional(),
 	odinPriority: z.enum(["high", "medium", "low"]).optional(),
+	odinGroup: z
+		.object({
+			name: z.string(),
+			color: z.enum(GROUP_COLORS),
+			leader: z.boolean().optional(),
+			notify: z.boolean().optional(),
+		})
+		.optional(),
 	odinAutoTagged: z.boolean().optional(),
 	odinAutoTitled: z.boolean().optional(),
 	odinParked: z.boolean().optional(),
