@@ -732,6 +732,9 @@ export function useLaunchTaskSession() {
 				? await utils.client.remoteHost.sessionCommand.mutate({
 						...remoteLaunch,
 						odinPane: paneId,
+						// The cluster host picked above. Without it the main process
+						// takes the main host: the card said one host, Claude ran on another.
+						host: remote,
 					})
 				: `cd ${quote(sessionCwd)} && ${claudeLaunch(title, claudeArgs, paneId)}`;
 			// Held back: the pane stays process-less and the command rides on it

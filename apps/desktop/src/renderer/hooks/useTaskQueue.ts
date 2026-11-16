@@ -204,6 +204,8 @@ async function spawnQueuedPane(client: TrpcClient, pane: Pane): Promise<void> {
 		? await client.remoteHost.sessionCommand.mutate({
 				...queued.remote,
 				odinPane: pane.id,
+				// The host the card was moved to, not the main one.
+				host: pane.odinRemote ?? null,
 			})
 		: queued.command;
 	await client.terminal.kill.mutate({ paneId: pane.id }).catch(() => {});
