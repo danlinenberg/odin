@@ -7350,6 +7350,8 @@ function DevBoardPage() {
 	const todayExperiment = useTodayOverview((s) => s.experiment);
 	const [todayShown, setTodayOpen] = useState(false);
 	const todayOpen = todayExperiment && todayShown;
+	// Columns layout: Today's header sits on top of the board's own columns.
+	const todayColumns = useTodayOverview((s) => s.layout === "columns");
 	const todayCards: TodayCard[] = [...cardsByStatus.values()]
 		.flat()
 		.map((card) => {
@@ -8370,7 +8372,7 @@ function DevBoardPage() {
 			<div
 				className={cn(
 					"flex min-h-0 flex-1 gap-3 overflow-x-auto px-[18px] pb-[18px] pt-1",
-					todayOpen && "hidden",
+					todayOpen && !todayColumns && "hidden",
 				)}
 			>
 				{COLUMNS.map((column) => {

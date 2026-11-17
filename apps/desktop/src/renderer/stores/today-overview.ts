@@ -23,12 +23,15 @@ export const useTodayOverview = create<{
 	dueOnly: boolean;
 	/** The "What we're working on" brief at the top is folded away. */
 	briefClosed: boolean;
+	/** Under the header: Today's detailed cards, or the board's columns. */
+	layout: "cards" | "columns";
 	setExperiment: (experiment: boolean) => void;
 	setEnabled: (enabled: boolean) => void;
 	markShown: (day: string) => void;
 	setHidden: (hidden: TodayGroup[]) => void;
 	setDueOnly: (dueOnly: boolean) => void;
 	setBriefClosed: (briefClosed: boolean) => void;
+	setLayout: (layout: "cards" | "columns") => void;
 }>()(
 	persist(
 		(set) => ({
@@ -38,12 +41,14 @@ export const useTodayOverview = create<{
 			hidden: [],
 			dueOnly: false,
 			briefClosed: false,
+			layout: "cards",
 			setExperiment: (experiment) => set({ experiment }),
 			setEnabled: (enabled) => set({ enabled }),
 			markShown: (day) => set({ lastShown: day }),
 			setHidden: (hidden) => set({ hidden }),
 			setDueOnly: (dueOnly) => set({ dueOnly }),
 			setBriefClosed: (briefClosed) => set({ briefClosed }),
+			setLayout: (layout) => set({ layout }),
 		}),
 		{ name: "odin-today-overview" },
 	),

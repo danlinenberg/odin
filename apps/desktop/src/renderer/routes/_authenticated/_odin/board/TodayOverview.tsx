@@ -176,6 +176,13 @@ export function TodayOverview({
 	const dueOnly = useTodayOverview((s) => s.dueOnly);
 	const setDueOnly = useTodayOverview((s) => s.setDueOnly);
 	const sections = todaySections(items, { hidden, dueOnly });
+	const layout = useTodayOverview((s) => s.layout);
+	const setLayout = useTodayOverview((s) => s.setLayout);
+	const columns = layout === "columns";
+	// Every session in page order, one bullet each, whatever the chips hide.
+	const bullets = todaySections(items, { hidden: [], dueOnly: false }).flatMap(
+		(section) => section.items,
+	);
 	const dueCount = items.filter((item) => !!item.due).length;
 	// The header stays pinned: its height keeps a jump's section, and the side
 	// column, below it.
@@ -258,7 +265,12 @@ export function TodayOverview({
 			aria-label="Today"
 			data-testid="today-overview"
 			style={{ "--today-head": `${headHeight}px` } as CSSProperties}
-			className="flex min-h-0 flex-1 flex-col overflow-y-auto px-[18px] pb-[18px]"
+			className={cn(
+				"flex min-h-0 flex-col overflow-y-auto px-[18px]",
+				// Columns: the header and its bullets on top, the board's columns
+				// below take the rest.
+				columns ? "max-h-[45vh] shrink-0" : "flex-1 pb-[18px]",
+			)}
 		>
 			<header
 				ref={head}
@@ -267,6 +279,27 @@ export function TodayOverview({
 				<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
 					<h1 className="text-[19px] font-semibold tracking-[-.2px]">Today</h1>
 					<span className="text-xs text-muted-foreground">{dateLine}</span>
+					<fieldset
+						aria-label="Today layout"
+						className="ml-auto inline-flex gap-1 border-0 p-0"
+					>
+						{(["cards", "columns"] as const).map((value) => (
+							<button
+								key={value}
+								type="button"
+								aria-pressed={layout === value}
+								title={
+									value === "cards"
+										? "Show each session as a detailed card"
+										: "Show the board's columns under the summary"
+								}
+								onClick={() => setLayout(value)}
+								className={cn(CHIP, layout === value ? CHIP_ON : CHIP_OFF)}
+							>
+								{value === "cards" ? "Cards" : "Columns"}
+							</button>
+						))}
+					</fieldset>
 					<button
 						type="button"
 						title="Write the plain-words lines again from the sessions' newest briefs"
@@ -275,7 +308,7 @@ export function TodayOverview({
 						className={cn(
 							BTN,
 							BUTTON.secondary,
-							"ml-auto inline-flex items-center gap-1.5 disabled:opacity-50",
+							"inline-flex items-center gap-1.5 disabled:opacity-50",
 						)}
 					>
 						<LuRefreshCw
@@ -294,7 +327,26 @@ export function TodayOverview({
 						</span>
 					)}
 				</div>
-				<div className="flex flex-wrap gap-1.5">
+				{bullets.length > 0 && (
+					<ul className="select-text list-disc space-y-0.5 pl-5 text-[13px] leading-snug">
+						{bullets.map((item) => (
+							<li key={item.key}>
+								<button
+									type="button"
+									onClick={() => onOpen(item.key)}
+									className="font-semibold hover:underline"
+								>
+									{item.title}
+								</button>
+								<span className="text-muted-foreground">
+									{" - "}
+									{data?.lines[item.key] ?? plainLine(item.status)}
+								</span>
+							</li>
+						))}
+					</ul>
+				)}
+				<div className={cn("flex flex-wrap gap-1.5", columns && "hidden")}>
 					{sections.map(({ group: id, count, hidden: off }) => {
 						const { Icon, tone } = GROUP_ICON[id];
 						const label = todayGroupLabel(id);
@@ -358,7 +410,12 @@ export function TodayOverview({
 					)}
 				</section>
 			)}
-			<div className="flex min-w-0 flex-col gap-5 lg:flex-row lg:items-start">
+			<div
+				className={cn(
+					"flex min-w-0 flex-col gap-5 lg:flex-row lg:items-start",
+					columns && "hidden",
+				)}
+			>
 				<div className="flex min-w-0 flex-1 flex-col gap-5">
 					{TODAY_GROUPS.map(({ id, label, hint }) => {
 						const section = sections.find((g) => g.group === id);
@@ -425,7 +482,12 @@ export function TodayOverview({
 				</div>
 				<TodaySideColumn side={side} onOpen={onOpen} />
 			</div>
-			<label className="mt-6 flex items-center gap-2 border-t pt-2 text-[11.5px] text-muted-foreground">
+			<label
+				className={cn(
+					"mt-6 flex items-center gap-2 border-t pt-2 text-[11.5px] text-muted-foreground",
+					columns && "hidden",
+				)}
+			>
 				<input
 					type="checkbox"
 					checked={enabled}
