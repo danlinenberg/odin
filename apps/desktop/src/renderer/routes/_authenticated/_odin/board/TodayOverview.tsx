@@ -216,6 +216,8 @@ export function TodayOverview({
 				placeholderData: (previous) => previous,
 			},
 		);
+	const briefClosed = useTodayOverview((s) => s.briefClosed);
+	const setBriefClosed = useTodayOverview((s) => s.setBriefClosed);
 	const side = useTodaySide();
 	const enabled = useTodayOverview((s) => s.enabled);
 	const setEnabled = useTodayOverview((s) => s.setEnabled);
@@ -326,6 +328,36 @@ export function TodayOverview({
 					</button>
 				</div>
 			</header>
+			{!!data?.brief.length && (
+				<section
+					aria-label="What we're working on"
+					className="mb-4 rounded-xl border border-border bg-card/60 px-3.5 py-2.5"
+				>
+					<button
+						type="button"
+						aria-expanded={!briefClosed}
+						title={briefClosed ? "Show the brief" : "Hide the brief"}
+						onClick={() => setBriefClosed(!briefClosed)}
+						className="flex w-full items-center gap-2 text-left"
+					>
+						{briefClosed ? (
+							<LuChevronRight className="size-3.5 text-muted-foreground" />
+						) : (
+							<LuChevronDown className="size-3.5 text-muted-foreground" />
+						)}
+						<h2 className="text-[13.5px] font-semibold">
+							What we're working on
+						</h2>
+					</button>
+					{!briefClosed && (
+						<ul className="mt-1.5 list-disc select-text cursor-text space-y-0.5 pl-9 text-[13px] leading-relaxed text-soft-foreground">
+							{data.brief.map((line) => (
+								<li key={line}>{line}</li>
+							))}
+						</ul>
+					)}
+				</section>
+			)}
 			<div className="flex min-w-0 flex-col gap-5 lg:flex-row lg:items-start">
 				<div className="flex min-w-0 flex-1 flex-col gap-5">
 					{TODAY_GROUPS.map(({ id, label, hint }) => {
@@ -376,6 +408,7 @@ export function TodayOverview({
 													item={item}
 													card={card}
 													line={data?.lines[item.key] ?? plainLine(item.status)}
+													about={data?.about[item.key] ?? null}
 													now={now}
 													selected={selectedKey === item.key}
 													onSelect={() => setSelected(order.indexOf(item.key))}
@@ -417,7 +450,7 @@ const EMPTY: Record<TodayGroup, string> = {
 };
 
 /**
- * One session as a card: what it is in a sentence, where it runs and its PRs
+ * One session as a card: what it is and why, where it stands, where it runs and its PRs
  * (the board's own pills), its marks, the buttons to move it, and a reply
  * box. A Needs you card also lists the session's open action items with the
  * same buttons the chat view gives them.
@@ -426,6 +459,7 @@ function TodayRow({
 	item,
 	card,
 	line,
+	about,
 	now,
 	selected,
 	onSelect,
@@ -435,6 +469,8 @@ function TodayRow({
 	item: TodayItem;
 	card: TodayCard;
 	line: string;
+	/** What the work is and why, in plain words. */
+	about: string | null;
 	now: number;
 	selected: boolean;
 	onSelect: () => void;
@@ -470,6 +506,11 @@ function TodayRow({
 						{item.starred && <span className="mr-1 text-attention">★</span>}
 						{item.title}
 					</button>
+					{about && (
+						<div className="select-text cursor-text text-[12.5px] leading-relaxed text-muted-foreground">
+							{about}
+						</div>
+					)}
 					{line && (
 						<div className="select-text cursor-text text-[13px] leading-relaxed text-soft-foreground">
 							{line}

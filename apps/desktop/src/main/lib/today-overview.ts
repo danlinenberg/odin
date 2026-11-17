@@ -30,22 +30,29 @@ export interface TodayItem {
 export interface TodayLines {
 	/** One or two sentences over the whole list. Null when the model gave none. */
 	summary: string | null;
-	/** key -> its one plain line. Missing when the model skipped it. */
+	/** A few plain sentences on what the work is about, grouped by theme. */
+	brief: string[];
+	/** key -> where it stands. Missing when the model skipped it. */
 	lines: Record<string, string>;
+	/** key -> what the work is and why, for someone who never saw it. */
+	about: Record<string, string>;
 }
 
 const INSTRUCTIONS = `You write a short morning overview of someone's open work, in plain language, for a busy person reading it over coffee.
 Each numbered piece of work below is: number | where it stands | due | priority | waiting on | title | goal | status | next step.
 Reply with ONLY these lines, no markdown, no preamble:
 SUMMARY: <one or two short sentences over all of it: how much is open, what needs them first, any deadline>
-<number>: <one plain sentence for that piece of work: what it is, where it stands and roughly how much is left>
-Write one numbered line for every piece of work.
+BRIEF: <one plain sentence on one thing they are working on, grouping related pieces of work>
+(two to five BRIEF lines, the biggest themes first)
+<number>: <one plain sentence for that piece of work: where it stands and roughly how much is left>
+ABOUT <number>: <one plain sentence explaining what that piece of work is and why it matters, for someone who never saw it>
+Write one numbered line and one ABOUT line for every piece of work.
 
 Rules:
 - Always answer in English.
 - No PR numbers, ticket keys, issue numbers, commit hashes, branch names, file paths or URLs. Say "the pull request" or "the ticket" instead.
 - Say what the work is about in everyday words, not code names.
-- Under 140 characters per numbered line.`;
+- Under 140 characters per numbered, ABOUT or BRIEF line.`;
 
 const clean = (text: string | null | undefined, cap: number) =>
 	(text ?? "").replace(/\s+/g, " ").replace(/\|/g, "/").trim().slice(0, cap) ||
@@ -77,6 +84,8 @@ export function todayLine(
 /** The model's answer back into a summary and a line per key. */
 export function parseTodayLines(text: string, keys: string[]): TodayLines {
 	const lines: Record<string, string> = {};
+	const about: Record<string, string> = {};
+	const brief: string[] = [];
 	let summary: string | null = null;
 	for (const raw of text.split("\n")) {
 		const row = raw.replace(/^[\s*-]+/, "").trim();
@@ -85,12 +94,18 @@ export function parseTodayLines(text: string, keys: string[]): TodayLines {
 			summary = said[1].trim() || null;
 			continue;
 		}
-		const numbered = /^(\d+)\s*[:.)]\s*(.+)$/.exec(row);
+		const theme = /^brief\**\s*:\s*(.+)$/i.exec(row);
+		if (theme) {
+			brief.push(theme[1].trim());
+			continue;
+		}
+		const numbered = /^(about\s+)?(\d+)\s*[:.)]\s*(.+)$/i.exec(row);
 		if (!numbered) continue;
-		const key = keys[Number(numbered[1]) - 1];
-		if (key && !(key in lines)) lines[key] = numbered[2].trim();
+		const into = numbered[1] ? about : lines;
+		const key = keys[Number(numbered[2]) - 1];
+		if (key && !(key in into)) into[key] = numbered[3].trim();
 	}
-	return { summary, lines };
+	return { summary, brief, lines, about };
 }
 
 const cache = new Map<string, TodayLines>();
@@ -104,7 +119,7 @@ export async function writeTodayLines(
 		fresh = false,
 	}: { claudeBin?: string; timeoutMs?: number; fresh?: boolean } = {},
 ): Promise<TodayLines> {
-	if (!items.length) return { summary: null, lines: {} };
+	if (!items.length) return { summary: null, brief: [], lines: {}, about: {} };
 	const briefs = await cachedBriefs().catch(() => new Map());
 	const body = items
 		.map((item, i) =>
