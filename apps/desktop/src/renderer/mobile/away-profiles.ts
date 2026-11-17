@@ -9,6 +9,8 @@ export type PhoneProfile = {
 	id: string;
 	name: string;
 	hostLink?: string | null;
+	/** The profile's other hosts in the cluster: the phone asks them beside it. */
+	clusterLinks?: string[];
 };
 export type KnownProfiles = { activeId: string; profiles: PhoneProfile[] };
 
@@ -35,10 +37,11 @@ export function rememberProfiles(store: Store, answer: KnownProfiles): void {
 		PROFILES_KEY,
 		JSON.stringify({
 			activeId: answer.activeId,
-			profiles: answer.profiles.map(({ id, name, hostLink }) => ({
+			profiles: answer.profiles.map(({ id, name, hostLink, clusterLinks }) => ({
 				id,
 				name,
 				hostLink: hostLink ?? null,
+				clusterLinks: clusterLinks ?? [],
 			})),
 		}),
 	);
@@ -70,6 +73,16 @@ export function awayLinkOf(store: Store, id: string): string | null {
 /** The remote host's link to ask right now, with the Mac away. */
 export const awayLink = (store: Store): string | null =>
 	awayLinkOf(store, awayProfileId(store));
+
+/** The away profile's other cluster hosts, asked beside its link (none without one). */
+export function awayClusterLinks(store: Store): string[] {
+	const id = awayProfileId(store);
+	if (!awayLinkOf(store, id)) return [];
+	return (
+		knownProfiles(store).profiles.find((profile) => profile.id === id)
+			?.clusterLinks ?? []
+	);
+}
 
 /** A host refused this phone: its link is forgotten; the Mac sends it again once it's back. */
 export function forgetAwayLink(store: Store): void {

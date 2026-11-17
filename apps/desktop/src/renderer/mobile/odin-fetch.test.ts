@@ -182,3 +182,52 @@ test("the host is read at each request: another profile's host answers after a s
 	picked = "personal";
 	expect(await (await fetch("/trpc/board")).text()).toBe("personal");
 });
+
+test("a cluster: the board lists every host's sessions, and each session's calls go to its host", async () => {
+	const superjson = (await import("superjson")).default;
+	const { clusterFetch } = await import("./odin-fetch");
+	const calls: string[] = [];
+	const host =
+		(name: string, panes: string[]) => async (input: RequestInfo | URL) => {
+			calls.push(`${name} ${String(input)}`);
+			const path = String(input);
+			if (!path.includes("board")) return ok(name);
+			const data = superjson.serialize({
+				sessions: panes.map((paneId) => ({ paneId, night: undefined })),
+				backlog: [{ id: `${name}-task` }],
+			});
+			const result = { result: { data } };
+			return new Response(
+				JSON.stringify(path.includes("batch=1") ? [{}, result] : result),
+				{ status: 200 },
+			);
+		};
+	const down = async () => {
+		throw new Unreachable("down");
+	};
+	const fetch = clusterFetch(host("main", ["p1"]), [host("two", ["p2"]), down]);
+	const answer = await (await fetch("/trpc/profiles,board?batch=1")).json();
+	const board = superjson.deserialize<{
+		sessions: { paneId: string }[];
+		backlog: { id: string }[];
+	}>(answer[1].result.data);
+	expect(board.sessions.map((s) => s.paneId)).toEqual(["p1", "p2"]);
+	// The backlog is the main host's alone.
+	expect(board.backlog).toEqual([{ id: "main-task" }]);
+	calls.length = 0;
+	const input = encodeURIComponent(JSON.stringify({ json: { paneId: "p2" } }));
+	expect(await (await fetch(`/trpc/session?input=${input}`)).text()).toBe(
+		"two",
+	);
+	expect(
+		await (
+			await fetch("/trpc/reply", {
+				method: "POST",
+				body: JSON.stringify({ json: { paneId: "p1", text: "hi" } }),
+			})
+		).text(),
+	).toBe("main");
+	expect(await (await fetch("/upload?ext=png&pane=p2")).text()).toBe("two");
+	expect(await (await fetch("/trpc/add")).text()).toBe("main");
+	expect(calls.every((call) => !call.includes("board"))).toBe(true);
+});

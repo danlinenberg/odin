@@ -46,6 +46,7 @@ import {
 	useUploads,
 } from "./attach";
 import {
+	awayClusterLinks,
 	awayLink,
 	awayLinkOf,
 	awayProfileId,
@@ -73,6 +74,7 @@ import { NATIVE_API } from "./native-api";
 import { NightPage } from "./night";
 import {
 	channelFetch,
+	clusterFetch,
 	hostOnlyFetch,
 	type OdinFetch,
 	routedFetch,
@@ -166,20 +168,37 @@ function resetPairing() {
 const forgetHostPairing = () => forgetAwayLink(localStorage);
 
 const hostFetches = new Map<string, OdinFetch>();
-/**
- * The remote host that answers with the Mac away: the one of the profile
- * picked on the phone, else of the profile the Mac was last in. Null with no
- * host to ask.
- */
-function awayHost(): OdinFetch | null {
-	const link = awayLink(localStorage);
-	if (!link) return null;
+/** One remote host's channel, by its link; null for a link that doesn't parse. */
+function hostFetch(link: string): OdinFetch | null {
 	let fetch = hostFetches.get(link);
 	if (!fetch) {
 		const pairing = parsePairLink(link);
 		if (!pairing) return null;
 		fetch = channelFetch(pairing);
 		hostFetches.set(link, fetch);
+	}
+	return fetch;
+}
+
+const clusterFetches = new Map<string, OdinFetch>();
+/**
+ * The remote host that answers with the Mac away: the one of the profile
+ * picked on the phone, else of the profile the Mac was last in, with the
+ * other hosts of its cluster beside it (clusterFetch). Null with no host to ask.
+ */
+function awayHost(): OdinFetch | null {
+	const link = awayLink(localStorage);
+	const main = link ? hostFetch(link) : null;
+	if (!link || !main) return null;
+	const others = awayClusterLinks(localStorage).filter((l) => l !== link);
+	const key = [link, ...others].join(" ");
+	let fetch = clusterFetches.get(key);
+	if (!fetch) {
+		fetch = clusterFetch(
+			main,
+			others.flatMap((l) => hostFetch(l) ?? []),
+		);
+		clusterFetches.set(key, fetch);
 	}
 	return fetch;
 }
@@ -1241,7 +1260,7 @@ function Session({ paneId }: { paneId: string }) {
 			else draftByPane.delete(paneId);
 			return value;
 		});
-	const uploads = useUploads(odinFetch);
+	const uploads = useUploads(odinFetch, paneId);
 	useSharedFiles(uploads.add);
 	const speech = useSpeech((words) =>
 		setText((typed) => appendWords(typed, words)),

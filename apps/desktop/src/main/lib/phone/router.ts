@@ -47,7 +47,7 @@ import { z } from "zod";
 import { typedText } from "../../../shared/typed-text";
 import { attachments } from "./attachments";
 import { forSession } from "./host-files";
-import { hostLinkFor } from "./host-link";
+import { hostLinkFor, hostLinksFor } from "./host-link";
 import { namedMessages } from "./mention-names";
 import { readableTitle, readableTitles } from "./readable-title";
 import { readScreens } from "./screens";
@@ -837,15 +837,25 @@ export const phoneRouter = t.router({
 	/**
 	 * Odin's profiles, and the one it's in. Each with its remote host's link
 	 * (hostLink above), which the phone keeps: with the Mac away it switches
-	 * to a profile that has one, and greys out the rest.
+	 * to a profile that has one, and greys out the rest. `clusterLinks` are
+	 * the profile's other cluster hosts, which the phone asks beside it.
 	 */
 	profiles: t.procedure.query(() => ({
 		activeId: activeProfileId(),
-		profiles: listProfiles().map(({ id, name }) => ({
-			id,
-			name,
-			hostLink: hostLinkFor(readProfileConfig(id).remoteHost?.instanceId, id),
-		})),
+		profiles: listProfiles().map(({ id, name }) => {
+			const config = readProfileConfig(id);
+			return {
+				id,
+				name,
+				hostLink: hostLinkFor(config.remoteHost?.instanceId, id),
+				clusterLinks: config.remoteHost
+					? hostLinksFor(
+							(config.clusterHosts ?? []).map((host) => host.instanceId),
+							id,
+						)
+					: [],
+			};
+		}),
 	})),
 
 	/** Switches Odin's profile, as the desktop's profile menu does. */

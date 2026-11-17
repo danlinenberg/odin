@@ -2,7 +2,12 @@ import { expect, test } from "bun:test";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { hostLinkFile, hostLinkFor, saveHostLink } from "./host-link";
+import {
+	hostLinkFile,
+	hostLinkFor,
+	hostLinksFor,
+	saveHostLink,
+} from "./host-link";
 
 hostLinkFile.path = join(
 	mkdtempSync(join(tmpdir(), "odin-host-link-")),
@@ -27,4 +32,16 @@ test("a file from before links were kept per profile stands for its host", () =>
 	);
 	expect(hostLinkFor("i-1", "work")).toBe("odin://pair?k=old");
 	expect(hostLinkFor("i-2", "work")).toBeNull();
+});
+
+test("each host in a cluster keeps its own link, whichever synced last", () => {
+	saveHostLink("i-main", "odin://pair?k=main", "work");
+	saveHostLink("i-2", "odin://pair?k=two", "work");
+	saveHostLink("i-3", "odin://pair?k=three", "work");
+	expect(hostLinkFor("i-main", "work")).toBe("odin://pair?k=main");
+	expect(hostLinksFor(["i-2", "i-gone", "i-3"], "work")).toEqual([
+		"odin://pair?k=two",
+		"odin://pair?k=three",
+	]);
+	expect(hostLinksFor(["i-2"], "personal")).toEqual([]);
 });
