@@ -41,7 +41,7 @@ export interface TodayLines {
 const INSTRUCTIONS = `You write a short morning overview of someone's open work, in plain language, for a busy person reading it over coffee.
 Each numbered piece of work below is: number | where it stands | due | priority | waiting on | title | goal | status | next step.
 Reply with ONLY these lines, no markdown, no preamble:
-SUMMARY: <one or two short sentences over all of it: how much is open, what needs them first, any deadline>
+SUMMARY: <one short sentence over all of it: what needs them first and any deadline. Each piece of work gets its own line below, so do not list them here>
 BRIEF: <one plain sentence on one thing they are working on, grouping related pieces of work>
 (two to five BRIEF lines, the biggest themes first)
 <number>: <one plain sentence for that piece of work: where it stands and roughly how much is left>
