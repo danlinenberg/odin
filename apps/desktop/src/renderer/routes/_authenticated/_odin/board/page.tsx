@@ -36,6 +36,7 @@ import {
 	LuBellPlus,
 	LuBellRing,
 	LuBookOpen,
+	LuCalendarPlus,
 	LuChevronDown,
 	LuChevronLeft,
 	LuChevronRight,
@@ -204,6 +205,7 @@ import { BUTTON, PILL } from "../components/pill";
 import {
 	DueChip,
 	dayOf,
+	dueLabel,
 	OverdueMark,
 	useReminders,
 } from "../components/Reminders";
@@ -2287,9 +2289,69 @@ function GroupSection({
 	);
 }
 
+/**
+ * The card's due date from its right-click menu - the card's own Due chip only
+ * shows on hover. Same store as the chip, so it shows there and pings the same.
+ */
+function DueMenuItem({
+	itemKey,
+	title,
+	onDone,
+}: {
+	itemKey: string;
+	title: string;
+	onDone: () => void;
+}) {
+	const due = useReminders((s) => s.reminders[itemKey]?.due);
+	const setDue = useReminders((s) => s.setDue);
+	const clear = useReminders((s) => s.clear);
+	const input = useRef<HTMLInputElement>(null);
+	return (
+		<span className="relative flex w-full items-center">
+			<input
+				ref={input}
+				type="date"
+				value={due ?? ""}
+				onChange={(e) => {
+					if (e.target.value) setDue(itemKey, e.target.value, title);
+					else clear(itemKey);
+					onDone();
+				}}
+				tabIndex={-1}
+				aria-hidden
+				style={{ colorScheme: "dark" }}
+				className="pointer-events-none absolute inset-0 size-full opacity-0"
+			/>
+			<button
+				type="button"
+				onClick={() => input.current?.showPicker()}
+				className="flex flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-attention"
+			>
+				<LuCalendarPlus className="size-3" aria-hidden />
+				{due ? `Due ${dueLabel(due, Date.now())}…` : "Due date…"}
+			</button>
+			{due && (
+				<button
+					type="button"
+					title="Drop the due date"
+					onClick={() => {
+						clear(itemKey);
+						onDone();
+					}}
+					className="px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+				>
+					✕
+				</button>
+			)}
+		</span>
+	);
+}
+
 function TagMenu({
 	x,
 	y,
+	dueKey,
+	dueTitle,
 	tags,
 	allTags,
 	customTags,
@@ -2328,6 +2390,9 @@ function TagMenu({
 }: {
 	x: number;
 	y: number;
+	/** The card's due-date key (`session:<paneId>`), the same one its Due chip uses. */
+	dueKey: string;
+	dueTitle: string;
 	tags: string[];
 	allTags: string[];
 	customTags: string[];
@@ -2519,6 +2584,7 @@ function TagMenu({
 					}}
 					className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-attention"
 				/>
+				<DueMenuItem itemKey={dueKey} title={dueTitle} onDone={onClose} />
 				{(watching || !!watchWhat) && (
 					<button
 						type="button"
@@ -8211,6 +8277,8 @@ function DevBoardPage() {
 							? () => void openOnHostInVsCode(tagMenuCard)
 							: undefined
 					}
+					dueKey={`session:${tagMenu.paneId}`}
+					dueTitle={tagMenuCard ? cardTitle(tagMenuCard) : "Session"}
 					onRemind={(day) => tagMenuCard && remindMe(tagMenuCard, day)}
 					// Ping me's own watches: a "Ping me when..." isn't Ping me being on.
 					watching={Object.entries(watches).some(
