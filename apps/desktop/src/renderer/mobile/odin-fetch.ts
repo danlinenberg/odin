@@ -7,6 +7,7 @@ import {
 	relayId,
 	websocketPipe,
 } from "@odin/channel";
+import superjson from "superjson";
 import { setConnectStep } from "./connect-step";
 import type { Pairing } from "./pair-link";
 
@@ -459,5 +460,99 @@ export function hostOnlyFetch(host: OdinFetch): OdinFetch {
 				"This needs Odin on your Mac: this phone is paired with the remote host only.",
 			);
 		return host(input, init);
+	};
+}
+
+/** The session a request is about: an upload's `pane`, or the first paneId in its input. */
+async function paneOf(url: URL, init?: RequestInit): Promise<string | null> {
+	const pane = url.searchParams.get("pane");
+	if (pane) return pane;
+	const text =
+		url.searchParams.get("input") ??
+		(typeof init?.body === "string" ? init.body : "");
+	const match = text.match(/"paneId":("(?:[^"\\]|\\.)*")/);
+	try {
+		return match ? (JSON.parse(match[1] as string) as string) : null;
+	} catch {
+		return null;
+	}
+}
+
+type HostBoard = { sessions: { paneId: string }[] };
+
+/** How long the hosts' last boards say where sessions run, before an unknown one asks again. */
+const LEARN_MS = 10_000;
+
+/**
+ * With the Mac away and a cluster of remote hosts: each host's phone server
+ * knows only the sessions on it. The board asks every host and lists all
+ * their sessions; a call about one session, or an upload for it, goes to the
+ * host it runs on. The rest (the backlog, a new task) is the main host's. A
+ * cluster host that doesn't answer leaves its sessions off the board.
+ */
+export function clusterFetch(main: OdinFetch, others: OdinFetch[]): OdinFetch {
+	if (!others.length) return main;
+	const owner = new Map<string, OdinFetch>();
+	let learnedAt = 0;
+	const othersSessions = async () => {
+		const boards = await Promise.allSettled(
+			others.map(async (to) => {
+				const answer = await to("/trpc/board");
+				if (!answer.ok) throw new Error(`board ${answer.status}`);
+				const body = await answer.json();
+				return {
+					to,
+					board: superjson.deserialize<HostBoard>(body.result.data),
+				};
+			}),
+		);
+		learnedAt = Date.now();
+		return boards.flatMap((each) =>
+			each.status === "fulfilled"
+				? each.value.board.sessions.map((session) => {
+						owner.set(session.paneId, each.value.to);
+						return session;
+					})
+				: [],
+		);
+	};
+	return async (input, init) => {
+		const url = new URL(
+			input instanceof Request ? input.url : input,
+			"http://odin",
+		);
+		const boardAt = (procedures(url.pathname) ?? []).indexOf("board");
+		if (boardAt >= 0) {
+			const [answer, extra] = await Promise.all([
+				main(input, init),
+				othersSessions(),
+			]);
+			if (!answer.ok || !extra.length) return answer;
+			const body = await answer.json();
+			const entry = Array.isArray(body) ? body[boardAt] : body;
+			if (entry?.result?.data) {
+				const board = superjson.deserialize<HostBoard>(entry.result.data);
+				for (const session of board.sessions) owner.set(session.paneId, main);
+				const seen = new Set(board.sessions.map((session) => session.paneId));
+				board.sessions.push(...extra.filter((s) => !seen.has(s.paneId)));
+				entry.result.data = superjson.serialize(board);
+			}
+			return new Response(JSON.stringify(body), {
+				status: answer.status,
+				headers: answer.headers,
+			});
+		}
+		const paneId = await paneOf(url, init);
+		if (!paneId) return main(input, init);
+		if (!owner.has(paneId) && Date.now() - learnedAt > LEARN_MS)
+			await othersSessions();
+		const to = owner.get(paneId) ?? main;
+		const answer = await to(input, init);
+		// Not the main host refusing: its link stays.
+		if (answer.status === 401 && to !== main)
+			throw new Unreachable(
+				"Your Mac is away, and the remote host this session runs on doesn't know this phone yet. Open Odin on the Mac once.",
+			);
+		return answer;
 	};
 }

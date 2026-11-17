@@ -36,19 +36,26 @@ const extensionOf = (file: File) =>
 		"bin"
 	).toLowerCase();
 
-/** `send` is the app's fetch to Odin (main.tsx). */
-export function useUploads(send: OdinFetch) {
+/**
+ * `send` is the app's fetch to Odin (main.tsx). `paneId` names the session
+ * the files are for, so with the Mac away they go to the cluster host it
+ * runs on (clusterFetch).
+ */
+export function useUploads(send: OdinFetch, paneId?: string) {
 	const [files, setFiles] = useState<Upload[]>([]);
 	const update = (id: number, patch: Partial<Upload>) =>
 		setFiles((all) => all.map((f) => (f.id === id ? { ...f, ...patch } : f)));
 
 	async function upload(file: File, id: number) {
 		try {
-			const reply = await send(`/upload?ext=${extensionOf(file)}`, {
-				method: "POST",
-				headers: { "content-type": file.type || "application/octet-stream" },
-				body: file,
-			});
+			const reply = await send(
+				`/upload?ext=${extensionOf(file)}${paneId ? `&pane=${encodeURIComponent(paneId)}` : ""}`,
+				{
+					method: "POST",
+					headers: { "content-type": file.type || "application/octet-stream" },
+					body: file,
+				},
+			);
 			if (!reply.ok) throw new Error(`Upload failed (${reply.status})`);
 			const { path } = (await reply.json()) as { path: string };
 			update(id, { path });

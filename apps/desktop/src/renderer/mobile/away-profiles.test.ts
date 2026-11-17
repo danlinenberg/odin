@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+	awayClusterLinks,
 	awayLink,
 	awayLinkOf,
 	awayProfileId,
@@ -65,4 +66,24 @@ test("a host that refused the phone: its link goes, the other profiles' stay", (
 	expect(awayLinkOf(s, "personal")).toBeNull();
 	expect(awayProfileId(s)).toBe("work");
 	expect(awayLink(s)).toBe("odin://pair?k=work");
+});
+
+test("the away profile's cluster hosts are asked beside its link", () => {
+	const s = store();
+	rememberProfiles(s, {
+		activeId: "work",
+		profiles: [
+			{
+				id: "work",
+				name: "Work",
+				hostLink: "odin://pair?k=work",
+				clusterLinks: ["odin://pair?k=two"],
+			},
+			{ id: "side", name: "Side", hostLink: null, clusterLinks: ["x"] },
+		],
+	});
+	expect(awayClusterLinks(s)).toEqual(["odin://pair?k=two"]);
+	// No main host link: nothing on a host, cluster or not.
+	pickAwayProfile(s, "side");
+	expect(awayClusterLinks(s)).toEqual([]);
 });

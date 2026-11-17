@@ -9,6 +9,8 @@ import { ODIN_HOME_DIR } from "../app-environment";
  * each sync and hands it to its phones, so one QR code covers both. Each
  * profile has its own user on the host, so its own server and link: kept per
  * profile, for the phone to switch between them with this computer away.
+ * Each host in the cluster runs its own server too, so a profile keeps one
+ * link per host: the phone asks them all for their sessions.
  */
 
 /** Where it is kept; a test points it at a temp file. */
@@ -17,8 +19,14 @@ export const hostLinkFile = {
 };
 
 type Saved = { instanceId: string; link: string };
-/** The last link read, as older Odins kept it, and each profile's own. */
-type SavedFile = Partial<Saved> & { profiles?: Record<string, Saved> };
+/**
+ * The last link read, as older Odins kept it, each profile's last, and each
+ * profile's link per host (instance id).
+ */
+type SavedFile = Partial<Saved> & {
+	profiles?: Record<string, Saved>;
+	hosts?: Record<string, Record<string, string>>;
+};
 
 function readSaved(): SavedFile {
 	try {
@@ -34,10 +42,15 @@ export function saveHostLink(
 	link: string,
 	profileId: string,
 ): void {
+	const file = readSaved();
 	const saved: SavedFile = {
 		instanceId,
 		link,
-		profiles: { ...readSaved().profiles, [profileId]: { instanceId, link } },
+		profiles: { ...file.profiles, [profileId]: { instanceId, link } },
+		hosts: {
+			...file.hosts,
+			[profileId]: { ...file.hosts?.[profileId], [instanceId]: link },
+		},
 	};
 	writeFileSync(hostLinkFile.path, JSON.stringify(saved), { mode: 0o600 });
 }
@@ -53,10 +66,23 @@ export function hostLinkFor(
 ): string | null {
 	if (!instanceId) return null;
 	const file = readSaved();
+	const own = file.hosts?.[profileId]?.[instanceId];
+	if (own?.startsWith("odin://pair?")) return own;
 	const saved = file.profiles ? file.profiles[profileId] : file;
 	return saved?.instanceId === instanceId &&
 		typeof saved.link === "string" &&
 		saved.link.startsWith("odin://pair?")
 		? saved.link
 		: null;
+}
+
+/** The links for these hosts (a cluster's), skipping ones Odin hasn't read yet. */
+export function hostLinksFor(
+	instanceIds: (string | undefined)[],
+	profileId: string,
+): string[] {
+	return instanceIds.flatMap((id) => {
+		const link = hostLinkFor(id, profileId);
+		return link ? [link] : [];
+	});
 }
