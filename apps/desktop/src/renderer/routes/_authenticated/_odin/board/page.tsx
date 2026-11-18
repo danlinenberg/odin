@@ -274,6 +274,7 @@ import {
 	ChatView,
 	CLAUDE_SIGNED_IN_EVENT,
 	CLAUDE_SIGNED_IN_RETRY,
+	type ClaudeSignedIn,
 	filedUnder,
 	hostDeps,
 	interruptClaude,
@@ -6898,18 +6899,21 @@ function DevBoardPage() {
 		}
 	}, [cardsByStatus, agentPaneIds]);
 
-	// A Claude sign-in on the host is shared by every host session, so once
-	// one session's Sign in to Claude succeeds, the others whose last reply is
-	// "Not logged in" restart and retry too, without a click each.
+	// A Claude sign-in is shared by every session on its side (the host, or
+	// this computer), so once one succeeds, the sessions there whose last reply
+	// is "Not logged in" restart and retry, without a click each.
 	const cardsByStatusRef = useRef(cardsByStatus);
 	cardsByStatusRef.current = cardsByStatus;
 	useEffect(() => {
 		const onSignedIn = (event: Event) => {
-			const done = (event as CustomEvent<string>).detail;
+			const { remote, pane } = (event as CustomEvent<ClaudeSignedIn>).detail;
 			const cards = [...cardsByStatusRef.current.values()]
 				.flat()
 				.filter(
-					(c) => c.pane.odinRemote && !c.pane.odinQueued && c.pane.id !== done,
+					(c) =>
+						!!c.pane.odinRemote === remote &&
+						!c.pane.odinQueued &&
+						c.pane.id !== pane,
 				);
 			void (async () => {
 				for (const card of cards) {

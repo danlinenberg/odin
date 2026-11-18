@@ -4,6 +4,17 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useClaudeCommand } from "renderer/stores/claude-command";
 
 /**
+ * Fired on window after a Claude sign-in, on the host or on this computer.
+ * Every session on that side shares the sign-in, so the board restarts each
+ * one stuck on "Not logged in". `pane` already restarts itself.
+ */
+export const CLAUDE_SIGNED_IN_EVENT = "odin:claude-signed-in";
+export type ClaudeSignedIn = { remote: boolean; pane?: string };
+export function announceClaudeSignedIn(detail: ClaudeSignedIn): void {
+	window.dispatchEvent(new CustomEvent(CLAUDE_SIGNED_IN_EVENT, { detail }));
+}
+
+/**
  * A strip under the top bar while Claude Code says nobody is signed in on this
  * Mac - the one step between installing Odin and starting a session, for
  * someone who has never opened a terminal. Sign in runs `claude auth login`:
@@ -91,7 +102,11 @@ export function useClaudeSignIn(enabled = true) {
 	const login = electronTrpc.system.claudeLogin.useMutation({
 		onSettled: async (data) => {
 			const fresh = await status.refetch();
-			if (data?.ok) setSignedInAs(fresh.data?.identity ?? "");
+			if (!data?.ok) return;
+			setSignedInAs(fresh.data?.identity ?? "");
+			// Every session on this computer shares the sign-in: the board
+			// restarts the ones stuck on Not logged in.
+			announceClaudeSignedIn({ remote: false });
 		},
 	});
 	useEffect(() => {
