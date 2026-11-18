@@ -754,47 +754,47 @@ function turnEndHook(run: string): string {
 test.skipIf(!existsSync("/proc/self/stat"))(
 	"a session on the API key moves back to the plan once the limit has passed",
 	() => {
-	const hook = turnEndHook(runScript(spec, "/d"));
-	const home = mkdtempSync(join(tmpdir(), "odin-back-to-plan-"));
-	mkdirSync(join(home, ".claude"));
-	mkdirSync(join(home, ".odin"));
-	// The outer bash is the run script, the inner one stands in for Claude and,
-	// like Claude, is still running when the hook stops it.
-	const turnEnds = (until: number, env: Record<string, string>) => {
-		writeFileSync(
-			join(home, ".claude", "plan-limit.json"),
-			JSON.stringify({ until }),
-		);
-		const out = execFileSync(
-			"bash",
-			[
-				"-c",
-				`export ODIN_RUN_PID=$$; bash -c 'echo "$IN" | python3 -c "$HOOK"; [ -e "$HOME/.odin/resume-$ODIN_RUN_PID" ] && exec sleep 10; true'; echo $$`,
-			],
-			{
-				env: {
-					PATH: process.env.PATH,
-					HOME: home,
-					HOOK: hook,
-					IN: '{"session_id":"s1"}',
-					ODIN_HAS_FALLBACK_KEY: "1",
-					...env,
+		const hook = turnEndHook(runScript(spec, "/d"));
+		const home = mkdtempSync(join(tmpdir(), "odin-back-to-plan-"));
+		mkdirSync(join(home, ".claude"));
+		mkdirSync(join(home, ".odin"));
+		// The outer bash is the run script, the inner one stands in for Claude and,
+		// like Claude, is still running when the hook stops it.
+		const turnEnds = (until: number, env: Record<string, string>) => {
+			writeFileSync(
+				join(home, ".claude", "plan-limit.json"),
+				JSON.stringify({ until }),
+			);
+			const out = execFileSync(
+				"bash",
+				[
+					"-c",
+					`export ODIN_RUN_PID=$$; bash -c 'echo "$IN" | python3 -c "$HOOK"; [ -e "$HOME/.odin/resume-$ODIN_RUN_PID" ] && exec sleep 10; true'; echo $$`,
+				],
+				{
+					env: {
+						PATH: process.env.PATH,
+						HOME: home,
+						HOOK: hook,
+						IN: '{"session_id":"s1"}',
+						ODIN_HAS_FALLBACK_KEY: "1",
+						...env,
+					},
 				},
-			},
-		)
-			.toString()
-			.trim();
-		const file = join(home, ".odin", `resume-${out}`);
-		try {
-			return readFileSync(file, "utf8");
-		} catch {
-			return null;
-		}
-	};
-	const now = Date.now() / 1000;
-	expect(turnEnds(now + 3600, { ANTHROPIC_API_KEY: "k" })).toBeNull();
-	expect(turnEnds(now - 60, {})).toBeNull();
-	expect(turnEnds(now - 60, { ANTHROPIC_API_KEY: "k" })).toBe("s1");
+			)
+				.toString()
+				.trim();
+			const file = join(home, ".odin", `resume-${out}`);
+			try {
+				return readFileSync(file, "utf8");
+			} catch {
+				return null;
+			}
+		};
+		const now = Date.now() / 1000;
+		expect(turnEnds(now + 3600, { ANTHROPIC_API_KEY: "k" })).toBeNull();
+		expect(turnEnds(now - 60, {})).toBeNull();
+		expect(turnEnds(now - 60, { ANTHROPIC_API_KEY: "k" })).toBe("s1");
 	},
 );
 
