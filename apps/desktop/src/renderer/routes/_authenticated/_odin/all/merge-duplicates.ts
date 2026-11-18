@@ -10,10 +10,12 @@ const OWNER: AllItem["source"][] = [
 	"Jira",
 	"GitHub",
 	"ClickUp",
+	"Airtable",
 	"Notion",
 	"Tasks",
 	"Slack",
 	"Email",
+	"Determ",
 ];
 
 /**

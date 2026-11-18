@@ -11,10 +11,16 @@ import {
 } from "main/lib/calendar";
 import { calendarAccessToken, hasCalendarOAuth } from "main/lib/calendar-token";
 import {
+	type AirtableRecordRow,
 	adfToText,
+	airtableFetch,
+	airtableRecords,
 	type ClickupTaskRow,
 	clickupDate,
 	clickupTasks,
+	type DetermMentionRow,
+	determFetch,
+	determMentions,
 	feedError,
 	type GithubSearchResponse,
 	type JiraIssueRow,
@@ -29,9 +35,11 @@ import { clickupFetch } from "main/lib/read-link";
 import { z } from "zod";
 
 export {
+	type AirtableRecordRow,
 	adfToText,
 	type ClickupTaskRow,
 	currentSprint,
+	type DetermMentionRow,
 	epicOf,
 	feedError,
 	type JiraIssueRow,
@@ -308,6 +316,8 @@ export const createWorkRouter = () => {
 			hasGithub: githubToken() !== null,
 			hasGmail: gmailCredentials() !== null,
 			hasClickup: !!readOdinConfig().clickupToken,
+			hasAirtable: !!readOdinConfig().airtableToken,
+			hasDeterm: !!readOdinConfig().determToken,
 			hasCalendar: hasCalendarOAuth() || !!readOdinConfig().calendarUrl,
 			/**
 			 * Odin's own checkout: gates self-update, and is where "Work on Odin"
@@ -700,6 +710,46 @@ export const createWorkRouter = () => {
 					});
 				}
 			}),
+
+		/** The records in the Airtable views linked in Settings → Connections. */
+		airtableRecords: publicProcedure.query(
+			async (): Promise<{ records: AirtableRecordRow[] }> => {
+				const { airtableToken, airtableViews } = readOdinConfig();
+				if (!airtableToken) {
+					throw new TRPCError({
+						code: "PRECONDITION_FAILED",
+						message:
+							"Airtable isn't connected - add it in Settings → Connections.",
+					});
+				}
+				return {
+					records: await airtableRecords(
+						(path) => airtableFetch(path, airtableToken),
+						airtableViews ?? [],
+					),
+				};
+			},
+		),
+
+		/** The last week of mentions in the Determ feeds linked in Settings → Connections. */
+		determMentions: publicProcedure.query(
+			async (): Promise<{ mentions: DetermMentionRow[] }> => {
+				const { determToken, determFeeds } = readOdinConfig();
+				if (!determToken) {
+					throw new TRPCError({
+						code: "PRECONDITION_FAILED",
+						message:
+							"Determ isn't connected - add it in Settings → Connections.",
+					});
+				}
+				return {
+					mentions: await determMentions(
+						(path, init) => determFetch(path, determToken, init),
+						determFeeds ?? [],
+					),
+				};
+			},
+		),
 
 		/** Open tasks assigned to me, across every ClickUp workspace the token reaches. */
 		myClickupTasks: publicProcedure.query(

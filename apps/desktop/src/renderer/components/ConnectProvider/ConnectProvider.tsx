@@ -1,6 +1,7 @@
 import { Button } from "@odin/ui/button";
 import { Input } from "@odin/ui/input";
 import { toast } from "@odin/ui/sonner";
+import { Textarea } from "@odin/ui/textarea";
 import { cn } from "@odin/ui/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -30,7 +31,9 @@ export type Provider =
 	| "notion"
 	| "gmail"
 	| "clickup"
-	| "calendar";
+	| "calendar"
+	| "airtable"
+	| "determ";
 
 export const PROVIDER_NAME: Record<Provider, string> = {
 	slack: "Slack",
@@ -40,9 +43,14 @@ export const PROVIDER_NAME: Record<Provider, string> = {
 	gmail: "Gmail",
 	clickup: "ClickUp",
 	calendar: "Calendar",
+	airtable: "Airtable",
+	determ: "Determ",
 };
 
-type OAuthProvider = Exclude<Provider, "github" | "gmail" | "clickup">;
+type OAuthProvider = Exclude<
+	Provider,
+	"github" | "gmail" | "clickup" | "airtable" | "determ"
+>;
 
 /** Whose account the sign-in button opens, where it isn't the provider's own. */
 const SIGN_IN_NAME: Partial<Record<OAuthProvider, string>> = {
@@ -61,6 +69,10 @@ const SCOPE_BLURB: Record<Provider, string> = {
 		"A personal API token - lets sessions read the ClickUp tasks they're given.",
 	calendar:
 		"Opens Google in your browser. Read-only, so your meetings show up as things to prepare for.",
+	airtable:
+		"A personal access token and the views to read - each record in them is a task.",
+	determ:
+		"An API token and the feeds to read - each mention from the last week is a row.",
 };
 
 export function ConnectProvider({
@@ -89,6 +101,28 @@ export function ConnectProvider({
 		<GmailConnect onDone={done} />
 	) : provider === "clickup" ? (
 		<ClickupConnect onDone={done} />
+	) : provider === "airtable" ? (
+		<LinkedConnect
+			name="Airtable"
+			tokenUrl="https://airtable.com/create/tokens"
+			tokenHelp="Scopes: data.records:read and schema.bases:read, with access to the bases below. Then paste it."
+			tokenPlaceholder="pat…"
+			linksHelp="One view link per line, copied from the address bar (airtable.com/app…/tbl…/viw…). Filter the view to your own tasks: every record in it shows."
+			linksPlaceholder="https://airtable.com/app…/tbl…/viw…"
+			save={electronTrpc.connections.saveAirtable.useMutation}
+			onDone={done}
+		/>
+	) : provider === "determ" ? (
+		<LinkedConnect
+			name="Determ"
+			tokenUrl="https://app.determ.com"
+			tokenHelp="Settings → Account Settings → API token (only on plans with API access). Then paste it."
+			tokenPlaceholder="API token"
+			linksHelp="One feed link per line, copied from the address bar (app.determ.com/…/feed/q/…)."
+			linksPlaceholder="https://app.determ.com/…/feed/q/…"
+			save={electronTrpc.connections.saveDeterm.useMutation}
+			onDone={done}
+		/>
 	) : provider === "calendar" ? (
 		<CalendarConnect onDone={done} />
 	) : (
@@ -513,6 +547,80 @@ function ClickupConnect({ onDone }: { onDone: () => void }) {
 				disabled={!token || save.isPending}
 			>
 				{save.isPending ? "Checking…" : "2. Connect ClickUp"}
+			</button>
+		</form>
+	);
+}
+
+/**
+ * Airtable and Determ: no OAuth app here, so a pasted token, plus the links
+ * whose items are the feed - an Airtable view, a Determ feed.
+ */
+function LinkedConnect({
+	name,
+	tokenUrl,
+	tokenHelp,
+	tokenPlaceholder,
+	linksHelp,
+	linksPlaceholder,
+	save: useSave,
+	onDone,
+}: {
+	name: string;
+	tokenUrl: string;
+	tokenHelp: string;
+	tokenPlaceholder: string;
+	linksHelp: string;
+	linksPlaceholder: string;
+	save:
+		| typeof electronTrpc.connections.saveAirtable.useMutation
+		| typeof electronTrpc.connections.saveDeterm.useMutation;
+	onDone: () => void;
+}) {
+	const [token, setToken] = useState("");
+	const [links, setLinks] = useState("");
+	const openUrl = electronTrpc.external.openUrl.useMutation();
+	const save = useSave({
+		onSuccess: () => {
+			toast.success(`${name} connected`);
+			onDone();
+		},
+		onError: (error) => toast.error(error.message),
+	});
+	return (
+		<form
+			className="space-y-2"
+			onSubmit={(event) => {
+				event.preventDefault();
+				save.mutate({ token, links: links.split("\n") });
+			}}
+		>
+			<button
+				type="button"
+				className={GMAIL_CTA}
+				onClick={() => openUrl.mutate(tokenUrl)}
+			>
+				1. Get an API token ↗
+			</button>
+			<p className="text-xs text-muted-foreground">{tokenHelp}</p>
+			<Input
+				type="password"
+				placeholder={tokenPlaceholder}
+				value={token}
+				onChange={(event) => setToken(event.target.value)}
+			/>
+			<p className="text-xs text-muted-foreground">{linksHelp}</p>
+			<Textarea
+				placeholder={linksPlaceholder}
+				value={links}
+				onChange={(event) => setLinks(event.target.value)}
+			/>
+			<button
+				type="submit"
+				className={GMAIL_CTA}
+				disabled={!token || !links.trim() || save.isPending}
+			>
+				{save.isPending ? "Checking…" : `2. Connect ${name}`}
 			</button>
 		</form>
 	);

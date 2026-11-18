@@ -29,6 +29,8 @@ export function FeedTabs() {
 		emails,
 		clickup,
 		meetings,
+		airtable,
+		determ,
 		workConfig,
 		notionConfig,
 	} = useOdinFeeds();
@@ -74,6 +76,12 @@ export function FeedTabs() {
 			(meeting) =>
 				!isDone({ key: `meeting:${meeting.id}`, url: meeting.joinUrl }),
 		),
+		airtable: (airtable.data?.records ?? []).filter(
+			(row) => !isDone({ key: `airtable:${row.id}`, url: row.url }),
+		),
+		determ: (determ.data?.mentions ?? []).filter(
+			(row) => !isDone({ key: `determ:${row.id}`, url: row.url }),
+		),
 		// Same rows the Docs page lists: saved docs plus Read later.
 		docs: docs.length + reading.length,
 	});
@@ -95,7 +103,16 @@ export function FeedTabs() {
 			connected: workConfig?.hasCalendar,
 			failed: meetings.isError,
 		},
+		"/airtable": {
+			connected: workConfig?.hasAirtable,
+			failed: airtable.isError,
+		},
+		"/determ": { connected: workConfig?.hasDeterm, failed: determ.isError },
 	});
+	const connected: Partial<Record<string, boolean | undefined>> = {
+		"/airtable": workConfig?.hasAirtable,
+		"/determ": workConfig?.hasDeterm,
+	};
 
 	const active = FEED_TABS.find((tab) => !!matchRoute({ to: tab.to }))?.to;
 
@@ -167,7 +184,11 @@ export function FeedTabs() {
 		<div className="flex items-center gap-0.5">
 			{FEED_TABS.filter((tab) => !("provider" in tab)).map(renderTab)}
 			<span aria-hidden className="mx-1 h-3.5 w-px shrink-0 bg-accent" />
-			{FEED_TABS.filter((tab) => "provider" in tab).map(renderTab)}
+			{FEED_TABS.filter(
+				(tab) =>
+					"provider" in tab &&
+					(!("onlyConnected" in tab) || connected[tab.to] === true),
+			).map(renderTab)}
 		</div>
 	);
 }

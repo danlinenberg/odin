@@ -13,6 +13,12 @@ import {
 } from "main/lib/calendar-oauth";
 import { calendarAccessToken, hasCalendarOAuth } from "main/lib/calendar-token";
 import {
+	airtableFetch,
+	airtableView,
+	determFeed,
+	determFetch,
+} from "main/lib/feeds";
+import {
 	connectGithubAccount,
 	disconnectGithubAccount,
 	GITHUB_DEVICE_CODE_URL,
@@ -91,6 +97,8 @@ const PROVIDERS = [
 	"gmail",
 	"clickup",
 	"calendar",
+	"airtable",
+	"determ",
 ] as const;
 type Provider = (typeof PROVIDERS)[number];
 
@@ -320,6 +328,64 @@ async function probeClickup(): Promise<ConnectionStatus> {
 	}
 }
 
+/** A pasted token plus the links it reads: whoami for the token, the links' count after it. */
+async function probeLinked(
+	provider: "airtable" | "determ",
+	token: string | undefined,
+	links: string[] | undefined,
+	whoami: (token: string) => Promise<Response>,
+): Promise<ConnectionStatus> {
+	if (!token) return unconfigured(provider);
+	try {
+		const res = await whoami(token);
+		if (!res.ok) return failed(provider, probeError(res.status));
+		const me = (await res.json()) as { email?: string; name?: string };
+		const count = links?.length ?? 0;
+		return {
+			provider,
+			configured: true,
+			identity: `${me.email ?? me.name ?? "connected"} · ${count} ${provider === "airtable" ? "view" : "feed"}${count === 1 ? "" : "s"}`,
+			error: null,
+		};
+	} catch (error) {
+		return failed(provider, message(error));
+	}
+}
+
+/** Check a pasted token and its links before they're stored. */
+async function checkLinked(
+	name: string,
+	token: string,
+	links: string[],
+	parse: (link: string) => unknown,
+	whoami: (token: string) => Promise<Response>,
+): Promise<string[]> {
+	const kept = links.map((link) => link.trim()).filter(Boolean);
+	const bad = kept.find((link) => !parse(link));
+	if (bad || kept.length === 0) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: bad
+				? `That isn't a ${name} link: ${bad}`
+				: `Paste at least one ${name} link.`,
+		});
+	}
+	const res = await whoami(token);
+	if (!res.ok) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message:
+				res.status === 401
+					? `${name} rejected that token.`
+					: `${name} answered HTTP ${res.status}`,
+		});
+	}
+	return kept;
+}
+
+const airtableWhoami = (token: string) => airtableFetch("meta/whoami", token);
+const determWhoami = (token: string) => determFetch("v2/me", token);
+
 /**
  * Signed in to Google, the primary calendar is the "who am I". An iCal
  * address has none - one read of the feed is the probe.
@@ -465,6 +531,18 @@ export const createConnectionsRouter = () => {
 				probeGmail(),
 				probeClickup(),
 				probeCalendar(),
+				probeLinked(
+					"airtable",
+					readOdinConfig().airtableToken,
+					readOdinConfig().airtableViews,
+					airtableWhoami,
+				),
+				probeLinked(
+					"determ",
+					readOdinConfig().determToken,
+					readOdinConfig().determFeeds,
+					determWhoami,
+				),
 			]);
 		}),
 
@@ -635,6 +713,18 @@ export const createConnectionsRouter = () => {
 					case "clickup":
 						updateOdinConfig({ clickupToken: undefined });
 						break;
+					case "airtable":
+						updateOdinConfig({
+							airtableToken: undefined,
+							airtableViews: undefined,
+						});
+						break;
+					case "determ":
+						updateOdinConfig({
+							determToken: undefined,
+							determFeeds: undefined,
+						});
+						break;
 					case "calendar":
 						updateOdinConfig({
 							calendarUrl: undefined,
@@ -704,6 +794,46 @@ export const createConnectionsRouter = () => {
 					});
 				}
 				updateOdinConfig({ clickupToken: input.token });
+				return { ok: true };
+			}),
+
+		/** Airtable's way in: a personal access token and the views to read, checked before they're stored. */
+		saveAirtable: publicProcedure
+			.input(
+				z.object({
+					token: z.string().trim().min(1),
+					links: z.array(z.string()),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				const links = await checkLinked(
+					"Airtable",
+					input.token,
+					input.links,
+					airtableView,
+					airtableWhoami,
+				);
+				updateOdinConfig({ airtableToken: input.token, airtableViews: links });
+				return { ok: true };
+			}),
+
+		/** Determ's way in: an API token and the feeds to read, checked before they're stored. */
+		saveDeterm: publicProcedure
+			.input(
+				z.object({
+					token: z.string().trim().min(1),
+					links: z.array(z.string()),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				const links = await checkLinked(
+					"Determ",
+					input.token,
+					input.links,
+					determFeed,
+					determWhoami,
+				);
+				updateOdinConfig({ determToken: input.token, determFeeds: links });
 				return { ok: true };
 			}),
 

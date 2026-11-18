@@ -138,6 +138,8 @@ const SOURCES = [
 	"Email",
 	"ClickUp",
 	"Calendar",
+	"Airtable",
+	"Determ",
 ] as const;
 
 /** The urgency filter's options - "none" is the rows their source never rated. */

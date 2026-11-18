@@ -205,6 +205,20 @@ export interface OdinFileConfig {
 	clickupToken?: string;
 
 	/**
+	 * Airtable personal access token (pat…), pasted like ClickUp's, and the
+	 * view links whose records are the Airtable feed.
+	 */
+	airtableToken?: string;
+	airtableViews?: string[];
+
+	/**
+	 * Determ API token (Settings → Account Settings in Determ) and the feed
+	 * links whose mentions are the Determ feed.
+	 */
+	determToken?: string;
+	determFeeds?: string[];
+
+	/**
 	 * The calendar's secret iCal address (Google: Settings → your calendar →
 	 * Integrate calendar → Secret address in iCal format). Anyone holding it
 	 * can read the calendar, so it is kept like a token. The way in for
