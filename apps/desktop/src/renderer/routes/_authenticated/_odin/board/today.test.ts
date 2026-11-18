@@ -2,14 +2,12 @@ import { describe, expect, it } from "bun:test";
 import {
 	dueLabel,
 	plainLine,
-	pressTodayChip,
 	shouldShowToday,
 	type TodayEntry,
 	todayCounts,
 	todayGroup,
 	todayGroups,
-	todaySections,
-	toggleTodayGroup,
+	todayTasks,
 } from "./today";
 
 describe("todayGroup", () => {
@@ -133,73 +131,61 @@ describe("shouldShowToday", () => {
 	});
 });
 
-describe("todaySections", () => {
-	const entries: TodayEntry[] = [
-		{ key: "a", group: "needs-you" },
-		{ key: "b", group: "needs-you", due: "2026-01-02" },
-		{ key: "c", group: "running" },
-		{ key: "d", group: "paused", due: "2026-01-05" },
-	];
-	const view = (hidden: TodayEntry["group"][], dueOnly = false) =>
-		todaySections(entries, { hidden, dueOnly }).map((s) => [
-			s.group,
-			s.items.map((i) => i.key),
-			s.count,
-			s.hidden,
-		]);
+describe("todayTasks", () => {
+	const item = (
+		key: string,
+		group: TodayEntry["group"],
+		extra: Partial<TodayEntry & { status: string }> = {},
+	) => ({ key, group, title: `Session ${key}`, status: null, ...extra });
 
-	it("lists every group, empty ones too, all shown by default", () => {
-		expect(view([])).toEqual([
-			["needs-you", ["b", "a"], 2, false],
-			["almost-done", [], 0, false],
-			["running", ["c"], 1, false],
-			["waiting", [], 0, false],
-			["paused", ["d"], 1, false],
-		]);
-	});
-
-	it("a hidden group lists nothing but keeps its count", () => {
-		expect(view(["needs-you"])[0]).toEqual(["needs-you", [], 2, true]);
-		expect(view(["needs-you"])[2]).toEqual(["running", ["c"], 1, false]);
-	});
-
-	it("due or overdue keeps only cards with a due date, in every group", () => {
-		expect(view([], true)).toEqual([
-			["needs-you", ["b"], 1, false],
-			["almost-done", [], 0, false],
-			["running", [], 0, false],
-			["waiting", [], 0, false],
-			["paused", ["d"], 1, false],
-		]);
-		expect(view(["paused"], true)[4]).toEqual(["paused", [], 1, true]);
-	});
-});
-
-describe("toggleTodayGroup", () => {
-	it("hides a shown group and shows a hidden one, in page order", () => {
-		expect(toggleTodayGroup([], "running")).toEqual(["running"]);
-		expect(toggleTodayGroup(["running"], "needs-you")).toEqual([
-			"needs-you",
-			"running",
-		]);
-		expect(toggleTodayGroup(["needs-you", "running"], "running")).toEqual([
-			"needs-you",
+	it("groups sessions as written, most pressing task and session first", () => {
+		const tasks = todayTasks(
+			[
+				{ keys: ["run", "ask"], name: "Sign-in", about: "Why", line: "Where" },
+				{ keys: ["idle"], name: "Export", about: null, line: null },
+			],
+			[
+				item("idle", "paused", { due: "2026-11-19" }),
+				item("run", "running"),
+				item("ask", "needs-you"),
+			],
+		);
+		expect(
+			tasks.map((t) => [t.name, t.id, t.group, t.items.map((i) => i.key)]),
+		).toEqual([
+			["Sign-in", "ask", "needs-you", ["ask", "run"]],
+			["Export", "idle", "paused", ["idle"]],
 		]);
 	});
-});
 
-describe("pressTodayChip", () => {
-	it("a shown group's chip hides it and stays put", () => {
-		expect(pressTodayChip([], "waiting")).toEqual({
-			hidden: ["waiting"],
-			jump: false,
-		});
+	it("gives a session the model left out a task of its own, and drops closed ones", () => {
+		const tasks = todayTasks(
+			[{ keys: ["gone"], name: "Closed work", about: null, line: null }],
+			[item("new", "running", { status: "PR #12 is green" })],
+		);
+		expect(tasks).toEqual([
+			{
+				id: "new",
+				name: "Session new",
+				about: null,
+				line: "the pull request is green",
+				group: "running",
+				items: [expect.objectContaining({ key: "new" })],
+			},
+		]);
 	});
 
-	it("a hidden group's chip shows it and jumps to it", () => {
-		expect(pressTodayChip(["waiting", "paused"], "waiting")).toEqual({
-			hidden: ["paused"],
-			jump: true,
-		});
+	it("puts a session in the first task that names it", () => {
+		const tasks = todayTasks(
+			[
+				{ keys: ["a"], name: "One", about: null, line: null },
+				{ keys: ["a", "b"], name: "Two", about: null, line: null },
+			],
+			[item("a", "running"), item("b", "running")],
+		);
+		expect(tasks.map((t) => [t.name, t.items.length])).toEqual([
+			["One", 1],
+			["Two", 1],
+		]);
 	});
 });

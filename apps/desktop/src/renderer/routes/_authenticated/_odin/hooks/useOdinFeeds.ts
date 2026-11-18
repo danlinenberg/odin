@@ -80,6 +80,23 @@ export function useOdinFeeds() {
 		placeholderData: (prev) => prev,
 	});
 
+	const airtable = electronTrpc.work.airtableRecords.useQuery(undefined, {
+		enabled: workConfig?.hasAirtable === true,
+		refetchInterval: 120_000,
+		staleTime: 120_000,
+		refetchOnMount: false,
+		placeholderData: (prev) => prev,
+	});
+
+	// Determ's scroll endpoint allows 100 calls a minute, so a slower poll.
+	const determ = electronTrpc.work.determMentions.useQuery(undefined, {
+		enabled: workConfig?.hasDeterm === true,
+		refetchInterval: 300_000,
+		staleTime: 300_000,
+		refetchOnMount: false,
+		placeholderData: (prev) => prev,
+	});
+
 	// The calendar's whole .ics, which can run to megabytes, so slower than the
 	// other feeds. Each poll also clears the meetings that have ended since.
 	const meetings = electronTrpc.work.myMeetings.useQuery(undefined, {
@@ -119,7 +136,17 @@ export function useOdinFeeds() {
 	// A query result its caller never reads re-renders that caller on every
 	// fetch (TanStack tracks what's read, and nothing read means everything).
 	// Reading `data` here keeps a caller that ignores a feed off its polls.
-	for (const feed of [jira, pulls, reactions, clickup, meetings, drive, notion])
+	for (const feed of [
+		jira,
+		pulls,
+		reactions,
+		clickup,
+		meetings,
+		notion,
+		airtable,
+		determ,
+		drive,
+	])
 		void feed.data;
 
 	return {
@@ -131,6 +158,8 @@ export function useOdinFeeds() {
 		emails,
 		clickup,
 		meetings,
+		airtable,
+		determ,
 		drive,
 		notionConfig,
 		notionDatabaseId,
@@ -146,6 +175,8 @@ export function useOdinFeeds() {
 				emails.isFetching ||
 				clickup.isFetching ||
 				meetings.isFetching ||
+				airtable.isFetching ||
+				determ.isFetching ||
 				drive.isFetching
 			);
 		},
@@ -162,6 +193,8 @@ export function useOdinFeeds() {
 				workConfig?.hasGmail === true ? emails.refetch() : null,
 				workConfig?.hasClickup === true ? clickup.refetch() : null,
 				workConfig?.hasCalendar === true ? meetings.refetch() : null,
+				workConfig?.hasAirtable === true ? airtable.refetch() : null,
+				workConfig?.hasDeterm === true ? determ.refetch() : null,
 				workConfig?.hasDrive === true ? drive.refetch() : null,
 			]),
 	};

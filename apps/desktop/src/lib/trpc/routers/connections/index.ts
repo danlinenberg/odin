@@ -1,6 +1,12 @@
 import { TRPCError } from "@trpc/server";
 import { shell } from "electron";
 import {
+	airtableAccessToken,
+	isAirtableOAuthConfigured,
+	readAirtableOAuthResult,
+	startAirtableOAuth,
+} from "main/lib/airtable-oauth";
+import {
 	calendarIdentity,
 	fetchCalendar,
 	googleCalendarFetch,
@@ -20,6 +26,12 @@ import {
 	readDriveOAuthResult,
 	startDriveOAuth,
 } from "main/lib/drive-oauth";
+import {
+	airtableFetch,
+	airtableView,
+	determFeed,
+	determFetch,
+} from "main/lib/feeds";
 import {
 	connectGithubAccount,
 	disconnectGithubAccount,
@@ -99,6 +111,8 @@ const PROVIDERS = [
 	"gmail",
 	"clickup",
 	"calendar",
+	"airtable",
+	"determ",
 	"drive",
 ] as const;
 type Provider = (typeof PROVIDERS)[number];
@@ -329,6 +343,64 @@ async function probeClickup(): Promise<ConnectionStatus> {
 	}
 }
 
+/** A pasted token plus the links it reads: whoami for the token, the links' count after it. */
+async function probeLinked(
+	provider: "airtable" | "determ",
+	token: string | null | undefined,
+	links: string[] | undefined,
+	whoami: (token: string) => Promise<Response>,
+): Promise<ConnectionStatus> {
+	if (!token) return unconfigured(provider);
+	try {
+		const res = await whoami(token);
+		if (!res.ok) return failed(provider, probeError(res.status));
+		const me = (await res.json()) as { email?: string; name?: string };
+		const count = links?.length ?? 0;
+		return {
+			provider,
+			configured: true,
+			identity: `${me.email ?? me.name ?? "connected"} · ${count} ${provider === "airtable" ? "view" : "feed"}${count === 1 ? "" : "s"}`,
+			error: null,
+		};
+	} catch (error) {
+		return failed(provider, message(error));
+	}
+}
+
+/** Check a pasted token and its links before they're stored. */
+async function checkLinked(
+	name: string,
+	token: string,
+	links: string[],
+	parse: (link: string) => unknown,
+	whoami: (token: string) => Promise<Response>,
+): Promise<string[]> {
+	const kept = links.map((link) => link.trim()).filter(Boolean);
+	const bad = kept.find((link) => !parse(link));
+	if (bad || kept.length === 0) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: bad
+				? `That isn't a ${name} link: ${bad}`
+				: `Paste at least one ${name} link.`,
+		});
+	}
+	const res = await whoami(token);
+	if (!res.ok) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message:
+				res.status === 401
+					? `${name} rejected that token.`
+					: `${name} answered HTTP ${res.status}`,
+		});
+	}
+	return kept;
+}
+
+const airtableWhoami = (token: string) => airtableFetch("meta/whoami", token);
+const determWhoami = (token: string) => determFetch("v2/me", token);
+
 /**
  * Signed in to Google, the primary calendar is the "who am I". An iCal
  * address has none - one read of the feed is the probe.
@@ -429,6 +501,7 @@ const OAUTH_PROVIDERS = [
 	"jira",
 	"notion",
 	"calendar",
+	"airtable",
 	"drive",
 ] as const;
 type OAuthProvider = (typeof OAUTH_PROVIDERS)[number];
@@ -445,6 +518,8 @@ function oauthConfigured(provider: OAuthProvider): boolean {
 			return isNotionOAuthConfigured();
 		case "calendar":
 			return isCalendarOAuthConfigured();
+		case "airtable":
+			return isAirtableOAuthConfigured();
 		case "drive":
 			return isDriveOAuthConfigured();
 	}
@@ -462,6 +537,8 @@ function startOAuth(
 			return startNotionOAuth();
 		case "calendar":
 			return startCalendarOAuth();
+		case "airtable":
+			return startAirtableOAuth();
 		case "drive":
 			return startDriveOAuth();
 	}
@@ -477,6 +554,8 @@ function readOAuthResult(provider: OAuthProvider, state: string) {
 			return readNotionOAuthResult(state);
 		case "calendar":
 			return readCalendarOAuthResult(state);
+		case "airtable":
+			return readAirtableOAuthResult(state);
 		case "drive":
 			return readDriveOAuthResult(state);
 	}
@@ -506,6 +585,18 @@ export const createConnectionsRouter = () => {
 				probeGmail(),
 				probeClickup(),
 				probeCalendar(),
+				probeLinked(
+					"airtable",
+					await airtableAccessToken(),
+					readOdinConfig().airtableViews,
+					airtableWhoami,
+				),
+				probeLinked(
+					"determ",
+					readOdinConfig().determToken,
+					readOdinConfig().determFeeds,
+					determWhoami,
+				),
 				probeDrive(),
 			]);
 		}),
@@ -679,6 +770,20 @@ export const createConnectionsRouter = () => {
 					case "clickup":
 						updateOdinConfig({ clickupToken: undefined });
 						break;
+					case "airtable":
+						updateOdinConfig({
+							airtableAccessToken: undefined,
+							airtableRefreshToken: undefined,
+							airtableTokenExpiresAt: undefined,
+							airtableViews: undefined,
+						});
+						break;
+					case "determ":
+						updateOdinConfig({
+							determToken: undefined,
+							determFeeds: undefined,
+						});
+						break;
 					case "drive":
 						updateOdinConfig({
 							driveAccessToken: undefined,
@@ -755,6 +860,45 @@ export const createConnectionsRouter = () => {
 					});
 				}
 				updateOdinConfig({ clickupToken: input.token });
+				return { ok: true };
+			}),
+
+		/** The Airtable views whose records are the feed. Signing in is separate (OAuth). */
+		airtableViews: publicProcedure.query(() => ({
+			links: readOdinConfig().airtableViews ?? [],
+		})),
+		saveAirtableViews: publicProcedure
+			.input(z.object({ links: z.array(z.string()) }))
+			.mutation(({ input }) => {
+				const links = input.links.map((link) => link.trim()).filter(Boolean);
+				const bad = links.find((link) => !airtableView(link));
+				if (bad) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message: `That isn't an Airtable view link: ${bad}`,
+					});
+				}
+				updateOdinConfig({ airtableViews: links });
+				return { links };
+			}),
+
+		/** Determ's way in: an API token and the feeds to read, checked before they're stored. */
+		saveDeterm: publicProcedure
+			.input(
+				z.object({
+					token: z.string().trim().min(1),
+					links: z.array(z.string()),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				const links = await checkLinked(
+					"Determ",
+					input.token,
+					input.links,
+					determFeed,
+					determWhoami,
+				);
+				updateOdinConfig({ determToken: input.token, determFeeds: links });
 				return { ok: true };
 			}),
 

@@ -104,62 +104,76 @@ export function todayGroups<T extends TodayEntry>(
 	})).filter(({ items }) => items.length > 0);
 }
 
-/** Which groups the page shows: the chips' toggles, kept between visits. */
-export interface TodayFilter {
-	/** Groups toggled off: their section shrinks to its heading line. */
-	hidden: readonly TodayGroup[];
-	/** Due or overdue: only cards with a due date, in every group. */
-	dueOnly: boolean;
+/** A task as the model wrote it: the sessions' keys, and its words. */
+export interface WrittenTask {
+	keys: string[];
+	name: string;
+	about: string | null;
+	line: string | null;
+}
+
+/** A task as the page lists it: its words and the open sessions it holds. */
+export interface TodayTaskView<T> {
+	/** Its first session's key: stable while that session is open. */
+	id: string;
+	name: string;
+	about: string | null;
+	/** Where it stands; the brief's status line until the model's is written. */
+	line: string | null;
+	/** Its sessions, the one to look at first on top. */
+	items: T[];
+	/** Where its most pressing session stands. */
+	group: TodayGroup;
 }
 
 /**
- * Every group in TODAY_GROUPS order, empty ones kept: `count` is how many
- * cards it holds under the due filter, `items` what the page lists (none
- * when the group is hidden), sorted as todayGroups sorts them.
+ * The page's tasks: the model's grouping over the sessions open now. A
+ * session it left out (it is new, or the answer is not back yet) is a task
+ * of its own, titled by the session, its brief's status as the line. Tasks
+ * come in the order todayGroups ranks their most pressing session: Needs
+ * you first, then by due date, priority and star.
  */
-export function todaySections<T extends TodayEntry>(
-	entries: T[],
-	filter: TodayFilter,
-): { group: TodayGroup; items: T[]; count: number; hidden: boolean }[] {
-	const kept = filter.dueOnly
-		? entries.filter((entry) => !!entry.due)
-		: entries;
-	const sorted = todayGroups(kept);
-	return TODAY_GROUPS.map(({ id }) => {
-		const items = sorted.find((g) => g.group === id)?.items ?? [];
-		const hidden = filter.hidden.includes(id);
-		return {
-			group: id,
-			items: hidden ? [] : items,
-			count: items.length,
-			hidden,
-		};
-	});
-}
-
-/** Hide a shown group, show a hidden one; kept in TODAY_GROUPS order. */
-export function toggleTodayGroup(
-	hidden: readonly TodayGroup[],
-	group: TodayGroup,
-): TodayGroup[] {
-	const next = hidden.includes(group)
-		? hidden.filter((g) => g !== group)
-		: [...hidden, group];
-	return TODAY_GROUPS.map((g) => g.id).filter((id) => next.includes(id));
-}
-
-/**
- * A group's chip: on a shown group it hides it; on a hidden one it shows it
- * and the page jumps to it.
- */
-export function pressTodayChip(
-	hidden: readonly TodayGroup[],
-	group: TodayGroup,
-): { hidden: TodayGroup[]; jump: boolean } {
-	return {
-		hidden: toggleTodayGroup(hidden, group),
-		jump: hidden.includes(group),
-	};
+export function todayTasks<
+	T extends TodayEntry & { title: string; status?: string | null },
+>(written: readonly WrittenTask[], items: T[]): TodayTaskView<T>[] {
+	const ranked = todayGroups(items).flatMap((g) => g.items);
+	const rank = new Map(ranked.map((item, i) => [item.key, i]));
+	const byKey = new Map(items.map((item) => [item.key, item]));
+	const taken = new Set<string>();
+	const tasks: Omit<TodayTaskView<T>, "id" | "group">[] = [];
+	for (const task of written) {
+		const mine = task.keys
+			.map((key) => byKey.get(key))
+			.filter((item): item is T => !!item && !taken.has(item.key));
+		if (!mine.length) continue;
+		for (const item of mine) taken.add(item.key);
+		tasks.push({
+			name: task.name,
+			about: task.about,
+			line: task.line,
+			items: mine,
+		});
+	}
+	for (const item of items)
+		if (!taken.has(item.key))
+			tasks.push({
+				name: item.title,
+				about: null,
+				line: plainLine(item.status) || null,
+				items: [item],
+			});
+	const at = (item: T) => rank.get(item.key) ?? ranked.length;
+	return tasks
+		.map((task) => {
+			const sorted = [...task.items].sort((a, b) => at(a) - at(b));
+			return {
+				...task,
+				items: sorted,
+				id: sorted[0].key,
+				group: sorted[0].group,
+			};
+		})
+		.sort((a, b) => at(a.items[0]) - at(b.items[0]));
 }
 
 /** "3 need you, 2 running, 1 waiting on someone" - the top line before the model's. */

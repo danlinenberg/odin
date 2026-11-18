@@ -436,14 +436,17 @@ export const createNotionRouter = () => {
 		/** Config for the Odin views - env first, ~/.config/odin.json fallback. */
 		getConfig: publicProcedure.query(() => {
 			const fileConfig = readOdinConfig();
+			const hasToken = getNotionToken() !== null;
 			return {
-				hasToken: getNotionToken() !== null,
+				hasToken,
 				defaultDatabaseId:
 					process.env.SLACK_QUEUE_NOTION_DB_ID ??
 					fileConfig.notionTaskDbId ??
 					fileConfig.slackQueueDbId ??
 					null,
-				includeMentions: fileConfig.notionMentions === true,
+				// On until turned off: with no database picked, pages assigned
+				// to me are all the Notion feed has.
+				includeMentions: hasToken && fileConfig.notionMentions !== false,
 			};
 		}),
 

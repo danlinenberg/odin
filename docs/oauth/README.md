@@ -1,7 +1,7 @@
 # One-click sign-in for Odin's connections
 
 One-time setup so anyone using Odin can connect Slack, GitHub, Notion, Jira
-and Google Calendar with two clicks instead of minting tokens by hand.
+Google Calendar and Airtable with two clicks instead of minting tokens by hand.
 
 Signing in is the **only** way into a connection: Odin reads no credential from
 the environment and takes no pasted token. A shell variable is ambient and
@@ -18,6 +18,7 @@ Each provider needs a different shape of setup:
 | GitHub | Device flow | no - code + browser, no secret |
 | Jira | OAuth 2.0 3LO | yes - `jira.html` |
 | Google Calendar | OAuth 2.0, read-only | yes - `calendar.html` |
+| Airtable | OAuth 2.0 with PKCE, read-only | yes - `airtable.html` |
 | Google Drive | OAuth 2.0, read-only | shares `calendar.html` |
 
 Slack allows neither PKCE nor a non-HTTPS redirect URL, so a desktop app can't
@@ -263,6 +264,28 @@ third-party security assessment. Until then the 100 test users, the
 Drive feed lists files shared with you in the last 14 days
 (`src/main/lib/feeds.ts`, `driveSharedFiles`).
 
+
+## Airtable
+
+At [airtable.com/create/oauth](https://airtable.com/create/oauth), register an
+integration:
+
+- **OAuth redirect URL**: your published `airtable.html`.
+- **Scopes**: `data.records:read`, `schema.bases:read`, `user.email:read`.
+- **Client secret**: generate one. Odin sends it as Basic auth on the token
+  calls, beside the PKCE verifier Airtable requires either way.
+
+```bash
+ODIN_AIRTABLE_CLIENT_ID=... \
+ODIN_AIRTABLE_CLIENT_SECRET=... \
+ODIN_AIRTABLE_REDIRECT_URL=https://REPLACE-ME/airtable.html \
+  bun run build
+```
+
+On the consent screen each person picks the bases Odin may read. Access tokens
+last an hour; refresh tokens last 60 days and rotate on every refresh
+(`src/main/lib/airtable-oauth.ts`). Determ has no OAuth, so its row takes an
+API token.
 
 ## Distributing Odin
 

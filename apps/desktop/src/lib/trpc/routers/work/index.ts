@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { TRPCError } from "@trpc/server";
+import { airtableAccessToken, hasAirtableOAuth } from "main/lib/airtable-oauth";
 import { isInternalBuild } from "main/lib/build-channel";
 import {
 	fetchCalendar,
@@ -16,11 +17,17 @@ import {
 	hasDriveOAuth,
 } from "main/lib/drive-oauth";
 import {
+	type AirtableRecordRow,
 	adfToText,
+	airtableFetch,
+	airtableRecords,
 	type ClickupTaskRow,
 	clickupDate,
 	clickupTasks,
+	type DetermMentionRow,
 	type DriveFileRow,
+	determFetch,
+	determMentions,
 	driveSharedFiles,
 	feedError,
 	type GithubSearchResponse,
@@ -36,9 +43,11 @@ import { clickupFetch } from "main/lib/read-link";
 import { z } from "zod";
 
 export {
+	type AirtableRecordRow,
 	adfToText,
 	type ClickupTaskRow,
 	currentSprint,
+	type DetermMentionRow,
 	epicOf,
 	feedError,
 	type JiraIssueRow,
@@ -315,6 +324,8 @@ export const createWorkRouter = () => {
 			hasGithub: githubToken() !== null,
 			hasGmail: gmailCredentials() !== null,
 			hasClickup: !!readOdinConfig().clickupToken,
+			hasAirtable: hasAirtableOAuth(),
+			hasDeterm: !!readOdinConfig().determToken,
 			hasCalendar: hasCalendarOAuth() || !!readOdinConfig().calendarUrl,
 			hasDrive: hasDriveOAuth(),
 			/**
@@ -708,6 +719,46 @@ export const createWorkRouter = () => {
 					});
 				}
 			}),
+
+		/** The records in the Airtable views linked in Settings → Connections. */
+		airtableRecords: publicProcedure.query(
+			async (): Promise<{ records: AirtableRecordRow[] }> => {
+				const token = await airtableAccessToken();
+				if (!token) {
+					throw new TRPCError({
+						code: "PRECONDITION_FAILED",
+						message:
+							"Airtable isn't connected - add it in Settings → Connections.",
+					});
+				}
+				return {
+					records: await airtableRecords(
+						(path) => airtableFetch(path, token),
+						readOdinConfig().airtableViews ?? [],
+					),
+				};
+			},
+		),
+
+		/** The last week of mentions in the Determ feeds linked in Settings → Connections. */
+		determMentions: publicProcedure.query(
+			async (): Promise<{ mentions: DetermMentionRow[] }> => {
+				const { determToken, determFeeds } = readOdinConfig();
+				if (!determToken) {
+					throw new TRPCError({
+						code: "PRECONDITION_FAILED",
+						message:
+							"Determ isn't connected - add it in Settings → Connections.",
+					});
+				}
+				return {
+					mentions: await determMentions(
+						(path, init) => determFetch(path, determToken, init),
+						determFeeds ?? [],
+					),
+				};
+			},
+		),
 
 		/** Open tasks assigned to me, across every ClickUp workspace the token reaches. */
 		myClickupTasks: publicProcedure.query(

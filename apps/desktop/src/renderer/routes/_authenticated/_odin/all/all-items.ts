@@ -48,6 +48,8 @@ export interface AllItem {
 		| "Email"
 		| "ClickUp"
 		| "Calendar"
+		| "Airtable"
+		| "Determ"
 		| "Drive";
 	/** The feed this row lives in - clicking the title goes there. */
 	to: FeedPath;
@@ -318,6 +320,27 @@ export function allItems(
 		}[];
 		/** Upcoming meetings (main/lib/calendar) - optional, most callers predate it. */
 		meetings?: Meeting[];
+		/** Records in the linked Airtable views - optional, most callers predate it. */
+		airtable?: {
+			id: string;
+			url: string;
+			title: string;
+			status: string | null;
+			table: string | null;
+			created: string | null;
+		}[];
+		/** The last week of mentions in the linked Determ feeds - optional, most callers predate it. */
+		determ?: {
+			id: string;
+			url: string;
+			title: string;
+			text: string | null;
+			author: string | null;
+			type: string | null;
+			sentiment: string | null;
+			feed: string | null;
+			at: string | null;
+		}[];
 		/** Google Drive files shared with me lately - optional, most callers predate it. */
 		drive?: {
 			id: string;
@@ -641,6 +664,72 @@ export function allItems(
 			}),
 		),
 		...(input.meetings ?? []).map(meetingItem),
+		...(input.airtable ?? []).map(
+			(record): AllItem => ({
+				key: `airtable:${record.id}`,
+				source: "Airtable",
+				to: "/airtable",
+				title: record.title,
+				url: record.url,
+				person: null,
+				status: record.status,
+				priority: null,
+				urgency: null,
+				context: record.table,
+				at: ms(record.created),
+				createdAt: ms(record.created),
+				dueDate: null,
+				mention: null,
+				ask: { kind: "assigned", at: ms(record.created) },
+				body: null,
+				details: facts([
+					["Status", record.status],
+					["Table", record.table],
+					["Created", when(record.created)],
+				]),
+				launch: {
+					key: record.id,
+					title: record.title,
+					description: `Airtable record: ${record.title}\n${record.url}`,
+					contact: null,
+					brief: `${record.title}\n${record.url}`,
+				},
+			}),
+		),
+		...(input.determ ?? []).map(
+			(mention): AllItem => ({
+				key: `determ:${mention.id}`,
+				source: "Determ",
+				to: "/determ",
+				title: mention.title,
+				url: mention.url,
+				person: mention.author,
+				status: mention.sentiment,
+				priority: null,
+				urgency: null,
+				context: mention.type,
+				at: ms(mention.at),
+				createdAt: ms(mention.at),
+				dueDate: null,
+				mention: null,
+				ask: { kind: "unread", at: ms(mention.at) },
+				body: mention.text,
+				details: facts([
+					["Source", mention.type],
+					["Author", mention.author],
+					["Sentiment", mention.sentiment],
+					["Feed", mention.feed],
+					["Found", when(mention.at)],
+				]),
+				launch: {
+					key: mention.id,
+					title: mention.title,
+					description: `Determ mention: ${mention.title}\n${mention.url}${mention.text ? `\n\n${mention.text}` : ""}`,
+					contact: mention.author,
+					brief: `${mention.title}\n${mention.url}`,
+				},
+			}),
+		),
 		...(input.drive ?? []).map(
 			(file): AllItem => ({
 				key: `drive:${file.id}`,

@@ -138,6 +138,8 @@ const SOURCES = [
 	"Email",
 	"ClickUp",
 	"Calendar",
+	"Airtable",
+	"Determ",
 	"Drive",
 ] as const;
 

@@ -1,4 +1,3 @@
-import type { TodayGroup } from "renderer/routes/_authenticated/_odin/board/today";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -7,8 +6,7 @@ import { persist } from "zustand/middleware";
  * Advanced turns it on and adds the Today icon to the view toggle. With it on,
  * the board also switches to Today once a day, the first time it opens with
  * work on it (`enabled`; Settings → Sessions turns that off). A fixed-size
- * singleton: two switches, the last day it was shown, and the page's chip
- * toggles (at most the five groups hidden, and the due filter).
+ * singleton: two switches and the last day it was shown.
  */
 export const useTodayOverview = create<{
 	/** The experiment: the Today view exists at all. */
@@ -17,39 +15,28 @@ export const useTodayOverview = create<{
 	enabled: boolean;
 	/** Local `YYYY-MM-DD` it last opened by itself. */
 	lastShown: string | null;
-	/** Groups the chips toggled off: each shrinks to its heading line. */
-	hidden: TodayGroup[];
-	/** Due or overdue: only cards with a due date. */
-	dueOnly: boolean;
-	/** The "What we're working on" brief at the top is folded away. */
-	briefClosed: boolean;
-	/** Under the header: Today's detailed cards, or the board's columns. */
-	layout: "cards" | "columns";
 	setExperiment: (experiment: boolean) => void;
 	setEnabled: (enabled: boolean) => void;
 	markShown: (day: string) => void;
-	setHidden: (hidden: TodayGroup[]) => void;
-	setDueOnly: (dueOnly: boolean) => void;
-	setBriefClosed: (briefClosed: boolean) => void;
-	setLayout: (layout: "cards" | "columns") => void;
 }>()(
 	persist(
 		(set) => ({
 			experiment: false,
 			enabled: true,
 			lastShown: null,
-			hidden: [],
-			dueOnly: false,
-			briefClosed: false,
-			layout: "cards",
 			setExperiment: (experiment) => set({ experiment }),
 			setEnabled: (enabled) => set({ enabled }),
 			markShown: (day) => set({ lastShown: day }),
-			setHidden: (hidden) => set({ hidden }),
-			setDueOnly: (dueOnly) => set({ dueOnly }),
-			setBriefClosed: (briefClosed) => set({ briefClosed }),
-			setLayout: (layout) => set({ layout }),
 		}),
-		{ name: "odin-today-overview" },
+		{
+			name: "odin-today-overview",
+			// Only these three: older versions' chip and layout toggles drop out
+			// of the saved value on its next write.
+			partialize: ({ experiment, enabled, lastShown }) => ({
+				experiment,
+				enabled,
+				lastShown,
+			}),
+		},
 	),
 );

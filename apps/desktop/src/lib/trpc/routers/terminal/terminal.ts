@@ -631,8 +631,9 @@ export const createTerminalRouter = () => {
 			}),
 
 		/**
-		 * The Today overview's plain lines: one per open piece of work and one
-		 * over all of it, written from the cached briefs by `claude -p`.
+		 * The Today overview's plain words: the open sessions grouped into tasks,
+		 * each with what it is and where it stands, and one sentence over all
+		 * of it, written from the cached briefs by `claude -p`.
 		 */
 		todayOverviewLines: publicProcedure
 			.input(

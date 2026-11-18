@@ -24,7 +24,7 @@ export const SCREENS = [
 	{
 		to: "/settings/connections",
 		label: "Connections",
-		hint: "Profiles, Claude, Slack, GitHub, Jira, Notion, Gmail, ClickUp, Calendar, Google Drive",
+		hint: "Profiles, Claude, Slack, GitHub, Jira, Notion, Gmail, ClickUp, Calendar, Google Drive, Airtable, Determ",
 		icon: LuPlug,
 	},
 	{
@@ -154,6 +154,18 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		to: "/settings/connections",
 		section: "Accounts",
 		keywords: "account sign in connect tasks token",
+	},
+	{
+		label: "Airtable",
+		to: "/settings/connections",
+		section: "Accounts",
+		keywords: "account connect tasks token records views base",
+	},
+	{
+		label: "Determ",
+		to: "/settings/connections",
+		section: "Accounts",
+		keywords: "account connect mentions media monitoring token feed",
 	},
 	{
 		label: "Calendar",

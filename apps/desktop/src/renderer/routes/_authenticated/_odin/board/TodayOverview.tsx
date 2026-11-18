@@ -1,13 +1,9 @@
 import { cn } from "@odin/ui/utils";
-import type { ComponentType, CSSProperties, ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import type { ComponentType, ReactNode } from "react";
+import { useMemo, useState } from "react";
 import {
-	LuCalendarClock,
-	LuChevronDown,
-	LuChevronRight,
 	LuCircleCheck,
 	LuHourglass,
-	LuListOrdered,
 	LuLoaderCircle,
 	LuMessageCircleQuestion,
 	LuPause,
@@ -23,36 +19,18 @@ import { livePanesOn, urgencyOf } from "../all/all-items";
 import { useTaskMeta } from "../all/task-meta";
 import { useAllItems } from "../all/use-all-items";
 import { useStartAllItem } from "../all/use-start-item";
-import { BUTTON, PILL } from "../components/pill";
+import { BUTTON } from "../components/pill";
 import { daysUntil, effectiveDue, useReminders } from "../components/Reminders";
 import {
-	bangCommandNotes,
-	bangCommands,
-	downloadPath,
-	localCommand,
-	noActionItems,
-	splitActionItems,
-	viewTarget,
-} from "./action-items";
-import {
-	ActionItems,
-	CommandNotes,
-	runInClaudePrompt,
-	runSessionCommand,
-} from "./ChatView";
-import {
 	dueLabel,
-	plainLine,
-	pressTodayChip,
-	TODAY_GROUPS,
 	type TodayEntry,
 	type TodayGroup,
 	type TodaySignals,
+	type TodayTaskView,
 	todayCounts,
 	todayGroup,
 	todayGroupLabel,
-	todaySections,
-	toggleTodayGroup,
+	todayTasks,
 } from "./today";
 import { moveSelection, type SideRow, todaySide } from "./today-side";
 
@@ -62,20 +40,13 @@ export interface TodayCard {
 	paneId: string;
 	title: string;
 	sessionId: string | null;
-	/** The brief's status line, shown until the plain line is written. */
+	/** The brief's status line, shown until the plain words are written. */
 	status: string | null;
 	starred: boolean;
 	signals: TodaySignals;
-	workspaceId: string;
-	/** Claude runs in its pane now: a `!` command can be typed into it. */
-	live: boolean;
-	/** The board's own pills for it: repo, host, last activity, PRs, tags. */
-	meta?: ReactNode;
-	/** The board's own buttons for it: Star, Done, Remind me, Start now. */
-	actions?: ReactNode;
 }
 
-/** One open session as the overview lists it. */
+/** One open session as the overview reads it. */
 export interface TodayItem extends TodayEntry {
 	key: string;
 	title: string;
@@ -87,7 +58,7 @@ export interface TodayItem extends TodayEntry {
 }
 
 /**
- * The board's cards with what Tasks knows about each one's task: its due
+ * The board's sessions with what Tasks knows about each one's task: its due
  * date, priority, and who it waits on when it was parked in Waiting on others.
  */
 function useTodayItems(cards: TodayCard[]): TodayItem[] {
@@ -122,84 +93,46 @@ function useTodayItems(cards: TodayCard[]): TodayItem[] {
 	}, [cards, rows, panes, waiting, reminders]);
 }
 
-const GROUP_ICON: Record<
+const GROUP_MARK: Record<
 	TodayGroup,
 	{ Icon: ComponentType<{ className?: string }>; tone: string }
 > = {
-	"needs-you": { Icon: LuMessageCircleQuestion, tone: "text-attention" },
-	"almost-done": { Icon: LuCircleCheck, tone: "text-success" },
-	running: { Icon: LuPlay, tone: "text-working" },
-	waiting: { Icon: LuHourglass, tone: "text-primary" },
+	"needs-you": { Icon: LuMessageCircleQuestion, tone: "text-attention-ink" },
+	"almost-done": { Icon: LuCircleCheck, tone: "text-success-ink" },
+	running: { Icon: LuPlay, tone: "text-working-ink" },
+	waiting: { Icon: LuHourglass, tone: "text-primary-ink" },
 	paused: { Icon: LuPause, tone: "text-muted-foreground" },
 };
 
-const MARK = "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium";
-const BTN = "shrink-0 rounded-[7px] px-2.5 py-1 text-[11.5px] font-semibold";
-const CHIP =
-	"inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11.5px] font-medium transition-opacity";
-/** A chip that is on: its group shows, or the due filter applies. */
-const CHIP_ON = BUTTON.selected;
-/** A chip that is off: dimmed, so a hidden group reads as hidden. */
-const CHIP_OFF =
-	"bg-transparent text-muted-foreground ring-1 ring-inset ring-border opacity-60 hover:opacity-100";
+/** A mark under a task: a dot after it parts it from the next one. */
+const MARK = "after:ml-1.5 after:text-muted-foreground after:content-['·']";
 
-const groupId = (group: TodayGroup) => `today-${group}`;
+const LINK =
+	"font-medium text-primary-ink underline-offset-2 hover:underline disabled:opacity-50";
 
-const jump = (id: string) =>
-	document
-		.getElementById(id)
-		?.scrollIntoView({ behavior: "smooth", block: "start" });
+/** Overdue and due within a day stand out; later dates read as plain text. */
+const dueTone = (left: number) =>
+	left < 0 ? "text-danger-ink" : left <= 1 ? "text-attention-ink" : "";
 
 /**
- * Today: your open work in plain words on a page of its own. Sessions sit in
- * the main column by where each stands, each a card with what it is, where
- * it runs, its PRs and the buttons to move it; the side column lists your
- * tasks that are due, the top of Up next and what waits on someone else.
+ * Today: your open work as one page of plain text. A sentence over all of
+ * it, then every task you are working on - the board's sessions grouped by
+ * Claude into the work they serve - with what it is, where it stands, how
+ * much is left, its due date and priority, and links to its sessions. Under
+ * it, your tasks coming up that no session works on yet. No cards, no
+ * columns: Board view has those.
  */
 export function TodayOverview({
 	cards,
+	openPaneId,
 	onOpen,
-	onSend,
 }: {
 	cards: TodayCard[];
+	/** The session open beside the page: its task is marked. */
+	openPaneId?: string;
 	onOpen: (paneId: string) => void;
-	/** Text to a session: typed into a live Claude, else resumes it with it. */
-	onSend: (paneId: string, text: string) => void;
 }) {
 	const items = useTodayItems(cards);
-	const cardOf = useMemo(
-		() => new Map(cards.map((card) => [card.paneId, card])),
-		[cards],
-	);
-	const hidden = useTodayOverview((s) => s.hidden);
-	const setHidden = useTodayOverview((s) => s.setHidden);
-	const dueOnly = useTodayOverview((s) => s.dueOnly);
-	const setDueOnly = useTodayOverview((s) => s.setDueOnly);
-	const sections = todaySections(items, { hidden, dueOnly });
-	const layout = useTodayOverview((s) => s.layout);
-	const setLayout = useTodayOverview((s) => s.setLayout);
-	const columns = layout === "columns";
-	// Every session in page order, one bullet each, whatever the chips hide.
-	const bullets = todaySections(items, { hidden: [], dueOnly: false }).flatMap(
-		(section) => section.items,
-	);
-	const dueCount = items.filter((item) => !!item.due).length;
-	// The header stays pinned: its height keeps a jump's section, and the side
-	// column, below it.
-	const head = useRef<HTMLElement>(null);
-	const [headHeight, setHeadHeight] = useState(0);
-	useEffect(() => {
-		const el = head.current;
-		if (!el) return;
-		const observer = new ResizeObserver(() => setHeadHeight(el.offsetHeight));
-		observer.observe(el);
-		return () => observer.disconnect();
-	}, []);
-	const pressChip = (group: TodayGroup) => {
-		const next = pressTodayChip(hidden, group);
-		setHidden(next.hidden);
-		if (next.jump) requestAnimationFrame(() => jump(groupId(group)));
-	};
 	const [refresh, setRefresh] = useState(0);
 	const { data, isFetching } =
 		electronTrpc.terminal.todayOverviewLines.useQuery(
@@ -223,8 +156,10 @@ export function TodayOverview({
 				placeholderData: (previous) => previous,
 			},
 		);
-	const briefClosed = useTodayOverview((s) => s.briefClosed);
-	const setBriefClosed = useTodayOverview((s) => s.setBriefClosed);
+	const tasks = useMemo(
+		() => todayTasks(data?.tasks ?? [], items),
+		[data, items],
+	);
 	const side = useTodaySide();
 	const enabled = useTodayOverview((s) => s.enabled);
 	const setEnabled = useTodayOverview((s) => s.setEnabled);
@@ -235,16 +170,15 @@ export function TodayOverview({
 		day: "numeric",
 	});
 
-	// Today: Next / Previous Card move between session cards, Open Card opens
-	// the picked one (down, up and Enter unless rebound in Settings -> Keyboard).
-	const order = sections.flatMap(({ items: rows }) => rows.map((r) => r.key));
+	// Today: Next / Previous Task move between tasks, Open Task opens the
+	// picked one's first session (down, up and Enter unless rebound).
 	const [selected, setSelected] = useState(-1);
 	const step = (by: 1 | -1) => {
-		const next = moveSelection(by, selected, order.length);
+		const next = moveSelection(by, selected, tasks.length);
 		if (next === null) return;
 		setSelected(next);
 		document
-			.querySelector(`[data-today-row="${order[next]}"]`)
+			.querySelector(`[data-today-task="${tasks[next].id}"]`)
 			?.scrollIntoView({ block: "nearest" });
 	};
 	const keys = { enableOnFormTags: false, enableOnContentEditable: false };
@@ -253,456 +187,212 @@ export function TodayOverview({
 	useHotkey(
 		"TODAY_OPEN",
 		() => {
-			const key = order[selected];
-			if (key) onOpen(key);
+			const task = tasks[selected];
+			if (task) onOpen(task.id);
 		},
 		{ ...keys, enabled: selected >= 0 },
 	);
-	const selectedKey = order[selected];
 
 	return (
 		<section
 			aria-label="Today"
 			data-testid="today-overview"
-			style={{ "--today-head": `${headHeight}px` } as CSSProperties}
-			className={cn(
-				"flex min-h-0 flex-col overflow-y-auto px-[18px]",
-				// Columns: the header and its bullets on top, the board's columns
-				// below take the rest.
-				columns ? "max-h-[45vh] shrink-0" : "flex-1 pb-[18px]",
-			)}
+			className="flex min-h-0 flex-1 flex-col overflow-y-auto"
 		>
-			<header
-				ref={head}
-				className="sticky top-0 z-10 -mx-[18px] mb-4 flex flex-col gap-2 border-b border-border bg-background px-[18px] pb-3 pt-2"
-			>
-				<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-					<h1 className="text-[19px] font-semibold tracking-[-.2px]">Today</h1>
-					<span className="text-xs text-muted-foreground">{dateLine}</span>
-					<fieldset
-						aria-label="Today layout"
-						className="ml-auto inline-flex gap-1 border-0 p-0"
-					>
-						{(["cards", "columns"] as const).map((value) => (
-							<button
-								key={value}
-								type="button"
-								aria-pressed={layout === value}
-								title={
-									value === "cards"
-										? "Show each session as a detailed card"
-										: "Show the board's columns under the summary"
-								}
-								onClick={() => setLayout(value)}
-								className={cn(CHIP, layout === value ? CHIP_ON : CHIP_OFF)}
-							>
-								{value === "cards" ? "Cards" : "Columns"}
-							</button>
-						))}
-					</fieldset>
-					<button
-						type="button"
-						title="Write the plain-words lines again from the sessions' newest briefs"
-						disabled={!items.length || isFetching}
-						onClick={() => setRefresh(Date.now())}
-						className={cn(
-							BTN,
-							BUTTON.secondary,
-							"inline-flex items-center gap-1.5 disabled:opacity-50",
-						)}
-					>
-						<LuRefreshCw
-							className={cn("size-3", isFetching && "animate-spin")}
-							aria-hidden
-						/>
-						Refresh
-					</button>
-				</div>
-				<div className="select-text cursor-text text-[14px] leading-relaxed">
-					{data?.summary ?? `${todayCounts(items)}.`}
-					{isFetching && !data && (
-						<span className="ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
+			<div className="mx-auto flex w-full max-w-[780px] flex-col gap-6 px-6 pb-8 pt-4">
+				<header className="flex flex-col gap-2">
+					<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+						<h1 className="text-[22px] font-semibold tracking-[-.3px]">
+							Today
+						</h1>
+						<span className="text-[13px] text-muted-foreground">
+							{dateLine}
+						</span>
+						<button
+							type="button"
+							title="Write it again from the sessions' newest briefs"
+							disabled={!items.length || isFetching}
+							onClick={() => setRefresh(Date.now())}
+							className={cn(
+								"ml-auto inline-flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-[11.5px] font-semibold disabled:opacity-50",
+								BUTTON.secondary,
+							)}
+						>
+							<LuRefreshCw
+								className={cn("size-3", isFetching && "animate-spin")}
+								aria-hidden
+							/>
+							Refresh
+						</button>
+					</div>
+					<p className="select-text cursor-text text-[15px] leading-relaxed">
+						{data?.summary ?? `${todayCounts(items)}.`}
+					</p>
+					{isFetching && !data && items.length > 0 && (
+						<p className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground">
 							<LuLoaderCircle className="size-3 animate-spin" />
 							Writing it in plain words...
-						</span>
+						</p>
 					)}
-				</div>
-				<div className={cn("flex flex-wrap gap-1.5", columns && "hidden")}>
-					{sections.map(({ group: id, count, hidden: off }) => {
-						const { Icon, tone } = GROUP_ICON[id];
-						const label = todayGroupLabel(id);
-						return (
-							<button
-								key={id}
-								type="button"
-								aria-pressed={!off}
-								title={off ? `Show ${label} and jump to it` : `Hide ${label}`}
-								onClick={() => pressChip(id)}
-								className={cn(CHIP, off ? CHIP_OFF : CHIP_ON)}
-							>
-								<Icon className={cn("size-3", tone)} />
-								{label} {count}
-							</button>
-						);
-					})}
-					<button
-						type="button"
-						aria-pressed={dueOnly}
-						title={
-							dueOnly
-								? "Show every card again"
-								: "Show only cards with a due date, in every group"
-						}
-						onClick={() => setDueOnly(!dueOnly)}
-						className={cn(CHIP, dueOnly ? CHIP_ON : CHIP_OFF)}
-					>
-						<LuCalendarClock className="size-3 text-danger" />
-						Due or overdue {dueCount}
-					</button>
-				</div>
-			</header>
-			{/* Outside the pinned header: one bullet per session can be taller
-			    than the window, and a sticky header that tall blocks the scroll. */}
-			{bullets.length > 0 && (
-				<ul className="mb-4 select-text list-disc space-y-0.5 pl-5 text-[13px] leading-snug">
-					{bullets.map((item) => (
-						<li key={item.key}>
-							<button
-								type="button"
-								onClick={() => onOpen(item.key)}
-								className="font-semibold hover:underline"
-							>
-								{item.title}
-							</button>
-							<span className="text-muted-foreground">
-								{" - "}
-								{data?.lines[item.key] ?? plainLine(item.status)}
-							</span>
-						</li>
-					))}
-				</ul>
-			)}
-			{!!data?.brief.length && (
-				<section
-					aria-label="What we're working on"
-					className="mb-4 rounded-xl border border-border bg-card/60 px-3.5 py-2.5"
-				>
-					<button
-						type="button"
-						aria-expanded={!briefClosed}
-						title={briefClosed ? "Show the brief" : "Hide the brief"}
-						onClick={() => setBriefClosed(!briefClosed)}
-						className="flex w-full items-center gap-2 text-left"
-					>
-						{briefClosed ? (
-							<LuChevronRight className="size-3.5 text-muted-foreground" />
-						) : (
-							<LuChevronDown className="size-3.5 text-muted-foreground" />
-						)}
-						<h2 className="text-[13.5px] font-semibold">
-							What we're working on
-						</h2>
-					</button>
-					{!briefClosed && (
-						<ul className="mt-1.5 list-disc select-text cursor-text space-y-0.5 pl-9 text-[13px] leading-relaxed text-soft-foreground">
-							{data.brief.map((line) => (
-								<li key={line}>{line}</li>
+				</header>
+
+				<section aria-label="What you're working on">
+					<h2 className="mb-3 text-[15px] font-semibold">
+						What you're working on
+					</h2>
+					{tasks.length === 0 ? (
+						<p className="text-[14px] text-muted-foreground">
+							No open sessions. Start one from Tasks, or from the board.
+						</p>
+					) : (
+						<ul className="flex flex-col gap-5">
+							{tasks.map((task, i) => (
+								<TodayTaskText
+									key={task.id}
+									task={task}
+									now={now}
+									picked={i === selected}
+									open={task.items.some((item) => item.key === openPaneId)}
+									onOpen={onOpen}
+								/>
 							))}
 						</ul>
 					)}
 				</section>
-			)}
-			<div
-				className={cn(
-					"flex min-w-0 flex-col gap-5 lg:flex-row lg:items-start",
-					columns && "hidden",
-				)}
-			>
-				<div className="flex min-w-0 flex-1 flex-col gap-5">
-					{TODAY_GROUPS.map(({ id, label, hint }) => {
-						const section = sections.find((g) => g.group === id);
-						const rows = section?.items ?? [];
-						const off = !!section?.hidden;
-						const { Icon, tone } = GROUP_ICON[id];
-						const Chevron = off ? LuChevronRight : LuChevronDown;
-						return (
-							<section key={id} id={groupId(id)} className={SCROLL_MARGIN}>
-								<button
-									type="button"
-									aria-expanded={!off}
-									title={off ? `Show ${label}` : `Hide ${label}`}
-									onClick={() => setHidden(toggleTodayGroup(hidden, id))}
-									className={cn(
-										"flex w-full items-baseline gap-2 text-left",
-										!off && "mb-2",
-									)}
-								>
-									<Chevron className="size-3.5 self-center text-muted-foreground" />
-									<Icon className={cn("size-4 self-center", tone)} />
-									<h2 className="text-[13.5px] font-semibold">
-										{label} ({section?.count ?? 0})
-									</h2>
-									{off ? (
-										<span className="text-[12px] italic text-muted-foreground">
-											hidden
-										</span>
-									) : (
-										<span className="text-[12px] text-muted-foreground">
-											{hint}
-										</span>
-									)}
-								</button>
-								{off ? null : rows.length === 0 ? (
-									<div className="rounded-lg border border-dashed border-border px-3 py-2.5 text-[12.5px] text-muted-foreground">
-										{dueOnly ? "No card here has a due date." : EMPTY[id]}
-									</div>
-								) : (
-									<ul className="flex flex-col gap-2">
-										{rows.map((item) => {
-											const card = cardOf.get(item.key);
-											if (!card) return null;
-											return (
-												<TodayRow
-													key={item.key}
-													item={item}
-													card={card}
-													line={data?.lines[item.key] ?? plainLine(item.status)}
-													about={data?.about[item.key] ?? null}
-													now={now}
-													selected={selectedKey === item.key}
-													onSelect={() => setSelected(order.indexOf(item.key))}
-													onOpen={() => onOpen(item.key)}
-													onSend={(text) => onSend(item.key, text)}
-												/>
-											);
-										})}
-									</ul>
-								)}
-							</section>
-						);
-					})}
-				</div>
-				<TodaySideColumn side={side} onOpen={onOpen} />
+
+				<ComingUp side={side} onOpen={onOpen} />
+
+				<label className="flex items-center gap-2 border-t border-border pt-3 text-[11.5px] text-muted-foreground">
+					<input
+						type="checkbox"
+						checked={enabled}
+						onChange={(event) => setEnabled(event.target.checked)}
+					/>
+					Show this every morning when Odin opens (the Today icon opens it any
+					time)
+				</label>
 			</div>
-			<label
-				className={cn(
-					"mt-6 flex items-center gap-2 border-t pt-2 text-[11.5px] text-muted-foreground",
-					columns && "hidden",
-				)}
-			>
-				<input
-					type="checkbox"
-					checked={enabled}
-					onChange={(event) => setEnabled(event.target.checked)}
-				/>
-				Show this every morning when Odin opens (the Today icon opens it any
-				time)
-			</label>
 		</section>
 	);
 }
 
-/** A jump lands a section just below the pinned header. */
-const SCROLL_MARGIN = "scroll-mt-[calc(var(--today-head,0px)+8px)]";
-
-const EMPTY: Record<TodayGroup, string> = {
-	"needs-you": "Nothing waits on you.",
-	"almost-done": "Nothing is one step from done.",
-	running: "No session is working right now.",
-	waiting: "Nothing waits on someone else.",
-	paused: "Nothing is on hold.",
-};
-
 /**
- * One session as a card: what it is and why, where it stands, where it runs and its PRs
- * (the board's own pills), its marks, the buttons to move it, and a reply
- * box. A Needs you card also lists the session's open action items with the
- * same buttons the chat view gives them.
+ * One task as a few lines of text: its name and what it is, where it stands
+ * and what is left, then where it stands in one word, its due date and
+ * priority, and a link to each of its sessions.
  */
-function TodayRow({
-	item,
-	card,
-	line,
-	about,
+function TodayTaskText({
+	task,
 	now,
-	selected,
-	onSelect,
+	picked,
+	open,
 	onOpen,
-	onSend,
 }: {
-	item: TodayItem;
-	card: TodayCard;
-	line: string;
-	/** What the work is and why, in plain words. */
-	about: string | null;
+	task: TodayTaskView<TodayItem>;
 	now: number;
-	selected: boolean;
-	onSelect: () => void;
-	onOpen: () => void;
-	onSend: (text: string) => void;
+	/** Picked with the arrow keys. */
+	picked: boolean;
+	/** One of its sessions is open beside the page. */
+	open: boolean;
+	onOpen: (paneId: string) => void;
 }) {
-	const [reply, setReply] = useState("");
-	const left = item.due ? daysUntil(item.due, now) : null;
-	const send = () => {
-		const text = reply.trim();
-		if (!text) return;
-		onSend(text);
-		setReply("");
-	};
+	const { Icon, tone } = GROUP_MARK[task.group];
+	const first = task.items[0];
+	const due = task.items
+		.map((item) => item.due)
+		.filter((day): day is string => !!day)
+		.sort()[0];
+	const left = due ? daysUntil(due, now) : null;
+	const high = task.items.find((item) => item.urgency === "high");
+	const waitingOn = task.group === "waiting" ? first.waitingOn : null;
+	const marks: ReactNode[] = [
+		<span
+			key="group"
+			className={cn("inline-flex items-center gap-1", tone, MARK)}
+		>
+			<Icon className="size-3" aria-hidden />
+			{waitingOn ? `Waiting on ${waitingOn}` : todayGroupLabel(task.group)}
+		</span>,
+	];
+	if (due && left !== null)
+		marks.push(
+			<span key="due" className={cn("font-medium", dueTone(left), MARK)}>
+				{dueLabel(due, left)}
+			</span>,
+		);
+	if (high)
+		marks.push(
+			<span key="priority" className={cn("font-medium text-danger-ink", MARK)}>
+				{high.priority ?? "High"} priority
+			</span>,
+		);
+	if (task.items.some((item) => item.starred))
+		marks.push(
+			<span key="star" className={cn("text-attention-ink", MARK)}>
+				★ Starred
+			</span>,
+		);
 	return (
-		// biome-ignore lint/a11y/useKeyWithClickEvents: the Today keys (down, up, Enter) pick rows
 		<li
-			data-today-row={item.key}
-			onClick={onSelect}
+			data-today-task={task.id}
 			className={cn(
-				"rounded-xl border border-border bg-card px-3.5 py-3 transition-shadow",
-				selected && "ring-2 ring-primary/60",
+				"-mx-3 rounded-lg px-3 py-1.5",
+				open && "bg-primary/10",
+				picked && "ring-2 ring-primary/60",
 			)}
 		>
-			<div className="flex items-start gap-2">
-				<div className="min-w-0 flex-1">
-					<button
-						type="button"
-						title="Open this session"
-						onClick={onOpen}
-						className="max-w-full truncate text-left text-[14px] font-semibold hover:underline"
-					>
-						{item.starred && <span className="mr-1 text-attention">★</span>}
-						{item.title}
-					</button>
-					{about && (
-						<div className="select-text cursor-text text-[12.5px] leading-relaxed text-muted-foreground">
-							{about}
-						</div>
-					)}
-					{line && (
-						<div className="select-text cursor-text text-[13px] leading-relaxed text-soft-foreground">
-							{line}
-						</div>
-					)}
-					{item.waitingOn && (
-						<div className="text-[12px] text-muted-foreground">
-							Waiting on {item.waitingOn}
-						</div>
-					)}
-				</div>
-				{item.due && left !== null && (
-					<span
-						className={cn(
-							MARK,
-							left < 0 ? PILL.alarm : left <= 1 ? PILL.attention : PILL.neutral,
-						)}
-					>
-						{dueLabel(item.due, left)}
-					</span>
-				)}
-				{item.urgency === "high" && (
-					<span className={cn(MARK, PILL.danger)}>
-						{item.priority ?? "High"}
-					</span>
-				)}
-			</div>
-			{card.meta && (
-				<div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11.5px] text-muted-foreground">
-					{card.meta}
-				</div>
-			)}
-			{item.group === "needs-you" && (
-				<TodayActionItems card={card} onSend={onSend} />
-			)}
-			<div className="mt-2 flex flex-wrap items-center gap-1.5">
+			<p className="select-text cursor-text text-[14.5px] leading-relaxed">
 				<button
 					type="button"
-					onClick={onOpen}
-					className={cn(BTN, BUTTON.primary)}
+					title="Open its session beside this page"
+					onClick={() => onOpen(first.key)}
+					className="text-left font-semibold underline-offset-2 hover:underline"
 				>
-					Open
+					{task.name}
 				</button>
-				{card.actions}
-				<input
-					value={reply}
-					onChange={(event) => setReply(event.target.value)}
-					onKeyDown={(event) => {
-						if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-							event.preventDefault();
-							send();
-						}
-					}}
-					placeholder="Reply to this session - Enter sends"
-					aria-label={`Reply to ${item.title}`}
-					className="ml-auto h-7 min-w-[180px] flex-1 rounded-[7px] bg-secondary px-2.5 text-[12px] outline-none ring-1 ring-inset ring-border placeholder:text-muted-foreground focus:ring-primary/60"
-				/>
-			</div>
+				{task.about && (
+					<span className="text-soft-foreground"> - {task.about}</span>
+				)}
+			</p>
+			{task.line && (
+				<p className="select-text cursor-text text-[14px] leading-relaxed text-muted-foreground">
+					{task.line}
+				</p>
+			)}
+			<p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] text-muted-foreground">
+				{marks}
+				{task.items.length === 1 ? (
+					<button
+						type="button"
+						onClick={() => onOpen(first.key)}
+						className={LINK}
+					>
+						Open session
+					</button>
+				) : (
+					<>
+						<span>{task.items.length} sessions:</span>
+						{task.items.map((item, i) => (
+							<span key={item.key}>
+								<button
+									type="button"
+									title={`${todayGroupLabel(item.group)} - open it beside this page`}
+									onClick={() => onOpen(item.key)}
+									className={LINK}
+								>
+									{item.title}
+								</button>
+								{i < task.items.length - 1 && ","}
+							</span>
+						))}
+					</>
+				)}
+			</p>
 		</li>
 	);
 }
 
-/**
- * A Needs you session's open action items from its latest reply, rendered
- * by the chat view's own card: Do it, Approve, the choice buttons and the
- * Run buttons work as they do there.
- */
-function TodayActionItems({
-	card,
-	onSend,
-}: {
-	card: TodayCard;
-	onSend: (text: string) => void;
-}) {
-	const { data } = electronTrpc.terminal.readClaudeTranscript.useQuery(
-		{ sessionId: card.sessionId ?? "" },
-		{ enabled: !!card.sessionId, retry: false, staleTime: 60_000 },
-	);
-	const write = electronTrpc.terminal.write.useMutation();
-	const remote = useTabsStore((s) => !!s.panes[card.paneId]?.odinRemote);
-	const last =
-		data?.messages.findLast((m) => m.role === "assistant")?.text ?? "";
-	const { body, actions } = splitActionItems(last);
-	if (!actions || noActionItems(actions)) return null;
-	const onRun = card.live
-		? (command: string) =>
-				runSessionCommand({
-					paneId: card.paneId,
-					workspaceId: card.workspaceId,
-					command,
-					runInClaude: (c) =>
-						runInClaudePrompt(write.mutateAsync, card.paneId, c),
-					sendToClaude: onSend,
-				})
-		: undefined;
-	// As the chat view: `!local`, downloads and views only for a session on the host.
-	const commands = onRun
-		? bangCommands(last).filter(
-				(command) =>
-					remote ||
-					(!localCommand(command) &&
-						!downloadPath(command) &&
-						!viewTarget(command)),
-			)
-		: [];
-	return (
-		<CommandNotes.Provider value={onRun ? bangCommandNotes(last) : {}}>
-			<ActionItems
-				text={actions}
-				body={body}
-				paneId={card.paneId}
-				commands={commands}
-				onRun={onRun}
-				onDo={(item, number, approve, answer) =>
-					onSend(
-						approve
-							? `Approved - go ahead with action item ${number}: ${item}`
-							: answer !== undefined
-								? `Action item ${number} (${item}): ${answer}`
-								: `Do action item ${number} for me: ${item}`,
-					)
-				}
-			/>
-		</CommandNotes.Provider>
-	);
-}
-
-/** Your tasks the side column lists, from what Tasks already keeps. */
+/** Your tasks the "Coming up" list reads, from what Tasks already keeps. */
 function useTodaySide() {
 	const rows = useAllItems();
 	const queue = useTaskMeta((s) => s.queue);
@@ -711,20 +401,14 @@ function useTodaySide() {
 	const panes = useTabsStore((s) => s.panes);
 	return useMemo(() => {
 		const all = Object.values(panes);
-		const sideRows: (SideRow & { paneId: string | null })[] = rows.map(
-			(row) => {
-				const paneId = livePanesOn(all, row)[0]?.id ?? null;
-				return {
-					key: row.key,
-					title: row.title,
-					source: row.source,
-					url: row.url,
-					due: effectiveDue(row.key, reminders, row.dueDate),
-					started: !!paneId,
-					paneId,
-				};
-			},
-		);
+		const sideRows: SideRow[] = rows.map((row) => ({
+			key: row.key,
+			title: row.title,
+			source: row.source,
+			url: row.url,
+			due: effectiveDue(row.key, reminders, row.dueDate),
+			started: livePanesOn(all, row).length > 0,
+		}));
 		const now = Date.now();
 		const side = todaySide({
 			rows: sideRows,
@@ -733,13 +417,16 @@ function useTodaySide() {
 			daysUntil: (day) => daysUntil(day, now),
 		});
 		const byKey = new Map(rows.map((row) => [row.key, row]));
-		const paneOf = new Map(sideRows.map((row) => [row.key, row.paneId]));
-		return { ...side, byKey, paneOf };
+		return { ...side, byKey };
 	}, [rows, queue, waiting, reminders, panes]);
 }
 
-/** "Due and up next": due tasks, the top of Up next, and what waits on others. */
-function TodaySideColumn({
+/**
+ * Coming up: tasks no session works on yet - due this week or late, the top
+ * of Up next, and what waits on someone else - one line each, with Start
+ * and a link to where it came from.
+ */
+function ComingUp({
 	side,
 	onOpen,
 }: {
@@ -747,21 +434,29 @@ function TodaySideColumn({
 	onOpen: (paneId: string) => void;
 }) {
 	const { start, isLaunching } = useStartAllItem();
+	const panes = useTabsStore((s) => s.panes);
 	const now = Date.now();
-	const taskButtons = (
+	const due = side.due.filter((row) => !row.started);
+	const upNext = side.upNext;
+	const waiting = side.waiting;
+	if (!due.length && !upNext.length && !waiting.length) return null;
+	const links = (
 		key: string,
 		url: string | null,
 		source: string | null,
+		started: boolean,
 	) => {
-		const paneId = side.paneOf.get(key) ?? null;
 		const row = side.byKey.get(key);
+		const paneId =
+			started && row ? livePanesOn(Object.values(panes), row)[0]?.id : null;
 		return (
-			<div className="mt-1 flex flex-wrap gap-1.5">
+			<>
+				{" "}
 				{paneId ? (
 					<button
 						type="button"
 						onClick={() => onOpen(paneId)}
-						className={cn(BTN, BUTTON.secondary)}
+						className={cn(LINK, "text-[12.5px]")}
 					>
 						Go to session
 					</button>
@@ -771,115 +466,67 @@ function TodaySideColumn({
 							type="button"
 							disabled={isLaunching}
 							onClick={() => void start(row)}
-							className={cn(BTN, BUTTON.primary, "disabled:opacity-50")}
+							className={cn(LINK, "text-[12.5px]")}
 						>
 							Start
 						</button>
 					)
 				)}
 				{url && (
-					<button
-						type="button"
-						onClick={() => openUrl(url)}
-						className={cn(BTN, BUTTON.secondary)}
-					>
-						Open in {source}
-					</button>
+					<>
+						{" · "}
+						<button
+							type="button"
+							onClick={() => openUrl(url)}
+							className={cn(LINK, "text-[12.5px]")}
+						>
+							Open in {source}
+						</button>
+					</>
 				)}
-			</div>
+			</>
 		);
 	};
-	const block = (
-		id: string | undefined,
-		Icon: ComponentType<{ className?: string }>,
-		title: string,
-		empty: string,
-		children: ReactNode[],
-	) => (
-		<section id={id} className={SCROLL_MARGIN}>
-			<h2 className="mb-1.5 flex items-center gap-1.5 text-[12.5px] font-semibold">
-				<Icon className="size-3.5 text-muted-foreground" />
-				{title} ({children.length})
-			</h2>
-			{children.length ? (
-				<ul className="flex flex-col gap-1.5">{children}</ul>
-			) : (
-				<div className="text-[12px] text-muted-foreground">{empty}</div>
-			)}
-		</section>
-	);
 	return (
-		<aside
-			aria-label="Due and up next"
-			className="flex w-full shrink-0 flex-col gap-4 rounded-xl border border-border bg-card/60 p-3.5 lg:sticky lg:top-[calc(var(--today-head,0px)+8px)] lg:w-[340px]"
-		>
-			<div className="text-[13.5px] font-semibold">Due and up next</div>
-			{block(
-				undefined,
-				LuCalendarClock,
-				"Due",
-				"Nothing due this week.",
-				side.due.map((row) => (
-					<li key={row.key} className="rounded-lg bg-secondary/50 px-2.5 py-2">
-						<div className="flex items-start gap-2">
-							<span className="min-w-0 flex-1 text-[12.5px] font-medium">
-								{row.title}
-							</span>
-							<span
-								className={cn(
-									MARK,
-									row.daysLeft < 0
-										? PILL.alarm
-										: row.daysLeft <= 1
-											? PILL.attention
-											: PILL.neutral,
-								)}
-							>
-								{dueLabel(row.due ?? "", row.daysLeft)}
-							</span>
-						</div>
-						{taskButtons(row.key, row.url, row.source)}
+		<section aria-label="Coming up">
+			<h2 className="mb-2 text-[15px] font-semibold">Coming up</h2>
+			<ul className="flex list-disc flex-col gap-1.5 pl-5 text-[14px] leading-relaxed marker:text-muted-foreground">
+				{due.map((row) => (
+					<li key={`due-${row.key}`}>
+						<span className="select-text cursor-text">{row.title}</span>
+						{" - "}
+						<span className={cn("font-medium", dueTone(row.daysLeft))}>
+							{dueLabel(row.due ?? "", row.daysLeft).toLowerCase()}
+						</span>
+						{links(row.key, row.url, row.source, row.started)}
 					</li>
-				)),
-			)}
-			{block(
-				undefined,
-				LuListOrdered,
-				"Up next",
-				"Nothing lined up that hasn't started.",
-				side.upNext.map((row) => (
-					<li key={row.key} className="rounded-lg bg-secondary/50 px-2.5 py-2">
-						<div className="text-[12.5px] font-medium">{row.title}</div>
-						{taskButtons(row.key, row.url, row.source)}
+				))}
+				{upNext.map((row) => (
+					<li key={`next-${row.key}`}>
+						<span className="select-text cursor-text">{row.title}</span>
+						<span className="text-muted-foreground"> - next on Up next</span>
+						{links(row.key, row.url, row.source, row.started)}
 					</li>
-				)),
-			)}
-			{block(
-				undefined,
-				LuHourglass,
-				"Waiting on others",
-				"Nothing parked.",
-				side.waiting.map((row) => {
+				))}
+				{waiting.map((row) => {
 					const back = daysUntil(row.until, now);
 					return (
-						<li
-							key={row.key}
-							className="rounded-lg bg-secondary/50 px-2.5 py-2"
-						>
-							<div className="text-[12.5px] font-medium">{row.title}</div>
-							<div className="text-[11.5px] text-muted-foreground">
-								{row.on ? `Waiting on ${row.on}` : "Waiting"} - back on Up next{" "}
+						<li key={`wait-${row.key}`}>
+							<span className="select-text cursor-text">{row.title}</span>
+							<span className="text-muted-foreground">
+								{" - "}
+								{row.on ? `waiting on ${row.on}` : "waiting"}, back on Up next{" "}
 								{back <= 0
 									? "today"
 									: back === 1
 										? "tomorrow"
 										: `in ${back} days`}
-							</div>
-							{taskButtons(row.key, row.url, row.source)}
+							</span>
+							{links(row.key, row.url, row.source, row.started)}
 						</li>
 					);
-				}),
-			)}
-		</aside>
+				})}
+			</ul>
+		</section>
 	);
 }

@@ -14,8 +14,18 @@ import { useTitleOverrides } from "./title-overrides";
 
 /** Every feed through allItems, under your own names, plus the Done check. */
 function useItems(everything: boolean) {
-	const { reactions, jira, pulls, notion, emails, clickup, meetings, drive } =
-		useOdinFeeds();
+	const {
+		reactions,
+		jira,
+		pulls,
+		notion,
+		emails,
+		clickup,
+		meetings,
+		airtable,
+		determ,
+		drive,
+	} = useOdinFeeds();
 	// todos, not tasks: automations have their own panel and run themselves -
 	// they'd sit in "what have I got on" forever without ever being yours to do.
 	const { todos } = useMyTasks();
@@ -34,10 +44,12 @@ function useItems(everything: boolean) {
 					notion: notion.data?.rows ?? [],
 					emails: emails.data?.emails ?? [],
 					clickup: clickup.data?.tasks ?? [],
+					airtable: airtable.data?.records ?? [],
+					determ: determ.data?.mentions ?? [],
+					drive: drive.data?.files ?? [],
 					// Checked against the clock when the feed lands, so a meeting
 					// that ended is gone by the next poll at the latest.
 					meetings: upcomingMeetings(meetings.data?.meetings ?? [], Date.now()),
-					drive: drive.data?.files ?? [],
 				},
 				{ everything },
 			).map((item) => {
@@ -68,6 +80,8 @@ function useItems(everything: boolean) {
 			emails.data,
 			clickup.data,
 			meetings.data,
+			airtable.data,
+			determ.data,
 			drive.data,
 		],
 	);
@@ -122,6 +136,8 @@ export function useFeedItems(input: Partial<FeedInput>): Map<string, AllItem> {
 		emails,
 		clickup,
 		meetings,
+		airtable,
+		determ,
 		drive,
 	} = input;
 	return useMemo(() => {
@@ -135,6 +151,8 @@ export function useFeedItems(input: Partial<FeedInput>): Map<string, AllItem> {
 				emails: emails ?? [],
 				clickup: clickup ?? [],
 				meetings: meetings ?? [],
+				airtable: airtable ?? [],
+				determ: determ ?? [],
 				drive: drive ?? [],
 			},
 			{ everything: true },
@@ -170,6 +188,8 @@ export function useFeedItems(input: Partial<FeedInput>): Map<string, AllItem> {
 		emails,
 		clickup,
 		meetings,
+		airtable,
+		determ,
 		drive,
 	]);
 }

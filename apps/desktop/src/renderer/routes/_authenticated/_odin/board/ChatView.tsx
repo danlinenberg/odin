@@ -47,7 +47,10 @@ import { isHotkey, useBinding, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { usePersistedDraft } from "renderer/stores/chat-drafts";
-import { CLAUDE_MODELS } from "renderer/stores/claude-command";
+import {
+	CLAUDE_MODELS,
+	useClaudeCommand,
+} from "renderer/stores/claude-command";
 import { useCompacting } from "renderer/stores/compacting";
 import { useDangerMode } from "renderer/stores/danger-mode";
 import {
@@ -85,6 +88,10 @@ import {
 } from "shared/odin-screen-status";
 import { typedText } from "shared/typed-text";
 import { isInterruptMarker, withoutWrapping } from "shared/user-text";
+import {
+	announceClaudeSignedIn,
+	useClaudeSignIn,
+} from "../components/ClaudeSignInBanner";
 import { fileToken, insertFile, matchFiles } from "../components/file-picker";
 import {
 	BUILT_IN_COMMANDS,
@@ -2840,18 +2847,16 @@ export function needsClaudeLogin(text: string): boolean {
 export const CLAUDE_SIGNED_IN_RETRY =
 	"I signed in to Claude again. Retry what failed: carry on with my last message.";
 
-/**
- * Fired on window after a host Claude sign-in. Every host session shares that
- * sign-in, so the board restarts the other sessions stuck on "Not logged in"
- * too. `detail` is the pane that already restarts itself.
- */
-export const CLAUDE_SIGNED_IN_EVENT = "odin:claude-signed-in";
+export {
+	CLAUDE_SIGNED_IN_EVENT,
+	type ClaudeSignedIn,
+} from "../components/ClaudeSignInBanner";
 
 /**
- * A session whose Claude is signed out. On a remote host: a fresh Claude
- * sign-in for the host (your browser approves it), then Restart session, so
- * Claude starts again with it and picks the failed turn back up. Here: /login
- * in the session.
+ * A session whose Claude is signed out. A fresh Claude sign-in (your browser
+ * approves it) for the host or for this computer, then every session on that
+ * side stuck on Not logged in restarts and picks the failed turn back up. With
+ * your own launch command: /login in this session.
  */
 function ClaudeLogin({
 	paneId,
@@ -2866,32 +2871,48 @@ function ClaudeLogin({
 	const renew = electronTrpc.remoteHost.renewClaudeToken.useMutation({
 		onSuccess: () => {
 			onRestart?.(CLAUDE_SIGNED_IN_RETRY);
-			window.dispatchEvent(
-				new CustomEvent(CLAUDE_SIGNED_IN_EVENT, { detail: paneId }),
-			);
+			announceClaudeSignedIn({ remote: true, pane: paneId });
 		},
 		onError: (error) => toast.error(`Claude sign-in failed: ${error.message}`),
 	});
-	if (remote ? !onRestart : !onSend) return null;
+	// Your own launch command (Settings → Advanced) may not sign in the way
+	// `claude auth login` does, so it keeps /login in the session.
+	const customCommand = useClaudeCommand((s) => s.commands.length > 0);
+	const local = useClaudeSignIn(false);
+	useEffect(() => {
+		if (local.failed) toast.error(`Claude sign-in failed: ${local.failed}`);
+	}, [local.failed]);
+	if (!remote && customCommand)
+		return onSend ? (
+			<button
+				type="button"
+				onClick={() => onSend("/login")}
+				title="Run /login in this session"
+				className={cn(ACTION_BUTTON, "mt-2")}
+			>
+				Sign in to Claude (/login)
+			</button>
+		) : null;
+	if (remote && !onRestart) return null;
+	const signIn = remote ? renew : local.login;
+	const done = remote ? renew.isSuccess : !!local.login.data?.ok;
 	return (
 		<button
 			type="button"
-			disabled={renew.isPending || renew.isSuccess}
-			onClick={() => (remote ? renew.mutate() : onSend?.("/login"))}
+			disabled={signIn.isPending || done}
+			onClick={() => signIn.mutate()}
 			title={
 				remote
 					? "Sign the host in to your Claude plan - approve it in the browser tab that opens - then restart this session and every other host session stuck on Not logged in, which retry what failed"
-					: "Run /login in this session"
+					: "Sign in to your Claude plan - approve it in the browser tab that opens - then restart every session on this computer stuck on Not logged in, which retry what failed"
 			}
 			className={cn(ACTION_BUTTON, "mt-2")}
 		>
-			{renew.isSuccess
+			{done
 				? "Signed in - restarting and retrying"
-				: renew.isPending
+				: signIn.isPending
 					? "Approve in your browser…"
-					: remote
-						? "Sign in to Claude and restart"
-						: "Sign in to Claude (/login)"}
+					: "Sign in to Claude and restart"}
 		</button>
 	);
 }
@@ -5271,11 +5292,11 @@ async function drawCount(paneId: string, text: string): Promise<number> {
  */
 const hostCopies = new Map<string, Promise<string>>();
 
-function copyToHost(path: string): Promise<string> {
+function copyToHost(path: string, host?: string): Promise<string> {
 	let copy = hostCopies.get(path);
 	if (!copy) {
 		copy = electronTrpcClient.remoteHost.filesToHost
-			.mutate({ text: "", paths: [path] })
+			.mutate({ text: "", paths: [path], host })
 			.then((sent) => sent.paths[0] ?? path);
 		hostCopies.set(path, copy);
 		// A failed copy is tried again at send.
@@ -5285,11 +5306,13 @@ function copyToHost(path: string): Promise<string> {
 }
 
 /** The host copy of each path, copying any not on its way yet; done with them after. */
-async function hostPathsOf(paths: string[]): Promise<string[]> {
+async function hostPathsOf(paths: string[], host?: string): Promise<string[]> {
 	try {
 		return await Promise.all(
 			paths.map((path) =>
-				path ? copyToHost(path).catch(() => copyToHost(path)) : path,
+				path
+					? copyToHost(path, host).catch(() => copyToHost(path, host))
+					: path,
 			),
 		);
 	} finally {
@@ -5412,9 +5435,10 @@ function Composer({
 		inputRef.current?.focus();
 		saving.then(
 			(paths) => {
-				if (useTabsStore.getState().panes[paneId]?.odinRemote)
+				const host = useTabsStore.getState().panes[paneId]?.odinRemote;
+				if (host)
 					for (const path of paths)
-						if (path) void copyToHost(path).catch(() => undefined);
+						if (path) void copyToHost(path, host).catch(() => undefined);
 			},
 			(error) => {
 				setAttached((list) => list.filter((item) => !items.includes(item)));
@@ -5559,8 +5583,12 @@ function Composer({
 			if (onHost) {
 				// Attachments started copying when pasted; only the text is new.
 				const [sent, hostPaths] = await Promise.all([
-					electronTrpcClient.remoteHost.filesToHost.mutate({ text, paths: [] }),
-					hostPathsOf(paths),
+					electronTrpcClient.remoteHost.filesToHost.mutate({
+						text,
+						paths: [],
+						host: useTabsStore.getState().panes[paneId]?.odinRemote,
+					}),
+					hostPathsOf(paths, useTabsStore.getState().panes[paneId]?.odinRemote),
 				]);
 				// Queued, not typed: the host may be down or Claude restarting.
 				void deliverOnHost(
