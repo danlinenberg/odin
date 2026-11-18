@@ -627,10 +627,8 @@ function OdinShell() {
 				{/* The board's Sessions / Board view toggle portals in here: centred
 				    in the free space between two drag fillers, so a narrow window
 				    shrinks the fillers instead of sliding the toggle over the
-				    status badges. It never moves when the session drawer opens.
-				    z-50: above the drawer's full-window backdrop (z-40), or a click
-				    closes the drawer. */}
-				<div className="relative z-50 shrink-0">
+				    status badges. It never moves when the session drawer opens. */}
+				<div className="shrink-0">
 					<ZoomStable enabled={isMac}>
 						<div id="odin-view-toggle" />
 					</ZoomStable>
