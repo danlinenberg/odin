@@ -60,7 +60,7 @@ Open issues assigned to you, reported by you, or with a comment that @-mentions 
 Open PRs. Pills: To review (default), Mine, Mentions. Bot PRs are hidden ("show bot PRs (N)"). Repo filter. Your own PRs don't count in All.
 
 ## Notion feed
-Pick a database; turn on "@ Mentions" to add pages assigned to you and comment threads that @-mention you. Grouped by status, finished last. Odin sees only pages and databases shared with its integration.
+Pick a database. "@ Mentions" (on unless you turn it off) adds pages assigned to you in any database Odin can see and comment threads that @-mention you. Grouped by status, finished last. Odin sees only pages and databases shared with its integration.
 
 ## Email feed
 Gmail inbox mail that was unread when Odin first saw it; it stays after you open it, until you mark it Done. Pills: Interesting (default) and All. Junk shows only under All; the model decides junk, and every calendar mail is junk. Right-click a mail, then Ignore mail like this: its sender is junk from then on, and the model treats look-alikes as junk too. Read-only.
