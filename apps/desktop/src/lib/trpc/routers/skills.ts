@@ -109,6 +109,17 @@ export function collectSkills(options?: { homeDir?: string }): AgentSkill[] {
 		}
 	}
 
+	// Skills from claude.ai (Customize > Skills): Claude Code syncs them to
+	// skills/synced/<org>_<user>/<name>/SKILL.md and offers them as
+	// `anthropic-skills:<name>`.
+	const syncedRoot = join(skillsRoot, "synced");
+	for (const account of subdirectories(syncedRoot)) {
+		for (const skill of subdirectories(join(syncedRoot, account))) {
+			const skillMd = join(syncedRoot, account, skill, "SKILL.md");
+			if (existsSync(skillMd)) add(`anthropic-skills:${skill}`, skillMd);
+		}
+	}
+
 	const commandsRoot = join(home, ".claude", "commands");
 	for (const file of markdownFiles(commandsRoot)) {
 		add(basename(file, ".md"), join(commandsRoot, file));

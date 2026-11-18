@@ -104,6 +104,17 @@ test("collectSkills finds a single-skill plugin whose SKILL.md is at its root", 
 	]);
 });
 
+test("collectSkills finds claude.ai skills synced under skills/synced", () => {
+	const home = mkdtempSync(join(tmpdir(), "odin-skills-"));
+	const synced = join(home, ".claude", "skills", "synced", "org1_user1");
+	write(join(synced, "email-builder", "SKILL.md"), skillFile("Build emails"));
+	write(join(synced, "manifest.json"), "{}");
+
+	expect(collectSkills({ homeDir: home })).toEqual([
+		{ name: "anthropic-skills:email-builder", description: "Build emails" },
+	]);
+});
+
 test("withBundledSkills adds Claude Code's own skills, and a same-named skill of yours wins", () => {
 	const mine = { name: "simplify", description: "My own simplify" };
 	const skills = withBundledSkills([
