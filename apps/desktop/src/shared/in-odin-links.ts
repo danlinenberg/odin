@@ -17,6 +17,8 @@ export const LINK_HOSTS = {
 	// Opened in your browser, where you are signed in.
 	airtable: [],
 	determ: [],
+	// Drive files open where you're already signed in to Google: your own browser.
+	drive: [],
 } as const satisfies Record<string, readonly string[]>;
 
 export type LinkSiteId = keyof typeof LINK_HOSTS;

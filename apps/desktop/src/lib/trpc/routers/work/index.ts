@@ -12,6 +12,11 @@ import {
 } from "main/lib/calendar";
 import { calendarAccessToken, hasCalendarOAuth } from "main/lib/calendar-token";
 import {
+	driveAccessToken,
+	driveFetch,
+	hasDriveOAuth,
+} from "main/lib/drive-oauth";
+import {
 	type AirtableRecordRow,
 	adfToText,
 	airtableFetch,
@@ -20,8 +25,10 @@ import {
 	clickupDate,
 	clickupTasks,
 	type DetermMentionRow,
+	type DriveFileRow,
 	determFetch,
 	determMentions,
+	driveSharedFiles,
 	feedError,
 	type GithubSearchResponse,
 	type JiraIssueRow,
@@ -320,6 +327,7 @@ export const createWorkRouter = () => {
 			hasAirtable: hasAirtableOAuth(),
 			hasDeterm: !!readOdinConfig().determToken,
 			hasCalendar: hasCalendarOAuth() || !!readOdinConfig().calendarUrl,
+			hasDrive: hasDriveOAuth(),
 			/**
 			 * Odin's own checkout: gates self-update, and is where "Work on Odin"
 			 * sessions launch so the agent starts in the right repo instead of
@@ -765,6 +773,24 @@ export const createWorkRouter = () => {
 				}
 				return {
 					tasks: await clickupTasks((path) => clickupFetch(path, token)),
+				};
+			},
+		),
+
+		/** Google Drive files shared with me lately (DRIVE_SHARED_DAYS). */
+		myDriveFiles: publicProcedure.query(
+			async (): Promise<{ files: DriveFileRow[] }> => {
+				if (!hasDriveOAuth()) {
+					throw new TRPCError({
+						code: "PRECONDITION_FAILED",
+						message:
+							"Google Drive isn't connected - add it in Settings → Connections.",
+					});
+				}
+				const token = await driveAccessToken();
+				if (!token) throw feedError("Google Drive", 401, "");
+				return {
+					files: await driveSharedFiles((path) => driveFetch(path, token)),
 				};
 			},
 		),

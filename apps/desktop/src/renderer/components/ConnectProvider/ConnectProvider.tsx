@@ -18,7 +18,7 @@ import { resetOdinFeeds } from "renderer/routes/_authenticated/_odin/hooks/useOd
  * whole story, and it lives wherever a missing connection is noticed - the
  * Connections screen and, through `ConnectNotice`, the empty feed itself.
  *
- * Slack, Jira, Notion and Google Calendar run the browser consent flow: the
+ * Slack, Jira, Notion, Google Calendar and Google Drive run the browser consent flow: the
  * token comes back through a deep link into the main process, so this polls
  * for the result rather than awaiting a response. GitHub runs the device flow, which shows a
  * code instead.
@@ -33,7 +33,8 @@ export type Provider =
 	| "clickup"
 	| "calendar"
 	| "airtable"
-	| "determ";
+	| "determ"
+	| "drive";
 
 export const PROVIDER_NAME: Record<Provider, string> = {
 	slack: "Slack",
@@ -45,6 +46,7 @@ export const PROVIDER_NAME: Record<Provider, string> = {
 	calendar: "Calendar",
 	airtable: "Airtable",
 	determ: "Determ",
+	drive: "Google Drive",
 };
 
 type OAuthProvider = Exclude<
@@ -55,6 +57,7 @@ type OAuthProvider = Exclude<
 /** Whose account the sign-in button opens, where it isn't the provider's own. */
 const SIGN_IN_NAME: Partial<Record<OAuthProvider, string>> = {
 	calendar: "Google",
+	drive: "Google",
 };
 
 /** What the consent screen is about to ask for, in one line. */
@@ -73,6 +76,8 @@ const SCOPE_BLURB: Record<Provider, string> = {
 		"Opens Airtable in your browser, where you pick the bases Odin may read. Read-only.",
 	determ:
 		"An API token and the feeds to read - each mention from the last week is a row.",
+	drive:
+		"Opens Google in your browser. Read-only file names and owners, never their contents.",
 };
 
 export function ConnectProvider({
@@ -236,7 +241,9 @@ function OAuthAppForm({
 	onSaved: () => void;
 }) {
 	const name =
-		provider === "calendar" ? "Google Calendar" : PROVIDER_NAME[provider];
+		provider === "calendar" || provider === "drive"
+			? "Google"
+			: PROVIDER_NAME[provider];
 	const [app, setApp] = useState({
 		clientId: "",
 		clientSecret: "",
@@ -265,7 +272,10 @@ function OAuthAppForm({
 			</p>
 			{field("clientId", "Client ID")}
 			{field("clientSecret", "Client Secret")}
-			{field("redirectUrl", `https://…/${provider}.html`)}
+			{field(
+				"redirectUrl",
+				`https://…/${provider === "drive" ? "calendar" : provider}.html`,
+			)}
 			<Button
 				size="sm"
 				disabled={

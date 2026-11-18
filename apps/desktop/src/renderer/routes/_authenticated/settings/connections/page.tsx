@@ -21,6 +21,7 @@ import {
 	SiClaude,
 	SiClickup,
 	SiGmail,
+	SiGoogledrive,
 	SiJira,
 	SiNotion,
 } from "react-icons/si";
@@ -113,6 +114,12 @@ const META: Record<
 			"The last week of mentions in the Determ feeds you link, in the Determ tab.",
 		help: "Needs a Determ plan with API access: the token is under Settings → Account Settings.",
 	},
+	drive: {
+		name: "Google Drive",
+		icon: <SiGoogledrive className="size-5" />,
+		description: "Files shared with you in the last 14 days, in the Drive tab.",
+		help: "Sign in with Google for read-only access to file names, owners and links - never what's inside. Its own sign-in, separate from the Calendar's.",
+	},
 };
 
 const ORDER: Provider[] = [
@@ -122,6 +129,7 @@ const ORDER: Provider[] = [
 	"notion",
 	"gmail",
 	"calendar",
+	"drive",
 	"clickup",
 	"airtable",
 	"determ",

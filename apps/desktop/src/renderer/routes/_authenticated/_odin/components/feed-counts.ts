@@ -8,6 +8,7 @@ import {
 	SiAirtable,
 	SiClickup,
 	SiGmail,
+	SiGoogledrive,
 	SiJira,
 	SiNotion,
 	SiSlack,
@@ -50,6 +51,7 @@ export const FEED_TABS = [
 		provider: "determ",
 		onlyConnected: true,
 	},
+	{ to: "/drive", label: "Drive", Icon: SiGoogledrive, provider: "drive" },
 ] as const satisfies readonly {
 	to: string;
 	label: string;
@@ -89,6 +91,7 @@ export function feedCounts(input: {
 	meetings?: unknown[];
 	airtable?: unknown[];
 	determ?: unknown[];
+	drive?: unknown[];
 	docs?: number;
 }): Record<FeedPath, number> {
 	const sources = {
@@ -103,6 +106,7 @@ export function feedCounts(input: {
 		"/calendar": input.meetings?.length ?? 0,
 		"/airtable": input.airtable?.length ?? 0,
 		"/determ": input.determ?.length ?? 0,
+		"/drive": input.drive?.length ?? 0,
 	};
 	// All is the sum of the others, not a count of its own - otherwise the strip
 	// would be disagreeing with itself. Less your own PRs, which All leaves out.

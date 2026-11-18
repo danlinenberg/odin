@@ -31,6 +31,7 @@ export function FeedTabs() {
 		meetings,
 		airtable,
 		determ,
+		drive,
 		workConfig,
 		notionConfig,
 	} = useOdinFeeds();
@@ -82,6 +83,9 @@ export function FeedTabs() {
 		determ: (determ.data?.mentions ?? []).filter(
 			(row) => !isDone({ key: `determ:${row.id}`, url: row.url }),
 		),
+		drive: (drive.data?.files ?? []).filter(
+			(file) => !isDone({ key: `drive:${file.id}`, url: file.url }),
+		),
 		// Same rows the Docs page lists: saved docs plus Read later.
 		docs: docs.length + reading.length,
 	});
@@ -108,6 +112,7 @@ export function FeedTabs() {
 			failed: airtable.isError,
 		},
 		"/determ": { connected: workConfig?.hasDeterm, failed: determ.isError },
+		"/drive": { connected: workConfig?.hasDrive, failed: drive.isError },
 	});
 	const connected: Partial<Record<string, boolean | undefined>> = {
 		"/airtable": workConfig?.hasAirtable,

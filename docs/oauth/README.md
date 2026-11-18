@@ -19,6 +19,7 @@ Each provider needs a different shape of setup:
 | Jira | OAuth 2.0 3LO | yes - `jira.html` |
 | Google Calendar | OAuth 2.0, read-only | yes - `calendar.html` |
 | Airtable | OAuth 2.0 with PKCE, read-only | yes - `airtable.html` |
+| Google Drive | OAuth 2.0, read-only | shares `calendar.html` |
 
 Slack allows neither PKCE nor a non-HTTPS redirect URL, so a desktop app can't
 receive the callback directly. `slack.html` in this folder is the whole
@@ -243,6 +244,25 @@ re-connect. Access tokens last an hour; refresh tokens don't rotate
 
 Outlook and iCloud have no app here, so the Calendar row still takes their
 secret iCal address, and a build without the Google app shows that form first.
+
+## Google Drive
+
+Drive signs in through the Google Calendar app above: same client, same
+`calendar.html` redirect. The state Odin mints for a Drive sign-in is what
+tells its callback apart, so there is no second redirect to register. Its
+tokens are its own, so the Calendar and Drive connect and disconnect apart.
+
+1. **APIs & Services → Library**: enable the **Google Drive API**.
+2. **OAuth consent screen → Data access**: add the scope
+   `https://www.googleapis.com/auth/drive.metadata.readonly`.
+
+`drive.metadata.readonly` is a *restricted* scope: names, owners and links,
+never file contents, but Google still treats it like Gmail's. Past testing, an
+External app needs Google's restricted-scope verification, including a yearly
+third-party security assessment. Until then the 100 test users, the
+"unverified app" warning and the 7-day refresh tokens above apply. The
+Drive feed lists files shared with you in the last 14 days
+(`src/main/lib/feeds.ts`, `driveSharedFiles`).
 
 
 ## Airtable

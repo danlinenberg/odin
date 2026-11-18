@@ -24,6 +24,7 @@ function useItems(everything: boolean) {
 		meetings,
 		airtable,
 		determ,
+		drive,
 	} = useOdinFeeds();
 	// todos, not tasks: automations have their own panel and run themselves -
 	// they'd sit in "what have I got on" forever without ever being yours to do.
@@ -45,6 +46,7 @@ function useItems(everything: boolean) {
 					clickup: clickup.data?.tasks ?? [],
 					airtable: airtable.data?.records ?? [],
 					determ: determ.data?.mentions ?? [],
+					drive: drive.data?.files ?? [],
 					// Checked against the clock when the feed lands, so a meeting
 					// that ended is gone by the next poll at the latest.
 					meetings: upcomingMeetings(meetings.data?.meetings ?? [], Date.now()),
@@ -80,6 +82,7 @@ function useItems(everything: boolean) {
 			meetings.data,
 			airtable.data,
 			determ.data,
+			drive.data,
 		],
 	);
 	return { items, isDone, done };
@@ -135,6 +138,7 @@ export function useFeedItems(input: Partial<FeedInput>): Map<string, AllItem> {
 		meetings,
 		airtable,
 		determ,
+		drive,
 	} = input;
 	return useMemo(() => {
 		const items = allItems(
@@ -149,6 +153,7 @@ export function useFeedItems(input: Partial<FeedInput>): Map<string, AllItem> {
 				meetings: meetings ?? [],
 				airtable: airtable ?? [],
 				determ: determ ?? [],
+				drive: drive ?? [],
 			},
 			{ everything: true },
 		);
@@ -185,5 +190,6 @@ export function useFeedItems(input: Partial<FeedInput>): Map<string, AllItem> {
 		meetings,
 		airtable,
 		determ,
+		drive,
 	]);
 }

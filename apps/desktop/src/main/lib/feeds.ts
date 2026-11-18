@@ -513,6 +513,85 @@ export async function clickupTasks(call: FeedCall): Promise<ClickupTaskRow[]> {
 		}));
 }
 
+/** One Google Drive file someone shared with me. */
+export interface DriveFileRow {
+	id: string;
+	url: string;
+	name: string;
+	/** "Document", "Spreadsheet", "PDF" - what kind of file, in a word. */
+	kind: string;
+	/** Who shared it, when Drive says. */
+	sharedBy: string | null;
+	sharedAt: string | null;
+	modified: string | null;
+}
+
+/** How long a share stays in the feed: after that it's history, not a to-do. */
+export const DRIVE_SHARED_DAYS = 14;
+
+/** A Drive mime type, as the word a person would use. */
+export function driveKind(mimeType: string | undefined): string {
+	const google = mimeType?.match(/^application\/vnd\.google-apps\.(\w+)/)?.[1];
+	if (google) {
+		const names: Record<string, string> = {
+			document: "Document",
+			spreadsheet: "Spreadsheet",
+			presentation: "Presentation",
+			form: "Form",
+			folder: "Folder",
+			drawing: "Drawing",
+		};
+		return names[google] ?? google;
+	}
+	if (mimeType === "application/pdf") return "PDF";
+	const top = mimeType?.split("/")[0];
+	if (top === "image") return "Image";
+	if (top === "video") return "Video";
+	return "File";
+}
+
+/** Files shared with me in the last DRIVE_SHARED_DAYS days, newest share first. */
+export async function driveSharedFiles(
+	call: FeedCall,
+	now = Date.now(),
+): Promise<DriveFileRow[]> {
+	const fields =
+		"files(id,name,mimeType,webViewLink,sharedWithMeTime,modifiedTime,sharingUser(displayName,emailAddress))";
+	const response = await call(
+		`files?q=${encodeURIComponent("sharedWithMe and trashed = false")}&orderBy=sharedWithMeTime%20desc&pageSize=100&fields=${encodeURIComponent(fields)}`,
+	);
+	if (!response.ok) {
+		throw feedError("Google Drive", response.status, await response.text());
+	}
+	const { files = [] } = (await response.json()) as {
+		files?: {
+			id: string;
+			name: string;
+			mimeType?: string;
+			webViewLink?: string;
+			sharedWithMeTime?: string;
+			modifiedTime?: string;
+			sharingUser?: { displayName?: string; emailAddress?: string };
+		}[];
+	};
+	const since = now - DRIVE_SHARED_DAYS * 24 * 60 * 60 * 1000;
+	return files
+		.filter(
+			(file) =>
+				file.sharedWithMeTime && Date.parse(file.sharedWithMeTime) >= since,
+		)
+		.map((file) => ({
+			id: file.id,
+			url: file.webViewLink ?? `https://drive.google.com/open?id=${file.id}`,
+			name: file.name,
+			kind: driveKind(file.mimeType),
+			sharedBy:
+				file.sharingUser?.displayName ?? file.sharingUser?.emailAddress ?? null,
+			sharedAt: file.sharedWithMeTime ?? null,
+			modified: file.modifiedTime ?? null,
+		}));
+}
+
 /** Every page of a Notion database, newest first (capped at 1000), and the database itself. */
 export async function notionDatabase(
 	call: FeedCall,

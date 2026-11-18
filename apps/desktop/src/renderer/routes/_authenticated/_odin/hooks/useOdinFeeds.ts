@@ -107,6 +107,14 @@ export function useOdinFeeds() {
 		placeholderData: (prev) => prev,
 	});
 
+	const drive = electronTrpc.work.myDriveFiles.useQuery(undefined, {
+		enabled: workConfig?.hasDrive === true,
+		refetchInterval: 300_000,
+		staleTime: 300_000,
+		refetchOnMount: false,
+		placeholderData: (prev) => prev,
+	});
+
 	// Rows of whichever Notion database is picked in the Tasks view. No pick
 	// (or no token) means no query - the view says so instead.
 	const { data: notionConfig } = electronTrpc.notion.getConfig.useQuery();
@@ -137,6 +145,7 @@ export function useOdinFeeds() {
 		notion,
 		airtable,
 		determ,
+		drive,
 	])
 		void feed.data;
 
@@ -151,6 +160,7 @@ export function useOdinFeeds() {
 		meetings,
 		airtable,
 		determ,
+		drive,
 		notionConfig,
 		notionDatabaseId,
 		notionMentions,
@@ -166,7 +176,8 @@ export function useOdinFeeds() {
 				clickup.isFetching ||
 				meetings.isFetching ||
 				airtable.isFetching ||
-				determ.isFetching
+				determ.isFetching ||
+				drive.isFetching
 			);
 		},
 		// refetch() ignores `enabled` (TanStack v5 fetches on an explicit call
@@ -184,6 +195,7 @@ export function useOdinFeeds() {
 				workConfig?.hasCalendar === true ? meetings.refetch() : null,
 				workConfig?.hasAirtable === true ? airtable.refetch() : null,
 				workConfig?.hasDeterm === true ? determ.refetch() : null,
+				workConfig?.hasDrive === true ? drive.refetch() : null,
 			]),
 	};
 }

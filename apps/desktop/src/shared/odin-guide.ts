@@ -13,7 +13,7 @@ export const ODIN_GUIDE = `# Odin
 Top to bottom: Dev Board, Tasks, Automations, Night Agent (status with its settings - the on/off switch, the window and the night's cap are edited right in the header - Last night - the sessions the last window started and where each stands now, click one to open it - the next run's picks - add, reorder, remove, and what to do after them - its log by night, and its instructions), More (the ⋮ button: Review, Insights, Session History). At the foot: Settings, and the raven button (Huginn, ⌘⇧I). Each but Night Agent has a one-key hotkey (rebind in Settings → Keyboard); the keys do nothing while you type, also inside agent terminals.
 
 ## Tasks screen and its feeds
-Tabs, in two groups split by a hairline: Odin's own (All, Tasks, Docs), then the connections (Slack, Jira, GitHub, Notion, Email, ClickUp, Calendar, and Airtable and Determ once connected: their tabs show only then).
+Tabs, in two groups split by a hairline: Odin's own (All, Tasks, Docs), then the connections (Slack, Jira, GitHub, Notion, Email, ClickUp, Calendar, Drive, and Airtable and Determ once connected: their tabs show only then).
 - **Badges** count only what waits on you: Slack counts only "Not started" rows, GitHub leaves out bot PRs, Email leaves out junk, Done rows never count. All is the sum of the others, minus your own PRs.
 - **Amber dot** on a tab: that source is not connected. **Red dot**: connected but failing.
 - Feeds reload every 2 minutes. **Sync** refreshes the connected sources.
@@ -42,7 +42,7 @@ Tabs, in two groups split by a hairline: Odin's own (All, Tasks, Docs), then the
 - Store: tasks.
 
 ## Next in line (Dev Board column)
-Tasks waiting to start, from Tasks, Slack, Jira, GitHub and Notion only (not Email, ClickUp, Calendar, Airtable or Determ). Anything with a live session, ever started, or Done drops out.
+Tasks waiting to start, from Tasks, Slack, Jira, GitHub and Notion only (not Email, ClickUp, Calendar, Drive, Airtable or Determ). Anything with a live session, ever started, or Done drops out.
 - "Newest first" until you click **Sort with AI**; then it reads "Sorted by AI · undo" with Re-sort. The sort words live in Settings → Backlog ("How to sort it"). Rows the AI hides come back with "show hidden (N)".
 - Sections: **Tonight** (your picks, at most 20), then **Due** (dated tasks; overdue ones stay pinned up to 30 days by default, "Pin overdue tasks for"), then **Everything else**.
 - Suspected duplicates are dimmed, and the Night Agent skips them: the same ticket, PR link or title as a session already run, or one still open, including a session on one of your own tasks.
@@ -76,6 +76,9 @@ The last 7 days of mentions in the Determ feeds you linked in Settings → Conne
 
 ## Calendar feed
 Meetings from now to the end of tomorrow, soonest first, each one a task of type "Prepare for meeting". A meeting is due the day it happens, so today's sit in Now on All and tomorrow's in Later. The preview line shows the time and who is in it. Open joins the call (Meet, Zoom, Teams or Webex) in your own browser. Start session hands the agent the agenda, organizer and attendees to prepare from. Done puts away that one occurrence, not the rest of a series. Left out: all-day events, cancelled ones, ones you declined, and blocks with nobody else in them. A meeting never merges with another feed's row. Read-only; polled every 5 minutes. Right-click a meeting, then "Add a task to write action items after it": when it ends, Odin adds "Write action items: <title>" to Tasks, on top of Up next, with who was in it in its notes. On a recurring meeting it holds for every occurrence; "Stop adding action items after it" undoes it. The task is added while Odin is open, or the next time it opens.
+
+## Drive feed
+Google Drive files shared with you in the last 14 days, newest share first: the file's name, who shared it, and its kind (Document, Spreadsheet, PDF...). Open takes you to the file in your own browser. Done only takes the row out of Odin. Read-only (names, owners and links, never what is inside); polled every 5 minutes. "Nothing shared with you in the last 14 days" when it's empty.
 
 ## Review (rail, More menu)
 "Sweep now" checks every backlog item (your tasks plus Slack, Jira, GitHub and Notion rows) against its source. It also sweeps on its own, every hour by default ("Sweep the backlog every" in Settings → Backlog; 0 turns it off).
@@ -181,7 +184,7 @@ One list across every source in bands: **Now** (due, or asked in the last 4 hour
 The sidebar shows: Connections, Sessions, Remote, Storage, Backlog & Night Agent, Notifications, Appearance, Keyboard, Advanced - one topic each, with what's on it written under its name. The search box above the list finds any setting by its label, its section or what it does, and scrolls to it. Store settingsScreen holds which one is open.
 
 ## Connections (Settings → Connections)
-"The accounts Odin reads your work from" - Odin's integrations: Slack, GitHub, Jira, Notion, Gmail, ClickUp, Calendar, Airtable and Determ. These are Odin's own, not MCP servers, so a session's or Huginn's MCP tool list never shows them. Sign-ins stay on this computer. Each row has Connect, Reconnect and Disconnect; disconnecting takes that source's items out of every tab. When a newer Odin asks Slack for more than your sign-in allows, the Slack row says "Odin needs new permissions - Reconnect"; Reconnect asks Slack for them. An expired GitHub, Jira or Notion sign-in renews itself, so a row says "signed out - sign in again" only when the sign-in itself is gone. Slack, Jira, Notion and Airtable first ask for a Client ID and Secret when no OAuth app is set up; Calendar offers that under "Sign in with Google instead". Huginn reaches every connected service's full API with action=service.
+"The accounts Odin reads your work from" - Odin's integrations: Slack, GitHub, Jira, Notion, Gmail, ClickUp, Calendar, Google Drive, Airtable and Determ. These are Odin's own, not MCP servers, so a session's or Huginn's MCP tool list never shows them. Sign-ins stay on this computer. Each row has Connect, Reconnect and Disconnect; disconnecting takes that source's items out of every tab. When a newer Odin asks Slack for more than your sign-in allows, the Slack row says "Odin needs new permissions - Reconnect"; Reconnect asks Slack for them. An expired GitHub, Jira or Notion sign-in renews itself, so a row says "signed out - sign in again" only when the sign-in itself is gone. Slack, Jira, Notion and Airtable first ask for a Client ID and Secret when no OAuth app is set up; Calendar offers that under "Sign in with Google instead". Huginn reaches every connected service's full API with action=service.
 - **Profiles**: each profile has its own accounts, board sessions, Slack queue and tasks; only the active one shows anywhere. Rename in place, Switch to, or add one. A deleted profile can be restored for 30 days (click Show deleted profiles under the list), then it is gone.
 - **Claude**: "The account your sessions run on", for the whole Mac. Sign in / Reconnect opens the browser; paste the code if claude.ai shows one.
 - **Slack** (read-only): the Slack feed. Set the Queue emoji (default eyes) and the Queue and start emoji (default robot_face).
@@ -193,6 +196,7 @@ The sidebar shows: Connections, Sessions, Remote, Storage, Backlog & Night Agent
 - **Airtable**: Sign in with Airtable (read-only; on Airtable's page you pick the bases Odin may read). Then list the views to read on the Airtable tab: every record in them is a row in the Airtable feed. A build with no Airtable app first asks for its Client ID, Secret and Redirect URL.
 - **Determ**: an API token (Determ → Settings → Account Settings, on plans with API access) and one feed link per line (app.determ.com/…/feed/q/…). The last week of mentions in those feeds are rows in the Determ feed.
 - **Calendar**: Sign in with Google (read-only, the primary calendar). Outlook and iCloud connect by their secret iCal address instead ("Outlook or iCloud? Paste a secret iCal address"). A build with no Google app shows the iCal form first.
+- **Google Drive**: Sign in with Google (read-only file names, owners and links, never their contents). Its own sign-in, separate from the Calendar's, so either one connects or disconnects alone. Fills the Drive feed.
 
 ## Sessions settings (Settings → Sessions)
 A session's life on this computer, top to bottom. Besides the launch gate limits ("When they start", below):
@@ -256,7 +260,7 @@ Three tabs: Schedules, Rules, Reminders.
 ## Night Agent (Settings → Backlog & Night Agent, or the Night Agent page's header)
 "Work the backlog overnight": inside the window (default 23:00 to 07:00) it starts the top task of Next in line, waits until that session stops working, then starts the next. One at a time, up to the night's cap (default 8 sessions).
 - Rows you pick for tonight (up to 20) run first, in order. After them it stops, or goes on with the ranked queue (the "after picks" choice).
-- Only Tasks, Slack, Jira, GitHub and Notion rows can run. Email, ClickUp, Calendar, Airtable and Determ rows can't.
+- Only Tasks, Slack, Jira, GitHub and Notion rows can run. Email, ClickUp, Calendar, Drive, Airtable and Determ rows can't.
 - The AI ranks Next in line using your "How to sort it" words and the Night Agent instructions, so "don't include X" in either keeps X out. It re-ranks when the words change or new rows arrive.
 - Its Instructions are added to every Night Agent session's prompt. The default says: work alone, open a PR, but send nothing other people see (no Slack, email, comments, merges or deploys).
 - It runs only on power: on battery it starts nothing. Odin keeps the Mac from idle sleep during the window, but a closed lid still sleeps it. It runs only while Odin is open.
