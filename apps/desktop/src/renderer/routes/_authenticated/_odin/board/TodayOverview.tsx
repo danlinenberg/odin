@@ -327,25 +327,6 @@ export function TodayOverview({
 						</span>
 					)}
 				</div>
-				{bullets.length > 0 && (
-					<ul className="select-text list-disc space-y-0.5 pl-5 text-[13px] leading-snug">
-						{bullets.map((item) => (
-							<li key={item.key}>
-								<button
-									type="button"
-									onClick={() => onOpen(item.key)}
-									className="font-semibold hover:underline"
-								>
-									{item.title}
-								</button>
-								<span className="text-muted-foreground">
-									{" - "}
-									{data?.lines[item.key] ?? plainLine(item.status)}
-								</span>
-							</li>
-						))}
-					</ul>
-				)}
 				<div className={cn("flex flex-wrap gap-1.5", columns && "hidden")}>
 					{sections.map(({ group: id, count, hidden: off }) => {
 						const { Icon, tone } = GROUP_ICON[id];
@@ -380,6 +361,27 @@ export function TodayOverview({
 					</button>
 				</div>
 			</header>
+			{/* Outside the pinned header: one bullet per session can be taller
+			    than the window, and a sticky header that tall blocks the scroll. */}
+			{bullets.length > 0 && (
+				<ul className="mb-4 select-text list-disc space-y-0.5 pl-5 text-[13px] leading-snug">
+					{bullets.map((item) => (
+						<li key={item.key}>
+							<button
+								type="button"
+								onClick={() => onOpen(item.key)}
+								className="font-semibold hover:underline"
+							>
+								{item.title}
+							</button>
+							<span className="text-muted-foreground">
+								{" - "}
+								{data?.lines[item.key] ?? plainLine(item.status)}
+							</span>
+						</li>
+					))}
+				</ul>
+			)}
 			{!!data?.brief.length && (
 				<section
 					aria-label="What we're working on"
