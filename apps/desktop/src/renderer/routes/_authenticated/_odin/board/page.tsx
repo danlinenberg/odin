@@ -3615,6 +3615,20 @@ function DevBoardPage() {
 	// here; the dialog it opens asks whether to start over from the card's brief.
 	const [lostCard, setLostCard] = useState<BoardCard | null>(null);
 	const [drawerCard, setDrawerCard] = useState<BoardCard | null>(null);
+	// Switching profile closes an open session that belongs to the old one, so
+	// the new profile's board shows instead of the other profile's session.
+	// Huginn's chat stays: he switches profiles from it.
+	const drawerPane = drawerCard
+		? (panes[drawerCard.pane.id] ?? drawerCard.pane)
+		: null;
+	const drawerProfile =
+		drawerPane && !drawerPane.odinTags?.includes(CROW_TAG)
+			? profileOf(drawerPane.odinProfile)
+			: null;
+	useEffect(() => {
+		if (!isProfileLoading && drawerProfile && drawerProfile !== activeProfileId)
+			setDrawerCard(null);
+	}, [isProfileLoading, drawerProfile, activeProfileId]);
 	// Ticked rows in the drawer's session list, for acting on many at once -
 	// resuming a dozen Idle sessions was a dozen Resume clicks. Only rows still
 	// on screen count: folding Idle, or a session ending, takes its tick out
