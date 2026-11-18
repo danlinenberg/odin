@@ -28,6 +28,7 @@ import {
 import { startDevMainPuller } from "./lib/dev-pull-main";
 import { setWorkspaceDockIcon } from "./lib/dock-icon";
 import { startDoubleTap } from "./lib/double-tap";
+import { completeDriveOAuth, isDriveOAuthCallback } from "./lib/drive-oauth";
 import { loadWebviewBrowserExtension } from "./lib/extensions";
 import { getHostServiceCoordinator } from "./lib/host-service-coordinator";
 import { completeJiraOAuth, isJiraOAuthCallback } from "./lib/jira-oauth";
@@ -131,6 +132,14 @@ async function processDeepLink(url: string): Promise<void> {
 	if (isJiraOAuthCallback(url)) {
 		console.log("[main] Processing Jira OAuth callback");
 		await completeJiraOAuth(url);
+		focusMainWindow();
+		return;
+	}
+
+	// Drive shares the calendar's Google redirect; its own state tells it apart.
+	if (isDriveOAuthCallback(url)) {
+		console.log("[main] Processing Google Drive OAuth callback");
+		await completeDriveOAuth(url);
 		focusMainWindow();
 		return;
 	}

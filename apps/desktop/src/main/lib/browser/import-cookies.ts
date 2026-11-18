@@ -60,6 +60,7 @@ export function connectedSites(): LinkSiteId[] {
 		gmail: config.gmailAddress,
 		clickup: config.clickupToken,
 		calendar: config.calendarRefreshToken ?? config.calendarUrl,
+		drive: config.driveRefreshToken,
 	};
 	return (Object.keys(signedIn) as LinkSiteId[]).filter((id) => signedIn[id]);
 }

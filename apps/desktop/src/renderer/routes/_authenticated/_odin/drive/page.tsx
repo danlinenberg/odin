@@ -1,0 +1,73 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
+import {
+	TABLE_LIST,
+	TaskRow,
+	TaskTableHeader,
+	useTaskRows,
+} from "../all/TaskTable";
+import { useFeedItems } from "../all/use-all-items";
+import { FeedHeader, SyncButton } from "../components/FeedChrome";
+import { FeedError } from "../components/FeedError";
+import { useDone } from "../hooks/useDone";
+import { useOdinFeeds } from "../hooks/useOdinFeeds";
+
+export const Route = createFileRoute("/_authenticated/_odin/drive/")({
+	component: DrivePage,
+});
+
+/**
+ * Google Drive files shared with me in the last 14 days, newest share first.
+ * Open takes you to the file; Done only takes the row out of Odin.
+ */
+function DrivePage() {
+	const { drive, workConfig, syncAll, isSyncing } = useOdinFeeds();
+	const { isDone } = useDone();
+	const rows = (drive.data?.files ?? []).filter(
+		(file) => !isDone({ key: `drive:${file.id}`, url: file.url }),
+	);
+	const items = useFeedItems({ drive: rows });
+	const taskRows = useTaskRows();
+	const now = Date.now();
+
+	return (
+		<div className="flex h-full flex-col">
+			<FeedHeader>
+				<div className="ml-auto flex items-center gap-2.5">
+					<SyncButton isSyncing={isSyncing} onClick={() => void syncAll()} />
+				</div>
+			</FeedHeader>
+
+			<div className={TABLE_LIST}>
+				{workConfig && !workConfig.hasDrive && (
+					<ConnectNotice
+						provider="drive"
+						text="Google Drive isn't connected - sign in with Google to see files shared with you."
+					/>
+				)}
+				{drive.error?.data?.code === "UNAUTHORIZED" ? (
+					<ConnectNotice
+						provider="drive"
+						text="Google rejected the Drive sign-in - it was revoked or expired. Sign in again."
+					/>
+				) : (
+					<FeedError error={drive.error} />
+				)}
+				{drive.data && rows.length === 0 && (
+					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
+						Nothing shared with you in the last 14 days
+					</div>
+				)}
+				{rows.length > 0 && <TaskTableHeader />}
+				{rows.map((file) => {
+					const item = items.get(`drive:${file.id}`);
+					return (
+						item && (
+							<TaskRow key={item.key} item={item} rows={taskRows} now={now} />
+						)
+					);
+				})}
+			</div>
+		</div>
+	);
+}

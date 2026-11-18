@@ -13,6 +13,14 @@ import {
 } from "main/lib/calendar-oauth";
 import { calendarAccessToken, hasCalendarOAuth } from "main/lib/calendar-token";
 import {
+	driveAccessToken,
+	driveFetch,
+	hasDriveOAuth,
+	isDriveOAuthConfigured,
+	readDriveOAuthResult,
+	startDriveOAuth,
+} from "main/lib/drive-oauth";
+import {
 	connectGithubAccount,
 	disconnectGithubAccount,
 	GITHUB_DEVICE_CODE_URL,
@@ -91,6 +99,7 @@ const PROVIDERS = [
 	"gmail",
 	"clickup",
 	"calendar",
+	"drive",
 ] as const;
 type Provider = (typeof PROVIDERS)[number];
 
@@ -355,6 +364,26 @@ async function probeCalendar(): Promise<ConnectionStatus> {
 	}
 }
 
+/** Signed in to Google for Drive, the account's email is the "who am I". */
+async function probeDrive(): Promise<ConnectionStatus> {
+	if (!hasDriveOAuth()) return unconfigured("drive");
+	try {
+		const token = await driveAccessToken();
+		if (!token) return failed("drive", probeError(401));
+		const res = await driveFetch("about?fields=user(emailAddress)", token);
+		if (!res.ok) return failed("drive", probeError(res.status));
+		const json = (await res.json()) as { user?: { emailAddress?: string } };
+		return {
+			provider: "drive",
+			configured: true,
+			identity: json.user?.emailAddress ?? "Google Drive",
+			error: null,
+		};
+	} catch (error) {
+		return failed("drive", message(error));
+	}
+}
+
 function unconfigured(provider: Provider): ConnectionStatus {
 	return { provider, configured: false, identity: null, error: null };
 }
@@ -395,7 +424,13 @@ export function probeError(status: number): string {
 // procedures serves all of them, so a fifth provider is three lines of switch.
 // (GitHub is the odd one out - device flow, below.)
 
-const OAUTH_PROVIDERS = ["slack", "jira", "notion", "calendar"] as const;
+const OAUTH_PROVIDERS = [
+	"slack",
+	"jira",
+	"notion",
+	"calendar",
+	"drive",
+] as const;
 type OAuthProvider = (typeof OAUTH_PROVIDERS)[number];
 
 const oauthInput = z.object({ provider: z.enum(OAUTH_PROVIDERS) });
@@ -410,6 +445,8 @@ function oauthConfigured(provider: OAuthProvider): boolean {
 			return isNotionOAuthConfigured();
 		case "calendar":
 			return isCalendarOAuthConfigured();
+		case "drive":
+			return isDriveOAuthConfigured();
 	}
 }
 
@@ -425,6 +462,8 @@ function startOAuth(
 			return startNotionOAuth();
 		case "calendar":
 			return startCalendarOAuth();
+		case "drive":
+			return startDriveOAuth();
 	}
 }
 
@@ -438,6 +477,8 @@ function readOAuthResult(provider: OAuthProvider, state: string) {
 			return readNotionOAuthResult(state);
 		case "calendar":
 			return readCalendarOAuthResult(state);
+		case "drive":
+			return readDriveOAuthResult(state);
 	}
 }
 
@@ -465,6 +506,7 @@ export const createConnectionsRouter = () => {
 				probeGmail(),
 				probeClickup(),
 				probeCalendar(),
+				probeDrive(),
 			]);
 		}),
 
@@ -567,10 +609,12 @@ export const createConnectionsRouter = () => {
 				}),
 			)
 			.mutation(({ input: { provider, ...app } }) => {
+				// Drive signs in through the calendar's Google app.
+				const key = provider === "drive" ? "calendar" : provider;
 				updateOdinConfig({
-					[`${provider}ClientId`]: app.clientId,
-					[`${provider}ClientSecret`]: app.clientSecret,
-					[`${provider}RedirectUrl`]: app.redirectUrl,
+					[`${key}ClientId`]: app.clientId,
+					[`${key}ClientSecret`]: app.clientSecret,
+					[`${key}RedirectUrl`]: app.redirectUrl,
 				});
 				return { configured: oauthConfigured(provider) };
 			}),
@@ -634,6 +678,13 @@ export const createConnectionsRouter = () => {
 						break;
 					case "clickup":
 						updateOdinConfig({ clickupToken: undefined });
+						break;
+					case "drive":
+						updateOdinConfig({
+							driveAccessToken: undefined,
+							driveRefreshToken: undefined,
+							driveTokenExpiresAt: undefined,
+						});
 						break;
 					case "calendar":
 						updateOdinConfig({

@@ -14,6 +14,8 @@ export const LINK_HOSTS = {
 	clickup: ["clickup.com"],
 	// A meeting's link is its call, which wants your own browser's camera and mic.
 	calendar: [],
+	// Drive files open where you're already signed in to Google: your own browser.
+	drive: [],
 } as const satisfies Record<string, readonly string[]>;
 
 export type LinkSiteId = keyof typeof LINK_HOSTS;

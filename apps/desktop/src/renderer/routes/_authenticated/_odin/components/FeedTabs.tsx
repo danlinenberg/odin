@@ -29,6 +29,7 @@ export function FeedTabs() {
 		emails,
 		clickup,
 		meetings,
+		drive,
 		workConfig,
 		notionConfig,
 	} = useOdinFeeds();
@@ -74,6 +75,9 @@ export function FeedTabs() {
 			(meeting) =>
 				!isDone({ key: `meeting:${meeting.id}`, url: meeting.joinUrl }),
 		),
+		drive: (drive.data?.files ?? []).filter(
+			(file) => !isDone({ key: `drive:${file.id}`, url: file.url }),
+		),
 		// Same rows the Docs page lists: saved docs plus Read later.
 		docs: docs.length + reading.length,
 	});
@@ -95,6 +99,7 @@ export function FeedTabs() {
 			connected: workConfig?.hasCalendar,
 			failed: meetings.isError,
 		},
+		"/drive": { connected: workConfig?.hasDrive, failed: drive.isError },
 	});
 
 	const active = FEED_TABS.find((tab) => !!matchRoute({ to: tab.to }))?.to;

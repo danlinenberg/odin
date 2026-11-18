@@ -4,7 +4,14 @@ import {
 	HiOutlineInbox,
 } from "react-icons/hi2";
 import { LuCalendarDays, LuGitPullRequest } from "react-icons/lu";
-import { SiClickup, SiGmail, SiJira, SiNotion, SiSlack } from "react-icons/si";
+import {
+	SiClickup,
+	SiGmail,
+	SiGoogledrive,
+	SiJira,
+	SiNotion,
+	SiSlack,
+} from "react-icons/si";
 import type { Provider } from "renderer/components/ConnectProvider/ConnectProvider";
 
 /**
@@ -28,6 +35,7 @@ export const FEED_TABS = [
 		Icon: LuCalendarDays,
 		provider: "calendar",
 	},
+	{ to: "/drive", label: "Drive", Icon: SiGoogledrive, provider: "drive" },
 ] as const satisfies readonly {
 	to: string;
 	label: string;
@@ -64,6 +72,7 @@ export function feedCounts(input: {
 	emails?: unknown[];
 	clickup?: unknown[];
 	meetings?: unknown[];
+	drive?: unknown[];
 	docs?: number;
 }): Record<FeedPath, number> {
 	const sources = {
@@ -76,6 +85,7 @@ export function feedCounts(input: {
 		"/email": input.emails?.length ?? 0,
 		"/clickup": input.clickup?.length ?? 0,
 		"/calendar": input.meetings?.length ?? 0,
+		"/drive": input.drive?.length ?? 0,
 	};
 	// All is the sum of the others, not a count of its own - otherwise the strip
 	// would be disagreeing with itself. Less your own PRs, which All leaves out.

@@ -25,12 +25,13 @@ test("counts say what's waiting, not how many rows", () => {
 		emails: [{}],
 		clickup: [{}, {}],
 		meetings: [{}],
+		drive: [{}],
 		docs: 4,
 	});
 	expect(counts).toEqual({
 		// All is what the others add up to, so the strip agrees with itself.
 		// …less your own PRs, which All doesn't list.
-		"/all": 11,
+		"/all": 12,
 		"/my-tasks": 2,
 		"/reactions": 1,
 		"/jira": 3,
@@ -39,6 +40,7 @@ test("counts say what's waiting, not how many rows", () => {
 		"/email": 1,
 		"/clickup": 2,
 		"/calendar": 1,
+		"/drive": 1,
 		"/docs": 4,
 	});
 });

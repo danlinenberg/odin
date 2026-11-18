@@ -14,7 +14,7 @@ import { useTitleOverrides } from "./title-overrides";
 
 /** Every feed through allItems, under your own names, plus the Done check. */
 function useItems(everything: boolean) {
-	const { reactions, jira, pulls, notion, emails, clickup, meetings } =
+	const { reactions, jira, pulls, notion, emails, clickup, meetings, drive } =
 		useOdinFeeds();
 	// todos, not tasks: automations have their own panel and run themselves -
 	// they'd sit in "what have I got on" forever without ever being yours to do.
@@ -37,6 +37,7 @@ function useItems(everything: boolean) {
 					// Checked against the clock when the feed lands, so a meeting
 					// that ended is gone by the next poll at the latest.
 					meetings: upcomingMeetings(meetings.data?.meetings ?? [], Date.now()),
+					drive: drive.data?.files ?? [],
 				},
 				{ everything },
 			).map((item) => {
@@ -67,6 +68,7 @@ function useItems(everything: boolean) {
 			emails.data,
 			clickup.data,
 			meetings.data,
+			drive.data,
 		],
 	);
 	return { items, isDone, done };
@@ -111,8 +113,17 @@ type FeedInput = Parameters<typeof allItems>[0];
 export function useFeedItems(input: Partial<FeedInput>): Map<string, AllItem> {
 	const titles = useTitleOverrides((s) => s.titles);
 	const priorities = useTitleOverrides((s) => s.priorities);
-	const { tasks, slack, jira, pulls, notion, emails, clickup, meetings } =
-		input;
+	const {
+		tasks,
+		slack,
+		jira,
+		pulls,
+		notion,
+		emails,
+		clickup,
+		meetings,
+		drive,
+	} = input;
 	return useMemo(() => {
 		const items = allItems(
 			{
@@ -124,6 +135,7 @@ export function useFeedItems(input: Partial<FeedInput>): Map<string, AllItem> {
 				emails: emails ?? [],
 				clickup: clickup ?? [],
 				meetings: meetings ?? [],
+				drive: drive ?? [],
 			},
 			{ everything: true },
 		);
@@ -158,5 +170,6 @@ export function useFeedItems(input: Partial<FeedInput>): Map<string, AllItem> {
 		emails,
 		clickup,
 		meetings,
+		drive,
 	]);
 }

@@ -90,6 +90,14 @@ export function useOdinFeeds() {
 		placeholderData: (prev) => prev,
 	});
 
+	const drive = electronTrpc.work.myDriveFiles.useQuery(undefined, {
+		enabled: workConfig?.hasDrive === true,
+		refetchInterval: 300_000,
+		staleTime: 300_000,
+		refetchOnMount: false,
+		placeholderData: (prev) => prev,
+	});
+
 	// Rows of whichever Notion database is picked in the Tasks view. No pick
 	// (or no token) means no query - the view says so instead.
 	const { data: notionConfig } = electronTrpc.notion.getConfig.useQuery();
@@ -111,7 +119,7 @@ export function useOdinFeeds() {
 	// A query result its caller never reads re-renders that caller on every
 	// fetch (TanStack tracks what's read, and nothing read means everything).
 	// Reading `data` here keeps a caller that ignores a feed off its polls.
-	for (const feed of [jira, pulls, reactions, clickup, meetings, notion])
+	for (const feed of [jira, pulls, reactions, clickup, meetings, drive, notion])
 		void feed.data;
 
 	return {
@@ -123,6 +131,7 @@ export function useOdinFeeds() {
 		emails,
 		clickup,
 		meetings,
+		drive,
 		notionConfig,
 		notionDatabaseId,
 		notionMentions,
@@ -136,7 +145,8 @@ export function useOdinFeeds() {
 				notion.isFetching ||
 				emails.isFetching ||
 				clickup.isFetching ||
-				meetings.isFetching
+				meetings.isFetching ||
+				drive.isFetching
 			);
 		},
 		// refetch() ignores `enabled` (TanStack v5 fetches on an explicit call
@@ -152,6 +162,7 @@ export function useOdinFeeds() {
 				workConfig?.hasGmail === true ? emails.refetch() : null,
 				workConfig?.hasClickup === true ? clickup.refetch() : null,
 				workConfig?.hasCalendar === true ? meetings.refetch() : null,
+				workConfig?.hasDrive === true ? drive.refetch() : null,
 			]),
 	};
 }

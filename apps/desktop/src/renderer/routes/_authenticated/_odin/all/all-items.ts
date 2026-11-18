@@ -47,7 +47,8 @@ export interface AllItem {
 		| "Notion"
 		| "Email"
 		| "ClickUp"
-		| "Calendar";
+		| "Calendar"
+		| "Drive";
 	/** The feed this row lives in - clicking the title goes there. */
 	to: FeedPath;
 	title: string;
@@ -317,6 +318,16 @@ export function allItems(
 		}[];
 		/** Upcoming meetings (main/lib/calendar) - optional, most callers predate it. */
 		meetings?: Meeting[];
+		/** Google Drive files shared with me lately - optional, most callers predate it. */
+		drive?: {
+			id: string;
+			url: string;
+			name: string;
+			kind: string;
+			sharedBy: string | null;
+			sharedAt: string | null;
+			modified: string | null;
+		}[];
 	},
 	{ everything = false }: { everything?: boolean } = {},
 ): AllItem[] {
@@ -630,6 +641,40 @@ export function allItems(
 			}),
 		),
 		...(input.meetings ?? []).map(meetingItem),
+		...(input.drive ?? []).map(
+			(file): AllItem => ({
+				key: `drive:${file.id}`,
+				source: "Drive",
+				to: "/drive",
+				title: file.name,
+				url: file.url,
+				person: file.sharedBy,
+				status: null,
+				priority: null,
+				urgency: null,
+				context: file.kind,
+				at: ms(file.sharedAt),
+				createdAt: ms(file.sharedAt),
+				dueDate: null,
+				mention: null,
+				// Shared with you and not looked at in Odin yet - the same ask as new mail.
+				ask: { kind: "unread", at: ms(file.sharedAt) },
+				body: null,
+				details: facts([
+					["Kind", file.kind],
+					["Shared by", file.sharedBy],
+					["Shared", when(file.sharedAt)],
+					["Modified", when(file.modified)],
+				]),
+				launch: {
+					key: file.id,
+					title: file.name,
+					description: `Google Drive ${file.kind.toLowerCase()} shared by ${file.sharedBy ?? "someone"}: ${file.name}\n${file.url}`,
+					contact: file.sharedBy,
+					brief: `${file.name}\n${file.url}`,
+				},
+			}),
+		),
 	].sort((a, b) => b.at - a.at);
 }
 
