@@ -33,6 +33,7 @@ import { startDevMainPuller } from "./lib/dev-pull-main";
 import { setWorkspaceDockIcon } from "./lib/dock-icon";
 import { startDoubleTap } from "./lib/double-tap";
 import { loadWebviewBrowserExtension } from "./lib/extensions";
+import { startMainStallLog } from "./lib/freeze-log";
 import { getHostServiceCoordinator } from "./lib/host-service-coordinator";
 import { completeJiraOAuth, isJiraOAuthCallback } from "./lib/jira-oauth";
 import { localDb } from "./lib/local-db";
@@ -548,6 +549,7 @@ if (!gotTheLock) {
 		);
 		startDataBackup();
 		startMemoryGuard();
+		startMainStallLog();
 		startPhone();
 
 		try {

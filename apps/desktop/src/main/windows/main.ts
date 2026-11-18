@@ -4,6 +4,7 @@ import { app, Notification, nativeTheme } from "electron";
 import log from "electron-log/main";
 import { createWindow } from "lib/electron-app/factories/windows/create";
 import { createAppRouter } from "lib/trpc/routers";
+import { attachWindowFreezeLog } from "main/lib/freeze-log";
 import { NOTIFICATION_EVENTS, PLATFORM } from "shared/constants";
 import {
 	env,
@@ -140,6 +141,8 @@ export async function MainWindow() {
 	if (PLATFORM.IS_MAC) {
 		window.webContents.setBackgroundThrottling(false);
 	}
+
+	attachWindowFreezeLog(window);
 
 	if (isDev) {
 		window.webContents.on(
