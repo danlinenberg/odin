@@ -1,10 +1,10 @@
 /**
- * The Today page's "Coming up" list: your tasks that are due soon or late,
+ * The Today page's "Not started yet" list: your tasks that are due soon or late,
  * the top of Up next you have not started yet, and what waits on someone
  * else. Built only from what Tasks already keeps.
  */
 
-/** A task row as the Coming up list reads it. */
+/** A task row as the Not started yet list reads it. */
 export interface SideRow {
 	key: string;
 	title: string;
@@ -36,7 +36,7 @@ export interface TodaySide {
 
 /** Due within this many days counts as "due this week". */
 export const DUE_SOON_DAYS = 6;
-/** How much of Up next Coming up shows. */
+/** How much of Up next Not started yet shows. */
 export const UP_NEXT_SHOWN = 5;
 
 /**

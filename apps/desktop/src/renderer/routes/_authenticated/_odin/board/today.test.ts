@@ -4,10 +4,13 @@ import {
 	plainLine,
 	shouldShowToday,
 	type TodayEntry,
+	type TodayGroup,
 	todayCounts,
 	todayGroup,
 	todayGroups,
+	todayLanes,
 	todayTasks,
+	yourAction,
 } from "./today";
 
 describe("todayGroup", () => {
@@ -189,5 +192,38 @@ describe("todayTasks", () => {
 			["One", 1],
 			["Two", 1],
 		]);
+	});
+});
+
+describe("yourAction", () => {
+	it("turns your next step into an action", () => {
+		expect(yourAction("You: pick the email wording.")).toBe(
+			"Pick the email wording",
+		);
+		expect(yourAction("you : merge it")).toBe("Merge it");
+	});
+	it("is null when someone else acts", () => {
+		expect(yourAction("Claude: is writing the test")).toBeNull();
+		expect(yourAction("Riley: confirm the rows")).toBeNull();
+		expect(yourAction(null)).toBeNull();
+	});
+});
+
+describe("todayLanes", () => {
+	it("puts what waits on you first and keeps the order", () => {
+		const t = (id: string, group: TodayGroup, next: string | null = null) => ({
+			id,
+			group,
+			next,
+		});
+		const { yours, moving } = todayLanes([
+			t("a", "needs-you"),
+			t("b", "running", "You: review it after"),
+			t("c", "almost-done"),
+			t("d", "paused", "You: decide if it still matters"),
+			t("e", "waiting", "Riley: confirm"),
+		]);
+		expect(yours.map((x) => x.id)).toEqual(["a", "c", "d"]);
+		expect(moving.map((x) => x.id)).toEqual(["b", "e"]);
 	});
 });

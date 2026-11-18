@@ -1,6 +1,6 @@
 import { cn } from "@odin/ui/utils";
 import type { ComponentType, ReactNode } from "react";
-import { Fragment, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
 	LuCircleCheck,
 	LuHourglass,
@@ -30,7 +30,9 @@ import {
 	todayCounts,
 	todayGroup,
 	todayGroupLabel,
+	todayLanes,
 	todayTasks,
+	yourAction,
 } from "./today";
 import { moveSelection, type SideRow, todaySide } from "./today-side";
 
@@ -113,9 +115,6 @@ const GROUP_MARK: Record<
 	paused: { Icon: LuPause, tone: "text-muted-foreground" },
 };
 
-/** A mark under a task: a dot after it parts it from the next one. */
-const MARK = "after:ml-1.5 after:text-muted-foreground after:content-['·']";
-
 const LINK =
 	"font-medium text-primary-ink underline-offset-2 hover:underline disabled:opacity-50";
 
@@ -125,11 +124,12 @@ const dueTone = (left: number) =>
 
 /**
  * Today: your open work as one page of plain text. A sentence over all of
- * it, then every task you are working on - the board's sessions grouped by
- * Claude into the work they serve - with what it is, where it stands, how
- * much is left, its due date and priority, and links to its sessions. Under
- * it, your tasks coming up that no session works on yet. No cards, no
- * columns: Board view has those.
+ * it, then two lanes of the board's sessions, grouped by Claude into the
+ * work they serve. Waiting on you: numbered, each titled by what you do
+ * next, with what the task is, where it stands and what is left. Moving
+ * without you: what Claude or someone else has, or is on hold. Under them,
+ * your tasks no session works on yet. No cards, no columns: Board view has
+ * those.
  */
 export function TodayOverview({
 	cards,
@@ -166,10 +166,12 @@ export function TodayOverview({
 				placeholderData: (previous) => previous,
 			},
 		);
-	const tasks = useMemo(
-		() => todayTasks(data?.tasks ?? [], items),
+	const lanes = useMemo(
+		() => todayLanes(todayTasks(data?.tasks ?? [], items)),
 		[data, items],
 	);
+	// Arrow keys walk the page top to bottom: your lane, then the other.
+	const tasks = useMemo(() => [...lanes.yours, ...lanes.moving], [lanes]);
 	const side = useTodaySide();
 	const enabled = useTodayOverview((s) => s.enabled);
 	const setEnabled = useTodayOverview((s) => s.setEnabled);
@@ -246,29 +248,67 @@ export function TodayOverview({
 					)}
 				</header>
 
-				<section aria-label="What you're working on">
-					<h2 className="mb-3 text-[15px] font-semibold">
-						What you're working on
-					</h2>
-					{tasks.length === 0 ? (
-						<p className="text-[14px] text-muted-foreground">
-							No open sessions. Start one from Tasks, or from the board.
-						</p>
-					) : (
-						<ul className="flex flex-col gap-7">
-							{tasks.map((task, i) => (
-								<TodayTaskText
+				{tasks.length === 0 && (
+					<p className="text-[14px] text-muted-foreground">
+						No open sessions. Start one from Tasks, or from the board.
+					</p>
+				)}
+
+				{lanes.yours.length > 0 && (
+					<section aria-label="Waiting on you">
+						<h2 className="mb-3 flex items-baseline gap-2">
+							<span className="text-[17px] font-semibold text-attention-ink">
+								Waiting on you
+							</span>
+							<span className="text-[12.5px] text-muted-foreground">
+								do these first
+							</span>
+						</h2>
+						<ol className="flex flex-col gap-5">
+							{lanes.yours.map((task, i) => (
+								<YourTask
+									key={task.id}
+									task={task}
+									number={i + 1}
+									now={now}
+									picked={tasks[selected]?.id === task.id}
+									open={task.items.some((item) => item.key === openPaneId)}
+									onOpen={onOpen}
+								/>
+							))}
+						</ol>
+					</section>
+				)}
+
+				{lanes.moving.length > 0 && (
+					<section
+						aria-label="Moving without you"
+						className={cn(
+							lanes.yours.length > 0 && "border-t border-border pt-5",
+						)}
+					>
+						<h2 className="mb-3 flex items-baseline gap-2">
+							<span className="text-[17px] font-semibold text-working-ink">
+								Moving without you
+							</span>
+							<span className="text-[12.5px] text-muted-foreground">
+								nothing to do, just so you know
+							</span>
+						</h2>
+						<ul className="flex flex-col gap-4">
+							{lanes.moving.map((task) => (
+								<MovingTask
 									key={task.id}
 									task={task}
 									now={now}
-									picked={i === selected}
+									picked={tasks[selected]?.id === task.id}
 									open={task.items.some((item) => item.key === openPaneId)}
 									onOpen={onOpen}
 								/>
 							))}
 						</ul>
-					)}
-				</section>
+					</section>
+				)}
 
 				<ComingUp side={side} onOpen={onOpen} />
 
@@ -286,19 +326,49 @@ export function TodayOverview({
 	);
 }
 
-/**
- * One task as a few lines of text: its name and what it is; where it
- * stands, what is left and who acts next; where it stands in one word, its
- * due date and priority; then a line per session with where it runs, its
- * repo, its last message, its pull requests and the task it came from.
- */
-function TodayTaskText({
+/** "the fix is written" -> "The fix is written." */
+const sentence = (text: string | null) => {
+	const said = text?.trim();
+	if (!said) return null;
+	const cap = said[0].toUpperCase() + said.slice(1);
+	return /[.!?]$/.test(cap) ? cap : `${cap}.`;
+};
+
+/** Its due date, a high priority and its star, as short words after the text. */
+function TaskMarks({
 	task,
 	now,
-	picked,
-	open,
-	onOpen,
 }: {
+	task: TodayTaskView<TodayItem>;
+	now: number;
+}) {
+	const due = task.items
+		.map((item) => item.due)
+		.filter((day): day is string => !!day)
+		.sort()[0];
+	const left = due ? daysUntil(due, now) : null;
+	const high = task.items.find((item) => item.urgency === "high");
+	const starred = task.items.some((item) => item.starred);
+	return (
+		<>
+			{due && left !== null && (
+				<span className={cn("font-semibold", dueTone(left))}>
+					{" "}
+					{dueLabel(due, left)}.
+				</span>
+			)}
+			{high && (
+				<span className="font-semibold text-danger-ink">
+					{" "}
+					{high.priority ?? "High"} priority.
+				</span>
+			)}
+			{starred && <span className="text-attention-ink"> ★ Starred.</span>}
+		</>
+	);
+}
+
+type TaskProps = {
 	task: TodayTaskView<TodayItem>;
 	now: number;
 	/** Picked with the arrow keys. */
@@ -306,137 +376,178 @@ function TodayTaskText({
 	/** One of its sessions is open beside the page. */
 	open: boolean;
 	onOpen: (paneId: string) => void;
-}) {
-	const { Icon, tone } = GROUP_MARK[task.group];
-	const first = task.items[0];
-	const due = task.items
-		.map((item) => item.due)
-		.filter((day): day is string => !!day)
-		.sort()[0];
-	const left = due ? daysUntil(due, now) : null;
-	const high = task.items.find((item) => item.urgency === "high");
-	const waitingOn = task.group === "waiting" ? first.waitingOn : null;
-	const marks: ReactNode[] = [
-		<span
-			key="group"
-			className={cn("inline-flex items-center gap-1", tone, MARK)}
-		>
-			<Icon className="size-3" aria-hidden />
-			{waitingOn ? `Waiting on ${waitingOn}` : todayGroupLabel(task.group)}
-		</span>,
-	];
-	if (due && left !== null)
-		marks.push(
-			<span key="due" className={cn("font-medium", dueTone(left), MARK)}>
-				{dueLabel(due, left)}
-			</span>,
-		);
-	if (high)
-		marks.push(
-			<span key="priority" className={cn("font-medium text-danger-ink", MARK)}>
-				{high.priority ?? "High"} priority
-			</span>,
-		);
-	if (task.items.some((item) => item.starred))
-		marks.push(
-			<span key="star" className={cn("text-attention-ink", MARK)}>
-				★ Starred
-			</span>,
-		);
+};
+
+const rowClass = (open: boolean, picked: boolean) =>
+	cn(
+		"-mx-3 rounded-lg px-3 py-1.5",
+		open && "bg-primary/10",
+		picked && "ring-2 ring-primary/60",
+	);
+
+/**
+ * A task waiting on you, numbered in the order to do it: what you do as its
+ * title, then in a few sentences what the task is, where it stands and what
+ * is left, its due date and priority, and its sessions.
+ */
+function YourTask({
+	task,
+	number,
+	now,
+	picked,
+	open,
+	onOpen,
+}: TaskProps & { number: number }) {
+	const action = yourAction(task.next);
+	const fallback =
+		task.group === "almost-done" ? `Finish: ${task.name}` : task.name;
+	const prose = [task.about, task.line, task.left]
+		.map(sentence)
+		.filter(Boolean)
+		.join(" ");
 	return (
 		<li
 			data-today-task={task.id}
 			className={cn(
-				"-mx-3 rounded-lg px-3 py-1.5",
-				open && "bg-primary/10",
-				picked && "ring-2 ring-primary/60",
+				rowClass(open, picked),
+				"grid grid-cols-[22px_1fr] gap-x-2",
 			)}
 		>
-			<p className="text-[15px] leading-relaxed">
+			<span className="text-[16px] font-semibold leading-snug text-attention">
+				{number}
+			</span>
+			<div className="flex min-w-0 flex-col gap-1">
 				<button
 					type="button"
 					title="Open its session beside this page"
-					onClick={() => onOpen(first.key)}
-					className="text-left font-semibold underline-offset-2 hover:underline"
+					onClick={() => onOpen(task.items[0].key)}
+					className="text-left text-[15.5px] font-semibold leading-snug underline-offset-2 hover:underline"
 				>
-					{task.name}
+					{action ?? fallback}
 				</button>
-			</p>
-			<dl className="mt-1 grid select-text cursor-text grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 text-[13.5px] leading-relaxed">
-				{(
-					[
-						["What it is", task.about],
-						["Where it stands", task.line],
-						["What's left", task.left],
-						["Next", task.next],
-					] as const
-				).map(([label, text]) =>
-					text ? (
-						<Fragment key={label}>
-							<dt className="text-muted-foreground">{label}</dt>
-							<dd>{text}</dd>
-						</Fragment>
-					) : null,
-				)}
-			</dl>
-			<p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] text-muted-foreground">
-				{marks}
-				<span>
-					{task.items.length === 1
-						? "1 session"
-						: `${task.items.length} sessions`}
-				</span>
-			</p>
-			<ul className="mt-1 flex flex-col gap-1 border-l-2 border-border pl-3 text-[12px] text-muted-foreground">
-				{task.items.map((item) => (
-					<li
-						key={item.key}
-						className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5"
-					>
-						<button
-							type="button"
-							title={`${todayGroupLabel(item.group)} - open it beside this page`}
-							onClick={() => onOpen(item.key)}
-							className={cn(LINK, "text-[12.5px]")}
-						>
-							{item.title}
-						</button>
-						{task.items.length > 1 && (
-							<span className={GROUP_MARK[item.group].tone}>
-								{todayGroupLabel(item.group).toLowerCase()}
-							</span>
-						)}
-						{item.facts && (
-							<span className="inline-flex flex-wrap items-baseline gap-x-1.5">
-								<span>-</span>
-								{item.facts}
-							</span>
-						)}
-						{item.from && (
-							<span>
-								- from {item.from.source}:{" "}
-								{item.from.url ? (
-									<button
-										type="button"
-										title={`Open it in ${item.from.source}`}
-										onClick={() => openUrl(item.from?.url ?? "")}
-										className="text-link hover:underline"
-									>
-										{item.from.title}
-									</button>
-								) : (
-									item.from.title
-								)}
-							</span>
-						)}
-					</li>
-				))}
-			</ul>
+				<p className="select-text cursor-text text-[13.5px] leading-relaxed text-foreground/85">
+					{action && (
+						<span className="font-medium text-foreground">{task.name}: </span>
+					)}
+					{prose || todayGroupLabel(task.group)}
+					<TaskMarks task={task} now={now} />
+				</p>
+				<SessionLines task={task} onOpen={onOpen} />
+			</div>
 		</li>
 	);
 }
 
-/** Your tasks the "Coming up" list reads, from what Tasks already keeps. */
+/**
+ * A task moving without you: its name and who has it now, then what it is,
+ * where it stands, what is left and who acts next, and its sessions.
+ */
+function MovingTask({ task, now, picked, open, onOpen }: TaskProps) {
+	const { Icon, tone } = GROUP_MARK[task.group];
+	const waitingOn = task.group === "waiting" ? task.items[0].waitingOn : null;
+	const word =
+		task.group === "running"
+			? "Claude is on it"
+			: waitingOn
+				? `waiting on ${waitingOn}`
+				: todayGroupLabel(task.group).toLowerCase();
+	const prose = [task.about, task.line, task.left, task.next]
+		.map(sentence)
+		.filter(Boolean)
+		.join(" ");
+	return (
+		<li data-today-task={task.id} className={rowClass(open, picked)}>
+			<p className="flex flex-wrap items-baseline gap-x-2">
+				<button
+					type="button"
+					title="Open its session beside this page"
+					onClick={() => onOpen(task.items[0].key)}
+					className="text-left text-[14.5px] font-semibold underline-offset-2 hover:underline"
+				>
+					{task.name}
+				</button>
+				<span
+					className={cn("inline-flex items-center gap-1 text-[12px]", tone)}
+				>
+					<Icon className="size-3" aria-hidden />
+					{word}
+				</span>
+			</p>
+			{(prose || task.items.some((item) => item.due || item.starred)) && (
+				<p className="mt-1 select-text cursor-text text-[13.5px] leading-relaxed text-foreground/85">
+					{prose}
+					<TaskMarks task={task} now={now} />
+				</p>
+			)}
+			<div className="mt-1">
+				<SessionLines task={task} onOpen={onOpen} />
+			</div>
+		</li>
+	);
+}
+
+/**
+ * A line per session: its title (opens it), where it stands when the task
+ * has several, its facts - where it runs, repo, last message, pull requests -
+ * and the task it came from.
+ */
+function SessionLines({
+	task,
+	onOpen,
+}: {
+	task: TodayTaskView<TodayItem>;
+	onOpen: (paneId: string) => void;
+}) {
+	return (
+		<ul className="flex flex-col gap-1 border-l-2 border-border pl-3 text-[12px] text-muted-foreground">
+			{task.items.map((item) => (
+				<li
+					key={item.key}
+					className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5"
+				>
+					<button
+						type="button"
+						title={`${todayGroupLabel(item.group)} - open it beside this page`}
+						onClick={() => onOpen(item.key)}
+						className={cn(LINK, "text-[12.5px]")}
+					>
+						{item.title}
+					</button>
+					{task.items.length > 1 && (
+						<span className={GROUP_MARK[item.group].tone}>
+							{todayGroupLabel(item.group).toLowerCase()}
+						</span>
+					)}
+					{item.facts && (
+						<span className="inline-flex flex-wrap items-baseline gap-x-1.5">
+							<span>-</span>
+							{item.facts}
+						</span>
+					)}
+					{item.from && (
+						<span>
+							- from {item.from.source}:{" "}
+							{item.from.url ? (
+								<button
+									type="button"
+									title={`Open it in ${item.from.source}`}
+									onClick={() => openUrl(item.from?.url ?? "")}
+									className="text-link hover:underline"
+								>
+									{item.from.title}
+								</button>
+							) : (
+								item.from.title
+							)}
+						</span>
+					)}
+				</li>
+			))}
+		</ul>
+	);
+}
+
+/** Your tasks the "Not started yet" list reads, from what Tasks already keeps. */
 function useTodaySide() {
 	const rows = useAllItems();
 	const queue = useTaskMeta((s) => s.queue);
@@ -466,7 +577,7 @@ function useTodaySide() {
 }
 
 /**
- * Coming up: tasks no session works on yet - due this week or late, the top
+ * Not started yet: tasks no session works on yet - due this week or late, the top
  * of Up next, and what waits on someone else - one line each, with Start
  * and a link to where it came from.
  */
@@ -532,8 +643,13 @@ function ComingUp({
 		);
 	};
 	return (
-		<section aria-label="Coming up">
-			<h2 className="mb-2 text-[15px] font-semibold">Coming up</h2>
+		<section
+			aria-label="Not started yet"
+			className="border-t border-border pt-5"
+		>
+			<h2 className="mb-2 text-[15px] font-semibold text-muted-foreground">
+				Not started yet
+			</h2>
 			<ul className="flex list-disc flex-col gap-1.5 pl-5 text-[14px] leading-relaxed marker:text-muted-foreground">
 				{due.map((row) => (
 					<li key={`due-${row.key}`}>
