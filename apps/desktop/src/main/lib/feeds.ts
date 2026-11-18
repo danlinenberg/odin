@@ -558,3 +558,216 @@ export async function notionDatabase(
 			: null,
 	};
 }
+
+/** A call to Airtable's REST API with a personal access token. */
+export function airtableFetch(path: string, token: string): Promise<Response> {
+	return fetch(`https://api.airtable.com/v0/${path}`, {
+		headers: { Authorization: `Bearer ${token}` },
+	});
+}
+
+/** A call to Determ's API (api.mediatoolkit.com) with an API token. */
+export function determFetch(
+	path: string,
+	token: string,
+	init?: { method?: string; body?: string },
+): Promise<Response> {
+	return fetch(`https://api.mediatoolkit.com/${path}`, {
+		...init,
+		headers: {
+			Authorization: `Bearer ${token}`,
+			...(init?.body && { "Content-Type": "application/json" }),
+		},
+	});
+}
+
+/** One record from an Airtable view I linked. */
+export interface AirtableRecordRow {
+	id: string;
+	url: string;
+	title: string;
+	status: string | null;
+	/** The table's name. */
+	table: string | null;
+	created: string | null;
+}
+
+/** Base, table and view out of an Airtable link (airtable.com/app…/tbl…/viw…). */
+export function airtableView(
+	link: string,
+): { base: string; table: string; view: string | null } | null {
+	const match = link.match(
+		/\b(app[A-Za-z0-9]{14})\/(tbl[A-Za-z0-9]{14})(?:\/(viw[A-Za-z0-9]{14}))?/,
+	);
+	return match
+		? { base: match[1], table: match[2], view: match[3] ?? null }
+		: null;
+}
+
+/** A cell as one line: names for people, labels for selects, text as is. */
+function cellText(value: unknown): string | null {
+	if (value == null || value === "") return null;
+	if (Array.isArray(value)) {
+		const parts = value.map(cellText).filter(Boolean);
+		return parts.length ? parts.join(", ") : null;
+	}
+	if (typeof value === "object") {
+		const cell = value as { name?: string; email?: string; text?: string };
+		return cell.name ?? cell.text ?? cell.email ?? null;
+	}
+	return String(value);
+}
+
+/**
+ * The records in the Airtable views I linked, up to 100 a view. The view
+ * does the filtering, so a view of "my open tasks" is the feed. The title
+ * is the table's primary field, the status its first field named Status.
+ */
+export async function airtableRecords(
+	call: FeedCall,
+	links: string[],
+): Promise<AirtableRecordRow[]> {
+	const get = async <T>(path: string): Promise<T> => {
+		const response = await call(path);
+		if (!response.ok) {
+			throw feedError("Airtable", response.status, await response.text());
+		}
+		return (await response.json()) as T;
+	};
+	type Table = {
+		id: string;
+		name: string;
+		primaryFieldId: string;
+		fields: { id: string; name: string }[];
+	};
+	type AirtableRecord = {
+		id: string;
+		createdTime?: string;
+		fields: Record<string, unknown>;
+	};
+	const views = links
+		.map(airtableView)
+		.filter((view): view is NonNullable<typeof view> => view !== null);
+	const schemas = new Map<string, Promise<{ tables: Table[] }>>();
+	const rows = await Promise.all(
+		views.map(async ({ base, table, view }) => {
+			if (!schemas.has(base))
+				schemas.set(base, get(`meta/bases/${base}/tables`));
+			const schema = (await schemas.get(base))?.tables.find(
+				(t) => t.id === table,
+			);
+			const query = new URLSearchParams({
+				pageSize: "100",
+				returnFieldsByFieldId: "true",
+			});
+			if (view) query.set("view", view);
+			const { records } = await get<{ records: AirtableRecord[] }>(
+				`${base}/${table}?${query}`,
+			);
+			const statusField = schema?.fields.find((f) =>
+				/^status$/i.test(f.name.trim()),
+			)?.id;
+			return records.map(
+				(record): AirtableRecordRow => ({
+					id: record.id,
+					url: `https://airtable.com/${base}/${table}/${record.id}`,
+					title:
+						(schema && cellText(record.fields[schema.primaryFieldId])) ??
+						"Untitled record",
+					status: statusField ? cellText(record.fields[statusField]) : null,
+					table: schema?.name ?? null,
+					created: record.createdTime ?? null,
+				}),
+			);
+		}),
+	);
+	const seen = new Set<string>();
+	return rows.flat().filter((row) => !seen.has(row.id) && seen.add(row.id));
+}
+
+/** One mention from a Determ feed I linked. */
+export interface DetermMentionRow {
+	id: string;
+	url: string;
+	title: string;
+	text: string | null;
+	author: string | null;
+	/** Where it was said: WEB, TWITTER, REDDIT... */
+	type: string | null;
+	sentiment: string | null;
+	/** The feed's keyword. */
+	feed: string | null;
+	at: string | null;
+}
+
+/** Organization and query out of a Determ feed link (app.determ.com/<org>/feed/q/<query>). */
+export function determFeed(
+	link: string,
+): { organization: string; keyword: string } | null {
+	const match = link.match(/\/(\d+)\/feed\/q\/(\d+)/);
+	return match ? { organization: match[1], keyword: match[2] } : null;
+}
+
+/** The last 7 days of mentions in the Determ feeds I linked, newest first, 50 a feed. */
+export async function determMentions(
+	call: FeedCall,
+	links: string[],
+): Promise<DetermMentionRow[]> {
+	type Mention = {
+		id: number;
+		type?: string;
+		title?: string;
+		mention?: string;
+		url?: string;
+		author?: string;
+		autoSentiment?: string;
+		keywords?: string[];
+		insertTime?: number;
+	};
+	const feeds = links
+		.map(determFeed)
+		.filter((feed): feed is NonNullable<typeof feed> => feed !== null);
+	const rows = await Promise.all(
+		feeds.map(async ({ organization, keyword }) => {
+			const response = await call(
+				`v2/organizations/${organization}/keywords/${keyword}/mentions/scroll`,
+				{
+					method: "POST",
+					body: JSON.stringify({
+						query: { feedTime: { relative: "LAST_7_DAYS" } },
+						paged: {
+							count: 50,
+							sorted: { direction: "DESC", property: "FEED_TIME" },
+						},
+					}),
+				},
+			);
+			if (!response.ok) {
+				throw feedError("Determ", response.status, await response.text());
+			}
+			const { mentions } = (await response.json()) as { mentions?: Mention[] };
+			return (mentions ?? []).map(
+				(mention): DetermMentionRow => ({
+					id: String(mention.id),
+					url:
+						mention.url ??
+						`https://app.determ.com/${organization}/feed/q/${keyword}`,
+					title:
+						mention.title?.trim() ||
+						mention.mention?.trim().slice(0, 120) ||
+						"Mention",
+					text: mention.mention?.trim() || null,
+					author: mention.author || null,
+					type: mention.type ?? null,
+					sentiment: mention.autoSentiment ?? null,
+					feed: mention.keywords?.[0] ?? null,
+					at: mention.insertTime
+						? new Date(mention.insertTime).toISOString()
+						: null,
+				}),
+			);
+		}),
+	);
+	const seen = new Set<string>();
+	return rows.flat().filter((row) => !seen.has(row.id) && seen.add(row.id));
+}

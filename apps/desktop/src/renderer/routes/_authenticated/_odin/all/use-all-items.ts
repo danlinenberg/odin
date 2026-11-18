@@ -14,8 +14,17 @@ import { useTitleOverrides } from "./title-overrides";
 
 /** Every feed through allItems, under your own names, plus the Done check. */
 function useItems(everything: boolean) {
-	const { reactions, jira, pulls, notion, emails, clickup, meetings } =
-		useOdinFeeds();
+	const {
+		reactions,
+		jira,
+		pulls,
+		notion,
+		emails,
+		clickup,
+		meetings,
+		airtable,
+		determ,
+	} = useOdinFeeds();
 	// todos, not tasks: automations have their own panel and run themselves -
 	// they'd sit in "what have I got on" forever without ever being yours to do.
 	const { todos } = useMyTasks();
@@ -34,6 +43,8 @@ function useItems(everything: boolean) {
 					notion: notion.data?.rows ?? [],
 					emails: emails.data?.emails ?? [],
 					clickup: clickup.data?.tasks ?? [],
+					airtable: airtable.data?.records ?? [],
+					determ: determ.data?.mentions ?? [],
 					// Checked against the clock when the feed lands, so a meeting
 					// that ended is gone by the next poll at the latest.
 					meetings: upcomingMeetings(meetings.data?.meetings ?? [], Date.now()),
@@ -67,6 +78,8 @@ function useItems(everything: boolean) {
 			emails.data,
 			clickup.data,
 			meetings.data,
+			airtable.data,
+			determ.data,
 		],
 	);
 	return { items, isDone, done };
@@ -111,8 +124,18 @@ type FeedInput = Parameters<typeof allItems>[0];
 export function useFeedItems(input: Partial<FeedInput>): Map<string, AllItem> {
 	const titles = useTitleOverrides((s) => s.titles);
 	const priorities = useTitleOverrides((s) => s.priorities);
-	const { tasks, slack, jira, pulls, notion, emails, clickup, meetings } =
-		input;
+	const {
+		tasks,
+		slack,
+		jira,
+		pulls,
+		notion,
+		emails,
+		clickup,
+		meetings,
+		airtable,
+		determ,
+	} = input;
 	return useMemo(() => {
 		const items = allItems(
 			{
@@ -124,6 +147,8 @@ export function useFeedItems(input: Partial<FeedInput>): Map<string, AllItem> {
 				emails: emails ?? [],
 				clickup: clickup ?? [],
 				meetings: meetings ?? [],
+				airtable: airtable ?? [],
+				determ: determ ?? [],
 			},
 			{ everything: true },
 		);
@@ -158,5 +183,7 @@ export function useFeedItems(input: Partial<FeedInput>): Map<string, AllItem> {
 		emails,
 		clickup,
 		meetings,
+		airtable,
+		determ,
 	]);
 }

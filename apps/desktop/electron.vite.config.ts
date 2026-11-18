@@ -147,6 +147,18 @@ export default defineConfig({
 				process.env.ODIN_CALENDAR_REDIRECT_URL,
 				"",
 			),
+			"process.env.ODIN_AIRTABLE_CLIENT_ID_BAKED": defineEnv(
+				process.env.ODIN_AIRTABLE_CLIENT_ID,
+				"",
+			),
+			"process.env.ODIN_AIRTABLE_CLIENT_SECRET_BAKED": defineEnv(
+				process.env.ODIN_AIRTABLE_CLIENT_SECRET,
+				"",
+			),
+			"process.env.ODIN_AIRTABLE_REDIRECT_URL_BAKED": defineEnv(
+				process.env.ODIN_AIRTABLE_REDIRECT_URL,
+				"",
+			),
 		},
 
 		build: {

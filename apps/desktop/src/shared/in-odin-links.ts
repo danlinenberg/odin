@@ -14,6 +14,9 @@ export const LINK_HOSTS = {
 	clickup: ["clickup.com"],
 	// A meeting's link is its call, which wants your own browser's camera and mic.
 	calendar: [],
+	// Opened in your browser, where you are signed in.
+	airtable: [],
+	determ: [],
 } as const satisfies Record<string, readonly string[]>;
 
 export type LinkSiteId = keyof typeof LINK_HOSTS;

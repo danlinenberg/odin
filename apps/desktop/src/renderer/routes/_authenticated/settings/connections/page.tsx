@@ -15,8 +15,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { FaGithub, FaSlack } from "react-icons/fa";
-import { LuCalendarDays, LuCheck, LuTrash2 } from "react-icons/lu";
-import { SiClaude, SiClickup, SiGmail, SiJira, SiNotion } from "react-icons/si";
+import { LuCalendarDays, LuCheck, LuRadar, LuTrash2 } from "react-icons/lu";
+import {
+	SiAirtable,
+	SiClaude,
+	SiClickup,
+	SiGmail,
+	SiJira,
+	SiNotion,
+} from "react-icons/si";
 import {
 	ConnectProvider,
 	type Provider,
@@ -93,6 +100,19 @@ const META: Record<
 			"Meetings today and tomorrow, as things to prepare for, in the Calendar tab.",
 		help: "Sign in with Google for read-only access to your primary calendar. Outlook and iCloud connect by their secret iCal address instead - anyone with that address can read the calendar, so Odin keeps it like a password.",
 	},
+	airtable: {
+		name: "Airtable",
+		icon: <SiAirtable className="size-5" />,
+		description: "Records in the Airtable views you link, in the Airtable tab.",
+		help: "Sign in, then paste the views to read on the Airtable tab, up to 100 records each. Filter a view to your own open tasks in Airtable: every record in it shows.",
+	},
+	determ: {
+		name: "Determ",
+		icon: <LuRadar className="size-5" />,
+		description:
+			"The last week of mentions in the Determ feeds you link, in the Determ tab.",
+		help: "Needs a Determ plan with API access: the token is under Settings → Account Settings.",
+	},
 };
 
 const ORDER: Provider[] = [
@@ -103,6 +123,8 @@ const ORDER: Provider[] = [
 	"gmail",
 	"calendar",
 	"clickup",
+	"airtable",
+	"determ",
 ];
 
 function ConnectionsSettings() {
