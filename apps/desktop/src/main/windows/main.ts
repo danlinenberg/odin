@@ -332,9 +332,18 @@ export async function MainWindow() {
 		},
 	);
 
+	// A dead renderer (out of memory, a crash) leaves the window black until
+	// Odin restarts. Reload it, at most 3 times in 2 minutes so a page that
+	// crashes on load doesn't loop.
+	let crashes: number[] = [];
 	window.webContents.on("render-process-gone", (_event, details) => {
 		console.error("[main-window] Renderer process gone:", details);
 		log.error("[main-window] Renderer process gone", details);
+		if (details.reason === "clean-exit" || window.isDestroyed()) return;
+		const now = Date.now();
+		crashes = [...crashes.filter((t) => now - t < 120_000), now];
+		if (crashes.length > 3) return;
+		window.webContents.reload();
 	});
 
 	window.webContents.on("preload-error", (_event, preloadPath, error) => {
