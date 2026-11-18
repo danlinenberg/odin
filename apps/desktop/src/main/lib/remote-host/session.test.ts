@@ -755,7 +755,8 @@ test("a session on the API key moves back to the plan once the limit has passed"
 	const home = mkdtempSync(join(tmpdir(), "odin-back-to-plan-"));
 	mkdirSync(join(home, ".claude"));
 	mkdirSync(join(home, ".odin"));
-	// The outer bash is the run script, the inner one stands in for Claude.
+	// The outer bash is the run script, the inner one stands in for Claude and,
+	// like Claude, is still running when the hook stops it.
 	const turnEnds = (until: number, env: Record<string, string>) => {
 		writeFileSync(
 			join(home, ".claude", "plan-limit.json"),
@@ -765,7 +766,7 @@ test("a session on the API key moves back to the plan once the limit has passed"
 			"bash",
 			[
 				"-c",
-				`export ODIN_RUN_PID=$$; bash -c 'echo "$IN" | python3 -c "$HOOK"; true'; echo $$`,
+				`export ODIN_RUN_PID=$$; bash -c 'echo "$IN" | python3 -c "$HOOK"; [ -e "$HOME/.odin/resume-$ODIN_RUN_PID" ] && exec sleep 10; true'; echo $$`,
 			],
 			{
 				env: {
