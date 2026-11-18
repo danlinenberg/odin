@@ -63,15 +63,30 @@ export function duplicateOf(
 	);
 	const title = titleKey(item.launch.title);
 	return (
-		ledger.find(
-			(row) =>
-				row.externalId !== item.launch.key &&
-				(refs(row.title, row.externalId, row.text).some((ref) =>
-					mine.has(ref),
-				) ||
-					(title !== "" && titleKey(row.title) === title)),
-		) ?? null
+		ledger.find((row) => {
+			if (row.externalId === item.launch.key) return false;
+			const keys = rowKeys(row);
+			return (
+				keys.refs.some((ref) => mine.has(ref)) ||
+				(title !== "" && keys.title === title)
+			);
+		}) ?? null
 	);
+}
+
+// Every Next in line row is checked against up to 1000 ledger rows on each
+// render, so each row's regexes run once, not once per row per render.
+const keyCache = new WeakMap<LedgerRow, { refs: string[]; title: string }>();
+function rowKeys(row: LedgerRow) {
+	let keys = keyCache.get(row);
+	if (!keys) {
+		keys = {
+			refs: refs(row.title, row.externalId, row.text),
+			title: titleKey(row.title),
+		};
+		keyCache.set(row, keys);
+	}
+	return keys;
 }
 
 /**
