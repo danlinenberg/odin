@@ -71,8 +71,8 @@ describe("remote session scripts", () => {
 		);
 		const starts = run.match(/\bclaude --[^\s]+/g) ?? [];
 		// The first start, its fresh fallback, the idle watcher's three resumes
-		// and the plan-limit resume.
-		expect(starts.length).toBe(6);
+		// and the two plan-limit resumes.
+		expect(starts.length).toBe(7);
 		for (const start of starts) {
 			expect(start).toBe("claude --dangerously-skip-permissions");
 		}
@@ -727,15 +727,13 @@ test("the host falls back to the API key only while the plan is limited", () => 
 	expect(run.indexOf("unset ODIN_FALLBACK_API_KEY")).toBeLessThan(
 		run.indexOf("claude --dangerously-skip-permissions --settings"),
 	);
+	// Each resume picks the key or the plan again, and isn't exec'd, so the
+	// session can move back to the plan later.
 	expect(run).toContain(
-		'ANTHROPIC_API_KEY="$fallback" exec claude --dangerously-skip-permissions --settings',
+		"then claude --dangerously-skip-permissions --settings",
 	);
-	// The limit note lands whole: the laptop's plan-limit hook, synced to the
-	// host, writes the same file at the same moment.
-	const hook = run.match(
-		/printf %s '([^']+)' \| base64 -d > "\$HOME\/\.odin\/turn-end\.py\.\$\$"/,
-	);
-	const turnEnd = Buffer.from(hook?.[1] ?? "", "base64").toString();
+	expect(run).not.toContain("exec claude");
+	const turnEnd = turnEndHook(run);
 	expect(turnEnd).toContain("os.replace(");
 	expect(turnEnd).not.toContain('plan-limit.json"), "w")');
 	const hooks = JSON.parse(hostSettings).hooks;
@@ -744,6 +742,61 @@ test("the host falls back to the API key only while the plan is limited", () => 
 		"ODIN_TURN=failed python3 ~/.odin/turn-end.py",
 	);
 });
+
+function turnEndHook(run: string): string {
+	const hook = run.match(
+		/printf %s '([^']+)' \| base64 -d > "\$HOME\/\.odin\/turn-end\.py\.\$\$"/,
+	);
+	return Buffer.from(hook?.[1] ?? "", "base64").toString();
+}
+
+// The hook walks /proc, which only the Linux host has.
+test.skipIf(!existsSync("/proc/self/stat"))(
+	"a session on the API key moves back to the plan once the limit has passed",
+	() => {
+		const hook = turnEndHook(runScript(spec, "/d"));
+		const home = mkdtempSync(join(tmpdir(), "odin-back-to-plan-"));
+		mkdirSync(join(home, ".claude"));
+		mkdirSync(join(home, ".odin"));
+		// The outer bash is the run script, the inner one stands in for Claude and,
+		// like Claude, is still running when the hook stops it.
+		const turnEnds = (until: number, env: Record<string, string>) => {
+			writeFileSync(
+				join(home, ".claude", "plan-limit.json"),
+				JSON.stringify({ until }),
+			);
+			const out = execFileSync(
+				"bash",
+				[
+					"-c",
+					`export ODIN_RUN_PID=$$; bash -c 'echo "$IN" | python3 -c "$HOOK"; [ -e "$HOME/.odin/resume-$ODIN_RUN_PID" ] && exec sleep 10; true'; echo $$`,
+				],
+				{
+					env: {
+						PATH: process.env.PATH,
+						HOME: home,
+						HOOK: hook,
+						IN: '{"session_id":"s1"}',
+						ODIN_HAS_FALLBACK_KEY: "1",
+						...env,
+					},
+				},
+			)
+				.toString()
+				.trim();
+			const file = join(home, ".odin", `resume-${out}`);
+			try {
+				return readFileSync(file, "utf8");
+			} catch {
+				return null;
+			}
+		};
+		const now = Date.now() / 1000;
+		expect(turnEnds(now + 3600, { ANTHROPIC_API_KEY: "k" })).toBeNull();
+		expect(turnEnds(now - 60, {})).toBeNull();
+		expect(turnEnds(now - 60, { ANTHROPIC_API_KEY: "k" })).toBe("s1");
+	},
+);
 
 test("the host reports Working and Done to the card through Odin's notify hook", () => {
 	const hooks = JSON.parse(hostSettings).hooks;
