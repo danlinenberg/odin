@@ -1,6 +1,6 @@
 import { cn } from "@odin/ui/utils";
 import type { ComponentType, ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import {
 	LuCircleCheck,
 	LuHourglass,
@@ -44,6 +44,8 @@ export interface TodayCard {
 	status: string | null;
 	starred: boolean;
 	signals: TodaySignals;
+	/** Its facts in plain words: where it runs, repo, last message, pull requests. */
+	facts?: ReactNode;
 }
 
 /** One open session as the overview reads it. */
@@ -55,6 +57,9 @@ export interface TodayItem extends TodayEntry {
 	waitingOn: string | null;
 	/** The linked task's priority as its source names it. */
 	priority: string | null;
+	/** The task it was started from, when Tasks knows it. */
+	from: { source: string; title: string; url: string | null } | null;
+	facts?: ReactNode;
 }
 
 /**
@@ -88,6 +93,10 @@ function useTodayItems(cards: TodayCard[]): TodayItem[] {
 				due: task ? effectiveDue(task.key, reminders, task.dueDate) : null,
 				priority: task?.priority ?? null,
 				urgency: task?.urgency ?? urgencyOf(task?.priority),
+				from: task
+					? { source: task.source, title: task.title, url: task.url }
+					: null,
+				facts: card.facts,
 			};
 		});
 	}, [cards, rows, panes, waiting, reminders]);
@@ -145,6 +154,7 @@ export function TodayOverview({
 					due: item.due ?? null,
 					priority: item.priority,
 					waitingOn: item.waitingOn,
+					from: item.from ? `${item.from.source}: ${item.from.title}` : null,
 				})),
 				refresh: refresh || undefined,
 			},
@@ -245,7 +255,7 @@ export function TodayOverview({
 							No open sessions. Start one from Tasks, or from the board.
 						</p>
 					) : (
-						<ul className="flex flex-col gap-5">
+						<ul className="flex flex-col gap-7">
 							{tasks.map((task, i) => (
 								<TodayTaskText
 									key={task.id}
@@ -277,9 +287,10 @@ export function TodayOverview({
 }
 
 /**
- * One task as a few lines of text: its name and what it is, where it stands
- * and what is left, then where it stands in one word, its due date and
- * priority, and a link to each of its sessions.
+ * One task as a few lines of text: its name and what it is; where it
+ * stands, what is left and who acts next; where it stands in one word, its
+ * due date and priority; then a line per session with where it runs, its
+ * repo, its last message, its pull requests and the task it came from.
  */
 function TodayTaskText({
 	task,
@@ -341,7 +352,7 @@ function TodayTaskText({
 				picked && "ring-2 ring-primary/60",
 			)}
 		>
-			<p className="select-text cursor-text text-[14.5px] leading-relaxed">
+			<p className="text-[15px] leading-relaxed">
 				<button
 					type="button"
 					title="Open its session beside this page"
@@ -350,44 +361,77 @@ function TodayTaskText({
 				>
 					{task.name}
 				</button>
-				{task.about && (
-					<span className="text-soft-foreground"> - {task.about}</span>
-				)}
 			</p>
-			{task.line && (
-				<p className="select-text cursor-text text-[14px] leading-relaxed text-muted-foreground">
-					{task.line}
-				</p>
-			)}
-			<p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] text-muted-foreground">
+			<dl className="mt-1 grid select-text cursor-text grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 text-[13.5px] leading-relaxed">
+				{(
+					[
+						["What it is", task.about],
+						["Where it stands", task.line],
+						["What's left", task.left],
+						["Next", task.next],
+					] as const
+				).map(([label, text]) =>
+					text ? (
+						<Fragment key={label}>
+							<dt className="text-muted-foreground">{label}</dt>
+							<dd>{text}</dd>
+						</Fragment>
+					) : null,
+				)}
+			</dl>
+			<p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] text-muted-foreground">
 				{marks}
-				{task.items.length === 1 ? (
-					<button
-						type="button"
-						onClick={() => onOpen(first.key)}
-						className={LINK}
-					>
-						Open session
-					</button>
-				) : (
-					<>
-						<span>{task.items.length} sessions:</span>
-						{task.items.map((item, i) => (
-							<span key={item.key}>
-								<button
-									type="button"
-									title={`${todayGroupLabel(item.group)} - open it beside this page`}
-									onClick={() => onOpen(item.key)}
-									className={LINK}
-								>
-									{item.title}
-								</button>
-								{i < task.items.length - 1 && ","}
-							</span>
-						))}
-					</>
-				)}
+				<span>
+					{task.items.length === 1
+						? "1 session"
+						: `${task.items.length} sessions`}
+				</span>
 			</p>
+			<ul className="mt-1 flex flex-col gap-1 border-l-2 border-border pl-3 text-[12px] text-muted-foreground">
+				{task.items.map((item) => (
+					<li
+						key={item.key}
+						className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5"
+					>
+						<button
+							type="button"
+							title={`${todayGroupLabel(item.group)} - open it beside this page`}
+							onClick={() => onOpen(item.key)}
+							className={cn(LINK, "text-[12.5px]")}
+						>
+							{item.title}
+						</button>
+						{task.items.length > 1 && (
+							<span className={GROUP_MARK[item.group].tone}>
+								{todayGroupLabel(item.group).toLowerCase()}
+							</span>
+						)}
+						{item.facts && (
+							<span className="inline-flex flex-wrap items-baseline gap-x-1.5">
+								<span>-</span>
+								{item.facts}
+							</span>
+						)}
+						{item.from && (
+							<span>
+								- from {item.from.source}:{" "}
+								{item.from.url ? (
+									<button
+										type="button"
+										title={`Open it in ${item.from.source}`}
+										onClick={() => openUrl(item.from?.url ?? "")}
+										className="text-link hover:underline"
+									>
+										{item.from.title}
+									</button>
+								) : (
+									item.from.title
+								)}
+							</span>
+						)}
+					</li>
+				))}
+			</ul>
 		</li>
 	);
 }

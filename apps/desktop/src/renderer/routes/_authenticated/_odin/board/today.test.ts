@@ -169,6 +169,8 @@ describe("todayTasks", () => {
 				name: "Session new",
 				about: null,
 				line: "the pull request is green",
+				left: null,
+				next: null,
 				group: "running",
 				items: [expect.objectContaining({ key: "new" })],
 			},

@@ -7,7 +7,7 @@ describe("parseTodayLines", () => {
 			[
 				"Here you go:",
 				"SUMMARY: Sign-in needs you first; the export is due tomorrow.",
-				"TASK 1, 3: Fix sign-in | New users can't sign in, so they can't start. | Done, only waits for testing.",
+				"TASK 1, 3: Fix sign-in | New users can't sign in, so they can't start. | The fix is written. | Only a test. | You: test it on staging.",
 				"- **TASK 2**: Report export | Lets teams download their numbers. | Running, about half left.",
 				"TASK 9: Out of range | - | -",
 			].join("\n"),
@@ -21,13 +21,17 @@ describe("parseTodayLines", () => {
 				keys: ["a", "c"],
 				name: "Fix sign-in",
 				about: "New users can't sign in, so they can't start.",
-				line: "Done, only waits for testing.",
+				line: "The fix is written.",
+				left: "Only a test.",
+				next: "You: test it on staging.",
 			},
 			{
 				keys: ["b"],
 				name: "Report export",
 				about: "Lets teams download their numbers.",
 				line: "Running, about half left.",
+				left: null,
+				next: null,
 			},
 		]);
 	});
@@ -38,7 +42,14 @@ describe("parseTodayLines", () => {
 			["a", "b"],
 		);
 		expect(out.tasks).toEqual([
-			{ keys: ["a", "b"], name: "First", about: null, line: null },
+			{
+				keys: ["a", "b"],
+				name: "First",
+				about: null,
+				line: null,
+				left: null,
+				next: null,
+			},
 		]);
 	});
 
@@ -62,12 +73,13 @@ describe("todayLine", () => {
 					due: "2026-11-16",
 					priority: "High",
 					waitingOn: null,
+					from: "Jira: Login broken",
 				},
 				0,
 				{ goal: "Fix the\nlogin bug", status: null, next: "Review it" },
 			),
 		).toBe(
-			"1 | Needs you | 2026-11-16 | High | - | Fix / login | Fix the login bug | - | Review it",
+			"1 | Needs you | 2026-11-16 | High | - | Jira: Login broken | Fix / login | Fix the login bug | - | Review it",
 		);
 	});
 });

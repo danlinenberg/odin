@@ -345,6 +345,7 @@ import {
 import { mergePrompt, parkable, resumable } from "./session-pick";
 import { type TodayCard, TodayOverview } from "./TodayOverview";
 import { shouldShowToday } from "./today";
+import { prStateLabel } from "./today-side";
 import { TRANSIENT_RETRY, transientRetryKey } from "./transient-retry";
 import { moveToVsCode } from "./vscode-move";
 
@@ -1139,6 +1140,55 @@ function useCardPrs(card: BoardCard, live: boolean) {
 	};
 }
 
+/**
+ * A Today session line's facts in plain words: where it runs, its repo, how
+ * long since its last message, and each of its pull requests with its state.
+ */
+function TodayFacts({ card }: { card: BoardCard }) {
+	const live = card.status === "working";
+	const { prs } = useCardPrs(card, live);
+	const urls = prs.map((pr) => pr.url);
+	const { data } = electronTrpc.terminal.pullRequestStates.useQuery(
+		{ urls },
+		{ enabled: urls.length > 0, retry: false, staleTime: 60_000 },
+	);
+	const host = card.pane.odinRemote;
+	// A dot before every fact but the first: one that has nothing to say
+	// (no age yet, no pull request) leaves no stray dot.
+	const sep = "before:mr-1.5 before:content-['·']";
+	return (
+		<>
+			<span>{host ? `runs on ${host}` : "runs on this computer"}</span>
+			<span className={sep}>
+				in <RepoPill card={card} />
+			</span>
+			<AgePill
+				card={card}
+				live={live}
+				fallback={undefined}
+				prefix="last message "
+				className={sep}
+			/>
+			{prs.slice(0, 3).map((pr, i) => {
+				const { label } = prStateLabel(data?.[pr.url]);
+				return (
+					<span key={pr.url} className={sep}>
+						<button
+							type="button"
+							title={data?.[pr.url]?.title ?? pr.url}
+							onClick={() => openUrl(pr.url)}
+							className="text-link hover:underline"
+						>
+							{prs.length > 1 ? `pull request ${i + 1}` : "pull request"}
+							{label ? `: ${label}` : ""}
+						</button>
+					</span>
+				);
+			})}
+		</>
+	);
+}
+
 /** Someone else's PR, waiting on my review. The pill opens it on GitHub. */
 function ReviewPill({ card }: { card: BoardCard }) {
 	const { review } = useCardPrs(card, card.status === "working");
@@ -1447,10 +1497,15 @@ function AgePill({
 	card,
 	live,
 	fallback,
+	prefix = "",
+	className,
 }: {
 	card: BoardCard;
 	live: boolean;
 	fallback: number | undefined;
+	/** Words before the age, e.g. "last message ". */
+	prefix?: string;
+	className?: string;
 }) {
 	const { data } = useCardTranscript(card, live);
 	const label = elapsedLabel(
@@ -1460,8 +1515,9 @@ function AgePill({
 	return (
 		<span
 			title="Since the last message in this session"
-			className="whitespace-nowrap"
+			className={cn("whitespace-nowrap", className)}
 		>
+			{prefix}
 			{label === "now" ? label : `${label} ago`}
 		</span>
 	);
@@ -7363,6 +7419,7 @@ function DevBoardPage() {
 					almostDone: call === "merge" || call === "done",
 					urgency: urgencyByPane.get(pane.id) ?? null,
 				},
+				facts: todayOpen ? <TodayFacts card={card} /> : undefined,
 			};
 		});
 	const todayEnabled = useTodayOverview((s) => s.enabled);

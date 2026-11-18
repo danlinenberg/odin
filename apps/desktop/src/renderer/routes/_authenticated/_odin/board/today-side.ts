@@ -88,6 +88,31 @@ export function todaySide({
 	return { due, upNext, waiting: waitingRows };
 }
 
+/** A PR's state in a word or two, the way Today's session lines say it. */
+export function prStateLabel(
+	state:
+		| {
+				state: "OPEN" | "MERGED" | "CLOSED";
+				isDraft?: boolean;
+				approved?: boolean;
+				failed?: string[];
+				pending?: string[];
+				conflicting?: boolean;
+		  }
+		| null
+		| undefined,
+): { label: string; tone: "success" | "danger" | "attention" | "neutral" } {
+	if (!state) return { label: "", tone: "neutral" };
+	if (state.state === "MERGED") return { label: "merged", tone: "success" };
+	if (state.state === "CLOSED") return { label: "closed", tone: "neutral" };
+	if (state.conflicting) return { label: "conflicts", tone: "danger" };
+	if (state.failed?.length) return { label: "CI failing", tone: "danger" };
+	if (state.approved) return { label: "approved", tone: "success" };
+	if (state.isDraft) return { label: "draft", tone: "neutral" };
+	if (state.pending?.length) return { label: "CI running", tone: "attention" };
+	return { label: "open", tone: "attention" };
+}
+
 /** The task picked after a step down (1) or up (-1); null on an empty page. */
 export function moveSelection(
 	step: 1 | -1,

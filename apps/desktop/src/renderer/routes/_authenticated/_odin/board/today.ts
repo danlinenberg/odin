@@ -110,6 +110,8 @@ export interface WrittenTask {
 	name: string;
 	about: string | null;
 	line: string | null;
+	left?: string | null;
+	next?: string | null;
 }
 
 /** A task as the page lists it: its words and the open sessions it holds. */
@@ -120,6 +122,10 @@ export interface TodayTaskView<T> {
 	about: string | null;
 	/** Where it stands; the brief's status line until the model's is written. */
 	line: string | null;
+	/** What is left before it is done. */
+	left: string | null;
+	/** Who acts next and what. */
+	next: string | null;
 	/** Its sessions, the one to look at first on top. */
 	items: T[];
 	/** Where its most pressing session stands. */
@@ -151,6 +157,8 @@ export function todayTasks<
 			name: task.name,
 			about: task.about,
 			line: task.line,
+			left: task.left ?? null,
+			next: task.next ?? null,
 			items: mine,
 		});
 	}
@@ -160,6 +168,8 @@ export function todayTasks<
 				name: item.title,
 				about: null,
 				line: plainLine(item.status) || null,
+				left: null,
+				next: null,
 				items: [item],
 			});
 	const at = (item: T) => rank.get(item.key) ?? ranked.length;
