@@ -25,6 +25,8 @@ export interface TodayItem {
 	priority: string | null;
 	/** Who or what it waits on, when it waits on someone else. */
 	waitingOn: string | null;
+	/** The task it was started from, as "Source: title" (a Jira ticket, a Slack thread...). */
+	from?: string | null;
 }
 
 /** One task: the sessions that serve it, in plain words. */
@@ -35,8 +37,12 @@ export interface TodayTask {
 	name: string;
 	/** What the task is and why it matters, for someone who never saw it. */
 	about: string | null;
-	/** Where it stands and how much is left. */
+	/** Where it stands now. */
 	line: string | null;
+	/** What is left before it is done. */
+	left: string | null;
+	/** Who acts next and what they do. */
+	next: string | null;
 }
 
 export interface TodayLines {
@@ -46,19 +52,25 @@ export interface TodayLines {
 	tasks: TodayTask[];
 }
 
-const INSTRUCTIONS = `You write a short morning overview of someone's open work, in plain language, for a busy person reading it over coffee.
-Each numbered line below is one work session: number | where it stands | due | priority | waiting on | title | goal | status | next step.
+const INSTRUCTIONS = `You write a morning overview of someone's open work, in plain language, for a busy person reading it over coffee who may not remember the details.
+Each numbered line below is one work session: number | where it stands | due | priority | waiting on | started from | title | goal | status | next step.
 Several sessions often serve the same task (the same feature, bug, request or investigation): put those in one task.
 Reply with ONLY these lines, no markdown, no preamble:
-SUMMARY: <one short sentence over all of it: what needs them first and any deadline>
-TASK <session numbers, comma separated>: <task name, 2 to 6 words> | <what the task is and why it matters, for someone who never saw it> | <where it stands and how much is left, e.g. "done, only waits for testing", "running, about half left", "waiting for someone to reply">
+SUMMARY: <one or two short sentences over all of it: what needs them first and any deadline>
+TASK <session numbers, comma separated>: <name> | <what it is> | <where it stands> | <what is left> | <next>
+The five parts of a TASK line:
+- name: 2 to 6 words naming the work.
+- what it is: one or two sentences: what the problem or request is, who asked or who it is for, and why it matters.
+- where it stands: what is already done, concretely ("the fix is written and the tests pass", "the export works for one team").
+- what is left: the remaining steps before it is done, and roughly how much ("only a review and a merge", "about half: the email and its test").
+- next: who acts next and what, starting with "You:", "Claude:" or the person's name ("You: pick the email wording", "Claude: is writing the test", "Alex: has to reply on the ticket").
 Every session number goes in exactly one TASK line. A session that shares nothing with the others is a task of its own.
 
 Rules:
 - Always answer in English.
 - No PR numbers, ticket keys, issue numbers, commit hashes, branch names, file paths or URLs. Say "the pull request" or "the ticket" instead.
-- Say what the work is about in everyday words, not code names.
-- Under 140 characters for the summary and for each part of a TASK line.`;
+- Say what the work is about in everyday words, not code names. Name the product area or the user it affects.
+- Under 220 characters for the summary and for each part of a TASK line.`;
 
 const clean = (text: string | null | undefined, cap: number) =>
 	(text ?? "").replace(/\s+/g, " ").replace(/\|/g, "/").trim().slice(0, cap) ||
@@ -80,6 +92,7 @@ export function todayLine(
 		item.due ?? "-",
 		item.priority ?? "-",
 		clean(item.waitingOn, 80),
+		clean(item.from, 160),
 		clean(item.title, 120),
 		clean(brief?.goal, 240),
 		clean(brief?.status, 200),
@@ -108,7 +121,9 @@ export function parseTodayLines(text: string, keys: string[]): TodayLines {
 			.split(/[,\s]+/)
 			.map((n) => keys[Number(n) - 1])
 			.filter((key): key is string => !!key && !used.has(key));
-		const [name, about, line] = task[2].split("|").map((part) => part.trim());
+		const [name, about, line, left, next] = task[2]
+			.split("|")
+			.map((part) => part.trim());
 		if (!mine.length || !name) continue;
 		for (const key of mine) used.add(key);
 		tasks.push({
@@ -116,6 +131,8 @@ export function parseTodayLines(text: string, keys: string[]): TodayLines {
 			name,
 			about: about || null,
 			line: line || null,
+			left: left || null,
+			next: next || null,
 		});
 	}
 	return { summary, tasks };

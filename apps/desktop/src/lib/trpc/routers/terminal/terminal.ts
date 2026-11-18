@@ -648,6 +648,7 @@ export const createTerminalRouter = () => {
 								due: z.string().nullable(),
 								priority: z.string().nullable(),
 								waitingOn: z.string().nullable(),
+								from: z.string().nullable().optional(),
 							}),
 						)
 						.max(200),
