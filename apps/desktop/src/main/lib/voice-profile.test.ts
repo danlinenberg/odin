@@ -7,13 +7,16 @@ import {
 	addVoiceNote,
 	correctionsFromDrafts,
 	draftCorrections,
+	draftCorrectionsPrompt,
 	LEARN_EVERY,
 	learnFromDrafts,
 	learnPrompt,
 	modelFailure,
 	myLines,
 	noteConversation,
+	noteMyMessages,
 	readVoice,
+	realMessages,
 	removeVoiceNote,
 	setVoiceEnabled,
 	setVoiceNotes,
@@ -64,6 +67,44 @@ describe("addSamples", () => {
 	test("the same message with and without its place counts once", () => {
 		const once = addSamples(empty, ["[dm] a long enough line"]);
 		expect(addSamples(once, ["a long enough line"])).toBe(once);
+	});
+
+	test("a flat copy kept before gets its line breaks back, without counting twice", () => {
+		const flat = addSamples(empty, ["[dm] 1 - first answer 2 - second answer"]);
+		const laidOut = addSamples(flat, [
+			"[dm] 1 - first answer\n2 - second answer",
+		]);
+		expect(laidOut.samples).toEqual([
+			"[dm] 1 - first answer\n2 - second answer",
+		]);
+		expect(laidOut.unlearned).toBe(1);
+		expect(addSamples(laidOut, ["1 - first answer 2 - second answer"])).toBe(
+			laidOut,
+		);
+	});
+});
+
+describe("line breaks reach the model", () => {
+	const sent = "Partly.\n\n1 - yes, done\n2 - no, not yet";
+
+	test("my messages keep their line breaks, as indented lines", async () => {
+		const path = join(mkdtempSync(join(tmpdir(), "voice-")), "voice.json");
+		await noteMyMessages([sent], { path });
+		const store = await readVoice(path);
+		expect(store.samples).toEqual([sent]);
+		expect(learnPrompt(store)).toContain(
+			"- Partly.\n  \n  1 - yes, done\n  2 - no, not yet",
+		);
+		expect(realMessages(store.samples)).toContain("\n  2 - no, not yet");
+	});
+
+	test("what I sent after a draft shows with its line breaks", () => {
+		expect(
+			draftCorrectionsPrompt(
+				[{ draft: "Partly. 1 - yes 2 - no", sent: [sent] }],
+				[],
+			),
+		).toContain("- Partly.\n  \n  1 - yes, done\n  2 - no, not yet");
 	});
 });
 
@@ -116,13 +157,13 @@ describe("learnPrompt and voiceText", () => {
 		).toContain("G\n\nFrom my last 1 messages:");
 	});
 
-	test("drafts see my newest real messages verbatim, one line each", () => {
+	test("drafts see my newest real messages verbatim, line breaks kept", () => {
 		const samples = Array.from({ length: 60 }, (_, i) => `msg ${i}\nmore`);
 		const text = voiceText({ ...empty, guide: "G", samples });
-		expect(text).toContain("My real messages, newest last.");
-		expect(text).toContain("- msg 59 more");
-		expect(text).toContain("- msg 20 more");
-		expect(text).not.toContain("- msg 19 more");
+		expect(text).toContain("My real messages, newest last,");
+		expect(text).toContain("- msg 59\n  more");
+		expect(text).toContain("- msg 20\n  more");
+		expect(text).not.toContain("- msg 19\n");
 		expect(voiceText({ ...empty, samples })).toBe("");
 	});
 });

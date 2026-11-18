@@ -869,9 +869,8 @@ export async function slackConversation(
 					: ((await lookupUserName(message.user ?? null, token)) ??
 						message.username ??
 						"someone");
-			const said = (await resolveMentions(message.text ?? "", token))
-				.replace(/\s+/g, " ")
-				.slice(0, chars);
+			const text = await resolveMentions(message.text ?? "", token);
+			const said = text.replace(/\s+/g, " ").slice(0, chars);
 			const mark = message.ts === ts ? " [QUEUED]" : "";
 			lines.push(`${who}${mark}: ${said}`);
 			if (
@@ -881,7 +880,8 @@ export async function slackConversation(
 					(id) => isBotUser(id, token),
 				))
 			)
-				voiceLines.push(`ME: ${said}`);
+				// The voice keeps my line breaks: a flattened message reads as one run-on block.
+				voiceLines.push(keepLineBreaks(text));
 			// A session downloads these through Odin; it holds no Slack token.
 			for (const file of message.files ?? [])
 				if (file.url_private)
@@ -893,14 +893,27 @@ export async function slackConversation(
 			lines.splice(1, 0, `(… ${all.length - shown.length} earlier messages)`);
 		const text = lines.join("\n");
 		// My own lines in it teach drafts how I write - see voice-profile.
-		void import("main/lib/voice-profile").then(({ noteConversation }) =>
-			noteConversation(voiceLines.join("\n")),
+		void import("main/lib/voice-profile").then(({ noteMyMessages }) =>
+			noteMyMessages(voiceLines),
 		);
 		return text;
 	} catch {
 		return null;
 	}
 }
+
+/**
+ * A message as I laid it out: spaces collapsed inside each line, line breaks
+ * kept (at most one blank line). The voice guide learns from these, and
+ * flattening them taught it that I never break lines.
+ */
+export const keepLineBreaks = (text: string): string =>
+	text
+		.split("\n")
+		.map((line) => line.replace(/\s+/g, " ").trim())
+		.join("\n")
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
 
 /**
  * My most recent sent messages, newest first, for training the voice guide.
@@ -968,9 +981,7 @@ export async function slackMySentMessages(
 					: out
 				).push(
 					placeOf(match) +
-						(await resolveMentions(match.text, token))
-							.replace(/\s+/g, " ")
-							.trim(),
+						keepLineBreaks(await resolveMentions(match.text, token)),
 				);
 		if (page >= (result.messages?.paging?.pages ?? 1)) break;
 	}
@@ -1032,11 +1043,7 @@ export async function slackMySentAfter(
 		for (const match of mine.reverse()) {
 			if (await sentToBot(match as SentTo, (id) => isBotUser(id, token)))
 				continue;
-			out.push(
-				(await resolveMentions(match.text ?? "", token))
-					.replace(/\s+/g, " ")
-					.trim(),
-			);
+			out.push(keepLineBreaks(await resolveMentions(match.text ?? "", token)));
 		}
 		return out;
 	} catch {
