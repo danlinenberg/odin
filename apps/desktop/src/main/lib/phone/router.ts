@@ -241,6 +241,7 @@ async function typeIntoClaude(
 async function filesToHost(message: {
 	text: string;
 	paths: string[];
+	host?: string;
 }): Promise<{ text: string; paths: string[] }> {
 	// The app router is untyped from here; filesToHost answers the rewritten message.
 	const caller = appCaller() as
@@ -249,6 +250,7 @@ async function filesToHost(message: {
 					filesToHost: (input: {
 						text: string;
 						paths: string[];
+						host?: string;
 					}) => Promise<{ text: string; paths: string[] }>;
 				};
 		  }
@@ -548,10 +550,11 @@ export const phoneRouter = t.router({
 				.refine((input) => input.text.trim() || input.paths.length),
 		)
 		.mutation(async ({ input }) => {
+			const pane = appState.data.tabsState.panes?.[input.paneId];
 			const sent = await forSession(
-				appState.data.tabsState.panes?.[input.paneId],
+				pane,
 				{ text: input.text.trim(), paths: input.paths },
-				(message) => filesToHost(message),
+				(message) => filesToHost({ ...message, host: pane?.odinRemote }),
 			);
 			// As a reply from the board: it carries the items you dismissed since.
 			const untold: string[] = await board("dismissed", {

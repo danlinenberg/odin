@@ -5271,11 +5271,11 @@ async function drawCount(paneId: string, text: string): Promise<number> {
  */
 const hostCopies = new Map<string, Promise<string>>();
 
-function copyToHost(path: string): Promise<string> {
+function copyToHost(path: string, host?: string): Promise<string> {
 	let copy = hostCopies.get(path);
 	if (!copy) {
 		copy = electronTrpcClient.remoteHost.filesToHost
-			.mutate({ text: "", paths: [path] })
+			.mutate({ text: "", paths: [path], host })
 			.then((sent) => sent.paths[0] ?? path);
 		hostCopies.set(path, copy);
 		// A failed copy is tried again at send.
@@ -5285,11 +5285,13 @@ function copyToHost(path: string): Promise<string> {
 }
 
 /** The host copy of each path, copying any not on its way yet; done with them after. */
-async function hostPathsOf(paths: string[]): Promise<string[]> {
+async function hostPathsOf(paths: string[], host?: string): Promise<string[]> {
 	try {
 		return await Promise.all(
 			paths.map((path) =>
-				path ? copyToHost(path).catch(() => copyToHost(path)) : path,
+				path
+					? copyToHost(path, host).catch(() => copyToHost(path, host))
+					: path,
 			),
 		);
 	} finally {
@@ -5412,9 +5414,10 @@ function Composer({
 		inputRef.current?.focus();
 		saving.then(
 			(paths) => {
-				if (useTabsStore.getState().panes[paneId]?.odinRemote)
+				const host = useTabsStore.getState().panes[paneId]?.odinRemote;
+				if (host)
 					for (const path of paths)
-						if (path) void copyToHost(path).catch(() => undefined);
+						if (path) void copyToHost(path, host).catch(() => undefined);
 			},
 			(error) => {
 				setAttached((list) => list.filter((item) => !items.includes(item)));
@@ -5559,8 +5562,12 @@ function Composer({
 			if (onHost) {
 				// Attachments started copying when pasted; only the text is new.
 				const [sent, hostPaths] = await Promise.all([
-					electronTrpcClient.remoteHost.filesToHost.mutate({ text, paths: [] }),
-					hostPathsOf(paths),
+					electronTrpcClient.remoteHost.filesToHost.mutate({
+						text,
+						paths: [],
+						host: useTabsStore.getState().panes[paneId]?.odinRemote,
+					}),
+					hostPathsOf(paths, useTabsStore.getState().panes[paneId]?.odinRemote),
 				]);
 				// Queued, not typed: the host may be down or Claude restarting.
 				void deliverOnHost(
