@@ -8408,9 +8408,14 @@ function DevBoardPage() {
 			{todayOpen && (
 				<TodayOverview
 					cards={todayCards}
+					openPaneId={drawerCard?.pane.id}
 					onOpen={(paneId) => {
 						const card = cardById(paneId);
-						if (card) openDrawer(card);
+						if (!card) return;
+						// Beside the list, not over it: Today stays in view and a click
+						// on another row switches the session shown.
+						setDrawerFraction((fraction) => Math.min(fraction, 0.6));
+						openDrawer(card);
 					}}
 					onSend={sendToSession}
 				/>
@@ -8610,15 +8615,18 @@ function DevBoardPage() {
 			{/* session drawer */}
 			{drawerCard && (
 				<>
-					<button
-						type="button"
-						aria-label="Close drawer"
-						className={cn(
-							"absolute inset-0 z-40 cursor-default bg-none",
-							inCatchUp ? "bg-black/70" : "bg-black/35",
-						)}
-						onClick={() => setDrawerCard(null)}
-					/>
+					{/* Today stays usable beside the drawer: no backdrop over it. */}
+					{(!todayOpen || inCatchUp) && (
+						<button
+							type="button"
+							aria-label="Close drawer"
+							className={cn(
+								"absolute inset-0 z-40 cursor-default bg-none",
+								inCatchUp ? "bg-black/70" : "bg-black/35",
+							)}
+							onClick={() => setDrawerCard(null)}
+						/>
+					)}
 					{/* Catch up (Slack mobile's): the drawer becomes the top card of a
 					    stack, with how many are left above it and Next / Done below. */}
 					{inCatchUp && catchUp && catchUpCall && (
