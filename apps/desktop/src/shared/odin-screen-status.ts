@@ -247,6 +247,22 @@ export function agentOnScreen(screen: string): boolean {
 	);
 }
 
+/**
+ * What sits in Claude's input box: the rows between its two rules, without
+ * the prompt mark. Undefined when no box is drawn.
+ */
+export function inputBoxText(screen: string): string | undefined {
+	const lines = screen.split(/\r\n|\n|\r/);
+	const bottom = lines.findLastIndex((line) => RULE.test(line));
+	const top = lines.findLastIndex((line, at) => at < bottom && RULE.test(line));
+	if (top < 0) return undefined;
+	return lines
+		.slice(top + 1, bottom)
+		.join("\n")
+		.replace(/^\s*❯\s?/, "")
+		.trim();
+}
+
 /** Claude's first-run setup is on screen: what's typed there picks its options. */
 export function claudeSetup(screen: string): boolean {
 	return SETUP.test(screen);
