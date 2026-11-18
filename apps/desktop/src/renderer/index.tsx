@@ -12,6 +12,7 @@ import {
 	markBootMounted,
 	reportBootError,
 } from "./lib/boot-errors";
+import { startFreezeReporter } from "./lib/freeze-reporter";
 import { sweepDeadPersistedKeys } from "./lib/persisted-keys";
 import { persistentHistory } from "./lib/persistent-hash-history";
 import { posthog } from "./lib/posthog";
@@ -31,6 +32,7 @@ initBootErrorHandling(rootElement);
 pruneExpiredTerminalState();
 // Keys from removed features otherwise live on user profiles forever.
 sweepDeadPersistedKeys();
+startFreezeReporter();
 
 const router = createRouter({
 	routeTree,
