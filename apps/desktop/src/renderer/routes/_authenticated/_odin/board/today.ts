@@ -186,6 +186,28 @@ export function todayTasks<
 		.sort((a, b) => at(a.items[0]) - at(b.items[0]));
 }
 
+/** "You: pick the email wording" -> "Pick the email wording"; null when someone else acts next. */
+export function yourAction(next: string | null | undefined): string | null {
+	const said = /^you\s*:\s*(.+?)\.?$/i.exec(next?.trim() ?? "");
+	if (!said) return null;
+	return said[1][0].toUpperCase() + said[1].slice(1);
+}
+
+/**
+ * The page's two lanes. Waiting on you: tasks that need you or only wait on
+ * your merge, and any other task whose next step is yours. Moving without
+ * you: the rest - Claude running, someone else, or on hold. Order is kept.
+ */
+export function todayLanes<
+	T extends { group: TodayGroup; next: string | null },
+>(tasks: T[]): { yours: T[]; moving: T[] } {
+	const mine = (task: T) =>
+		task.group === "needs-you" ||
+		task.group === "almost-done" ||
+		(task.group !== "running" && !!yourAction(task.next));
+	return { yours: tasks.filter(mine), moving: tasks.filter((t) => !mine(t)) };
+}
+
 /** "3 need you, 2 running, 1 waiting on someone" - the top line before the model's. */
 export function todayCounts(entries: { group: TodayGroup }[]): string {
 	const count = (id: TodayGroup) =>
