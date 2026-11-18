@@ -70,11 +70,27 @@ describe("remote session scripts", () => {
 			"/dev/shm/odin.X",
 		);
 		const starts = run.match(/\bclaude --[^\s]+/g) ?? [];
-		// The first start, the idle watcher's three resumes and the plan-limit resume.
-		expect(starts.length).toBe(5);
+		// The first start, its fresh fallback, the idle watcher's three resumes
+		// and the plan-limit resume.
+		expect(starts.length).toBe(6);
 		for (const start of starts) {
 			expect(start).toBe("claude --dangerously-skip-permissions");
 		}
+	});
+
+	test("a resume whose conversation the host never saved starts fresh under the same id, with its prompt", () => {
+		const run = runScript(
+			{ ...spec, claudeArgs: "--resume abc" },
+			"/dev/shm/odin.X",
+		);
+		expect(run).toContain(
+			`if ls "$HOME"/.claude/projects/*/'abc.jsonl' >/dev/null 2>&1; then claude --dangerously-skip-permissions --settings ${sh(hostSettings)} --resume abc "\${p[@]}"; else`,
+		);
+		expect(run).toContain(
+			`claude --dangerously-skip-permissions --settings ${sh(hostSettings)} --session-id abc "\${p[@]}"; fi`,
+		);
+		// The prompt is in p before either start.
+		expect(run.indexOf("p=(")).toBeLessThan(run.indexOf("if ls"));
 	});
 
 	test("tokens become sourced KEY='value' lines, quotes escaped, empty ones dropped", () => {
@@ -286,7 +302,7 @@ describe("remote session scripts", () => {
 		expect(run).toContain(
 			`\np=()\n[ "\${#p[@]}" -eq 0 ] && python3 -c ${sh(CUT_OFF_TURN)} 'abc' 2>/dev/null && p=(Continue)\n`,
 		);
-		expect(run).toContain(`--resume abc "\${p[@]}"\n`);
+		expect(run).toContain(`--resume abc "\${p[@]}"; else`);
 		const home = mkdtempSync(join(tmpdir(), "odin-cut-"));
 		const cutOff = (...entries: object[]) => {
 			mkdirSync(join(home, ".claude/projects/-home-x"), { recursive: true });

@@ -744,7 +744,13 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 			idleWatcher(spec.pane),
 		`command -v flock >/dev/null && ${pruneLoop(root)}`,
 		...promptLines,
-		`${hostClaude} ${spec.claudeArgs} "\${p[@]}"`,
+		// A resume whose conversation Claude never saved (the connection dropped
+		// before its first turn, a Resume after that) made `claude --resume`
+		// print "No conversation found" and exit: a dead pane. Start it fresh
+		// under the same id instead, with its prompt.
+		resumed
+			? `if ls "$HOME"/.claude/projects/*/${sh(`${resumed}.jsonl`)} >/dev/null 2>&1; then ${hostClaude} ${spec.claudeArgs} "\${p[@]}"; else printf '\\nOdin: Claude never saved this conversation here, so it starts a new one.\\n\\n'; ${hostClaude} ${spec.claudeArgs.replace(/--resume (\S+)/, "--session-id $1")} "\${p[@]}"; fi`
+			: `${hostClaude} ${spec.claudeArgs} "\${p[@]}"`,
 		// Stopped for being idle: the next prompt, typed here or a board reply
 		// (left in idlePrompt), resumes the conversation with it. Enter alone
 		// resumes it as it was.
