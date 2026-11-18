@@ -158,10 +158,13 @@ const jump = (id: string) =>
  */
 export function TodayOverview({
 	cards,
+	openPaneId,
 	onOpen,
 	onSend,
 }: {
 	cards: TodayCard[];
+	/** The session open beside the page, marked in the list. */
+	openPaneId?: string;
 	onOpen: (paneId: string) => void;
 	/** Text to a session: typed into a live Claude, else resumes it with it. */
 	onSend: (paneId: string, text: string) => void;
@@ -179,10 +182,8 @@ export function TodayOverview({
 	const layout = useTodayOverview((s) => s.layout);
 	const setLayout = useTodayOverview((s) => s.setLayout);
 	const columns = layout === "columns";
-	// Every session in page order, one bullet each, whatever the chips hide.
-	const bullets = todaySections(items, { hidden: [], dueOnly: false }).flatMap(
-		(section) => section.items,
-	);
+	// Every session by group, one row each, whatever the chips hide.
+	const bullets = todaySections(items, { hidden: [], dueOnly: false });
 	const dueCount = items.filter((item) => !!item.due).length;
 	// The header stays pinned: its height keeps a jump's section, and the side
 	// column, below it.
@@ -361,26 +362,70 @@ export function TodayOverview({
 					</button>
 				</div>
 			</header>
-			{/* Outside the pinned header: one bullet per session can be taller
-			    than the window, and a sticky header that tall blocks the scroll. */}
-			{bullets.length > 0 && (
-				<ul className="mb-4 select-text list-disc space-y-0.5 pl-5 text-[13px] leading-snug">
-					{bullets.map((item) => (
-						<li key={item.key}>
-							<button
-								type="button"
-								onClick={() => onOpen(item.key)}
-								className="font-semibold hover:underline"
-							>
-								{item.title}
-							</button>
-							<span className="text-muted-foreground">
-								{" - "}
-								{data?.lines[item.key] ?? plainLine(item.status)}
-							</span>
-						</li>
-					))}
-				</ul>
+			{/* Outside the pinned header: one row per session can be taller than
+			    the window, and a sticky header that tall blocks the scroll. */}
+			{bullets.some((section) => section.items.length > 0) && (
+				<div
+					data-testid="today-list"
+					className="mb-4 overflow-hidden rounded-xl border border-border bg-card/60"
+				>
+					{bullets.map(({ group: id, items: rows }) => {
+						if (!rows.length) return null;
+						const { Icon, tone } = GROUP_ICON[id];
+						return (
+							<section key={id} aria-label={todayGroupLabel(id)}>
+								<h2 className="flex items-center gap-1.5 border-b border-border bg-secondary/40 px-3.5 py-1.5 text-[12px] font-semibold">
+									<Icon className={cn("size-3.5", tone)} />
+									{todayGroupLabel(id)}
+									<span className="font-normal text-muted-foreground">
+										{rows.length}
+									</span>
+								</h2>
+								<ul className="divide-y divide-border">
+									{rows.map((item) => {
+										const left = item.due ? daysUntil(item.due, now) : null;
+										return (
+											<li key={item.key}>
+												<button
+													type="button"
+													title="Open it beside the list"
+													onClick={() => onOpen(item.key)}
+													className={cn(
+														"flex w-full items-start gap-3 px-3.5 py-2 text-left hover:bg-accent/50",
+														openPaneId === item.key && "bg-primary/10",
+													)}
+												>
+													<span className="min-w-0 flex-1">
+														<span className="block truncate text-[13px] font-semibold">
+															{item.title}
+														</span>
+														<span className="block text-[12.5px] leading-snug text-muted-foreground">
+															{data?.lines[item.key] ?? plainLine(item.status)}
+														</span>
+													</span>
+													{item.due && left !== null && (
+														<span
+															className={cn(
+																MARK,
+																left < 0
+																	? PILL.alarm
+																	: left <= 1
+																		? PILL.attention
+																		: PILL.neutral,
+															)}
+														>
+															{dueLabel(item.due, left)}
+														</span>
+													)}
+												</button>
+											</li>
+										);
+									})}
+								</ul>
+							</section>
+						);
+					})}
+				</div>
 			)}
 			{!!data?.brief.length && (
 				<section
