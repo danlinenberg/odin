@@ -86,11 +86,12 @@ export function requestClaudeSync(
  * the same file in a clone under the host's repo folder (ODIN_REPOS, ~/repos
  * by default) when there is one: ~/dev/acme/tools/x.sh here is
  * ~/repos/tools/x.sh there. Else it is dropped from the host's copy - a Mac
- * app, a repo not cloned there - so it doesn't fail on every tool call. A plugin whose MCP server is also one of the
+ * app, a repo not cloned there, a program installed only here (`tool hook`
+ * with no `tool` on the host) - so it doesn't fail on every tool call. A plugin whose MCP server is also one of the
  * account's claude.ai connectors is turned off there, so the connector loads.
  * Prints what it dropped, as JSON.
  */
-export const PRUNE_HOOKS_PY = `import glob, json, os, shlex
+export const PRUNE_HOOKS_PY = `import glob, json, os, re, shlex, shutil, subprocess
 home = os.path.expanduser("~")
 repos = os.path.expanduser(os.environ.get("ODIN_REPOS") or "~/repos")
 
@@ -122,11 +123,30 @@ def relocate(command):
         command = command.replace(gone, found)
 
 
+def on_path(program):
+    """Whether the host runs this program: on PATH here, or on the login
+    shell's PATH (a tool in ~/.cargo/bin), or a shell builtin."""
+    if shutil.which(program):
+        return True
+    shell = os.environ.get("SHELL") or "/bin/sh"
+    try:
+        return subprocess.run([shell, "-lc", 'command -v "$1"', "_", program],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                              stdin=subprocess.DEVNULL, timeout=10).returncode == 0
+    except Exception:
+        return True
+
+
 def missing(command):
     try:
         tokens = shlex.split(command)
     except ValueError:
         return None
+    # The program itself, past any VAR=value: a bare name the host doesn't
+    # have ("tool hook", installed only on this computer) fails every call.
+    program = next((t for t in tokens if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", t)), "")
+    if program and "/" not in program and "$" not in program and not on_path(program):
+        return program
     for token in tokens:
         if token.startswith("$HOME/"):
             token = home + token[5:]

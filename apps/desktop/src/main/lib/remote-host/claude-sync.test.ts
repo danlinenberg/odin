@@ -256,6 +256,42 @@ describe("hooks on the host", () => {
 		expect(saved.statusLine.command).toBe(`${home}/repos/tools/hooks/check.py`);
 	});
 
+	test("a hook that runs a program the host doesn't have is dropped; one it has stays", () => {
+		const home = mkdtempSync(join(tmpdir(), "claude-host-"));
+		mkdirSync(join(home, ".claude"), { recursive: true });
+		const settings = join(home, ".claude", "settings.json");
+		const kept = [
+			"python3 -c pass",
+			"FOO=1 python3 -c pass",
+			"cd /tmp && python3 -c pass",
+		];
+		writeFileSync(
+			settings,
+			JSON.stringify({
+				hooks: {
+					PreToolUse: [
+						{
+							hooks: [
+								{ type: "command", command: "odin-no-such-tool hook claude" },
+								...kept.map((command) => ({ type: "command", command })),
+							],
+						},
+					],
+				},
+			}),
+		);
+		const out = spawnSync("python3", ["-c", PRUNE_HOOKS_PY], {
+			env: { PATH: process.env.PATH, HOME: home, SHELL: "/bin/sh" },
+		}).stdout.toString();
+		expect(JSON.parse(out)).toEqual(["PreToolUse: odin-no-such-tool"]);
+		const saved = JSON.parse(readFileSync(settings, "utf8"));
+		expect(
+			saved.hooks.PreToolUse[0].hooks.map(
+				(h: { command: string }) => h.command,
+			),
+		).toEqual(kept);
+	});
+
 	test("the status line's script in ~/.claude comes along with the settings", () => {
 		const root = mkdtempSync(join(tmpdir(), "claude-sync-"));
 		const settings = join(root, "settings.json");
