@@ -272,10 +272,13 @@ import {
 } from "./brief";
 import {
 	ChatView,
+	CLAUDE_SIGNED_IN_EVENT,
+	CLAUDE_SIGNED_IN_RETRY,
 	filedUnder,
 	hostDeps,
 	interruptClaude,
 	movedHere,
+	needsClaudeLogin,
 	typeIntoClaude,
 } from "./ChatView";
 import { droppedFlags, useCardFlags } from "./card-flags";
@@ -6894,6 +6897,49 @@ function DevBoardPage() {
 			})();
 		}
 	}, [cardsByStatus, agentPaneIds]);
+
+	// A Claude sign-in on the host is shared by every host session, so once
+	// one session's Sign in to Claude succeeds, the others whose last reply is
+	// "Not logged in" restart and retry too, without a click each.
+	const cardsByStatusRef = useRef(cardsByStatus);
+	cardsByStatusRef.current = cardsByStatus;
+	useEffect(() => {
+		const onSignedIn = (event: Event) => {
+			const done = (event as CustomEvent<string>).detail;
+			const cards = [...cardsByStatusRef.current.values()]
+				.flat()
+				.filter(
+					(c) => c.pane.odinRemote && !c.pane.odinQueued && c.pane.id !== done,
+				);
+			void (async () => {
+				for (const card of cards) {
+					const sessionId =
+						card.pane.claudeSessionId ??
+						usePaneMeta.getState().sessionIdByPane[card.pane.id];
+					if (!sessionId) continue;
+					try {
+						const { messages } =
+							await electronTrpcClient.terminal.readClaudeTranscript.query({
+								sessionId,
+							});
+						const last = messages.at(-1);
+						if (last?.role !== "assistant" || !needsClaudeLogin(last.text))
+							continue;
+						await resumeCardRef.current(
+							card,
+							false,
+							CLAUDE_SIGNED_IN_RETRY,
+							true,
+						);
+					} catch {
+						// No transcript to read: leave that session as it is.
+					}
+				}
+			})();
+		};
+		window.addEventListener(CLAUDE_SIGNED_IN_EVENT, onSignedIn);
+		return () => window.removeEventListener(CLAUDE_SIGNED_IN_EVENT, onSignedIn);
+	}, []);
 
 	const { add: addTask, setPane: setTaskPane } = useMyTasks();
 	const handleNewSession = async (

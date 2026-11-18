@@ -2841,6 +2841,13 @@ export const CLAUDE_SIGNED_IN_RETRY =
 	"I signed in to Claude again. Retry what failed: carry on with my last message.";
 
 /**
+ * Fired on window after a host Claude sign-in. Every host session shares that
+ * sign-in, so the board restarts the other sessions stuck on "Not logged in"
+ * too. `detail` is the pane that already restarts itself.
+ */
+export const CLAUDE_SIGNED_IN_EVENT = "odin:claude-signed-in";
+
+/**
  * A session whose Claude is signed out. On a remote host: a fresh Claude
  * sign-in for the host (your browser approves it), then Restart session, so
  * Claude starts again with it and picks the failed turn back up. Here: /login
@@ -2857,7 +2864,12 @@ function ClaudeLogin({
 }) {
 	const remote = useTabsStore((s) => !!s.panes[paneId]?.odinRemote);
 	const renew = electronTrpc.remoteHost.renewClaudeToken.useMutation({
-		onSuccess: () => onRestart?.(CLAUDE_SIGNED_IN_RETRY),
+		onSuccess: () => {
+			onRestart?.(CLAUDE_SIGNED_IN_RETRY);
+			window.dispatchEvent(
+				new CustomEvent(CLAUDE_SIGNED_IN_EVENT, { detail: paneId }),
+			);
+		},
 		onError: (error) => toast.error(`Claude sign-in failed: ${error.message}`),
 	});
 	if (remote ? !onRestart : !onSend) return null;
@@ -2868,7 +2880,7 @@ function ClaudeLogin({
 			onClick={() => (remote ? renew.mutate() : onSend?.("/login"))}
 			title={
 				remote
-					? "Sign the host in to your Claude plan - approve it in the browser tab that opens - then restart this session, which retries what failed"
+					? "Sign the host in to your Claude plan - approve it in the browser tab that opens - then restart this session and every other host session stuck on Not logged in, which retry what failed"
 					: "Run /login in this session"
 			}
 			className={cn(ACTION_BUTTON, "mt-2")}
