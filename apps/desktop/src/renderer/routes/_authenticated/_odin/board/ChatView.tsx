@@ -82,6 +82,7 @@ import {
 	awaitsAwsSignIn,
 	blockedOnAwsSignIn,
 	claudeDrawn,
+	inputBoxText,
 	reconnectStopped,
 	remoteConnectLine,
 	stoppedParts,
@@ -5221,7 +5222,34 @@ export async function typeIntoClaude(
 		}
 	}
 	await new Promise((resolve) => setTimeout(resolve, 30));
-	await write({ paneId, data: now ? "\x18\x13" : "\r" });
+	const enter = now ? "\x18\x13" : "\r";
+	await write({ paneId, data: enter });
+	// Over a remote host's link Claude can read the text and Enter in one go
+	// and take the Enter as part of the paste: the message sat in its box,
+	// unsent, and read Not delivered. Enter again while it is still there; an
+	// Enter that was only slow lands on an empty box, which does nothing.
+	if (!text) return;
+	for (let tries = 0; tries < 3; tries++) {
+		await new Promise((resolve) => setTimeout(resolve, 1500));
+		if (!(await stillInBox(paneId, text))) return;
+		await write({ paneId, data: enter });
+	}
+}
+
+/** The text is still in Claude's input box, typed but not sent. */
+async function stillInBox(paneId: string, text: string): Promise<boolean> {
+	const screen = await electronTrpcClient.terminal.readScreen
+		.query({ paneId })
+		.catch(() => null);
+	return sitsInBox(screen?.text ?? "", text);
+}
+
+/** `text` (its last characters, wrapping ignored) is what Claude's input box holds. */
+export function sitsInBox(screen: string, text: string): boolean {
+	const squash = (value: string) => value.replace(/\s+/g, "");
+	const tail = squash(text).slice(-24);
+	const box = inputBoxText(screen);
+	return !!tail && !!box && squash(box).endsWith(tail);
 }
 
 /** The live pane `deliverOnHost` reads and waits on. */

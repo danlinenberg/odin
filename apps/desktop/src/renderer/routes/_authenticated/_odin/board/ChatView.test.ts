@@ -47,6 +47,7 @@ import {
 	segments,
 	shownTldr,
 	shrankBelow,
+	sitsInBox,
 	slackDraftText,
 	splitActionItems,
 	splitEarlier,
@@ -1471,5 +1472,29 @@ describe("shrankBelow", () => {
 		expect(shrankBelow("1700000000000:900", 900)).toBe(false);
 		expect(shrankBelow("1700000000000:1200", 900)).toBe(false);
 		expect(shrankBelow(undefined, 900)).toBe(false);
+	});
+});
+
+describe("sitsInBox", () => {
+	const box = (input: string) =>
+		[
+			"● Compacted while idle",
+			"─".repeat(40),
+			`❯ ${input}`,
+			"─".repeat(40),
+			"  ⏵⏵ bypass permissions on (shift+tab to cycle)",
+		].join("\n");
+
+	test("typed but not sent: the text is in Claude's box", () => {
+		expect(sitsInBox(box("post it in #rnd"), "post it in #rnd")).toBe(true);
+	});
+
+	test("sent: the box is empty, the text only in the history above", () => {
+		const screen = `❯ post it in #rnd\n${box("")}`;
+		expect(sitsInBox(screen, "post it in #rnd")).toBe(false);
+	});
+
+	test("no box on screen", () => {
+		expect(sitsInBox("Connecting to i-0abc...", "hi")).toBe(false);
 	});
 });
