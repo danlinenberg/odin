@@ -17,6 +17,10 @@ import {
 } from "shared/constants";
 import { setupAgentIntegrations } from "./lib/agent-setup";
 import { bundledClaudePath } from "./lib/agent-setup/bundled-claude";
+import {
+	completeAirtableOAuth,
+	isAirtableOAuthCallback,
+} from "./lib/airtable-oauth";
 import { ODIN_HOME_DIR } from "./lib/app-environment";
 import { flushAppStateSync, initAppState } from "./lib/app-state";
 import { isUpdateReadyToInstall, setupAutoUpdater } from "./lib/auto-updater";
@@ -131,6 +135,13 @@ async function processDeepLink(url: string): Promise<void> {
 	if (isJiraOAuthCallback(url)) {
 		console.log("[main] Processing Jira OAuth callback");
 		await completeJiraOAuth(url);
+		focusMainWindow();
+		return;
+	}
+
+	if (isAirtableOAuthCallback(url)) {
+		console.log("[main] Processing Airtable OAuth callback");
+		await completeAirtableOAuth(url);
 		focusMainWindow();
 		return;
 	}

@@ -104,7 +104,7 @@ const META: Record<
 		name: "Airtable",
 		icon: <SiAirtable className="size-5" />,
 		description: "Records in the Airtable views you link, in the Airtable tab.",
-		help: "Odin reads the views you paste, up to 100 records each. Filter a view to your own open tasks in Airtable: every record in it shows.",
+		help: "Sign in, then paste the views to read on the Airtable tab, up to 100 records each. Filter a view to your own open tasks in Airtable: every record in it shows.",
 	},
 	determ: {
 		name: "Determ",

@@ -49,7 +49,7 @@ export const PROVIDER_NAME: Record<Provider, string> = {
 
 type OAuthProvider = Exclude<
 	Provider,
-	"github" | "gmail" | "clickup" | "airtable" | "determ"
+	"github" | "gmail" | "clickup" | "determ"
 >;
 
 /** Whose account the sign-in button opens, where it isn't the provider's own. */
@@ -70,7 +70,7 @@ const SCOPE_BLURB: Record<Provider, string> = {
 	calendar:
 		"Opens Google in your browser. Read-only, so your meetings show up as things to prepare for.",
 	airtable:
-		"A personal access token and the views to read - each record in them is a task.",
+		"Opens Airtable in your browser, where you pick the bases Odin may read. Read-only.",
 	determ:
 		"An API token and the feeds to read - each mention from the last week is a row.",
 };
@@ -101,17 +101,6 @@ export function ConnectProvider({
 		<GmailConnect onDone={done} />
 	) : provider === "clickup" ? (
 		<ClickupConnect onDone={done} />
-	) : provider === "airtable" ? (
-		<LinkedConnect
-			name="Airtable"
-			tokenUrl="https://airtable.com/create/tokens"
-			tokenHelp="Scopes: data.records:read and schema.bases:read, with access to the bases below. Then paste it."
-			tokenPlaceholder="pat…"
-			linksHelp="One view link per line, copied from the address bar (airtable.com/app…/tbl…/viw…). Filter the view to your own tasks: every record in it shows."
-			linksPlaceholder="https://airtable.com/app…/tbl…/viw…"
-			save={electronTrpc.connections.saveAirtable.useMutation}
-			onDone={done}
-		/>
 	) : provider === "determ" ? (
 		<LinkedConnect
 			name="Determ"
@@ -553,8 +542,8 @@ function ClickupConnect({ onDone }: { onDone: () => void }) {
 }
 
 /**
- * Airtable and Determ: no OAuth app here, so a pasted token, plus the links
- * whose items are the feed - an Airtable view, a Determ feed.
+ * Determ has no OAuth, so a pasted token, plus the feed links whose
+ * mentions are the feed.
  */
 function LinkedConnect({
 	name,
@@ -572,9 +561,7 @@ function LinkedConnect({
 	tokenPlaceholder: string;
 	linksHelp: string;
 	linksPlaceholder: string;
-	save:
-		| typeof electronTrpc.connections.saveAirtable.useMutation
-		| typeof electronTrpc.connections.saveDeterm.useMutation;
+	save: typeof electronTrpc.connections.saveDeterm.useMutation;
 	onDone: () => void;
 }) {
 	const [token, setToken] = useState("");

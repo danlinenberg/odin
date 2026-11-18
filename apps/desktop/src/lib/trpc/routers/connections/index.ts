@@ -1,6 +1,12 @@
 import { TRPCError } from "@trpc/server";
 import { shell } from "electron";
 import {
+	airtableAccessToken,
+	isAirtableOAuthConfigured,
+	readAirtableOAuthResult,
+	startAirtableOAuth,
+} from "main/lib/airtable-oauth";
+import {
 	calendarIdentity,
 	fetchCalendar,
 	googleCalendarFetch,
@@ -331,7 +337,7 @@ async function probeClickup(): Promise<ConnectionStatus> {
 /** A pasted token plus the links it reads: whoami for the token, the links' count after it. */
 async function probeLinked(
 	provider: "airtable" | "determ",
-	token: string | undefined,
+	token: string | null | undefined,
 	links: string[] | undefined,
 	whoami: (token: string) => Promise<Response>,
 ): Promise<ConnectionStatus> {
@@ -461,7 +467,13 @@ export function probeError(status: number): string {
 // procedures serves all of them, so a fifth provider is three lines of switch.
 // (GitHub is the odd one out - device flow, below.)
 
-const OAUTH_PROVIDERS = ["slack", "jira", "notion", "calendar"] as const;
+const OAUTH_PROVIDERS = [
+	"slack",
+	"jira",
+	"notion",
+	"calendar",
+	"airtable",
+] as const;
 type OAuthProvider = (typeof OAUTH_PROVIDERS)[number];
 
 const oauthInput = z.object({ provider: z.enum(OAUTH_PROVIDERS) });
@@ -476,6 +488,8 @@ function oauthConfigured(provider: OAuthProvider): boolean {
 			return isNotionOAuthConfigured();
 		case "calendar":
 			return isCalendarOAuthConfigured();
+		case "airtable":
+			return isAirtableOAuthConfigured();
 	}
 }
 
@@ -491,6 +505,8 @@ function startOAuth(
 			return startNotionOAuth();
 		case "calendar":
 			return startCalendarOAuth();
+		case "airtable":
+			return startAirtableOAuth();
 	}
 }
 
@@ -504,6 +520,8 @@ function readOAuthResult(provider: OAuthProvider, state: string) {
 			return readNotionOAuthResult(state);
 		case "calendar":
 			return readCalendarOAuthResult(state);
+		case "airtable":
+			return readAirtableOAuthResult(state);
 	}
 }
 
@@ -533,7 +551,7 @@ export const createConnectionsRouter = () => {
 				probeCalendar(),
 				probeLinked(
 					"airtable",
-					readOdinConfig().airtableToken,
+					await airtableAccessToken(),
 					readOdinConfig().airtableViews,
 					airtableWhoami,
 				),
@@ -715,7 +733,9 @@ export const createConnectionsRouter = () => {
 						break;
 					case "airtable":
 						updateOdinConfig({
-							airtableToken: undefined,
+							airtableAccessToken: undefined,
+							airtableRefreshToken: undefined,
+							airtableTokenExpiresAt: undefined,
 							airtableViews: undefined,
 						});
 						break;
@@ -797,24 +817,23 @@ export const createConnectionsRouter = () => {
 				return { ok: true };
 			}),
 
-		/** Airtable's way in: a personal access token and the views to read, checked before they're stored. */
-		saveAirtable: publicProcedure
-			.input(
-				z.object({
-					token: z.string().trim().min(1),
-					links: z.array(z.string()),
-				}),
-			)
-			.mutation(async ({ input }) => {
-				const links = await checkLinked(
-					"Airtable",
-					input.token,
-					input.links,
-					airtableView,
-					airtableWhoami,
-				);
-				updateOdinConfig({ airtableToken: input.token, airtableViews: links });
-				return { ok: true };
+		/** The Airtable views whose records are the feed. Signing in is separate (OAuth). */
+		airtableViews: publicProcedure.query(() => ({
+			links: readOdinConfig().airtableViews ?? [],
+		})),
+		saveAirtableViews: publicProcedure
+			.input(z.object({ links: z.array(z.string()) }))
+			.mutation(({ input }) => {
+				const links = input.links.map((link) => link.trim()).filter(Boolean);
+				const bad = links.find((link) => !airtableView(link));
+				if (bad) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message: `That isn't an Airtable view link: ${bad}`,
+					});
+				}
+				updateOdinConfig({ airtableViews: links });
+				return { links };
 			}),
 
 		/** Determ's way in: an API token and the feeds to read, checked before they're stored. */

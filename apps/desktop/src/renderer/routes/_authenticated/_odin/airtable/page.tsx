@@ -1,5 +1,10 @@
+import { Button } from "@odin/ui/button";
+import { toast } from "@odin/ui/sonner";
+import { Textarea } from "@odin/ui/textarea";
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
+import { electronTrpc } from "renderer/lib/electron-trpc";
 import {
 	TABLE_LIST,
 	TaskRow,
@@ -28,11 +33,25 @@ function AirtablePage() {
 	const items = useFeedItems({ airtable: rows });
 	const taskRows = useTaskRows();
 	const now = Date.now();
+	const views = electronTrpc.connections.airtableViews.useQuery(undefined, {
+		enabled: workConfig?.hasAirtable === true,
+	});
+	const [editing, setEditing] = useState(false);
+	const noViews = views.data?.links.length === 0;
 
 	return (
 		<div className="flex h-full flex-col">
 			<FeedHeader>
 				<div className="ml-auto flex items-center gap-2.5">
+					{workConfig?.hasAirtable && (
+						<Button
+							size="sm"
+							variant="ghost"
+							onClick={() => setEditing((open) => !open)}
+						>
+							Views
+						</Button>
+					)}
 					<SyncButton isSyncing={isSyncing} onClick={() => void syncAll()} />
 				</div>
 			</FeedHeader>
@@ -41,13 +60,23 @@ function AirtablePage() {
 				{workConfig && !workConfig.hasAirtable && (
 					<ConnectNotice
 						provider="airtable"
-						text="Airtable isn't connected - add a token and the views to read."
+						text="Airtable isn't connected - sign in, then paste the views to read."
+					/>
+				)}
+				{workConfig?.hasAirtable && (editing || noViews) && views.data && (
+					<AirtableViews
+						links={views.data.links}
+						onSaved={() => {
+							setEditing(false);
+							void views.refetch();
+							void feed.refetch();
+						}}
 					/>
 				)}
 				{feed.error?.data?.code === "UNAUTHORIZED" ? (
 					<ConnectNotice
 						provider="airtable"
-						text="Airtable rejected the token - it was revoked or changed. Paste a new one."
+						text="Airtable signed Odin out - sign in again."
 					/>
 				) : (
 					<FeedError error={feed.error} />
@@ -67,6 +96,43 @@ function AirtablePage() {
 					);
 				})}
 			</div>
+		</div>
+	);
+}
+
+/** The view links whose records are this feed, one per line. */
+function AirtableViews({
+	links,
+	onSaved,
+}: {
+	links: string[];
+	onSaved: () => void;
+}) {
+	const [text, setText] = useState(links.join("\n"));
+	useEffect(() => setText(links.join("\n")), [links]);
+	const save = electronTrpc.connections.saveAirtableViews.useMutation({
+		onSuccess: onSaved,
+		onError: (error) => toast.error(error.message),
+	});
+	return (
+		<div className="space-y-2 px-2 py-3">
+			<p className="text-xs text-muted-foreground">
+				One view link per line, copied from the address bar
+				(airtable.com/app…/tbl…/viw…). Every record in the view shows, so filter
+				it to your own open tasks in Airtable.
+			</p>
+			<Textarea
+				value={text}
+				placeholder="https://airtable.com/app…/tbl…/viw…"
+				onChange={(event) => setText(event.target.value)}
+			/>
+			<Button
+				size="sm"
+				disabled={save.isPending}
+				onClick={() => save.mutate({ links: text.split("\n") })}
+			>
+				Save views
+			</Button>
 		</div>
 	);
 }

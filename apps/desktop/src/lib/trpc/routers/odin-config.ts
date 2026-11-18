@@ -205,11 +205,17 @@ export interface OdinFileConfig {
 	clickupToken?: string;
 
 	/**
-	 * Airtable personal access token (pat…), pasted like ClickUp's, and the
-	 * view links whose records are the Airtable feed.
+	 * Airtable OAuth connection (data.records:read, schema.bases:read). Access
+	 * tokens last an hour; refresh tokens last 60 days and rotate on use.
 	 */
-	airtableToken?: string;
+	airtableAccessToken?: string;
+	airtableRefreshToken?: string;
+	airtableTokenExpiresAt?: number;
+	/** The view links whose records are the Airtable feed. */
 	airtableViews?: string[];
+	airtableClientId?: string;
+	airtableClientSecret?: string;
+	airtableRedirectUrl?: string;
 
 	/**
 	 * Determ API token (Settings → Account Settings in Determ) and the feed
@@ -355,6 +361,9 @@ const SHARED_KEYS = [
 	"calendarClientId",
 	"calendarClientSecret",
 	"calendarRedirectUrl",
+	"airtableClientId",
+	"airtableClientSecret",
+	"airtableRedirectUrl",
 	"githubClientId",
 ] as const;
 
@@ -765,6 +774,28 @@ export function resolveCalendarOAuthApp(): CalendarOAuthApp | null {
 	const redirectUrl =
 		appValue(["ODIN_CALENDAR_REDIRECT_URL"], file.calendarRedirectUrl) ||
 		process.env.ODIN_CALENDAR_REDIRECT_URL_BAKED;
+	if (!clientId || !clientSecret || !redirectUrl) return null;
+	return { clientId, clientSecret, redirectUrl };
+}
+
+export interface AirtableOAuthApp {
+	clientId: string;
+	clientSecret: string;
+	redirectUrl: string;
+}
+
+/** The Airtable OAuth integration, if one is configured. All three parts are required. */
+export function resolveAirtableOAuthApp(): AirtableOAuthApp | null {
+	const file = readOdinConfig();
+	const clientId =
+		appValue(["ODIN_AIRTABLE_CLIENT_ID"], file.airtableClientId) ||
+		process.env.ODIN_AIRTABLE_CLIENT_ID_BAKED;
+	const clientSecret =
+		appValue(["ODIN_AIRTABLE_CLIENT_SECRET"], file.airtableClientSecret) ||
+		process.env.ODIN_AIRTABLE_CLIENT_SECRET_BAKED;
+	const redirectUrl =
+		appValue(["ODIN_AIRTABLE_REDIRECT_URL"], file.airtableRedirectUrl) ||
+		process.env.ODIN_AIRTABLE_REDIRECT_URL_BAKED;
 	if (!clientId || !clientSecret || !redirectUrl) return null;
 	return { clientId, clientSecret, redirectUrl };
 }

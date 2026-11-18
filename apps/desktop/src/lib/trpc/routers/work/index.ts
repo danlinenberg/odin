@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { TRPCError } from "@trpc/server";
+import { airtableAccessToken, hasAirtableOAuth } from "main/lib/airtable-oauth";
 import { isInternalBuild } from "main/lib/build-channel";
 import {
 	fetchCalendar,
@@ -316,7 +317,7 @@ export const createWorkRouter = () => {
 			hasGithub: githubToken() !== null,
 			hasGmail: gmailCredentials() !== null,
 			hasClickup: !!readOdinConfig().clickupToken,
-			hasAirtable: !!readOdinConfig().airtableToken,
+			hasAirtable: hasAirtableOAuth(),
 			hasDeterm: !!readOdinConfig().determToken,
 			hasCalendar: hasCalendarOAuth() || !!readOdinConfig().calendarUrl,
 			/**
@@ -714,8 +715,8 @@ export const createWorkRouter = () => {
 		/** The records in the Airtable views linked in Settings → Connections. */
 		airtableRecords: publicProcedure.query(
 			async (): Promise<{ records: AirtableRecordRow[] }> => {
-				const { airtableToken, airtableViews } = readOdinConfig();
-				if (!airtableToken) {
+				const token = await airtableAccessToken();
+				if (!token) {
 					throw new TRPCError({
 						code: "PRECONDITION_FAILED",
 						message:
@@ -724,8 +725,8 @@ export const createWorkRouter = () => {
 				}
 				return {
 					records: await airtableRecords(
-						(path) => airtableFetch(path, airtableToken),
-						airtableViews ?? [],
+						(path) => airtableFetch(path, token),
+						readOdinConfig().airtableViews ?? [],
 					),
 				};
 			},
