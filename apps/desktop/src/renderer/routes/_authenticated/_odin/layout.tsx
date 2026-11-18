@@ -580,23 +580,15 @@ function OdinShell() {
 							onChange={(event) => switchProfile(event.target.value)}
 							className="cursor-pointer rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground disabled:opacity-50"
 						>
-							{profiles.map((profile) => {
-								// A native <option> is text and nothing else - no dot, no
-								// badge - so the counts go in the label. Only on the
-								// profiles you're NOT on: the active one's are already on
-								// the board below, and the selected option is what the
-								// closed button shows.
-								return (
-									<option key={profile.id} value={profile.id}>
-										{profile.id === activeProfileId
-											? profile.name
-											: profileLabel(
-													profile.name,
-													boardCountsByProfile.get(profile.id),
-												)}
-									</option>
-								);
-							})}
+							{/* Names only. A native <select> is as wide as its widest
+							    option, so the other profile's counts in its label
+							    resized the picker on every switch. The pill beside it
+							    already shows them. */}
+							{profiles.map((profile) => (
+								<option key={profile.id} value={profile.id}>
+									{profile.name}
+								</option>
+							))}
 						</select>
 					</ZoomStable>
 				)}
