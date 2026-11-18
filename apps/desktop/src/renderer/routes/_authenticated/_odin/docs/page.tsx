@@ -192,7 +192,7 @@ function DocsPage() {
 					<button
 						type="button"
 						aria-label="Close transcript"
-						className="fixed inset-0 z-40 cursor-default bg-black/35 bg-none"
+						className="absolute inset-0 z-40 cursor-default bg-black/35 bg-none"
 						onClick={() => setOpenSession(null)}
 					/>
 					{/* absolute: stays inside the content area, clear of the traffic lights */}

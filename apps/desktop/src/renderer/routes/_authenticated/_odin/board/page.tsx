@@ -8568,7 +8568,7 @@ function DevBoardPage() {
 						type="button"
 						aria-label="Close drawer"
 						className={cn(
-							"fixed inset-0 z-40 cursor-default bg-none",
+							"absolute inset-0 z-40 cursor-default bg-none",
 							inCatchUp ? "bg-black/70" : "bg-black/35",
 						)}
 						onClick={() => setDrawerCard(null)}
