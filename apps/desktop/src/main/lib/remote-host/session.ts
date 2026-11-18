@@ -308,6 +308,9 @@ export const GITHUB_HELPERS_SCRIPT = [
  * again), during which sessions start on the user's API key. A session on
  * the plan that has a key to fall back to is stopped and named in
  * ~/.odin/resume-<run script pid>, so the run script resumes it on the key.
+ * The other way too: a session on the key whose turn ends after the limit
+ * has passed is resumed on the plan, which brings back the claude.ai
+ * connectors (Gmail and the rest) that the key turns off.
  */
 const TURN_END_HOOK = `import json, os, subprocess, sys, time
 raw = sys.stdin.read()
@@ -319,26 +322,37 @@ stopped = os.path.expanduser("~/.odin/night/stopped")
 os.makedirs(stopped, exist_ok=True)
 if session and "/" not in session:
     open(os.path.join(stopped, session), "w").close()
+def resume():
+    run = os.environ.get("ODIN_RUN_PID", "")
+    if not (run and session and os.environ.get("ODIN_HAS_FALLBACK_KEY")):
+        return
+    pid = os.getppid()
+    while pid > 1:
+        parent = open(f"/proc/{pid}/stat").read().rsplit(")", 1)[1].split()[1]
+        if parent == run:
+            break
+        pid = int(parent)
+    if pid > 1:
+        open(os.path.expanduser(f"~/.odin/resume-{run}"), "w").write(session)
+        # Claude waits for this hook; stop it once the hook has returned.
+        subprocess.Popen(["sh", "-c", f"sleep 2; kill {pid}"], start_new_session=True)
+state = os.path.expanduser("~/.claude/plan-limit.json")
 if os.environ.get("ODIN_TURN") == "failed" and "limit" in raw.lower():
     # Written whole, then moved into place: the laptop's own plan-limit hook,
     # synced here, writes this file at the same moment, and two open-and-write
     # calls interleave into a file neither side can read afterwards.
-    state = os.path.expanduser("~/.claude/plan-limit.json")
     with open(f"{state}.{os.getpid()}", "w") as f:
         json.dump({"until": time.time() + 5 * 3600}, f)
     os.replace(f"{state}.{os.getpid()}", state)
-    run = os.environ.get("ODIN_RUN_PID", "")
-    if run and session and os.environ.get("ODIN_HAS_FALLBACK_KEY") and not os.environ.get("ANTHROPIC_API_KEY"):
-        pid = os.getppid()
-        while pid > 1:
-            parent = open(f"/proc/{pid}/stat").read().rsplit(")", 1)[1].split()[1]
-            if parent == run:
-                break
-            pid = int(parent)
-        if pid > 1:
-            open(os.path.expanduser(f"~/.odin/resume-{run}"), "w").write(session)
-            # Claude waits for this hook; stop it once the hook has returned.
-            subprocess.Popen(["sh", "-c", f"sleep 2; kill {pid}"], start_new_session=True)`;
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        resume()
+elif os.environ.get("ANTHROPIC_API_KEY"):
+    try:
+        until = float(json.load(open(state)).get("until", 0))
+    except Exception:
+        until = 0
+    if until <= time.time():
+        resume()`;
 
 /**
  * A Resume of a conversation (argv[1]) whose last reply is Claude's usage-limit
@@ -473,6 +487,13 @@ k = os.environ["ODIN_FALLBACK_API_KEY"][-20:]
 if k not in r.setdefault("approved", []):
     r["approved"].append(k)
 json.dump(c, open(p, "w"), indent=2)`;
+
+/**
+ * On the key while the plan is limited, on the plan once it isn't: the key
+ * turns off the claude.ai connectors, so a session never stays on it longer
+ * than the limit.
+ */
+const KEY_OR_PLAN = `if [ -n "$fallback" ] && ODIN_FALLBACK_API_KEY="$fallback" python3 -c ${sh(USE_API_KEY_IF_LIMITED)}; then export ANTHROPIC_API_KEY="$fallback"; else unset ANTHROPIC_API_KEY; fi`;
 
 /**
  * Odin's status hook, as on the laptop: it tells the card the session is
@@ -754,8 +775,10 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		// Stopped for being idle: the next prompt, typed here or a board reply
 		// (left in idlePrompt), resumes the conversation with it. Enter alone
 		// resumes it as it was.
-		`while [ -e ${idleMarker(spec.pane)} ]; do clear; printf '\\nOdin stopped Claude here after 2 hours with no output, to free memory on this host.\\nType a message to pick the conversation up with it, or press Enter.\\n\\n'; IFS= read -e -r -p '> ' m; rm -f ${idleMarker(spec.pane)};${spec.repoName ? ` [ -d "$PWD" ] || { ${addWorktree}; cd ${worktree} 2>/dev/null || cd ${repo}; };` : ""} if [ -s ${idlePrompt(spec.pane)} ]; then m=$(cat ${idlePrompt(spec.pane)}); fi; rm -f ${idlePrompt(spec.pane)}; if [ -n "$m" ]; then ${hostClaude} --resume ${sh(spec.pane)} "$m"; elif python3 -c ${sh(CUT_OFF_TURN)} ${sh(spec.pane)} 2>/dev/null; then ${hostClaude} --resume ${sh(spec.pane)} Continue; else ${hostClaude} --resume ${sh(spec.pane)}; fi; done`,
-		`if [ -s "$HOME/.odin/resume-$$" ]; then s=$(cat "$HOME/.odin/resume-$$"); rm -f "$HOME/.odin/resume-$$"; ODIN_FALLBACK_API_KEY="$fallback" python3 -c ${sh(USE_API_KEY_IF_LIMITED)}; ANTHROPIC_API_KEY="$fallback" exec ${hostClaude} --resume "$s" "Continue where you left off."; fi`,
+		`while [ -e ${idleMarker(spec.pane)} ]; do clear; printf '\\nOdin stopped Claude here after 2 hours with no output, to free memory on this host.\\nType a message to pick the conversation up with it, or press Enter.\\n\\n'; IFS= read -e -r -p '> ' m; rm -f ${idleMarker(spec.pane)}; ${KEY_OR_PLAN};${spec.repoName ? ` [ -d "$PWD" ] || { ${addWorktree}; cd ${worktree} 2>/dev/null || cd ${repo}; };` : ""} if [ -s ${idlePrompt(spec.pane)} ]; then m=$(cat ${idlePrompt(spec.pane)}); fi; rm -f ${idlePrompt(spec.pane)}; if [ -n "$m" ]; then ${hostClaude} --resume ${sh(spec.pane)} "$m"; elif python3 -c ${sh(CUT_OFF_TURN)} ${sh(spec.pane)} 2>/dev/null; then ${hostClaude} --resume ${sh(spec.pane)} Continue; else ${hostClaude} --resume ${sh(spec.pane)}; fi; done`,
+		// Not exec: the run script stays Claude's parent, so the session can
+		// move between the plan and the key again later.
+		`while [ -s "$HOME/.odin/resume-$$" ]; do s=$(cat "$HOME/.odin/resume-$$"); rm -f "$HOME/.odin/resume-$$"; ${KEY_OR_PLAN}; if [ -n "$ANTHROPIC_API_KEY" ]; then ${hostClaude} --resume "$s" "Continue where you left off."; else ${hostClaude} --resume "$s"; fi; done`,
 	]
 		.filter(Boolean)
 		.join("\n");
