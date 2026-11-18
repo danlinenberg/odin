@@ -1641,9 +1641,18 @@ export const createRemoteHostRouter = () =>
 		 * rewritten to the copies. Unchanged when nothing is a laptop file.
 		 */
 		filesToHost: publicProcedure
-			.input(z.object({ text: z.string(), paths: z.array(z.string()) }))
-			.mutation(async ({ input }) => {
-				const host = readOdinConfig().remoteHost;
+			.input(
+				z.object({
+					text: z.string(),
+					paths: z.array(z.string()),
+					/** The session's host (its pane's odinRemote); the main host when unset. */
+					host: paneHost,
+				}),
+			)
+			.mutation(async ({ input: { host: hostName, ...input } }) => {
+				// The session's own host: in a cluster, the main host's copy is
+				// a path the session can't open.
+				const host = hostNamed(hostName);
 				if (!host) return input;
 				const marker = "\u0000ODIN-PATH\u0000";
 				const { prompt, files } = hostFiles(
