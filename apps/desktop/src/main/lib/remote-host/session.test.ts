@@ -750,7 +750,10 @@ function turnEndHook(run: string): string {
 	return Buffer.from(hook?.[1] ?? "", "base64").toString();
 }
 
-test("a session on the API key moves back to the plan once the limit has passed", () => {
+// The hook walks /proc, which only the Linux host has.
+test.skipIf(!existsSync("/proc/self/stat"))(
+	"a session on the API key moves back to the plan once the limit has passed",
+	() => {
 	const hook = turnEndHook(runScript(spec, "/d"));
 	const home = mkdtempSync(join(tmpdir(), "odin-back-to-plan-"));
 	mkdirSync(join(home, ".claude"));
@@ -792,7 +795,8 @@ test("a session on the API key moves back to the plan once the limit has passed"
 	expect(turnEnds(now + 3600, { ANTHROPIC_API_KEY: "k" })).toBeNull();
 	expect(turnEnds(now - 60, {})).toBeNull();
 	expect(turnEnds(now - 60, { ANTHROPIC_API_KEY: "k" })).toBe("s1");
-});
+	},
+);
 
 test("the host reports Working and Done to the card through Odin's notify hook", () => {
 	const hooks = JSON.parse(hostSettings).hooks;
