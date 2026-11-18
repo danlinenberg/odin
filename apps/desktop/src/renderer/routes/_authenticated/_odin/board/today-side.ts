@@ -1,10 +1,10 @@
 /**
- * The Today page's side column, "Due and up next": your tasks that are due
- * soon or late, the top of Up next you have not started yet, and what waits
- * on someone else. Built only from what Tasks already keeps.
+ * The Today page's "Coming up" list: your tasks that are due soon or late,
+ * the top of Up next you have not started yet, and what waits on someone
+ * else. Built only from what Tasks already keeps.
  */
 
-/** A task row as the side column reads it. */
+/** A task row as the Coming up list reads it. */
 export interface SideRow {
 	key: string;
 	title: string;
@@ -36,7 +36,7 @@ export interface TodaySide {
 
 /** Due within this many days counts as "due this week". */
 export const DUE_SOON_DAYS = 6;
-/** How much of Up next the side column shows. */
+/** How much of Up next Coming up shows. */
 export const UP_NEXT_SHOWN = 5;
 
 /**
@@ -88,32 +88,7 @@ export function todaySide({
 	return { due, upNext, waiting: waitingRows };
 }
 
-/** A PR's state in a word or two, the way the Today card shows it. */
-export function prStateLabel(
-	state:
-		| {
-				state: "OPEN" | "MERGED" | "CLOSED";
-				isDraft?: boolean;
-				approved?: boolean;
-				failed?: string[];
-				pending?: string[];
-				conflicting?: boolean;
-		  }
-		| null
-		| undefined,
-): { label: string; tone: "success" | "danger" | "attention" | "neutral" } {
-	if (!state) return { label: "", tone: "neutral" };
-	if (state.state === "MERGED") return { label: "merged", tone: "success" };
-	if (state.state === "CLOSED") return { label: "closed", tone: "neutral" };
-	if (state.conflicting) return { label: "conflicts", tone: "danger" };
-	if (state.failed?.length) return { label: "CI failing", tone: "danger" };
-	if (state.approved) return { label: "approved", tone: "success" };
-	if (state.isDraft) return { label: "draft", tone: "neutral" };
-	if (state.pending?.length) return { label: "CI running", tone: "attention" };
-	return { label: "open", tone: "attention" };
-}
-
-/** The card picked after a step down (1) or up (-1); null on an empty page. */
+/** The task picked after a step down (1) or up (-1); null on an empty page. */
 export function moveSelection(
 	step: 1 | -1,
 	current: number,

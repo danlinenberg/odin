@@ -364,21 +364,21 @@ export const HOTKEYS_REGISTRY = {
 	// Dev Board's rail key.
 	TODAY_NEXT: {
 		key: { mac: "down", windows: "down", linux: "down" },
-		label: "Today: Next Card",
+		label: "Today: Next Task",
 		category: "Navigation",
-		description: "Pick the next session card on the Today page",
+		description: "Pick the next task on the Today page",
 	},
 	TODAY_PREV: {
 		key: { mac: "up", windows: "up", linux: "up" },
-		label: "Today: Previous Card",
+		label: "Today: Previous Task",
 		category: "Navigation",
-		description: "Pick the previous session card on the Today page",
+		description: "Pick the previous task on the Today page",
 	},
 	TODAY_OPEN: {
 		key: { mac: "enter", windows: "enter", linux: "enter" },
-		label: "Today: Open Card",
+		label: "Today: Open Task",
 		category: "Navigation",
-		description: "Open the picked session on the Today page",
+		description: "Open the picked task's session on the Today page",
 	},
 	CATCH_UP_ACCEPT: {
 		key: { mac: "enter", windows: "enter", linux: "enter" },

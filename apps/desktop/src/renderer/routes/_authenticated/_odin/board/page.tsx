@@ -345,7 +345,6 @@ import {
 import { mergePrompt, parkable, resumable } from "./session-pick";
 import { type TodayCard, TodayOverview } from "./TodayOverview";
 import { shouldShowToday } from "./today";
-import { prStateLabel } from "./today-side";
 import { TRANSIENT_RETRY, transientRetryKey } from "./transient-retry";
 import { moveToVsCode } from "./vscode-move";
 
@@ -1063,81 +1062,6 @@ function DropPill({
 }) {
 	const row = useDropFor(card.pane);
 	return row ? <DropHint row={row} end={() => actions.endCard(card)} /> : null;
-}
-
-/**
- * A Today card's facts, from the board's own pills: where it runs, its repo,
- * how long since its last message, its PRs with their state, and its tags.
- */
-function TodayMeta({
-	card,
-	hostState,
-	tags,
-}: {
-	card: BoardCard;
-	hostState: HostState;
-	tags: string[];
-}) {
-	const live = card.status === "working";
-	const host = card.pane.odinRemote;
-	return (
-		<>
-			<span className="inline-flex items-center">
-				<HostMark paneId={card.pane.id} state={hostState} showLocal />
-				{host ? `on ${host}` : "this computer"}
-			</span>
-			<RepoPill card={card} />
-			<AgePill card={card} live={live} fallback={undefined} />
-			<TodayPrLinks card={card} live={live} />
-			{tags.length > 0 && (
-				<span className="font-mono text-[10.5px] text-faint-foreground">
-					{tags.map((tag) => `#${tag}`).join(" ")}
-				</span>
-			)}
-		</>
-	);
-}
-
-/** A card's PRs as links, each with its state from GitHub. */
-function TodayPrLinks({ card, live }: { card: BoardCard; live: boolean }) {
-	const { prs } = useCardPrs(card, live);
-	const urls = prs.map((pr) => pr.url);
-	const { data } = electronTrpc.terminal.pullRequestStates.useQuery(
-		{ urls },
-		{ enabled: urls.length > 0, retry: false, staleTime: 60_000 },
-	);
-	if (!prs.length) return null;
-	return (
-		<>
-			{prs.slice(0, 4).map((pr) => {
-				const { label, tone } = prStateLabel(data?.[pr.url]);
-				return (
-					<button
-						key={pr.url}
-						type="button"
-						title={data?.[pr.url]?.title ?? pr.url}
-						onClick={(event) => {
-							event.stopPropagation();
-							openUrl(pr.url);
-						}}
-						className="inline-flex items-center gap-1 text-link hover:underline"
-					>
-						<LuGitPullRequest className="size-3" />#{pr.number}
-						{label && (
-							<span
-								className={cn(
-									"rounded-[5px] px-[6px] text-[10.5px] font-medium",
-									PILL[tone],
-								)}
-							>
-								{label}
-							</span>
-						)}
-					</button>
-				);
-			})}
-		</>
-	);
 }
 
 /** Another live card is on the same ask. The click opens it, to Done one. */
@@ -7414,8 +7338,6 @@ function DevBoardPage() {
 	const todayExperiment = useTodayOverview((s) => s.experiment);
 	const [todayShown, setTodayOpen] = useState(false);
 	const todayOpen = todayExperiment && todayShown;
-	// Columns layout: Today's header sits on top of the board's own columns.
-	const todayColumns = useTodayOverview((s) => s.layout === "columns");
 	const todayCards: TodayCard[] = [...cardsByStatus.values()]
 		.flat()
 		.map((card) => {
@@ -7441,61 +7363,6 @@ function DevBoardPage() {
 					almostDone: call === "merge" || call === "done",
 					urgency: urgencyByPane.get(pane.id) ?? null,
 				},
-				workspaceId: card.workspaceId,
-				live: agentPaneIds.has(pane.id),
-				meta: todayOpen ? (
-					<TodayMeta
-						card={card}
-						hostState={hostStateOf(pane.id)}
-						tags={boardTags(pane.odinTags, customTags).filter(
-							(tag) => !PILL_TAGS.includes(tag),
-						)}
-					/>
-				) : undefined,
-				actions: todayOpen ? (
-					<>
-						<button
-							type="button"
-							onClick={() => toggleStar(pane.id)}
-							title={pane.odinStarred ? "Unstar" : "Star - pin it to the top"}
-							className="shrink-0 rounded-[7px] px-2.5 py-1 text-[11.5px] font-semibold text-attention ring-1 ring-inset ring-attention/30 hover:bg-attention/15"
-						>
-							{pane.odinStarred ? "★ Starred" : "☆ Star"}
-						</button>
-						<button
-							type="button"
-							onClick={() => markDone(card)}
-							title="Done - end the session and remove it from the board"
-							className={cn(
-								"shrink-0 rounded-[7px] px-2.5 py-1 text-[11.5px] font-semibold",
-								BUTTON.done,
-							)}
-						>
-							✓ Done
-						</button>
-						<RemindButton
-							onPick={(day) => remindMe(card, day)}
-							label="Remind me"
-							className={cn(
-								"shrink-0 rounded-[7px] px-2.5 py-1 text-[11.5px] font-semibold",
-								BUTTON.remind,
-							)}
-						/>
-						{pane.odinQueued && (
-							<button
-								type="button"
-								onClick={() => void resumeCard(card)}
-								title="Start this session now, gate or no gate"
-								className={cn(
-									"shrink-0 rounded-[7px] px-2.5 py-1 text-[11.5px] font-semibold",
-									BUTTON.secondary,
-								)}
-							>
-								Start now
-							</button>
-						)}
-					</>
-				) : undefined,
 			};
 		});
 	const todayEnabled = useTodayOverview((s) => s.enabled);
@@ -7518,16 +7385,6 @@ function DevBoardPage() {
 	}, [todayExperiment, todayEnabled, todayLastShown, todayCount]);
 	const cardById = (paneId: string) =>
 		[...cardsByStatus.values()].flat().find((card) => card.pane.id === paneId);
-	// Today's reply box and action items: typed into a live Claude, else the
-	// session resumes with the text.
-	const sendToSession = (paneId: string, text: string) => {
-		const card = cardById(paneId);
-		if (!card) return;
-		const sent = agentPaneIds.has(paneId)
-			? typeIntoClaude(terminalWrite.mutateAsync, paneId, text)
-			: resumeCard(card, false, text);
-		void sent.then(() => toast.success(`Sent to ${cardTitle(card)}`));
-	};
 	// The top bar (layout.tsx) owns the slot; it mounts before this page.
 	const [viewToggleSlot, setViewToggleSlot] = useState<HTMLElement | null>(
 		null,
@@ -8435,13 +8292,12 @@ function DevBoardPage() {
 						setDrawerFraction((fraction) => Math.min(fraction, 0.6));
 						openDrawer(card);
 					}}
-					onSend={sendToSession}
 				/>
 			)}
 			<div
 				className={cn(
 					"flex min-h-0 flex-1 gap-3 overflow-x-auto px-[18px] pb-[18px] pt-1",
-					todayOpen && !todayColumns && "hidden",
+					todayOpen && "hidden",
 				)}
 			>
 				{COLUMNS.map((column) => {

@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
 	moveSelection,
-	prStateLabel,
 	type SideRow,
 	todaySide,
 	UP_NEXT_SHOWN,
@@ -89,33 +88,6 @@ describe("todaySide", () => {
 			["gone", "Old ask", ""],
 		]);
 		expect(side.waiting[0]?.url).toBe("https://example.com/x");
-	});
-});
-
-describe("prStateLabel", () => {
-	const open = { state: "OPEN" as const };
-	test("merged and closed win over everything", () => {
-		expect(prStateLabel({ state: "MERGED", failed: ["ci"] }).label).toBe(
-			"merged",
-		);
-		expect(prStateLabel({ state: "CLOSED" }).label).toBe("closed");
-	});
-	test("an open PR: conflicts, then failing CI, then approved, draft, running", () => {
-		expect(
-			prStateLabel({ ...open, conflicting: true, failed: ["ci"] }).label,
-		).toBe("conflicts");
-		expect(
-			prStateLabel({ ...open, failed: ["ci"], approved: true }).label,
-		).toBe("CI failing");
-		expect(prStateLabel({ ...open, approved: true }).label).toBe("approved");
-		expect(prStateLabel({ ...open, isDraft: true }).label).toBe("draft");
-		expect(prStateLabel({ ...open, pending: ["build"] }).label).toBe(
-			"CI running",
-		);
-		expect(prStateLabel(open).label).toBe("open");
-	});
-	test("no state yet says nothing", () => {
-		expect(prStateLabel(undefined).label).toBe("");
 	});
 });
 
