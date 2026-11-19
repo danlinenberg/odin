@@ -1,5 +1,6 @@
 import { cn } from "@odin/ui/utils";
 import { useState } from "react";
+import { LuLoaderCircle } from "react-icons/lu";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { BUTTON } from "../components/pill";
@@ -84,7 +85,7 @@ export function QuestionCard({
 								</span>
 							)}
 						</div>
-						<div className="flex flex-wrap gap-2">
+						<div className="flex flex-col gap-1">
 							{(question.options ?? []).map((option, oi) => {
 								const chosen = picks[qi]?.includes(oi);
 								return (
@@ -95,19 +96,23 @@ export function QuestionCard({
 										title={option.description}
 										onClick={() => pick(qi, oi)}
 										className={cn(
-											"max-w-full rounded-lg border px-3 py-1.5 text-left text-[12.5px] disabled:opacity-60",
+											"flex w-full min-w-0 items-center gap-2 rounded-lg border px-3 py-1.5 text-left text-[12.5px] transition-[background-color,border-color,opacity,transform] duration-150 active:scale-[.99]",
 											chosen
 												? "border-primary bg-primary/20 text-foreground"
 												: "border-border bg-secondary text-soft-foreground hover:bg-accent hover:text-foreground",
+											sent && (chosen ? "animate-pulse" : "opacity-40"),
 										)}
 									>
-										<span className="font-medium">{option.label}</span>
+										<span className="shrink-0 font-medium">{option.label}</span>
 										{option.description &&
 											option.description !== option.label && (
-												<span className="block text-[11.5px] text-muted-foreground">
+												<span className="min-w-0 truncate text-[11.5px] text-muted-foreground">
 													{option.description}
 												</span>
 											)}
+										{sent && chosen && (
+											<LuLoaderCircle className="ml-auto size-3.5 shrink-0 animate-spin" />
+										)}
 									</button>
 								);
 							})}
