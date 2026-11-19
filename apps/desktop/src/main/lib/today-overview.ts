@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { rm } from "node:fs/promises";
+import { open, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { transcriptOf } from "./claude-sessions/claude-sessions";
+import {
+	summarizeTranscript,
+	transcriptOf,
+} from "./claude-sessions/claude-sessions";
 import {
 	briefError,
 	cachedBriefs,
@@ -55,15 +58,15 @@ export interface TodayLines {
 }
 
 const INSTRUCTIONS = `You write a morning overview of someone's open work, in plain language, for a busy person reading it over coffee who may not remember the details.
-Each numbered line below is one work session: number | where it stands | due | priority | waiting on | started from | title | goal | status | next step.
+Each numbered line below is one work session: number | where it stands | due | priority | waiting on | started from | title | opening request (what the person first asked, in their words) | goal | what was done so far | status | next step.
 Several sessions often serve the same task (the same feature, bug, request or investigation): put those in one task.
 Reply with ONLY these lines, no markdown, no preamble:
 SUMMARY: <one or two short sentences over all of it: what needs them first and any deadline>
 TASK <session numbers, comma separated>: <name> | <what it is> | <explanation> | <where it stands> | <what is left> | <next>
 The six parts of a TASK line:
 - name: 2 to 6 words naming the work.
-- what it is: one short sentence: what the problem or request is and who it is for.
-- explanation: two to four plain sentences for someone who never saw this work: the background (what happens today, to whom, and how it was found or who asked), what will be different once it is done, and why it matters now. Explain any technical idea in everyday words.
+- what it is: one short sentence on the subject itself, not the work steps: what the thing is (the feature, screen, bug, report or question) and who it is for. Never just repeat the name.
+- explanation: three to five plain sentences that let someone who never saw this work understand it: what the thing is and what it does today (or what goes wrong, for whom, and how it shows), who asked for it or how it was found, what will be different once it is done, and why it matters now. Read it from the opening request first, then the goal. Explain any technical idea in everyday words. Never describe the session itself ("Claude is working on", "this session").
 - where it stands: what is already done, concretely ("the fix is written and the tests pass", "the export works for one team").
 - what is left: the remaining steps before it is done, and roughly how much ("only a review and a merge", "about half: the email and its test").
 - next: who acts next and what, starting with "You:", "Claude:" or the person's name ("You: pick the email wording", "Claude: is writing the test", "Alex: has to reply on the ticket").
@@ -73,7 +76,7 @@ Rules:
 - Always answer in English.
 - No PR numbers, ticket keys, issue numbers, commit hashes, branch names, file paths or URLs. Say "the pull request" or "the ticket" instead.
 - Say what the work is about in everyday words, not code names. Name the product area or the user it affects.
-- Under 220 characters for the summary and for each part of a TASK line, except the explanation: under 500.`;
+- Under 220 characters for the summary and for each part of a TASK line, except the explanation: under 700.`;
 
 const clean = (text: string | null | undefined, cap: number) =>
 	(text ?? "").replace(/\s+/g, " ").replace(/\|/g, "/").trim().slice(0, cap) ||
@@ -85,9 +88,11 @@ export function todayLine(
 	index: number,
 	brief?: {
 		goal?: string | null;
+		done?: string | null;
 		status?: string | null;
 		next?: string | null;
 	},
+	ask?: string | null,
 ): string {
 	return [
 		index + 1,
@@ -97,7 +102,9 @@ export function todayLine(
 		clean(item.waitingOn, 80),
 		clean(item.from, 160),
 		clean(item.title, 120),
+		clean(ask, 600),
 		clean(brief?.goal, 240),
+		clean(brief?.done, 300),
 		clean(brief?.status, 200),
 		clean(brief?.next, 200),
 	].join(" | ");
@@ -142,6 +149,30 @@ export function parseTodayLines(text: string, keys: string[]): TodayLines {
 	return { summary, tasks };
 }
 
+/** How much of a transcript's start is read for its opening request. */
+const HEAD_BYTES = 64 * 1024;
+
+/** The session's opening request, from the first lines of its transcript. */
+export async function openingAsk(
+	sessionId: string,
+	root?: string,
+): Promise<string | null> {
+	const file = await transcriptOf(sessionId, root).catch(() => null);
+	if (!file) return null;
+	const handle = await open(file.path, "r").catch(() => null);
+	if (!handle) return null;
+	try {
+		const buffer = Buffer.alloc(HEAD_BYTES);
+		const { bytesRead } = await handle.read(buffer, 0, HEAD_BYTES, 0);
+		// A cut last line is skipped by the parser.
+		return summarizeTranscript(buffer.toString("utf8", 0, bytesRead)).prompt;
+	} catch {
+		return null;
+	} finally {
+		await handle.close();
+	}
+}
+
 const cache = new Map<string, TodayLines>();
 const inFlight = new Map<string, Promise<TodayLines>>();
 
@@ -155,12 +186,16 @@ export async function writeTodayLines(
 ): Promise<TodayLines> {
 	if (!items.length) return { summary: null, tasks: [] };
 	const briefs = await cachedBriefs().catch(() => new Map());
+	const asks = await Promise.all(
+		items.map((item) => (item.sessionId ? openingAsk(item.sessionId) : null)),
+	);
 	const body = items
 		.map((item, i) =>
 			todayLine(
 				item,
 				i,
 				item.sessionId ? briefs.get(item.sessionId) : undefined,
+				asks[i],
 			),
 		)
 		.join("\n");

@@ -413,7 +413,12 @@ function YourTask({
 	const action = yourAction(task.next);
 	const fallback =
 		task.group === "almost-done" ? `Finish: ${task.name}` : task.name;
-	const explain = task.explain ?? task.about;
+	// What the task is about, in a line under the title: its name with what
+	// it is, or only what it is when the name is already the title.
+	const about = action
+		? [task.name, sentence(task.about)].filter(Boolean).join(": ")
+		: sentence(task.about);
+	const explain = task.explain;
 	const stands =
 		[task.line, task.left].map(sentence).filter(Boolean).join(" ") ||
 		todayGroupLabel(task.group);
@@ -439,9 +444,9 @@ function YourTask({
 					>
 						{action ?? fallback}
 					</button>
-					{action && (
-						<p className="mt-0.5 text-[12.5px] text-muted-foreground">
-							{task.name}
+					{about && (
+						<p className="mt-1 select-text cursor-text text-[13.5px] font-medium leading-snug text-foreground/90">
+							{about}
 							<TaskMarks task={task} now={now} />
 						</p>
 					)}
@@ -457,7 +462,7 @@ function YourTask({
 						<p className={LABEL}>Where it stands</p>
 						<p className="text-foreground/90">
 							{stands}
-							{!action && <TaskMarks task={task} now={now} />}
+							{!about && <TaskMarks task={task} now={now} />}
 						</p>
 					</div>
 				</div>
@@ -480,7 +485,7 @@ function MovingTask({ task, now, picked, open, onOpen }: TaskProps) {
 			: waitingOn
 				? `waiting on ${waitingOn}`
 				: todayGroupLabel(task.group).toLowerCase();
-	const explain = task.explain ?? task.about;
+
 	const prose = [task.line, task.left, task.next]
 		.map(sentence)
 		.filter(Boolean)
@@ -503,9 +508,14 @@ function MovingTask({ task, now, picked, open, onOpen }: TaskProps) {
 					{word}
 				</span>
 			</p>
-			{explain && (
-				<p className="mt-1 select-text cursor-text text-[13.5px] leading-relaxed text-foreground/90">
-					{sentence(explain)}
+			{task.about && (
+				<p className="mt-1 select-text cursor-text text-[13.5px] font-medium leading-snug text-foreground/90">
+					{sentence(task.about)}
+				</p>
+			)}
+			{task.explain && (
+				<p className="mt-1 select-text cursor-text text-[13.5px] leading-relaxed text-foreground/85">
+					{sentence(task.explain)}
 				</p>
 			)}
 			{(prose || task.items.some((item) => item.due || item.starred)) && (
