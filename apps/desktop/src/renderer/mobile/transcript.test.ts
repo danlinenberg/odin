@@ -70,6 +70,43 @@ test("a launch prompt shows only your request until you ask for Odin's part", ()
 	expect(full.folds).toBe(true);
 });
 
+test("a Slack thread task folds to the message, not Odin's phases", () => {
+	const prompt = [
+		"Task: Fix the sort",
+		"",
+		"This task comes from a Slack thread: https://example.com/archives/C0123/p1",
+		"",
+		"What was posted there:",
+		"the sort is broken",
+		"",
+		"PHASE 1 - INGEST (do this first, before anything else):",
+		"- Read the ENTIRE thread",
+		"",
+		"Work in the current workspace.",
+	].join("\n");
+	expect(userBubbleText(prompt, { full: false, images: false }).shown).toBe(
+		"Task: Fix the sort\n\nThis task comes from a Slack thread: https://example.com/archives/C0123/p1\n\nWhat was posted there:\nthe sort is broken",
+	);
+});
+
+test("a folded launch prompt names its attached files; thumbnails replace images", () => {
+	const prompt = [
+		"Task: Look at this",
+		"",
+		"Attached files - read them before starting:",
+		"/Users/me/odin/attachments/shot.png",
+		"/Users/me/odin/attachments/notes.pdf",
+		"",
+		"Work in the current workspace.",
+	].join("\n");
+	expect(userBubbleText(prompt, { full: false, images: false }).shown).toBe(
+		"Task: Look at this\n\n📎 shot.png, notes.pdf",
+	);
+	expect(userBubbleText(prompt, { full: false, images: true }).shown).toBe(
+		"Task: Look at this\n\n📎 notes.pdf",
+	);
+});
+
 test("a typed message shows whole, however long; image tags go", () => {
 	expect(
 		userBubbleText("Fix it\n\nThanks", { full: false, images: false }),

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
+import { getImageMimeType } from "shared/file-types";
 import { type BriefUrgency, freshTldr, latestReply } from "shared/latest-reply";
 import {
 	bangCommandNotes,
@@ -13,7 +14,10 @@ import {
 	collectRefs,
 	linkify,
 } from "../routes/_authenticated/_odin/board/chat-links";
-import { launchRequest } from "../routes/_authenticated/_odin/board/launch-request";
+import {
+	launchFiles,
+	launchRequest,
+} from "../routes/_authenticated/_odin/board/launch-request";
 import { ActionCard } from "./action-card";
 import { Markdown } from "./markdown";
 
@@ -105,9 +109,23 @@ export function userBubbleText(
 	{ full, images }: { full: boolean; images: boolean },
 ): { shown: string; folds: boolean } {
 	const request = launchRequest(text);
-	const raw = request === null || full ? text : request;
+	const raw =
+		request === null || full
+			? text
+			: withFiles(request, launchFiles(text), images);
 	const shown = images ? raw.replace(/\[Image #\d+\]\s*/g, "").trim() : raw;
 	return { shown, folds: request !== null };
+}
+
+/**
+ * A folded request keeps its attached files: their names, as the fold hides
+ * the block that lists them. Images the bubble shows as thumbnails go.
+ */
+function withFiles(request: string, files: string[], images: boolean): string {
+	const names = files
+		.filter((path) => !(images && getImageMimeType(path)))
+		.map((path) => path.split("/").pop());
+	return names.length ? `${request}\n\n📎 ${names.join(", ")}` : request;
 }
 
 /** Your message, whole: a launch prompt folds to your request. */
