@@ -171,6 +171,7 @@ describe("todayTasks", () => {
 				id: "new",
 				name: "Session new",
 				about: null,
+				explain: null,
 				line: "the pull request is green",
 				left: null,
 				next: null,

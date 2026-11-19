@@ -109,6 +109,7 @@ export interface WrittenTask {
 	keys: string[];
 	name: string;
 	about: string | null;
+	explain?: string | null;
 	line: string | null;
 	left?: string | null;
 	next?: string | null;
@@ -120,6 +121,8 @@ export interface TodayTaskView<T> {
 	id: string;
 	name: string;
 	about: string | null;
+	/** The task explained for someone who never saw it. */
+	explain: string | null;
 	/** Where it stands; the brief's status line until the model's is written. */
 	line: string | null;
 	/** What is left before it is done. */
@@ -156,6 +159,7 @@ export function todayTasks<
 		tasks.push({
 			name: task.name,
 			about: task.about,
+			explain: task.explain ?? null,
 			line: task.line,
 			left: task.left ?? null,
 			next: task.next ?? null,
@@ -167,6 +171,7 @@ export function todayTasks<
 			tasks.push({
 				name: item.title,
 				about: null,
+				explain: null,
 				line: plainLine(item.status) || null,
 				left: null,
 				next: null,

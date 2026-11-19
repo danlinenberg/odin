@@ -126,10 +126,10 @@ const dueTone = (left: number) =>
  * Today: your open work as one page of plain text. A sentence over all of
  * it, then two lanes of the board's sessions, grouped by Claude into the
  * work they serve. Waiting on you: numbered, each titled by what you do
- * next, with what the task is, where it stands and what is left. Moving
- * without you: what Claude or someone else has, or is on hold. Under them,
- * your tasks no session works on yet. No cards, no columns: Board view has
- * those.
+ * next, with an Explanation of the task and Where it stands. Moving without
+ * you: what Claude or someone else has, or is on hold. Then your tasks no
+ * session works on yet. On a wide window the page fills it: Waiting on you
+ * on the left, the rest on the right. No board columns: Board view has those.
  */
 export function TodayOverview({
 	cards,
@@ -209,9 +209,9 @@ export function TodayOverview({
 		<section
 			aria-label="Today"
 			data-testid="today-overview"
-			className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+			className="@container flex min-h-0 flex-1 flex-col overflow-y-auto"
 		>
-			<div className="mx-auto flex w-full max-w-[780px] flex-col gap-6 px-6 pb-8 pt-4">
+			<div className="mx-auto flex w-full max-w-[1600px] flex-col gap-7 px-6 pb-10 pt-5 @5xl:px-10">
 				<header className="flex flex-col gap-2">
 					<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
 						<h1 className="text-[22px] font-semibold tracking-[-.3px]">
@@ -237,7 +237,7 @@ export function TodayOverview({
 							Refresh
 						</button>
 					</div>
-					<p className="select-text cursor-text text-[15px] leading-relaxed">
+					<p className="max-w-[95ch] select-text cursor-text text-[16px] leading-relaxed">
 						{data?.summary ?? `${todayCounts(items)}.`}
 					</p>
 					{isFetching && !data && items.length > 0 && (
@@ -254,63 +254,70 @@ export function TodayOverview({
 					</p>
 				)}
 
-				{lanes.yours.length > 0 && (
-					<section aria-label="Waiting on you">
-						<h2 className="mb-3 flex items-baseline gap-2">
-							<span className="text-[17px] font-semibold text-attention-ink">
-								Waiting on you
-							</span>
-							<span className="text-[12.5px] text-muted-foreground">
-								do these first
-							</span>
-						</h2>
-						<ol className="flex flex-col gap-5">
-							{lanes.yours.map((task, i) => (
-								<YourTask
-									key={task.id}
-									task={task}
-									number={i + 1}
-									now={now}
-									picked={tasks[selected]?.id === task.id}
-									open={task.items.some((item) => item.key === openPaneId)}
-									onOpen={onOpen}
-								/>
-							))}
-						</ol>
-					</section>
-				)}
+				{tasks.length > 0 && (
+					<div className="grid items-start gap-x-12 gap-y-8 @5xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+						<section aria-label="Waiting on you">
+							<h2 className="mb-3 flex items-baseline gap-2">
+								<span className="text-[17px] font-semibold text-attention-ink">
+									Waiting on you
+								</span>
+								<span className="text-[12.5px] text-muted-foreground">
+									do these first
+								</span>
+							</h2>
+							{lanes.yours.length === 0 ? (
+								<p className="text-[14px] text-muted-foreground">
+									Nothing waits on you right now.
+								</p>
+							) : (
+								<ol className="flex flex-col gap-4">
+									{lanes.yours.map((task, i) => (
+										<YourTask
+											key={task.id}
+											task={task}
+											number={i + 1}
+											now={now}
+											picked={tasks[selected]?.id === task.id}
+											open={task.items.some((item) => item.key === openPaneId)}
+											onOpen={onOpen}
+										/>
+									))}
+								</ol>
+							)}
+						</section>
 
-				{lanes.moving.length > 0 && (
-					<section
-						aria-label="Moving without you"
-						className={cn(
-							lanes.yours.length > 0 && "border-t border-border pt-5",
-						)}
-					>
-						<h2 className="mb-3 flex items-baseline gap-2">
-							<span className="text-[17px] font-semibold text-working-ink">
-								Moving without you
-							</span>
-							<span className="text-[12.5px] text-muted-foreground">
-								nothing to do, just so you know
-							</span>
-						</h2>
-						<ul className="flex flex-col gap-4">
-							{lanes.moving.map((task) => (
-								<MovingTask
-									key={task.id}
-									task={task}
-									now={now}
-									picked={tasks[selected]?.id === task.id}
-									open={task.items.some((item) => item.key === openPaneId)}
-									onOpen={onOpen}
-								/>
-							))}
-						</ul>
-					</section>
+						<div className="flex min-w-0 flex-col gap-7">
+							{lanes.moving.length > 0 && (
+								<section aria-label="Moving without you">
+									<h2 className="mb-3 flex items-baseline gap-2">
+										<span className="text-[17px] font-semibold text-working-ink">
+											Moving without you
+										</span>
+										<span className="text-[12.5px] text-muted-foreground">
+											nothing to do, just so you know
+										</span>
+									</h2>
+									<ul className="flex flex-col gap-5">
+										{lanes.moving.map((task) => (
+											<MovingTask
+												key={task.id}
+												task={task}
+												now={now}
+												picked={tasks[selected]?.id === task.id}
+												open={task.items.some(
+													(item) => item.key === openPaneId,
+												)}
+												onOpen={onOpen}
+											/>
+										))}
+									</ul>
+								</section>
+							)}
+							<ComingUp side={side} onOpen={onOpen} />
+						</div>
+					</div>
 				)}
-
-				<ComingUp side={side} onOpen={onOpen} />
+				{tasks.length === 0 && <ComingUp side={side} onOpen={onOpen} />}
 
 				<label className="flex items-center gap-2 border-t border-border pt-3 text-[11.5px] text-muted-foreground">
 					<input
@@ -385,10 +392,15 @@ const rowClass = (open: boolean, picked: boolean) =>
 		picked && "ring-2 ring-primary/60",
 	);
 
+/** A small label over a block of a task's text. */
+const LABEL =
+	"mb-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-muted-foreground";
+
 /**
  * A task waiting on you, numbered in the order to do it: what you do as its
- * title, then in a few sentences what the task is, where it stands and what
- * is left, its due date and priority, and its sessions.
+ * title, the task's name with its due date and priority, then side by side
+ * when there is room an Explanation of what the task is and Where it stands,
+ * and its sessions.
  */
 function YourTask({
 	task,
@@ -401,37 +413,54 @@ function YourTask({
 	const action = yourAction(task.next);
 	const fallback =
 		task.group === "almost-done" ? `Finish: ${task.name}` : task.name;
-	const prose = [task.about, task.line, task.left]
-		.map(sentence)
-		.filter(Boolean)
-		.join(" ");
+	const explain = task.explain ?? task.about;
+	const stands =
+		[task.line, task.left].map(sentence).filter(Boolean).join(" ") ||
+		todayGroupLabel(task.group);
 	return (
 		<li
 			data-today-task={task.id}
 			className={cn(
-				rowClass(open, picked),
-				"grid grid-cols-[22px_1fr] gap-x-2",
+				"@container grid grid-cols-[26px_1fr] gap-x-2 rounded-xl border border-border bg-card/40 px-4 py-3.5",
+				open && "border-primary/50 bg-primary/10",
+				picked && "ring-2 ring-primary/60",
 			)}
 		>
-			<span className="text-[16px] font-semibold leading-snug text-attention">
+			<span className="text-[17px] font-semibold leading-snug text-attention">
 				{number}
 			</span>
-			<div className="flex min-w-0 flex-col gap-1">
-				<button
-					type="button"
-					title="Open its session beside this page"
-					onClick={() => onOpen(task.items[0].key)}
-					className="text-left text-[15.5px] font-semibold leading-snug underline-offset-2 hover:underline"
-				>
-					{action ?? fallback}
-				</button>
-				<p className="select-text cursor-text text-[13.5px] leading-relaxed text-foreground/85">
+			<div className="flex min-w-0 flex-col gap-2.5">
+				<div>
+					<button
+						type="button"
+						title="Open its session beside this page"
+						onClick={() => onOpen(task.items[0].key)}
+						className="text-left text-[16px] font-semibold leading-snug underline-offset-2 hover:underline"
+					>
+						{action ?? fallback}
+					</button>
 					{action && (
-						<span className="font-medium text-foreground">{task.name}: </span>
+						<p className="mt-0.5 text-[12.5px] text-muted-foreground">
+							{task.name}
+							<TaskMarks task={task} now={now} />
+						</p>
 					)}
-					{prose || todayGroupLabel(task.group)}
-					<TaskMarks task={task} now={now} />
-				</p>
+				</div>
+				<div className="grid select-text cursor-text gap-x-6 gap-y-2.5 text-[13.5px] leading-relaxed @2xl:grid-cols-2">
+					{explain && (
+						<div>
+							<p className={LABEL}>Explanation</p>
+							<p className="text-foreground/90">{sentence(explain)}</p>
+						</div>
+					)}
+					<div>
+						<p className={LABEL}>Where it stands</p>
+						<p className="text-foreground/90">
+							{stands}
+							{!action && <TaskMarks task={task} now={now} />}
+						</p>
+					</div>
+				</div>
 				<SessionLines task={task} onOpen={onOpen} />
 			</div>
 		</li>
@@ -451,7 +480,8 @@ function MovingTask({ task, now, picked, open, onOpen }: TaskProps) {
 			: waitingOn
 				? `waiting on ${waitingOn}`
 				: todayGroupLabel(task.group).toLowerCase();
-	const prose = [task.about, task.line, task.left, task.next]
+	const explain = task.explain ?? task.about;
+	const prose = [task.line, task.left, task.next]
 		.map(sentence)
 		.filter(Boolean)
 		.join(" ");
@@ -473,8 +503,13 @@ function MovingTask({ task, now, picked, open, onOpen }: TaskProps) {
 					{word}
 				</span>
 			</p>
+			{explain && (
+				<p className="mt-1 select-text cursor-text text-[13.5px] leading-relaxed text-foreground/90">
+					{sentence(explain)}
+				</p>
+			)}
 			{(prose || task.items.some((item) => item.due || item.starred)) && (
-				<p className="mt-1 select-text cursor-text text-[13.5px] leading-relaxed text-foreground/85">
+				<p className="mt-1 select-text cursor-text text-[13px] leading-relaxed text-muted-foreground">
 					{prose}
 					<TaskMarks task={task} now={now} />
 				</p>
@@ -645,7 +680,7 @@ function ComingUp({
 	return (
 		<section
 			aria-label="Not started yet"
-			className="border-t border-border pt-5"
+			className="border-t border-border pt-5 first:border-t-0 first:pt-0"
 		>
 			<h2 className="mb-2 text-[15px] font-semibold text-muted-foreground">
 				Not started yet
