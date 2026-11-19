@@ -60,6 +60,17 @@ describe("parseTodayLines", () => {
 		]);
 	});
 
+	it("keeps a summary the model wrapped onto the next line", () => {
+		const out = parseTodayLines(
+			"SUMMARY: Start with the sign-in fix,\nthen merge the export.\n\nNot part of it.\nTASK 1: Fix sign-in",
+			["a"],
+		);
+		expect(out.summary).toBe(
+			"Start with the sign-in fix, then merge the export.",
+		);
+		expect(out.tasks.map((t) => t.name)).toEqual(["Fix sign-in"]);
+	});
+
 	it("gives nothing for an answer in another shape", () => {
 		expect(parseTodayLines("Demo status\n1: a line", ["a"])).toEqual({
 			summary: null,
