@@ -1,5 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { parseTodayLines, todayLine } from "./today-overview";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { openingAsk, parseTodayLines, todayLine } from "./today-overview";
 
 describe("parseTodayLines", () => {
 	it("reads the summary and the sessions grouped into tasks", () => {
@@ -80,10 +83,34 @@ describe("todayLine", () => {
 					from: "Jira: Login broken",
 				},
 				0,
-				{ goal: "Fix the\nlogin bug", status: null, next: "Review it" },
+				{
+					goal: "Fix the\nlogin bug",
+					done: "Found the expired code",
+					status: null,
+					next: "Review it",
+				},
+				"Users say | the code fails",
 			),
 		).toBe(
-			"1 | Needs you | 2026-11-16 | High | - | Jira: Login broken | Fix / login | Fix the login bug | - | Review it",
+			"1 | Needs you | 2026-11-16 | High | - | Jira: Login broken | Fix / login | Users say / the code fails | Fix the login bug | Found the expired code | - | Review it",
 		);
+	});
+});
+
+describe("openingAsk", () => {
+	it("reads the opening request from the start of the transcript", async () => {
+		const root = mkdtempSync(join(tmpdir(), "today-ask-"));
+		mkdirSync(join(root, "-Users-me-dev-app"));
+		const line = (text: string) =>
+			JSON.stringify({
+				type: "user",
+				message: { role: "user", content: text },
+			});
+		writeFileSync(
+			join(root, "-Users-me-dev-app", "s1.jsonl"),
+			`${line("Team leads want to download monthly numbers as CSV")}\n${line("also add totals")}\n`,
+		);
+		expect(await openingAsk("s1", root)).toContain("download monthly numbers");
+		expect(await openingAsk("missing", root)).toBeNull();
 	});
 });
