@@ -445,7 +445,12 @@ export function useLaunchTaskSession() {
 			const clusterHost = async (sessionId: string | null) =>
 				(await utils.client.remoteHost?.hostFor
 					.query({ sessionId })
-					.catch(() => null)) ??
+					.catch((error) => {
+						// A cluster host that did not answer may keep the session's
+						// folder: the main host would resume it without its files.
+						if (String(error).includes("did not answer")) throw error;
+						return null;
+					})) ??
 				host?.name ??
 				host?.instanceId ??
 				null;
