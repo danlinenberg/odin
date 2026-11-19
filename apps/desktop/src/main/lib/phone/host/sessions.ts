@@ -192,7 +192,7 @@ export type HostSession = {
 const NEW_CARD_SECONDS = 600;
 
 /** When the laptop last sent its board (epoch seconds); 0 when it never did. */
-function snapshotSentAt(): number {
+export function snapshotSentAt(): number {
 	try {
 		return statSync(join(hostPaths.dir, "board.json")).mtimeMs / 1000;
 	} catch {
@@ -239,22 +239,35 @@ export async function findSession(paneId: string): Promise<HostSession | null> {
 }
 
 /**
+ * The turn that ended here since the laptop last sent its board: whether its
+ * reply left you open ACTION ITEMS. Null when no turn ended since, so the
+ * laptop's last word still stands.
+ */
+export type EndedTurn = { asks: boolean } | null;
+
+/**
  * Where the board files it, from its screen: a dialog or a spinner says so
  * plainly. At its prompt, the laptop's last word stands (a question asked in
- * prose looks the same as a finished turn), unless that said Working.
- * A Claude that isn't running (stopped for being idle) is Idle.
+ * prose looks the same as a finished turn), unless that said Working or a
+ * turn ended here after it: then open action items in that reply are Needs
+ * you, as on the laptop's board, and none is Final Review.
+ * A Claude that isn't running (stopped for being idle) is Idle, unless it
+ * was left asking you something: that still needs you, as on the laptop.
  */
 export function hostStatus(
 	screen: string,
 	claude: boolean,
 	last: PaneStatus | undefined,
+	ended: EndedTurn = null,
 ): PaneStatus {
-	if (!claude) return "idle";
+	if (!claude)
+		return last === "permission" || ended?.asks ? "permission" : "idle";
 	const read = odinScreenStatus(screen);
 	if (read === "review") {
-		if (last && last !== "working") return last;
+		if (!ended && last && last !== "working") return last;
 		// At its prompt with background agents still out: not done yet.
-		return backgroundAgentsOnScreen(screen) ? "working" : "review";
+		if (backgroundAgentsOnScreen(screen)) return "working";
+		return ended?.asks ? "permission" : "review";
 	}
 	return read ?? last ?? "idle";
 }
