@@ -1,3 +1,4 @@
+import { Toaster, toast } from "@odin/ui/sonner";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, httpLink, splitLink } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
@@ -403,11 +404,14 @@ function ErrorLine({ error }: { error: { message: string } | null }) {
 }
 
 /**
- * Sessions marked Done in the last 10 seconds. The card leaves on tap; until
- * the Mac's board stops listing it, a poll must not bring it back.
+ * Sessions marked Done: the card leaves on tap and stays off through the Undo
+ * window, then for 10 seconds after Odin is told, so a poll that lands before
+ * the Mac's board drops it can't bring it back.
  */
 const pendingDone = new Map<string, number>();
 const DONE_HOLD_MS = 10_000;
+/** How long the Done toast offers Undo before Odin is told. */
+const UNDO_MS = 5_000;
 
 /** Takes the card off now: held against polls, and out of the cached board. */
 function holdDone(utils: ReturnType<typeof phone.useUtils>, paneId: string) {
@@ -425,14 +429,51 @@ function holdDone(utils: ReturnType<typeof phone.useUtils>, paneId: string) {
 	);
 }
 
+/**
+ * Done with Undo, as the desktop's: the card goes at once, a toast offers
+ * Undo, and Odin is told only once the toast is gone. Told through the
+ * client, not a mutation hook, so leaving the screen doesn't drop it.
+ */
+function usePutAway() {
+	const utils = phone.useUtils();
+	return (paneId: string, title?: string) => {
+		holdDone(utils, paneId);
+		const timer = setTimeout(() => {
+			pendingDone.set(paneId, Date.now());
+			utils.client.done.mutate({ paneId }).then(
+				() => {
+					void utils.board.invalidate();
+					// A search hit's Done: the hit shows it left the board.
+					void utils.search.invalidate();
+				},
+				(error: unknown) => {
+					pendingDone.delete(paneId);
+					void utils.board.invalidate();
+					toast.error(error instanceof Error ? error.message : String(error));
+				},
+			);
+		}, UNDO_MS);
+		toast.success(title ? `Done - ${title.slice(0, 60)}` : "Done", {
+			duration: UNDO_MS,
+			action: {
+				label: "Undo",
+				onClick: () => {
+					clearTimeout(timer);
+					pendingDone.delete(paneId);
+					void utils.board.invalidate();
+				},
+			},
+		});
+	};
+}
+
 function withoutHeldDone<T extends { paneId: string }>(sessions: T[]): T[] {
 	const now = Date.now();
+	// Expired by time only: holdDone takes the card out of the cached board
+	// itself, so "the board no longer lists it" is true at once and would drop
+	// the hold before the Mac had done it, letting the next poll bring it back.
 	for (const [paneId, at] of pendingDone)
-		if (
-			now - at > DONE_HOLD_MS ||
-			!sessions.some((session) => session.paneId === paneId)
-		)
-			pendingDone.delete(paneId);
+		if (now - at > DONE_HOLD_MS + UNDO_MS) pendingDone.delete(paneId);
 	return pendingDone.size
 		? sessions.filter((session) => !pendingDone.has(session.paneId))
 		: sessions;
@@ -634,19 +675,8 @@ function Home() {
 			utils.board.setData(undefined, context?.before);
 		},
 	});
-	// Done leaves the board on tap; the Mac's answer only confirms it (or brings it back).
-	const doneCard = phone.done.useMutation({
-		onMutate: ({ paneId }) => holdDone(utils, paneId),
-		onError: (_error, { paneId }) => {
-			pendingDone.delete(paneId);
-			void board.refetch();
-		},
-		onSuccess: () => {
-			void board.refetch();
-			// A search hit's Done: the hit shows it left the board.
-			void utils.search.invalidate();
-		},
-	});
+	// Done leaves the board on tap, with Undo on its toast.
+	const putAway = usePutAway();
 	// A card's other swipe actions; the board reads again once Odin did them.
 	const remindCard = phone.remind.useMutation({
 		onSuccess: () => void board.refetch(),
@@ -773,19 +803,15 @@ function Home() {
 					resuming={
 						resume.isPending ? (resume.variables?.sessionId ?? null) : null
 					}
-					onDone={(paneId) => doneCard.mutate({ paneId })}
-					finishing={
-						doneCard.isPending ? (doneCard.variables?.paneId ?? null) : null
+					onDone={(paneId) =>
+						putAway(paneId, hits.find((hit) => hit.paneId === paneId)?.title)
 					}
+					finishing={null}
 				/>
 			)}
 			<ErrorLine
 				error={
-					search.error ??
-					resume.error ??
-					doneCard.error ??
-					remindCard.error ??
-					stopCard.error
+					search.error ?? resume.error ?? remindCard.error ?? stopCard.error
 				}
 			/>
 			{(board.data && !searching ? boardSections(sessions) : []).map(
@@ -821,7 +847,7 @@ function Home() {
 									onRemind={(day) =>
 										remindCard.mutate({ paneId: session.paneId, day })
 									}
-									onDone={() => doneCard.mutate({ paneId: session.paneId })}
+									onDone={() => putAway(session.paneId, session.title)}
 									onStop={() => stopCard.mutate({ paneId: session.paneId })}
 								/>
 							))
@@ -1241,17 +1267,8 @@ function Session({ paneId }: { paneId: string }) {
 			void utils.board.invalidate();
 		},
 	});
-	// Back to the board on tap, the card already gone; a failure brings it back.
-	const done = phone.done.useMutation({
-		onMutate: () => {
-			holdDone(utils, paneId);
-			location.hash = "";
-		},
-		onError: () => {
-			pendingDone.delete(paneId);
-			void utils.board.invalidate();
-		},
-	});
+	// Back to the board on tap, the card already gone, with Undo on its toast.
+	const putAway = usePutAway();
 	const [text, setTextState] = useState(() => draftByPane.get(paneId) ?? "");
 	const setText = (next: string | ((typed: string) => string)) =>
 		setTextState((typed) => {
@@ -1398,8 +1415,10 @@ function Session({ paneId }: { paneId: string }) {
 						</button>
 						<button
 							type="button"
-							disabled={done.isPending}
-							onClick={() => done.mutate({ paneId })}
+							onClick={() => {
+								putAway(paneId, session.data?.title);
+								location.hash = "";
+							}}
 							className="-mr-1 flex items-center gap-1 px-1 py-1.5 text-[15px] text-muted-foreground"
 						>
 							<LuCheck className="size-4" />
@@ -1443,7 +1462,7 @@ function Session({ paneId }: { paneId: string }) {
 					setAtBottom(near);
 				}}
 			>
-				<ErrorLine error={session.error ?? done.error ?? startQueued.error} />
+				<ErrorLine error={session.error ?? startQueued.error} />
 				<Transcript
 					messages={data?.messages ?? []}
 					brief={
@@ -1699,14 +1718,7 @@ function RecentlyEnded() {
 	const star = phone.star.useMutation({
 		onSuccess: () => void utils.board.invalidate(),
 	});
-	const doneCard = phone.done.useMutation({
-		onMutate: ({ paneId }) => holdDone(utils, paneId),
-		onError: (_error, { paneId }) => {
-			pendingDone.delete(paneId);
-			void board.refetch();
-		},
-		onSuccess: () => void board.refetch(),
-	});
+	const putAway = usePutAway();
 	const rows = recentlyEnded(board.data?.sessions ?? []);
 	return (
 		<div className="min-h-dvh pb-12">
@@ -1723,7 +1735,7 @@ function RecentlyEnded() {
 					Ended in the last hour, waiting on you
 				</div>
 			</header>
-			<ErrorLine error={board.error ?? star.error ?? doneCard.error} />
+			<ErrorLine error={board.error ?? star.error} />
 			{board.isLoading && (
 				<div className="flex justify-center py-10">
 					<LuLoaderCircle className="size-8 animate-spin text-primary" />
@@ -1739,7 +1751,7 @@ function RecentlyEnded() {
 					key={session.paneId}
 					session={session}
 					onStar={(starred) => star.mutate({ paneId: session.paneId, starred })}
-					onDone={() => doneCard.mutate({ paneId: session.paneId })}
+					onDone={() => putAway(session.paneId, session.title)}
 				/>
 			))}
 		</div>
@@ -1804,6 +1816,10 @@ function App() {
 			{native && pairing && <ScreensUpdate />}
 			{native && pairing && <AppUpdate />}
 			{pairing && <HostLinkSync />}
+			<Toaster
+				position="bottom-center"
+				mobileOffset={{ bottom: "calc(env(safe-area-inset-bottom) + 88px)" }}
+			/>
 		</>
 	);
 }
