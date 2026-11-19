@@ -45,6 +45,12 @@ const USER_SCOPES = [
 ];
 
 /**
+ * Asked for at sign-in but never reported missing: an older token without
+ * them still works, only without the extra (custom emoji show as shortcodes).
+ */
+const NICE_TO_HAVE_SCOPES = ["emoji:read"];
+
+/**
  * The scopes Odin asks for that a token lacks, read off Slack's
  * `x-oauth-scopes` header (comma-separated). None when the header is absent:
  * no header is no evidence.
@@ -107,7 +113,10 @@ export async function startSlackOAuth(
 	const url = new URL("https://slack.com/oauth/v2/authorize");
 	url.searchParams.set("client_id", app.clientId);
 	// Only user scopes: no bot user, so nothing has to be invited to channels.
-	url.searchParams.set("user_scope", USER_SCOPES.join(","));
+	url.searchParams.set(
+		"user_scope",
+		[...USER_SCOPES, ...NICE_TO_HAVE_SCOPES].join(","),
+	);
 	url.searchParams.set("redirect_uri", app.redirectUrl);
 	url.searchParams.set("state", state);
 	const authorizeUrl = url.toString();

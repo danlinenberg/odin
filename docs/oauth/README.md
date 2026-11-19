@@ -56,7 +56,8 @@ manifest*, then paste:
         "im:history",
         "mpim:history",
         "files:read",
-        "search:read"
+        "search:read",
+        "emoji:read"
       ]
     }
   },

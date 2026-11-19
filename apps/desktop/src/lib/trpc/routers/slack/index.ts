@@ -22,6 +22,7 @@ import {
 	buildPermalink,
 	channelLabel,
 	claimLaunch,
+	customEmojiUrls,
 	isLaunchClaimed,
 	LAUNCH_REACTION,
 	mentionedUserIds,
@@ -1297,6 +1298,24 @@ export const createSlackRouter = () => {
 		people: publicProcedure.query(async () => {
 			const token = slackToken();
 			return token ? workspacePeople(token) : [];
+		}),
+
+		/**
+		 * The workspace's custom emoji, name to image url, so `:dancing-odin:`
+		 * draws as Slack draws it. Empty without a token or the `emoji:read`
+		 * scope: those stay shortcodes.
+		 */
+		customEmoji: publicProcedure.query(async () => {
+			const token = slackToken();
+			if (!token) return {};
+			try {
+				const { emoji } = await slackRead<
+					SlackResponse & { emoji?: Record<string, string> }
+				>("emoji.list", {}, token);
+				return customEmojiUrls(emoji ?? {});
+			} catch {
+				return {};
+			}
 		}),
 
 		/** Each text with Slack's raw markup as names: `<@U123>` is "@Name". */

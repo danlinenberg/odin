@@ -388,3 +388,25 @@ export function claimLaunch(id: string): boolean {
 export function isLaunchClaimed(id: string): boolean {
 	return launchClaimed.has(id);
 }
+
+/**
+ * emoji.list's `{ name: url | "alias:other" }` as name to image url. An alias
+ * of a standard emoji (`alias:thumbsup`) is dropped: the renderer already
+ * draws those. Alias chains stop after a few hops.
+ */
+export function customEmojiUrls(
+	emoji: Record<string, string>,
+): Record<string, string> {
+	const resolve = (name: string): string | undefined => {
+		let value = emoji[name];
+		for (let hops = 0; value?.startsWith("alias:") && hops < 5; hops++)
+			value = emoji[value.slice("alias:".length)];
+		return value?.startsWith("http") ? value : undefined;
+	};
+	return Object.fromEntries(
+		Object.keys(emoji).flatMap((name) => {
+			const url = resolve(name);
+			return url ? [[name, url]] : [];
+		}),
+	);
+}

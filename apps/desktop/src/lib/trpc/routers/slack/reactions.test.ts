@@ -3,6 +3,7 @@ import {
 	buildPermalink,
 	channelLabel,
 	claimLaunch,
+	customEmojiUrls,
 	isGreeting,
 	isLaunchClaimed,
 	mentionedUserIds,
@@ -391,5 +392,21 @@ describe("claimLaunch", () => {
 		expect(claimLaunch("C1:1.0")).toBe(false);
 		expect(isLaunchClaimed("C1:1.0")).toBe(true);
 		expect(claimLaunch("C1:2.0")).toBe(true);
+	});
+});
+
+describe("customEmojiUrls", () => {
+	test("follows aliases to an image and drops aliases of standard emoji", () => {
+		expect(
+			customEmojiUrls({
+				"dancing-odin": "https://emoji.example.com/dancing-odin.gif",
+				dance: "alias:dancing-odin",
+				yes: "alias:thumbsup",
+				loop: "alias:loop",
+			}),
+		).toEqual({
+			"dancing-odin": "https://emoji.example.com/dancing-odin.gif",
+			dance: "https://emoji.example.com/dancing-odin.gif",
+		});
 	});
 });
