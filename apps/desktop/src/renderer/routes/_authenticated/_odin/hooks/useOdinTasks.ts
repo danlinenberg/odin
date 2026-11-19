@@ -122,6 +122,7 @@ export const useOdinTasks = create<{
 	setCron: (id: string, cron: string | null) => void;
 	setPaused: (id: string, paused: boolean) => void;
 	setHere: (id: string, here: boolean) => void;
+	setKeep: (id: string, keep: boolean) => void;
 	/** The board tags an automation watches; empty clears them. */
 	setTags: (id: string, tags: string[]) => void;
 	/** Stamp the minute an automation fired. */
@@ -229,6 +230,12 @@ export const useOdinTasks = create<{
 				set((s) => ({
 					tasks: s.tasks.map((t) =>
 						t.id === id ? { ...t, here: here || undefined } : t,
+					),
+				})),
+			setKeep: (id, keep) =>
+				set((s) => ({
+					tasks: s.tasks.map((t) =>
+						t.id === id ? { ...t, keep: keep || undefined } : t,
 					),
 				})),
 			setTags: (id, tags) =>
