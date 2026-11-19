@@ -661,6 +661,14 @@ export const createTerminalRouter = () => {
 				return writeTodayLines(input.items, { fresh: !!input.refresh });
 			}),
 
+		/** Each session's goal from its cached brief - Today's line on what a task is about. */
+		todaySessionGoals: publicProcedure
+			.input(z.object({ sessionIds: z.array(z.string()).max(200) }))
+			.query(async ({ input }) => {
+				const { todayGoals } = await import("main/lib/today-overview");
+				return todayGoals(input.sessionIds);
+			}),
+
 		killAllDaemonSessions: publicProcedure.mutation(async () => {
 			const client = getTerminalHostClient();
 			const before = await terminal.management.listSessions();

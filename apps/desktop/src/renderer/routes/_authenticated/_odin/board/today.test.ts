@@ -138,8 +138,22 @@ describe("todayTasks", () => {
 	const item = (
 		key: string,
 		group: TodayEntry["group"],
-		extra: Partial<TodayEntry & { status: string }> = {},
+		extra: Partial<TodayEntry & { status: string; goal: string }> = {},
 	) => ({ key, group, title: `Session ${key}`, status: null, ...extra });
+
+	it("says what a task is about from its session's goal until the model does", () => {
+		const tasks = todayTasks(
+			[{ keys: ["a"], name: "Sign-in", about: null, line: null }],
+			[
+				item("a", "needs-you", { goal: "Let new users finish sign-in" }),
+				item("b", "running", { goal: "Export reports to CSV" }),
+			],
+		);
+		expect(tasks.map((t) => [t.name, t.about])).toEqual([
+			["Sign-in", "Let new users finish sign-in"],
+			["Session b", "Export reports to CSV"],
+		]);
+	});
 
 	it("groups sessions as written, most pressing task and session first", () => {
 		const tasks = todayTasks(

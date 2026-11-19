@@ -148,7 +148,7 @@ export function TodayOverview({
 }) {
 	const items = useTodayItems(cards);
 	const [refresh, setRefresh] = useState(0);
-	const { data, isFetching } =
+	const { data, isFetching, error } =
 		electronTrpc.terminal.todayOverviewLines.useQuery(
 			{
 				items: items.map((item) => ({
@@ -171,9 +171,33 @@ export function TodayOverview({
 				placeholderData: (previous) => previous,
 			},
 		);
+	// Each session's goal from its brief: what a task is about at once, and
+	// wherever the written overview is missing or failed.
+	const sessionIds = items.flatMap((item) =>
+		item.sessionId ? [item.sessionId] : [],
+	);
+	const { data: goals } = electronTrpc.terminal.todaySessionGoals.useQuery(
+		{ sessionIds },
+		{
+			enabled: sessionIds.length > 0,
+			staleTime: 5 * 60_000,
+			retry: false,
+			refetchOnWindowFocus: false,
+			placeholderData: (previous) => previous,
+		},
+	);
 	const lanes = useMemo(
-		() => todayLanes(todayTasks(data?.tasks ?? [], items)),
-		[data, items],
+		() =>
+			todayLanes(
+				todayTasks(
+					data?.tasks ?? [],
+					items.map((item) => ({
+						...item,
+						goal: item.sessionId ? (goals?.[item.sessionId] ?? null) : null,
+					})),
+				),
+			),
+		[data, items, goals],
 	);
 	// Arrow keys walk the page top to bottom: your lane, then the other.
 	const tasks = useMemo(() => [...lanes.yours, ...lanes.moving], [lanes]);
@@ -258,6 +282,18 @@ export function TodayOverview({
 							<p className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground">
 								<LuLoaderCircle className="size-3 animate-spin" />
 								Writing it in plain words...
+							</p>
+						)}
+						{error && !isFetching && (
+							<p className="select-text cursor-text text-[12px] text-danger-ink">
+								Couldn't write the overview: {error.message}{" "}
+								<button
+									type="button"
+									onClick={() => setRefresh(Date.now())}
+									className={LINK}
+								>
+									Try again
+								</button>
 							</p>
 						)}
 					</header>
