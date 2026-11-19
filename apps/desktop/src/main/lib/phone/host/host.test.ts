@@ -17,7 +17,7 @@ import {
 	websocketPipe,
 } from "@odin/channel";
 import { startRelay } from "@odin/relay";
-import { github, hostPhoneRouter, shell } from "./router";
+import { endedTurn, github, hostPhoneRouter, shell } from "./router";
 import { hostFiles, hostLink, pairingLink, startHostServer } from "./server";
 import {
 	hostPaths,
@@ -346,6 +346,51 @@ test("status: the screen's dialog or spinner wins; at the prompt the laptop's la
 	].join("\n");
 	expect(hostStatus(agentsOut, true, "working")).toBe("working");
 	expect(hostStatus(agentsOut, true, "permission")).toBe("permission");
+});
+
+test("status: a turn that ended after the Mac's last board is filed by its own action items", () => {
+	const asks = { asks: true };
+	const none = { asks: false };
+	// At the prompt, a newer turn outranks the Mac's stale word.
+	expect(hostStatus("? for shortcuts", true, "review", asks)).toBe(
+		"permission",
+	);
+	expect(hostStatus("? for shortcuts", true, "working", asks)).toBe(
+		"permission",
+	);
+	expect(hostStatus("? for shortcuts", true, "permission", none)).toBe(
+		"review",
+	);
+	// A Claude stopped here still owes you what it asked.
+	expect(hostStatus("", false, "permission")).toBe("permission");
+	expect(hostStatus("", false, "review", asks)).toBe("permission");
+	expect(hostStatus("", false, "review", none)).toBe("idle");
+});
+
+test("endedTurn: only a reply written after the board was sent counts", () => {
+	const sentAt = Date.parse("2026-01-01T10:00:00Z") / 1000;
+	const reply = (text: string, at: string) => [
+		{ role: "user", text: "go", at },
+		{ role: "assistant", text, at },
+	];
+	const open = "Done.\n\nACTION ITEMS\n1. Merge the PR";
+	expect(endedTurn(reply(open, "2026-01-01T11:00:00Z"), sentAt)).toEqual({
+		asks: true,
+	});
+	expect(
+		endedTurn(
+			reply("Shipped.\n\nACTION ITEMS: none", "2026-01-01T11:00:00Z"),
+			sentAt,
+		),
+	).toEqual({ asks: false });
+	expect(endedTurn(reply(open, "2026-01-01T09:00:00Z"), sentAt)).toBeNull();
+	// Mid-turn: the last message is yours, nothing ended yet.
+	expect(
+		endedTurn(
+			[{ role: "user", text: "go", at: "2026-01-01T11:00:00Z" }],
+			sentAt,
+		),
+	).toBeNull();
 });
 
 test("a session the Mac's board no longer has is left out, unless it started after the board was sent", async () => {

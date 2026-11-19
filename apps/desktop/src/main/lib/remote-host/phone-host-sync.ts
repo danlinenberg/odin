@@ -13,6 +13,7 @@ import { phoneEnabled, phoneRelay } from "main/lib/phone/server";
 import { devices } from "main/lib/phone/trust";
 import { loadSessions } from "main/lib/tray";
 import { profileOf } from "shared/odin-profile";
+import type { PaneStatus } from "shared/tabs-types";
 import type { Client } from "ssh2";
 import {
 	activeProfileId,
@@ -47,7 +48,10 @@ const bundle = () =>
  * for the host's board, and each card's profile, for the phone to show one
  * profile's sessions with this computer away. `stars` are the phone's from
  * the host (below): the window saves a star a beat after it sets it, so they
- * stand over what the panes say.
+ * stand over what the panes say. Each card's column is the one the board
+ * shows (`card-flags`): the pane's own status files a turn that ended on open
+ * action items as Final Review, and the host would show it so with this
+ * computer away.
  */
 async function boardSnapshot(
 	host: Host,
@@ -55,17 +59,35 @@ async function boardSnapshot(
 ): Promise<BoardSnapshot> {
 	const panes = appState.data.tabsState.panes ?? {};
 	const sessions: SnapshotCard[] = [];
+	const columns = await boardColumns();
 	for (const row of await loadSessions(true, null)) {
 		const pane = panes[row.paneId];
 		if (row.remote && pane?.claudeSessionId)
 			sessions.push({
 				...row,
+				column: columns[row.paneId] ?? row.column,
 				starred: stars.get(row.paneId) ?? row.starred,
 				sessionId: pane.claudeSessionId,
 				profile: profileOf(pane.odinProfile),
 			});
 	}
 	return { host: hostName(host), sessions };
+}
+
+/** The board window's column per card; {} when the window is closed or slow. */
+async function boardColumns(): Promise<Record<string, PaneStatus>> {
+	try {
+		const flags = JSON.parse(
+			(await askRenderer("card-flags", {}, 4_000)) ?? "{}",
+		) as Record<string, { column?: PaneStatus }>;
+		return Object.fromEntries(
+			Object.entries(flags).flatMap(([paneId, flag]) =>
+				flag.column ? [[paneId, flag.column]] : [],
+			),
+		);
+	} catch {
+		return {};
+	}
 }
 
 /**

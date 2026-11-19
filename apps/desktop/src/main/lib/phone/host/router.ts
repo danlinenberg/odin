@@ -15,6 +15,10 @@ import {
 import { hostPorts } from "main/lib/remote-host/host-service";
 import { hostReplyScript } from "main/lib/remote-host/session";
 import {
+	noActionItems,
+	splitActionItems,
+} from "renderer/routes/_authenticated/_odin/board/action-items";
+import {
 	jiraIssue,
 	notionPage,
 	prLabel,
@@ -35,6 +39,7 @@ import { hostRows, serviceCall } from "./feeds";
 import { addTask, doneMarks, markDone } from "./inbox";
 import {
 	awayBacklog,
+	type EndedTurn,
 	findSession,
 	type HostSession,
 	hostPaths,
@@ -45,6 +50,7 @@ import {
 	readAway,
 	readScreen,
 	readSnapshot,
+	snapshotSentAt,
 	starMarks,
 	tmux,
 } from "./sessions";
@@ -160,11 +166,34 @@ async function titleOf(session: HostSession): Promise<string> {
 	return words ? words.slice(0, 80) : "Session on the remote host";
 }
 
+/**
+ * The turn that ended here after the laptop last sent its board, if any: its
+ * reply asks you something when it left open ACTION ITEMS.
+ */
+export function endedTurn(
+	messages: { role: string; text: string; at: string | null }[],
+	sentAt: number,
+): EndedTurn {
+	const last = messages.at(-1);
+	if (last?.role !== "assistant" || !last.at) return null;
+	if (Date.parse(last.at) / 1000 <= sentAt) return null;
+	const { actions } = splitActionItems(last.text);
+	return { asks: !!actions && !noActionItems(actions) };
+}
+
 async function statusOf(session: HostSession) {
-	const screen = await readScreen(session.tmux);
+	const [screen, messages] = await Promise.all([
+		readScreen(session.tmux),
+		tail(session.sessionId),
+	]);
 	return {
 		screen,
-		status: hostStatus(screen, session.claude, session.card?.column),
+		status: hostStatus(
+			screen,
+			session.claude,
+			session.card?.column,
+			endedTurn(messages, snapshotSentAt()),
+		),
 	};
 }
 
