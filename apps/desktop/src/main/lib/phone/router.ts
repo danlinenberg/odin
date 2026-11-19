@@ -33,10 +33,12 @@ import {
 	pullRequests,
 	slackThread,
 } from "renderer/routes/_authenticated/_odin/board/brief";
+import { launchFiles } from "renderer/routes/_authenticated/_odin/board/launch-request";
 import { parseScreenMenu } from "renderer/routes/_authenticated/_odin/board/screen-menu";
 import type { PhoneNight } from "renderer/routes/_authenticated/_odin/night-agent/night-log";
 import { boardSection } from "shared/board-section";
 import { withDismissalNote } from "shared/dismissed-match";
+import { getImageMimeType } from "shared/file-types";
 import { interruptClaude } from "shared/interrupt-claude";
 import { odinScreenStatus } from "shared/odin-screen-status";
 import { boardTags } from "shared/odin-tags";
@@ -171,6 +173,35 @@ async function thumbnail(dataUrl: string): Promise<string> {
 	if (thumbs.size > 200) thumbs.clear();
 	thumbs.set(dataUrl, thumb);
 	return thumb;
+}
+
+/**
+ * A launch prompt's attached images, as thumbnails: the files sit on this Mac
+ * under the prompt's "Attached files" head, not in the message. One this Mac
+ * can't read (a remote host's copy) is left to the bubble's file names. By
+ * path, so the phone's polls don't read the files again.
+ */
+const attachedThumbs = new Map<string, string | null>();
+async function attachedImages(text: string): Promise<string[]> {
+	const paths = launchFiles(text).filter(getImageMimeType).slice(0, 4);
+	const thumbsOf = await Promise.all(
+		paths.map(async (path) => {
+			if (!attachedThumbs.has(path)) {
+				const thumb = await readFile(path)
+					.then((data) =>
+						thumbnail(
+							`data:${getImageMimeType(path)};base64,${data.toString("base64")}`,
+						),
+					)
+					.catch(() => null);
+				// Cleared at 200, as thumbs is.
+				if (attachedThumbs.size > 200) attachedThumbs.clear();
+				attachedThumbs.set(path, thumb);
+			}
+			return attachedThumbs.get(path) ?? null;
+		}),
+	);
+	return thumbsOf.filter((url): url is string => url !== null);
 }
 
 /** Enter, Tab, Esc and the arrows: what a menu takes besides numbers. */
@@ -334,14 +365,15 @@ export const phoneRouter = t.router({
 		]);
 		const readAt = Date.now();
 		const withImages = await Promise.all(
-			tail.map(async (message) =>
-				message.images
-					? {
-							...message,
-							images: await Promise.all(message.images.map(thumbnail)),
-						}
-					: message,
-			),
+			tail.map(async (message) => {
+				const images = [
+					...(await Promise.all((message.images ?? []).map(thumbnail))),
+					...(message.role === "user"
+						? await attachedImages(message.text)
+						: []),
+				];
+				return images.length ? { ...message, images } : message;
+			}),
 		);
 		// A draft's <@U123> reads "@Name", as the desktop's draft card shows it.
 		const messages = await namedMessages(withImages, async (id) =>
