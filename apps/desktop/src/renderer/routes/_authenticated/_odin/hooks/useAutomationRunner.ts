@@ -108,6 +108,15 @@ export function adoptableRun(
 	return task;
 }
 
+/**
+ * The pane is a run of an automation whose finished runs leave the board by
+ * themselves (the schedule's "Done when finished", on unless switched off).
+ */
+export function autoDoneRun(paneId: string, tasks: OdinTask[]): boolean {
+	const task = tasks.find((t) => t.paneIds?.includes(paneId));
+	return !!task?.cron && !task.keep;
+}
+
 export function taggedSessions(
 	panes: Record<string, Pane>,
 	tags: readonly string[],

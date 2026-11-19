@@ -58,6 +58,11 @@ export interface OdinTask {
 	tags?: string[];
 	/** Runs on this computer even while the remote host takes new sessions. */
 	here?: boolean;
+	/**
+	 * A run that ends with nothing for you stays on the board. Absent = such
+	 * a run is marked Done by itself, so a schedule doesn't pile up cards.
+	 */
+	keep?: boolean;
 }
 
 /**

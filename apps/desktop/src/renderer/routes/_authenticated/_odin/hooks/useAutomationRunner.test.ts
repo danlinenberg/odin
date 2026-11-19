@@ -3,6 +3,7 @@ import { buildPrompt } from "renderer/hooks/useLaunchTaskSession";
 import type { Pane } from "shared/tabs-types";
 import {
 	adoptableRun,
+	autoDoneRun,
 	automationRun,
 	dueAutomations,
 	hostAutomations,
@@ -155,5 +156,22 @@ describe("automations on the remote host", () => {
 			adoptableRun({ ...run, schedule: "gone" }, rows, new Set(), now),
 		).toBeNull();
 		expect(adoptableRun(run, rows, new Set(), now + 5 * 86_400_000)).toBeNull();
+	});
+});
+
+describe("autoDoneRun", () => {
+	const run = (patch: Partial<OdinTask>) =>
+		({
+			id: "a",
+			text: "x",
+			cron: "0 9 * * *",
+			paneIds: ["p1"],
+			...patch,
+		}) as OdinTask;
+	test("a schedule's run is marked Done unless the schedule keeps it", () => {
+		expect(autoDoneRun("p1", [run({})])).toBe(true);
+		expect(autoDoneRun("p1", [run({ keep: true })])).toBe(false);
+		expect(autoDoneRun("p1", [run({ cron: undefined })])).toBe(false);
+		expect(autoDoneRun("p2", [run({})])).toBe(false);
 	});
 });

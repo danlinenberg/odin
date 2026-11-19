@@ -989,6 +989,7 @@ function SchedulesPanel() {
 		setCron,
 		setPaused,
 		setHere,
+		setKeep,
 		setPane,
 		setTags,
 	} = useMyTasks();
@@ -1239,6 +1240,18 @@ function SchedulesPanel() {
 										className="shrink-0 rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
 									>
 										{task.paused ? "Resume" : "Pause"}
+									</button>
+									<button
+										type="button"
+										title={
+											task.keep
+												? "Finished runs stay on the board - click to mark them Done by themselves"
+												: "A run that ends with nothing for you is marked Done by itself - click to keep runs on the board"
+										}
+										onClick={() => setKeep(task.id, !task.keep)}
+										className="shrink-0 rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
+									>
+										{task.keep ? "Keep on board" : "Done when finished"}
 									</button>
 									{hostName && (
 										<button

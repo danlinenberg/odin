@@ -226,6 +226,7 @@ import {
 	watchingFor,
 } from "../components/ReplyWatch";
 import { TranscriptView } from "../components/TranscriptView";
+import { autoDoneRun } from "../hooks/useAutomationRunner";
 import {
 	droppedByHand,
 	useBacklogReview,
@@ -235,7 +236,7 @@ import { CROW_TAG } from "../hooks/useCrow";
 import { endSession, useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinProfile } from "../hooks/useOdinProfile";
-import { useMyTasks } from "../hooks/useOdinTasks";
+import { useMyTasks, useOdinTasks } from "../hooks/useOdinTasks";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
@@ -3522,6 +3523,8 @@ const QUIET_POLL: ("data" | "error")[] = ["data", "error"];
 
 /** The "DROPPED:" replies already acted on, as `<sessionId>:<reply time>`. */
 const selfDroppedReplies = new Set<string>();
+/** Automation runs already marked Done by themselves, by pane id. */
+const autoDoneRuns = new Set<string>();
 
 function DevBoardPage() {
 	// The Auto-started pill wears whichever emoji you set to auto-start.
@@ -4173,6 +4176,14 @@ function DevBoardPage() {
 				prsDropped(messages, states) ||
 				!!reviewEnded(reviewedPullRequest(brief, messages), states)));
 	const mergeReadyKey = candidateKey(finishedBarAClick);
+	// Runs of a schedule that ended with "ACTION ITEMS: none": the effect by
+	// toDone marks them Done, unless the schedule keeps its runs on the board.
+	const automationTasks = useOdinTasks((state) => state.tasks);
+	const autoDoneKey = candidateKey(
+		(messages, _states, _brief, { paneId }) =>
+			nothingLeft(messages) && autoDoneRun(paneId, automationTasks),
+		true,
+	);
 	// The brief's URGENCY per pane, while it judged the reply that's still the
 	// latest - a stale one says nothing about what the session wants now.
 	const urgencyKey = mergeCandidates
@@ -7353,6 +7364,25 @@ function DevBoardPage() {
 		message: "Done - removed from board",
 	};
 	const toDocs: PutAway = { end: endCardToDocs, message: "Moved to Docs" };
+	// A schedule's run that finished with nothing for you leaves the board by
+	// itself, with Undo on the toast. Once per pane, so an Undo sticks. The
+	// open session is left alone until you close it.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: autoDoneKey stands for the cards
+	useEffect(() => {
+		if (!autoDoneKey) return;
+		for (const paneId of autoDoneKey.split(",")) {
+			if (autoDoneRuns.has(paneId) || paneId === drawerCard?.pane.id) continue;
+			const card = [...cardsByStatus.values()]
+				.flat()
+				.find((c) => c.pane.id === paneId);
+			if (!card) continue;
+			autoDoneRuns.add(paneId);
+			toast.success(
+				`Done - ${cardTitle(card)} finished`,
+				undoAction(endCard(card)),
+			);
+		}
+	}, [autoDoneKey, drawerCard?.pane.id]);
 
 	const undoStack = useRef<(() => void)[]>([]);
 	/** Stack `revert` for ⌘Z; returns the one-shot undo for this action's toast. */
