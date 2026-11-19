@@ -182,7 +182,9 @@ async function typeWhenReady(
 	deps: HostDeps,
 	again: boolean,
 ): Promise<Outcome> {
+	let waited = false;
 	if (!hostReady(await read(deps))) {
+		waited = true;
 		message.waiting(true);
 		const ready = await untilReady(deps, again ? undefined : message.line);
 		if (!ready) return "gone";
@@ -195,13 +197,14 @@ async function typeWhenReady(
 			return "took";
 		}
 	}
-	// Claude may have taken the first one after all: its transcript was out
-	// of reach while the connection was down.
-	if (again) {
-		await deps.sleep(SETTLE_MS);
-	}
+	// Claude may have taken it while this waited: its transcript was out of
+	// reach while the connection was down, or the session came back with the
+	// message as its prompt (a Resume or restart carrying the reply). Typing
+	// it then sent it to Claude twice.
+	const settle = again || waited;
+	if (settle) await deps.sleep(SETTLE_MS);
 	message.waiting(false);
-	if (again && message.arrived()) return "took";
+	if (settle && message.arrived()) return "took";
 	await message.type();
 	return (await arrivedWithin(message, deps, ARRIVE_MS)) ? "took" : "lost";
 }
