@@ -111,6 +111,25 @@ describe("deliverOnHost", () => {
 		expect(log).not.toContain("A lost");
 	});
 
+	test("a reply that waited for the host is not typed when the session came back with it as its prompt", async () => {
+		const { clock, deps } = pane([
+			[0, CONNECTING],
+			[30_000, `${CONNECTING}${CLAUDE}`],
+		]);
+		const log: string[] = [];
+		// The restarted Claude took it as its prompt; the transcript shows it
+		// a moment after Claude is drawn.
+		const { msg, typedAt } = message(
+			"A",
+			log,
+			clock,
+			() => clock.now >= 31_000,
+		);
+		await deliverOnHost("p-came-back-with-it", msg, deps);
+		expect(typedAt).toEqual([]);
+		expect(log).not.toContain("A lost");
+	});
+
 	test("a ready host is never pressed Enter on", async () => {
 		const enters: number[] = [];
 		const { clock, deps } = pane([[0, CLAUDE]], () => true, enters);
