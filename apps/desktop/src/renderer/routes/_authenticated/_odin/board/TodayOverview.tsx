@@ -15,10 +15,12 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { useTodayOverview } from "renderer/stores/today-overview";
-import { livePanesOn, urgencyOf } from "../all/all-items";
+import { type AllItem, livePanesOn, urgencyOf } from "../all/all-items";
+import { TaskDetails } from "../all/TaskDetails";
 import { useTaskMeta } from "../all/task-meta";
 import { useAllItems } from "../all/use-all-items";
 import { useStartAllItem } from "../all/use-start-item";
+import { ROW_LIVE_BUTTON } from "../components/FeedChrome";
 import { BUTTON } from "../components/pill";
 import { daysUntil, effectiveDue, useReminders } from "../components/Reminders";
 import {
@@ -61,6 +63,8 @@ export interface TodayItem extends TodayEntry {
 	priority: string | null;
 	/** The task it was started from, when Tasks knows it. */
 	from: { source: string; title: string; url: string | null } | null;
+	/** That task's row in Tasks, for the summary panel. */
+	row?: AllItem | null;
 	facts?: ReactNode;
 }
 
@@ -98,6 +102,7 @@ function useTodayItems(cards: TodayCard[]): TodayItem[] {
 				from: task
 					? { source: task.source, title: task.title, url: task.url }
 					: null,
+				row: task ?? null,
 				facts: card.facts,
 			};
 		});
@@ -185,6 +190,14 @@ export function TodayOverview({
 	// Today: Next / Previous Task move between tasks, Open Task opens the
 	// picked one's first session (down, up and Enter unless rebound).
 	const [selected, setSelected] = useState(-1);
+	// The task whose summary is open beside the page, like Tasks' side panel.
+	const [shown, setShown] = useState<string | null>(null);
+	const shownTask = tasks.find((task) => task.id === shown) ?? null;
+	// A session opens in the board's drawer: the summary makes room for it.
+	const openSession = (paneId: string) => {
+		setShown(null);
+		onOpen(paneId);
+	};
 	const step = (by: 1 | -1) => {
 		const next = moveSelection(by, selected, tasks.length);
 		if (next === null) return;
@@ -200,7 +213,7 @@ export function TodayOverview({
 		"TODAY_OPEN",
 		() => {
 			const task = tasks[selected];
-			if (task) onOpen(task.id);
+			if (task) setShown(task.id);
 		},
 		{ ...keys, enabled: selected >= 0 },
 	);
@@ -209,126 +222,142 @@ export function TodayOverview({
 		<section
 			aria-label="Today"
 			data-testid="today-overview"
-			className="@container flex min-h-0 flex-1 flex-col overflow-y-auto"
+			className="flex min-h-0 flex-1"
 		>
-			<div className="mx-auto flex w-full max-w-[1600px] flex-col gap-7 px-6 pb-10 pt-5 @5xl:px-10">
-				<header className="flex flex-col gap-2">
-					<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-						<h1 className="text-[22px] font-semibold tracking-[-.3px]">
-							Today
-						</h1>
-						<span className="text-[13px] text-muted-foreground">
-							{dateLine}
-						</span>
-						<button
-							type="button"
-							title="Write it again from the sessions' newest briefs"
-							disabled={!items.length || isFetching}
-							onClick={() => setRefresh(Date.now())}
-							className={cn(
-								"ml-auto inline-flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-[11.5px] font-semibold disabled:opacity-50",
-								BUTTON.secondary,
-							)}
-						>
-							<LuRefreshCw
-								className={cn("size-3", isFetching && "animate-spin")}
-								aria-hidden
-							/>
-							Refresh
-						</button>
-					</div>
-					<p className="max-w-[95ch] select-text cursor-text text-[16px] leading-relaxed">
-						{data?.summary ?? `${todayCounts(items)}.`}
-					</p>
-					{isFetching && !data && items.length > 0 && (
-						<p className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground">
-							<LuLoaderCircle className="size-3 animate-spin" />
-							Writing it in plain words...
+			<div className="@container min-w-0 flex-1 overflow-y-auto">
+				<div className="mx-auto flex w-full max-w-[1600px] flex-col gap-7 px-6 pb-10 pt-5 @5xl:px-10">
+					<header className="flex flex-col gap-2">
+						<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+							<h1 className="text-[22px] font-semibold tracking-[-.3px]">
+								Today
+							</h1>
+							<span className="text-[13px] text-muted-foreground">
+								{dateLine}
+							</span>
+							<button
+								type="button"
+								title="Write it again from the sessions' newest briefs"
+								disabled={!items.length || isFetching}
+								onClick={() => setRefresh(Date.now())}
+								className={cn(
+									"ml-auto inline-flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-[11.5px] font-semibold disabled:opacity-50",
+									BUTTON.secondary,
+								)}
+							>
+								<LuRefreshCw
+									className={cn("size-3", isFetching && "animate-spin")}
+									aria-hidden
+								/>
+								Refresh
+							</button>
+						</div>
+						<p className="max-w-[95ch] select-text cursor-text text-[16px] leading-relaxed">
+							{data?.summary ?? `${todayCounts(items)}.`}
+						</p>
+						{isFetching && !data && items.length > 0 && (
+							<p className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground">
+								<LuLoaderCircle className="size-3 animate-spin" />
+								Writing it in plain words...
+							</p>
+						)}
+					</header>
+
+					{tasks.length === 0 && (
+						<p className="text-[14px] text-muted-foreground">
+							No open sessions. Start one from Tasks, or from the board.
 						</p>
 					)}
-				</header>
 
-				{tasks.length === 0 && (
-					<p className="text-[14px] text-muted-foreground">
-						No open sessions. Start one from Tasks, or from the board.
-					</p>
-				)}
-
-				{tasks.length > 0 && (
-					<div className="grid items-start gap-x-12 gap-y-8 @5xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-						<section aria-label="Waiting on you">
-							<h2 className="mb-3 flex items-baseline gap-2">
-								<span className="text-[17px] font-semibold text-attention-ink">
-									Waiting on you
-								</span>
-								<span className="text-[12.5px] text-muted-foreground">
-									do these first
-								</span>
-							</h2>
-							{lanes.yours.length === 0 ? (
-								<p className="text-[14px] text-muted-foreground">
-									Nothing waits on you right now.
-								</p>
-							) : (
-								<ol className="flex flex-col gap-4">
-									{lanes.yours.map((task, i) => (
-										<YourTask
-											key={task.id}
-											task={task}
-											number={i + 1}
-											now={now}
-											picked={tasks[selected]?.id === task.id}
-											open={task.items.some((item) => item.key === openPaneId)}
-											onOpen={onOpen}
-										/>
-									))}
-								</ol>
-							)}
-						</section>
-
-						<div className="flex min-w-0 flex-col gap-7">
-							{lanes.moving.length > 0 && (
-								<section aria-label="Moving without you">
-									<h2 className="mb-3 flex items-baseline gap-2">
-										<span className="text-[17px] font-semibold text-working-ink">
-											Moving without you
-										</span>
-										<span className="text-[12.5px] text-muted-foreground">
-											nothing to do, just so you know
-										</span>
-									</h2>
-									<ul className="flex flex-col gap-5">
-										{lanes.moving.map((task) => (
-											<MovingTask
+					{tasks.length > 0 && (
+						<div className="grid items-start gap-x-12 gap-y-8 @5xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+							<section aria-label="Waiting on you">
+								<h2 className="mb-3 flex items-baseline gap-2">
+									<span className="text-[17px] font-semibold text-attention-ink">
+										Waiting on you
+									</span>
+									<span className="text-[12.5px] text-muted-foreground">
+										do these first
+									</span>
+								</h2>
+								{lanes.yours.length === 0 ? (
+									<p className="text-[14px] text-muted-foreground">
+										Nothing waits on you right now.
+									</p>
+								) : (
+									<ol className="flex flex-col gap-4">
+										{lanes.yours.map((task, i) => (
+											<YourTask
 												key={task.id}
 												task={task}
+												number={i + 1}
 												now={now}
 												picked={tasks[selected]?.id === task.id}
-												open={task.items.some(
-													(item) => item.key === openPaneId,
-												)}
-												onOpen={onOpen}
+												open={
+													shown === task.id ||
+													task.items.some((item) => item.key === openPaneId)
+												}
+												onOpen={openSession}
+												onShow={setShown}
 											/>
 										))}
-									</ul>
-								</section>
-							)}
-							<ComingUp side={side} onOpen={onOpen} />
-						</div>
-					</div>
-				)}
-				{tasks.length === 0 && <ComingUp side={side} onOpen={onOpen} />}
+									</ol>
+								)}
+							</section>
 
-				<label className="flex items-center gap-2 border-t border-border pt-3 text-[11.5px] text-muted-foreground">
-					<input
-						type="checkbox"
-						checked={enabled}
-						onChange={(event) => setEnabled(event.target.checked)}
-					/>
-					Show this every morning when Odin opens (the Today icon opens it any
-					time)
-				</label>
+							<div className="flex min-w-0 flex-col gap-7">
+								{lanes.moving.length > 0 && (
+									<section aria-label="Moving without you">
+										<h2 className="mb-3 flex items-baseline gap-2">
+											<span className="text-[17px] font-semibold text-working-ink">
+												Moving without you
+											</span>
+											<span className="text-[12.5px] text-muted-foreground">
+												nothing to do, just so you know
+											</span>
+										</h2>
+										<ul className="flex flex-col gap-5">
+											{lanes.moving.map((task) => (
+												<MovingTask
+													key={task.id}
+													task={task}
+													now={now}
+													picked={tasks[selected]?.id === task.id}
+													open={
+														shown === task.id ||
+														task.items.some((item) => item.key === openPaneId)
+													}
+													onOpen={openSession}
+													onShow={setShown}
+												/>
+											))}
+										</ul>
+									</section>
+								)}
+								<ComingUp side={side} onOpen={openSession} />
+							</div>
+						</div>
+					)}
+					{tasks.length === 0 && <ComingUp side={side} onOpen={openSession} />}
+
+					<label className="flex items-center gap-2 border-t border-border pt-3 text-[11.5px] text-muted-foreground">
+						<input
+							type="checkbox"
+							checked={enabled}
+							onChange={(event) => setEnabled(event.target.checked)}
+						/>
+						Show this every morning when Odin opens (the Today icon opens it any
+						time)
+					</label>
+				</div>
 			</div>
+			{shownTask && (
+				<TodayTaskPanel
+					task={shownTask}
+					now={now}
+					onOpen={openSession}
+					onClose={() => setShown(null)}
+				/>
+			)}
 		</section>
 	);
 }
@@ -380,9 +409,11 @@ type TaskProps = {
 	now: number;
 	/** Picked with the arrow keys. */
 	picked: boolean;
-	/** One of its sessions is open beside the page. */
+	/** Its summary, or one of its sessions, is open beside the page. */
 	open: boolean;
 	onOpen: (paneId: string) => void;
+	/** Opens its summary beside the page. */
+	onShow: (taskId: string) => void;
 };
 
 const rowClass = (open: boolean, picked: boolean) =>
@@ -409,6 +440,7 @@ function YourTask({
 	picked,
 	open,
 	onOpen,
+	onShow,
 }: TaskProps & { number: number }) {
 	const action = yourAction(task.next);
 	const fallback =
@@ -438,8 +470,8 @@ function YourTask({
 				<div>
 					<button
 						type="button"
-						title="Open its session beside this page"
-						onClick={() => onOpen(task.items[0].key)}
+						title="Show what this task is about beside the page"
+						onClick={() => onShow(task.id)}
 						className="text-left text-[16px] font-semibold leading-snug underline-offset-2 hover:underline"
 					>
 						{action ?? fallback}
@@ -476,7 +508,7 @@ function YourTask({
  * A task moving without you: its name and who has it now, then what it is,
  * where it stands, what is left and who acts next, and its sessions.
  */
-function MovingTask({ task, now, picked, open, onOpen }: TaskProps) {
+function MovingTask({ task, now, picked, open, onOpen, onShow }: TaskProps) {
 	const { Icon, tone } = GROUP_MARK[task.group];
 	const waitingOn = task.group === "waiting" ? task.items[0].waitingOn : null;
 	const word =
@@ -495,8 +527,8 @@ function MovingTask({ task, now, picked, open, onOpen }: TaskProps) {
 			<p className="flex flex-wrap items-baseline gap-x-2">
 				<button
 					type="button"
-					title="Open its session beside this page"
-					onClick={() => onOpen(task.items[0].key)}
+					title="Show what this task is about beside the page"
+					onClick={() => onShow(task.id)}
 					className="text-left text-[14.5px] font-semibold underline-offset-2 hover:underline"
 				>
 					{task.name}
@@ -528,6 +560,124 @@ function MovingTask({ task, now, picked, open, onOpen }: TaskProps) {
 				<SessionLines task={task} onOpen={onOpen} />
 			</div>
 		</li>
+	);
+}
+
+/**
+ * A task's summary beside the page, like the Tasks side panel: what it is,
+ * the Explanation, where it stands, what is left and who acts next, its
+ * sessions, and the task it was started from as Tasks shows it.
+ */
+function TodayTaskPanel({
+	task,
+	now,
+	onOpen,
+	onClose,
+}: {
+	task: TodayTaskView<TodayItem>;
+	now: number;
+	onOpen: (paneId: string) => void;
+	onClose: () => void;
+}) {
+	const { Icon, tone } = GROUP_MARK[task.group];
+	const waitingOn = task.group === "waiting" ? task.items[0].waitingOn : null;
+	const linked = [
+		...new Map(
+			task.items.flatMap((item) =>
+				item.row ? [[item.row.key, item.row]] : [],
+			) as [string, AllItem][],
+		).values(),
+	];
+	const parts = (
+		[
+			["What it is", task.about],
+			["Explanation", task.explain],
+			["Where it stands", task.line],
+			["What's left", task.left],
+			["Next", task.next],
+		] as const
+	).filter(([, text]) => !!text);
+	return (
+		<aside
+			aria-label="Task summary"
+			data-today-panel
+			className="flex w-[400px] shrink-0 flex-col border-l border-border"
+		>
+			<div className="flex shrink-0 items-center gap-2 px-4 pt-2.5 pb-1.5">
+				<span
+					className={cn(
+						"inline-flex items-center gap-1 text-[12px] font-semibold",
+						tone,
+					)}
+				>
+					<Icon className="size-3" aria-hidden />
+					{waitingOn ? `Waiting on ${waitingOn}` : todayGroupLabel(task.group)}
+				</span>
+				<button
+					type="button"
+					onClick={onClose}
+					aria-label="Close summary"
+					className="ml-auto rounded-[7px] px-2 py-0.5 text-[13px] text-muted-foreground hover:bg-secondary hover:text-foreground"
+				>
+					✕
+				</button>
+			</div>
+			<div className="min-h-0 flex-1 space-y-3.5 overflow-y-auto px-4 pb-5">
+				<div>
+					<h2 className="select-text cursor-text text-[17px] font-semibold leading-snug">
+						{task.name}
+					</h2>
+					<p className="text-[12.5px]">
+						<TaskMarks task={task} now={now} />
+					</p>
+				</div>
+				{parts.length === 0 && (
+					<p className="text-[13px] text-muted-foreground">
+						Claude hasn't written about this task yet.
+					</p>
+				)}
+				{parts.map(([label, text]) => (
+					<div key={label}>
+						<p className={LABEL}>{label}</p>
+						<p className="select-text cursor-text text-[13.5px] leading-relaxed text-foreground/90">
+							{sentence(text)}
+						</p>
+					</div>
+				))}
+				<div>
+					<p className={LABEL}>
+						{task.items.length === 1
+							? "Its session"
+							: `Its ${task.items.length} sessions`}
+					</p>
+					<SessionLines task={task} onOpen={onOpen} />
+				</div>
+				{linked.map((row) => (
+					<div key={row.key} className="border-t border-border pt-3">
+						<p className={LABEL}>Started from</p>
+						<TaskDetails item={row} />
+					</div>
+				))}
+			</div>
+			<div className="flex shrink-0 items-center gap-2 border-t border-border px-4 py-2.5">
+				<button
+					type="button"
+					onClick={() => onOpen(task.items[0].key)}
+					className={ROW_LIVE_BUTTON}
+				>
+					Go to session →
+				</button>
+				{task.items[0].from?.url && (
+					<button
+						type="button"
+						onClick={() => openUrl(task.items[0].from?.url ?? "")}
+						className="text-[12px] font-semibold text-muted-foreground hover:text-foreground"
+					>
+						Open in {task.items[0].from.source} ↗
+					</button>
+				)}
+			</div>
+		</aside>
 	);
 }
 
