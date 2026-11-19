@@ -61,7 +61,7 @@ const INSTRUCTIONS = `You write a morning overview of someone's open work, in pl
 Each numbered line below is one work session: number | where it stands | due | priority | waiting on | started from | title | opening request (what the person first asked, in their words) | goal | what was done so far | status | next step.
 Several sessions often serve the same task (the same feature, bug, request or investigation): put those in one task.
 Reply with ONLY these lines, no markdown, no preamble:
-SUMMARY: <one or two short sentences over all of it: what needs them first and any deadline>
+SUMMARY: <one or two short, natural sentences, like a colleague telling them where to start: name the one or two tasks to do first by their names and why (a deadline, someone waiting, it unblocks other work). Example: "Start with the sign-in fix: new users are stuck, and only your pick of the email wording is left. The CSV export is due tomorrow and just needs a merge.">
 TASK <session numbers, comma separated>: <name> | <what it is> | <explanation> | <where it stands> | <what is left> | <next>
 The six parts of a TASK line:
 - name: 2 to 6 words naming the work.
@@ -74,6 +74,7 @@ Every session number goes in exactly one TASK line. A session that shares nothin
 
 Rules:
 - Always answer in English.
+- In the summary: no counts of sessions or tasks, no session numbers, and nothing about what is missing (no due dates, no details, no notes). Never pad a sentence with ", and none..." or ", and nothing...".
 - No PR numbers, ticket keys, issue numbers, commit hashes, branch names, file paths or URLs. Say "the pull request" or "the ticket" instead.
 - Say what the work is about in everyday words, not code names. Name the product area or the user it affects.
 - Under 220 characters for the summary and for each part of a TASK line, except the explanation: under 700.`;
@@ -115,6 +116,7 @@ export function parseTodayLines(text: string, keys: string[]): TodayLines {
 	const tasks: TodayTask[] = [];
 	const used = new Set<string>();
 	let summary: string | null = null;
+	let inSummary = false;
 	for (const raw of text.split("\n")) {
 		const row = raw
 			.replace(/^[\s*-]+/, "")
@@ -123,10 +125,18 @@ export function parseTodayLines(text: string, keys: string[]): TodayLines {
 		const said = /^summary\s*:\s*(.+)$/i.exec(row);
 		if (said) {
 			summary = said[1].trim() || null;
+			inSummary = true;
 			continue;
 		}
 		const task = /^task\s+([\d,\s]+?)\s*[:.)]\s*(.+)$/i.exec(row);
-		if (!task) continue;
+		if (!task) {
+			// A summary the model wrapped onto the next lines reads on to the
+			// first TASK line; a blank line ends it.
+			if (inSummary && row && summary) summary = `${summary} ${row}`;
+			else inSummary = false;
+			continue;
+		}
+		inSummary = false;
 		const mine = task[1]
 			.split(/[,\s]+/)
 			.map((n) => keys[Number(n) - 1])
