@@ -91,7 +91,12 @@ has_running_background_agents() {
   # Same for a run_in_background Bash (a CI poll): "backgroundTaskId":"<id>" at
   # launch, the same <task-id> at the end. It's running while its process still
   # holds the output file open - a silent poll never touches the file's mtime.
-  for id in $(grep -oE '"backgroundTaskId":"[^"]+"' "$transcript" | sed 's/.*:"//; s/"$//'); do
+  # Only one this turn launched counts: a dev server or watcher started turns
+  # ago runs for hours, and kept every later turn's card on Working. The turn
+  # starts at your last prompt - a user line that isn't a tool result or meta.
+  local turn
+  turn=$(grep -n '"type":"user"' "$transcript" | grep -v '"tool_result"\|"toolUseResult"\|"isMeta":true' | tail -1 | cut -d: -f1)
+  for id in $(tail -n +"${turn:-1}" "$transcript" | grep -oE '"backgroundTaskId":"[^"]+"' | sed 's/.*:"//; s/"$//'); do
     grep -q "<task-id>$id</task-id>" "$transcript" && continue
     out=$(grep -oE "[^\" ]*/tasks/$id\.output" "$transcript" | head -1)
     [ -n "$out" ] && lsof -t "$out" >/dev/null 2>&1 && return 0

@@ -324,6 +324,14 @@ describe("getNotifyScriptContent", () => {
 			expect(await stopOn([launch, "<task-id>b1</task-id>"])).toContain(
 				"event=Stop ",
 			);
+			// Launched in an earlier turn (a dev server): this turn is over.
+			const prompt = JSON.stringify({
+				type: "user",
+				message: { role: "user", content: "Which one should I use?" },
+			});
+			expect(await stopOn([launch, prompt])).toContain("event=Stop ");
+			// A tool result after the prompt is still this turn.
+			expect(await stopOn([prompt, launch])).toContain("event=Start ");
 		} finally {
 			poll.kill();
 			await poll.exited;
