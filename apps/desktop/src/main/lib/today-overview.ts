@@ -183,6 +183,22 @@ export async function openingAsk(
 	}
 }
 
+/**
+ * Each session's goal from its cached brief, by session id: what Today
+ * says a task is about at once, before (or without) the written overview.
+ */
+export async function todayGoals(
+	sessionIds: string[],
+): Promise<Record<string, string>> {
+	const briefs = await cachedBriefs().catch(() => new Map());
+	const goals: Record<string, string> = {};
+	for (const id of sessionIds) {
+		const goal = briefs.get(id)?.goal?.trim();
+		if (goal) goals[id] = goal;
+	}
+	return goals;
+}
+
 const cache = new Map<string, TodayLines>();
 const inFlight = new Map<string, Promise<TodayLines>>();
 
@@ -190,7 +206,8 @@ export async function writeTodayLines(
 	items: TodayItem[],
 	{
 		claudeBin = "claude",
-		timeoutMs = 120_000,
+		// A full board (30+ sessions) takes Haiku well over a minute.
+		timeoutMs = 300_000,
 		fresh = false,
 	}: { claudeBin?: string; timeoutMs?: number; fresh?: boolean } = {},
 ): Promise<TodayLines> {

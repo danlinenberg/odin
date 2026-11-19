@@ -143,7 +143,12 @@ export interface TodayTaskView<T> {
  * you first, then by due date, priority and star.
  */
 export function todayTasks<
-	T extends TodayEntry & { title: string; status?: string | null },
+	T extends TodayEntry & {
+		title: string;
+		status?: string | null;
+		/** The session's goal from its brief: what it is about, until the model says. */
+		goal?: string | null;
+	},
 >(written: readonly WrittenTask[], items: T[]): TodayTaskView<T>[] {
 	const ranked = todayGroups(items).flatMap((g) => g.items);
 	const rank = new Map(ranked.map((item, i) => [item.key, i]));
@@ -158,7 +163,7 @@ export function todayTasks<
 		for (const item of mine) taken.add(item.key);
 		tasks.push({
 			name: task.name,
-			about: task.about,
+			about: task.about ?? mine.find((item) => item.goal)?.goal ?? null,
 			explain: task.explain ?? null,
 			line: task.line,
 			left: task.left ?? null,
@@ -170,7 +175,7 @@ export function todayTasks<
 		if (!taken.has(item.key))
 			tasks.push({
 				name: item.title,
-				about: null,
+				about: item.goal ?? null,
 				explain: null,
 				line: plainLine(item.status) || null,
 				left: null,
