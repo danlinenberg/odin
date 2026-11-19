@@ -6054,18 +6054,33 @@ function DevBoardPage() {
 				const here = sessionCwd(card.pane);
 				// The cluster host that keeps the conversation (hostFor); the main
 				// host while this Odin's main process predates that procedure.
+				// A cluster host that did not answer may keep its folder: the
+				// main host would resume it in a fresh checkout without its files.
+				let unanswered: string | null = null;
 				const hostName =
 					transcript.local === false &&
 					!card.pane.odinRemote &&
 					!(here && movedHere(transcript.path, here, transcript.cwd, sessionId))
 						? ((await utils.client.remoteHost.hostFor
 								.query({ sessionId })
-								.catch(() => null)) ??
-							(await utils.client.remoteHost.get
-								.query()
-								.then(({ host }) => host && (host.name || host.instanceId))
-								.catch(() => null)))
+								.catch((error) => {
+									if (String(error).includes("did not answer"))
+										unanswered =
+											error instanceof Error ? error.message : String(error);
+									return null;
+								})) ??
+							(unanswered
+								? null
+								: await utils.client.remoteHost.get
+										.query()
+										.then(({ host }) => host && (host.name || host.instanceId))
+										.catch(() => null)))
 						: null;
+				if (unanswered) {
+					toast.error(unanswered);
+					setResumingPaneIds((ids) => ids.filter((id) => id !== card.pane.id));
+					return;
+				}
 				if (hostName) {
 					const pane = {
 						...card.pane,

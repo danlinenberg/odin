@@ -1594,8 +1594,8 @@ export const createRemoteHostRouter = () =>
 		 * The host a session sent to the remote host runs on, by name. A new one:
 		 * the cluster host with the most free memory. A resume (`sessionId`): the
 		 * host that keeps its conversation, asked of every cluster and past host
-		 * at once; the main host when none answers that it does. Null with no
-		 * host set up.
+		 * at once; the main host when every cluster host answers that it does
+		 * not. Throws when a cluster host does not answer. Null with no host set up.
 		 */
 		hostFor: publicProcedure
 			.input(z.object({ sessionId: z.string().nullable() }))
@@ -1607,32 +1607,52 @@ export const createRemoteHostRouter = () =>
 				const id = input.sessionId;
 				if (!id) return nameOf((await pickHost(3_000))?.host ?? main);
 				if (!/^[\w-]+$/.test(id)) return nameOf(main);
-				const hosts = [
-					...clusterHostsNow(),
-					...(readOdinConfig().pastRemoteHosts ?? []),
-				];
+				const cluster = clusterHostsNow();
+				const hosts = [...cluster, ...(readOdinConfig().pastRemoteHosts ?? [])];
+				const silent = new Set<string>();
 				const keeps = async (host: RemoteHost) => {
-					const client = await connectHost(host);
+					let out: string;
 					try {
-						const out = await runOnHost(
-							client,
-							`ls ~/.claude/projects/*/${id}.jsonl 2>/dev/null | head -1`,
-						);
-						if (!out.trim()) throw new Error("not here");
-						return nameOf(host);
-					} finally {
-						client.end();
+						// A host that is stopped or out of reach can hold a login
+						// for minutes: 20s without an answer counts as no answer.
+						out = await Promise.race([
+							connectHost(host).then(async (client) => {
+								try {
+									return await runOnHost(
+										client,
+										`ls ~/.claude/projects/*/${id}.jsonl 2>/dev/null | head -1`,
+									);
+								} finally {
+									client.end();
+								}
+							}),
+							new Promise<never>((_, reject) =>
+								setTimeout(() => reject(new Error("late")), 20_000).unref(),
+							),
+						]);
+					} catch (error) {
+						silent.add(nameOf(host));
+						throw error;
 					}
+					if (!out.trim()) throw new Error("not here");
+					return nameOf(host);
 				};
-				// A host that is stopped or out of reach can hold a login for
-				// minutes: after 20s the resume goes to the main host.
-				const late = new Promise<string>((resolve) =>
-					setTimeout(() => resolve(nameOf(main)), 20_000).unref(),
-				);
-				return Promise.race([
-					Promise.any(hosts.map(keeps)).catch(() => nameOf(main)),
-					late,
-				]);
+				try {
+					return await Promise.any(hosts.map(keeps));
+				} catch {
+					// No host has it. Only a cluster host that never answered may
+					// still keep it (with the session's folder): starting it on
+					// the main host then gives a fresh checkout, and the session's
+					// uncommitted files look lost. A past host is gone for good.
+					const missing = cluster
+						.map(nameOf)
+						.filter((name) => silent.has(name));
+					if (missing.length > 0)
+						throw new Error(
+							`${missing.join(", ")} did not answer, so Odin can't tell which host keeps this session - try again in a minute`,
+						);
+					return nameOf(main);
+				}
 			}),
 
 		/**
