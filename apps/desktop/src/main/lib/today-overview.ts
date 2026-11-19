@@ -35,8 +35,10 @@ export interface TodayTask {
 	keys: string[];
 	/** A short name for the task. */
 	name: string;
-	/** What the task is and why it matters, for someone who never saw it. */
+	/** What the task is, in one short sentence. */
 	about: string | null;
+	/** The task explained for someone who never saw it: background, what changes once done, why now. */
+	explain: string | null;
 	/** Where it stands now. */
 	line: string | null;
 	/** What is left before it is done. */
@@ -57,10 +59,11 @@ Each numbered line below is one work session: number | where it stands | due | p
 Several sessions often serve the same task (the same feature, bug, request or investigation): put those in one task.
 Reply with ONLY these lines, no markdown, no preamble:
 SUMMARY: <one or two short sentences over all of it: what needs them first and any deadline>
-TASK <session numbers, comma separated>: <name> | <what it is> | <where it stands> | <what is left> | <next>
-The five parts of a TASK line:
+TASK <session numbers, comma separated>: <name> | <what it is> | <explanation> | <where it stands> | <what is left> | <next>
+The six parts of a TASK line:
 - name: 2 to 6 words naming the work.
-- what it is: one or two sentences: what the problem or request is, who asked or who it is for, and why it matters.
+- what it is: one short sentence: what the problem or request is and who it is for.
+- explanation: two to four plain sentences for someone who never saw this work: the background (what happens today, to whom, and how it was found or who asked), what will be different once it is done, and why it matters now. Explain any technical idea in everyday words.
 - where it stands: what is already done, concretely ("the fix is written and the tests pass", "the export works for one team").
 - what is left: the remaining steps before it is done, and roughly how much ("only a review and a merge", "about half: the email and its test").
 - next: who acts next and what, starting with "You:", "Claude:" or the person's name ("You: pick the email wording", "Claude: is writing the test", "Alex: has to reply on the ticket").
@@ -70,7 +73,7 @@ Rules:
 - Always answer in English.
 - No PR numbers, ticket keys, issue numbers, commit hashes, branch names, file paths or URLs. Say "the pull request" or "the ticket" instead.
 - Say what the work is about in everyday words, not code names. Name the product area or the user it affects.
-- Under 220 characters for the summary and for each part of a TASK line.`;
+- Under 220 characters for the summary and for each part of a TASK line, except the explanation: under 500.`;
 
 const clean = (text: string | null | undefined, cap: number) =>
 	(text ?? "").replace(/\s+/g, " ").replace(/\|/g, "/").trim().slice(0, cap) ||
@@ -121,15 +124,16 @@ export function parseTodayLines(text: string, keys: string[]): TodayLines {
 			.split(/[,\s]+/)
 			.map((n) => keys[Number(n) - 1])
 			.filter((key): key is string => !!key && !used.has(key));
-		const [name, about, line, left, next] = task[2]
+		const [name, about, explain, line, left, next] = task[2]
 			.split("|")
-			.map((part) => part.trim());
+			.map((part) => part.trim().replace(/^-$/, ""));
 		if (!mine.length || !name) continue;
 		for (const key of mine) used.add(key);
 		tasks.push({
 			keys: [...new Set(mine)],
 			name,
 			about: about || null,
+			explain: explain || null,
 			line: line || null,
 			left: left || null,
 			next: next || null,
