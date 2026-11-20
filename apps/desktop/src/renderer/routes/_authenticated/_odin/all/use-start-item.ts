@@ -66,11 +66,13 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 	 * watching, handed the night's instructions - and it stays where you are
 	 * instead of pulling the board into view. With `hostSession`, the session
 	 * already runs on the remote host (the Night Agent started it there): the
-	 * card attaches to it rather than starting one.
+	 * card attaches to it rather than starting one. `away` marks a session the
+	 * phone started there with the Mac closed: not the Night Agent's, so no
+	 * off-hours tag (the moon pill).
 	 */
 	const start = async (
 		item: AllItem,
-		offHours?: { instructions: string; hostSession?: string },
+		offHours?: { instructions: string; hostSession?: string; away?: boolean },
 		// Tags ride along to the launch: Auto-start marks its cards.
 		picked?: SessionContext & { tags?: string[] },
 	): Promise<StartResult> => {
@@ -99,7 +101,7 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 			...context,
 			description: description || null,
 			workspaceId: ensured.workspace.id,
-			...(offHours ? { tags: ["off-hours"] } : {}),
+			...(offHours && !offHours.away ? { tags: ["off-hours"] } : {}),
 			...(offHours?.hostSession
 				? { resumeSessionId: offHours.hostSession, onHost: true }
 				: {}),
@@ -172,8 +174,16 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 		return true;
 	};
 
-	/** The Night Agent's launch of this row, built for the remote host and not started. */
-	const planOnHost = async (item: AllItem, instructions: string) => {
+	/**
+	 * A launch of this row built for the remote host and not started: the
+	 * Night Agent's, or with `away` the phone's Start with the Mac closed,
+	 * which someone is watching (no off-hours tag or unattended wording).
+	 */
+	const planOnHost = async (
+		item: AllItem,
+		instructions: string,
+		away = false,
+	) => {
 		const ensured = await ensureWorkspace();
 		if (!ensured.ok) throw new Error(ensured.error);
 		const plan = await planForHost({
@@ -182,7 +192,7 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 				[item.launch.description, instructions].filter(Boolean).join("\n\n") ||
 				null,
 			workspaceId: ensured.workspace.id,
-			tags: ["off-hours"],
+			tags: away ? [] : ["off-hours"],
 		});
 		// Feed rows name no repo: on the host the agent picks one from the list.
 		return { ...plan, repoPath: null };

@@ -461,7 +461,9 @@ export function useLaunchTaskSession() {
 					: savedOn === "host"
 						? await clusterHost(resumeSessionId ?? null)
 						: onHost
-							? await clusterHost(null)
+							? // A resume goes to the cluster host that keeps the
+								// conversation: the freest one has no transcript of it.
+								await clusterHost(resumeSessionId ?? null)
 							: onHost === false || savedOn === "here"
 								? null
 								: target !== undefined

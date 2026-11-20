@@ -162,6 +162,7 @@ export function useAwayTasksSync() {
 						const adopted = await latest.current.start(item, {
 							instructions: "",
 							hostSession: run.sessionId,
+							away: true,
 						});
 						if (!adopted.ok) continue;
 						onBoard.add(run.sessionId);
@@ -219,7 +220,7 @@ export function useAwayTasksSync() {
 					return;
 				const tasks = [];
 				for (const item of order) {
-					const plan = await planOnHost(item, "");
+					const plan = await planOnHost(item, "", true);
 					tasks.push({
 						key: item.key,
 						title: item.title,
@@ -241,6 +242,7 @@ export function useAwayTasksSync() {
 						},
 					} as AllItem,
 					"",
+					true,
 				);
 				await electronTrpcClient.remoteHost.awayPush.mutate({
 					tasks,
