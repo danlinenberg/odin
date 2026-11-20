@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { markdownImages } from "../routes/_authenticated/_odin/board/launch-request";
 import { ago } from "./cards";
 import {
 	leadingTldr,
@@ -122,4 +123,27 @@ test("a message's time reads as the board's; none without one", () => {
 	expect(messageTime(null)).toBeNull();
 	expect(messageTime("not a date")).toBeNull();
 	expect(messageTime("2026-10-19T20:29:00Z")).toMatch(/Oct/);
+});
+
+test("a task's ![](path) images show as thumbnails, not as their paths", () => {
+	const prompt = [
+		"Task: Fix the phone",
+		"",
+		"![](/home/me/.odin/files/0-a.png)",
+		"",
+		"![](/home/me/.odin/files/1-b.jpeg)",
+		"",
+		"Work in the current workspace.",
+	].join("\n");
+	expect(markdownImages(prompt)).toEqual([
+		"/home/me/.odin/files/0-a.png",
+		"/home/me/.odin/files/1-b.jpeg",
+	]);
+	expect(userBubbleText(prompt, { full: false, images: true }).shown).toBe(
+		"Task: Fix the phone",
+	);
+	// No thumbnail came (the file is gone): the path stays, so nothing is lost.
+	expect(
+		userBubbleText(prompt, { full: false, images: false }).shown,
+	).toContain("![](/home/me/.odin/files/0-a.png)");
 });

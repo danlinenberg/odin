@@ -36,3 +36,19 @@ export function launchFiles(text: string): string[] {
 		.map((line) => line.trim())
 		.filter((line) => line.startsWith("/"));
 }
+
+/** An image a message embeds as Markdown by absolute path, as a task's notes do. */
+const MARKDOWN_IMAGE = /!\[[^\]]*\]\((\/[^)\s]+)\)/g;
+
+/** The paths of the images a message embeds as Markdown. */
+export function markdownImages(text: string): string[] {
+	return [...text.matchAll(MARKDOWN_IMAGE)].map((match) => match[1] ?? "");
+}
+
+/** The message without its Markdown images, for a bubble that shows them as thumbnails. */
+export function withoutMarkdownImages(text: string): string {
+	return text
+		.replace(MARKDOWN_IMAGE, "")
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
+}

@@ -18,6 +18,7 @@ import {
 } from "main/lib/claude-sessions";
 import { askRenderer } from "main/lib/notifications/server";
 import { appCaller } from "main/lib/odin-api";
+import { hostFileSources } from "main/lib/remote-host/host-files";
 import { boardLook, loadSessions } from "main/lib/tray";
 import { getWorkspaceRuntimeRegistry } from "main/lib/workspace-runtime";
 import { NATIVE_API } from "renderer/mobile/native-api";
@@ -33,7 +34,10 @@ import {
 	pullRequests,
 	slackThread,
 } from "renderer/routes/_authenticated/_odin/board/brief";
-import { launchFiles } from "renderer/routes/_authenticated/_odin/board/launch-request";
+import {
+	launchFiles,
+	markdownImages,
+} from "renderer/routes/_authenticated/_odin/board/launch-request";
 import { parseScreenMenu } from "renderer/routes/_authenticated/_odin/board/screen-menu";
 import type { PhoneNight } from "renderer/routes/_authenticated/_odin/night-agent/night-log";
 import { boardSection } from "shared/board-section";
@@ -176,18 +180,24 @@ async function thumbnail(dataUrl: string): Promise<string> {
 }
 
 /**
- * A launch prompt's attached images, as thumbnails: the files sit on this Mac
- * under the prompt's "Attached files" head, not in the message. One this Mac
- * can't read (a remote host's copy) is left to the bubble's file names. By
+ * A message's images, as thumbnails: a launch prompt's "Attached files" and
+ * the ![](path) images a task's notes embed. A remote host's copy is read from
+ * the file it was copied from here; one this Mac can't read is left to the
+ * bubble's file names. By
  * path, so the phone's polls don't read the files again.
  */
 const attachedThumbs = new Map<string, string | null>();
 async function attachedImages(text: string): Promise<string[]> {
-	const paths = launchFiles(text).filter(getImageMimeType).slice(0, 4);
+	const paths = [...new Set([...launchFiles(text), ...markdownImages(text)])]
+		.filter(getImageMimeType)
+		.slice(0, 4);
+	if (!paths.length) return [];
+	// A remote session's prompt names the host's copies: read the file here.
+	const sources = await hostFileSources();
 	const thumbsOf = await Promise.all(
 		paths.map(async (path) => {
 			if (!attachedThumbs.has(path)) {
-				const thumb = await readFile(path)
+				const thumb = await readFile(sources[path] ?? path)
 					.then((data) =>
 						thumbnail(
 							`data:${getImageMimeType(path)};base64,${data.toString("base64")}`,
