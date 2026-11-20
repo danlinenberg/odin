@@ -82,8 +82,9 @@ const PR_URL =
  */
 export function pullRequests(messages: BriefMessage[]): PullRequestLink[] {
 	const found = new Map<string, PullRequestLink>();
-	for (const message of messages.filter((m) => m.role === "assistant")) {
-		for (const [, repo, number] of message.text.matchAll(PR_URL)) {
+	for (const message of messages) {
+		if (message.role !== "assistant") continue;
+		for (const [repo, number] of prMatches(message)) {
 			const url = `https://github.com/${repo}/pull/${number}`;
 			// Keyed by url: the same PR is quoted many times in a session. First
 			// mention wins, so a PR keeps the position where it was opened.
@@ -92,6 +93,28 @@ export function pullRequests(messages: BriefMessage[]): PullRequestLink[] {
 		}
 	}
 	return [...found.values()].reverse();
+}
+
+/**
+ * Each message's PR url matches, kept per message object. The board runs
+ * pullRequests over every card's transcript several times per render; the
+ * transcript's message objects stay the same between polls, so the regex runs
+ * once per message instead of once per call. Keyed on the text too, in case
+ * a message object is ever reused with new text.
+ */
+const prMatchCache = new WeakMap<
+	BriefMessage,
+	{ text: string; matches: [string, string][] }
+>();
+
+function prMatches(message: BriefMessage): [string, string][] {
+	const hit = prMatchCache.get(message);
+	if (hit && hit.text === message.text) return hit.matches;
+	const matches = [...message.text.matchAll(PR_URL)].map(
+		([, repo, number]) => [repo, number] as [string, string],
+	);
+	prMatchCache.set(message, { text: message.text, matches });
+	return matches;
 }
 
 /**

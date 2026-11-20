@@ -33,6 +33,32 @@ function sharesAny<T>(a: Set<T>, b: Set<T>, atLeast = 1): boolean {
 	return false;
 }
 
+interface PaneFacts {
+	pane: Pane;
+	words: Set<string>;
+	tickets: Set<string>;
+}
+
+/**
+ * Each pane's title words and tickets, kept per pane object: the board calls
+ * duplicateSessions on every pane change, and pane objects are replaced (not
+ * edited) when they change, so an unchanged pane is not parsed again.
+ */
+const factsCache = new WeakMap<Pane, PaneFacts>();
+
+function paneFacts(pane: Pane): PaneFacts {
+	let facts = factsCache.get(pane);
+	if (!facts) {
+		facts = {
+			pane,
+			words: titleWords(pane.odinTaskTitle ?? ""),
+			tickets: tickets(pane),
+		};
+		factsCache.set(pane, facts);
+	}
+	return facts;
+}
+
 /**
  * Two live cards doing the same work: pane id → the other pane's id.
  *
@@ -44,13 +70,11 @@ function sharesAny<T>(a: Set<T>, b: Set<T>, atLeast = 1): boolean {
  */
 export function duplicateSessions(panes: Pane[]): Map<string, string> {
 	const found = new Map<string, string>();
-	const facts = panes.map((pane) => ({
-		pane,
-		words: titleWords(pane.odinTaskTitle ?? ""),
-		tickets: tickets(pane),
-	}));
-	for (const [i, a] of facts.entries()) {
-		for (const b of facts.slice(i + 1)) {
+	const facts = panes.map(paneFacts);
+	for (let i = 0; i < facts.length; i++) {
+		const a = facts[i];
+		for (let j = i + 1; j < facts.length; j++) {
+			const b = facts[j];
 			const same =
 				(!!a.pane.odinPageId && a.pane.odinPageId === b.pane.odinPageId) ||
 				sharesAny(a.tickets, b.tickets) ||

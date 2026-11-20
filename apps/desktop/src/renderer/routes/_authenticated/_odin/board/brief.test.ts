@@ -1208,3 +1208,14 @@ describe("fixConflictsMessage", () => {
 		);
 	});
 });
+
+it("pullRequests sees a message whose text changed after a first read", () => {
+	const message = {
+		role: "assistant" as const,
+		text: "opened https://github.com/acme/app/pull/1",
+		at: null,
+	};
+	expect(pullRequests([message]).map((pr) => pr.number)).toEqual([1]);
+	message.text = "opened https://github.com/acme/app/pull/2";
+	expect(pullRequests([message]).map((pr) => pr.number)).toEqual([2]);
+});
