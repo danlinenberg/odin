@@ -739,10 +739,25 @@ describe("toolDescription", () => {
 			}),
 		).toBe("Edited ChatView.tsx");
 	});
-	test("a command with no description falls back to the command", () => {
-		expect(toolDescription({ name: "Bash", input: { command: "ls" } })).toBe(
-			"Bash ls",
+	test("a command with no description reads as what it does, in words", () => {
+		const said = (command: string) =>
+			toolDescription({ name: "Bash", input: { command } });
+		expect(said("ls")).toBe("Listed files");
+		expect(
+			said(
+				'cd /a/app && git log --oneline -1 && gh pr list --search "x y" | head',
+			),
+		).toBe("Checked the git history and listed pull requests");
+		expect(
+			said(
+				"sed -n 1,80p src/handler.py; echo ---; sed -n 90,120p src/handler.py",
+			),
+		).toBe("Read handler.py");
+		expect(said('grep -rn "a\\|b" . | grep -v test; ls; git status')).toBe(
+			"Searched the files and listed files, +1 more",
 		);
+		expect(said("FOO=1 bun test src/x.test.ts")).toBe("Ran the tests");
+		expect(said("echo hi")).toBe("Ran a command");
 	});
 });
 
