@@ -3876,6 +3876,11 @@ export function ChatView({
 	onSentRef.current = onSent;
 	const onShellDoneRef = useRef(onShellDone);
 	onShellDoneRef.current = onShellDone;
+	// A ref, like onShellDone: the board passes a new function every render,
+	// and as a dependency it remade runCommand, which every reply row takes,
+	// so the whole conversation re-rendered on each board render.
+	const onShellStartedRef = useRef(onShellStarted);
+	onShellStartedRef.current = onShellStarted;
 	// Stable, so the memoized rows don't all re-render on every poll.
 	// A ref, so a fresh arrow from the drawer doesn't re-render every message.
 	const onResumeRef = useRef(onResumeWith);
@@ -3933,10 +3938,10 @@ export function ChatView({
 				command,
 				runInClaude,
 				sendToClaude,
-				onShellStarted: () => onShellStarted?.("local"),
+				onShellStarted: () => onShellStartedRef.current?.("local"),
 				onShellDone: () => onShellDoneRef.current?.(),
 			}),
-		[paneId, workspaceId, runInClaude, onShellStarted, sendToClaude],
+		[paneId, workspaceId, runInClaude, sendToClaude],
 	);
 	const doItem = useCallback(
 		(item: string, number: number, approve: boolean, answer?: string) => {
@@ -4166,7 +4171,7 @@ export function ChatView({
 						))
 					)
 						throw new Error("Odin couldn't find this session's Shell.");
-					onShellStarted?.("local");
+					onShellStartedRef.current?.("local");
 					// Nobody is here to answer it: a run that goes quiet gets Ctrl+C,
 					// and its Shell closed if that doesn't end it.
 					const shell = () =>
@@ -4218,7 +4223,6 @@ export function ChatView({
 		paneId,
 		workspaceId,
 		runCommand,
-		onShellStarted,
 		sendToClaude,
 	]);
 	// A turn that ended with no reply to act on - cut short, or its last step a

@@ -903,6 +903,17 @@ async function projectOf(
 	sessionId: string,
 	root: string,
 ): Promise<string | null> {
+	// Polled per live card and per open drawer: listing every project and
+	// stat-ing the file in each was redone on every call. The folders that hold
+	// a copy are remembered, and only those are stat-ed each call, so the copy
+	// written last still wins at once. A full listing runs again after a short
+	// while, or when none of the remembered copies is there any more.
+	const key = `${root}\0${sessionId}`;
+	const cached = copiesCache.get(key);
+	if (cached && Date.now() - cached.at < COPIES_RESCAN_MS) {
+		const newest = await newestCopy(sessionId, root, cached.projects);
+		if (newest) return newest.project;
+	}
 	let entries: string[];
 	try {
 		entries = (await readdir(root, { withFileTypes: true }))
@@ -911,23 +922,59 @@ async function projectOf(
 	} catch {
 		return null;
 	}
-	let newest: { project: string; mtimeMs: number; size: number } | null = null;
-	for (const project of entries) {
-		try {
-			const { mtimeMs, size } = await stat(
-				join(root, project, `${sessionId}.jsonl`),
-			);
-			if (
-				!newest ||
-				mtimeMs > newest.mtimeMs ||
-				(mtimeMs === newest.mtimeMs && size > newest.size)
-			)
-				newest = { project, mtimeMs, size };
-		} catch {
-			// not this one
-		}
-	}
-	return newest?.project ?? null;
+	const copies = await copiesOf(sessionId, root, entries);
+	if (copies.length > 0)
+		copiesCache.set(key, {
+			at: Date.now(),
+			projects: copies.map((copy) => copy.project),
+		});
+	else copiesCache.delete(key);
+	return pickNewest(copies)?.project ?? null;
+}
+
+const COPIES_RESCAN_MS = 60_000;
+const copiesCache = new Map<string, { at: number; projects: string[] }>();
+
+interface Copy {
+	project: string;
+	mtimeMs: number;
+	size: number;
+}
+
+async function copiesOf(
+	sessionId: string,
+	root: string,
+	projects: string[],
+): Promise<Copy[]> {
+	const stats = await Promise.all(
+		projects.map((project) =>
+			stat(join(root, project, `${sessionId}.jsonl`)).then(
+				({ mtimeMs, size }): Copy => ({ project, mtimeMs, size }),
+				() => null,
+			),
+		),
+	);
+	return stats.filter((copy): copy is Copy => copy !== null);
+}
+
+async function newestCopy(
+	sessionId: string,
+	root: string,
+	projects: string[],
+): Promise<Copy | null> {
+	return pickNewest(await copiesOf(sessionId, root, projects));
+}
+
+function pickNewest(copies: Copy[]): Copy | null {
+	let newest: Copy | null = null;
+	for (const copy of copies)
+		if (
+			!newest ||
+			copy.mtimeMs > newest.mtimeMs ||
+			(copy.mtimeMs === newest.mtimeMs && copy.size > newest.size)
+		)
+			newest = copy;
+	return newest;
 }
 
 /** The folder a transcript's last turn ran in. */

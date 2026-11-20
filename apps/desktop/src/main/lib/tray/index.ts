@@ -212,6 +212,8 @@ function buildSessionItems(
 	});
 }
 
+let lastMenuSignature = "";
+
 async function updateTrayMenu(): Promise<void> {
 	if (!tray) return;
 
@@ -222,7 +224,7 @@ async function updateTrayMenu(): Promise<void> {
 	const needsYou = sessions.filter((s) => s.column === "permission").length;
 	tray.setTitle(needsYou > 0 ? String(needsYou) : "");
 
-	const menu = Menu.buildFromTemplate([
+	const template: MenuItemConstructorOptions[] = [
 		...buildSessionItems(sessions),
 		{ type: "separator" },
 		{
@@ -258,10 +260,17 @@ async function updateTrayMenu(): Promise<void> {
 				void confirmAndQuitCompletely();
 			},
 		},
-	]);
+	];
 
 	// Swapping the menu while it's open would snap it shut under your cursor.
 	if (menuOpen) return;
+	// The 5s refresh almost always finds the same menu: rebuild only when
+	// what it shows (or which pane a row opens) changed.
+	const signature =
+		JSON.stringify(template) + sessions.map((s) => s.paneId).join(" ");
+	if (signature === lastMenuSignature) return;
+	lastMenuSignature = signature;
+	const menu = Menu.buildFromTemplate(template);
 	menu.on("menu-will-show", () => {
 		menuOpen = true;
 	});
@@ -320,5 +329,6 @@ export function disposeTray(): void {
 	if (tray) {
 		tray.destroy();
 		tray = null;
+		lastMenuSignature = "";
 	}
 }
