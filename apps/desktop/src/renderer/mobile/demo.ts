@@ -170,7 +170,23 @@ export function answer(
 				sessions: sessions.filter(
 					(s) => (s.repo === "infra") === (activeProfile === "personal"),
 				),
-				backlog: [{ id: "t1", title: "Release notes for 1.4", started: false }],
+				backlog: [
+					{
+						id: "t1",
+						title: "Release notes for 1.4",
+						started: false,
+						upNext: 0,
+						priority: 3,
+						notes: "List what shipped since 1.3, one line each.",
+					},
+					{
+						id: "t2",
+						title: "Clean up old feature flags",
+						started: false,
+						priority: 1,
+						repo: "api",
+					},
+				],
 				done: [
 					["Remove the Telegram bot", "task", 50],
 					["PAY-212 export stuck", "jira", 180],

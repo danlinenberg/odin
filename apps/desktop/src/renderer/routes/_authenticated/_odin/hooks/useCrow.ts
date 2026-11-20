@@ -710,11 +710,19 @@ function runOdinAction(
 	/** Why a started task hasn't run yet - the launch gate holds it. */
 	const queued = (paneId?: string) =>
 		paneId ? panes[paneId]?.odinQueued?.reason : undefined;
-	if (action === "tasks")
+	if (action === "tasks") {
+		const { queue } = useTaskMeta.getState();
+		const { reminders } = useReminders.getState();
 		return JSON.stringify(
 			backlogOf(deps).map((task) => ({
 				id: task.id,
 				title: task.title,
+				notes: task.notes || undefined,
+				due: reminders[`task:${task.id}`]?.due,
+				// Its place on Up next, 0 first; absent when it isn't lined up.
+				upNext: queue.includes(`task:${task.id}`)
+					? queue.indexOf(`task:${task.id}`)
+					: undefined,
 				priority: task.priority || 2,
 				skill: task.skill,
 				repo: task.repo,
@@ -724,6 +732,7 @@ function runOdinAction(
 				queued: queued(task.paneId),
 			})),
 		);
+	}
 	if (action === "sessions")
 		return JSON.stringify(
 			Object.values(panes)

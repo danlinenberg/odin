@@ -21,6 +21,7 @@ import {
 	LuChevronRight,
 	LuCornerDownLeft,
 	LuFileText,
+	LuListTodo,
 	LuLoaderCircle,
 	LuMonitor,
 	LuMoon,
@@ -103,6 +104,7 @@ import {
 	useActionButton,
 	useSpeech,
 } from "./speech";
+import { dueText, type PhoneTask, taskSections } from "./tasks";
 import { Thumbnails, Transcript } from "./transcript";
 import { registerPush, updateWidget } from "./widget";
 import { WorkingCard } from "./working";
@@ -333,13 +335,14 @@ if (native?.Plugins?.App) {
 
 const POLL = 3_000;
 
-/** The screen the hash names: a session (#/s/<paneId>), the Night Agent, Recently ended, or the board. */
+/** The screen the hash names: a session (#/s/<paneId>), the Night Agent, Recently ended, Tasks, or the board. */
 const screenInHash = () => {
 	const paneId = location.hash.match(/^#\/s\/(.+)$/)?.[1] ?? null;
 	return {
 		paneId,
 		night: location.hash === "#/night",
 		ended: location.hash === "#/ended",
+		tasks: location.hash === "#/tasks",
 	};
 };
 
@@ -870,43 +873,18 @@ function Home() {
 					))}
 				</section>
 			)}
-			{!!board.data?.backlog.length && (
-				<section>
-					<h2>
-						<button
-							type="button"
-							aria-expanded={!folded.includes("backlog")}
-							onClick={() => fold("backlog")}
-							className="flex w-full items-center gap-1 px-4 pt-4 pb-1 text-left text-[11px] font-semibold uppercase tracking-wide text-faint-foreground"
-						>
-							{folded.includes("backlog") ? (
-								<LuChevronRight className="size-3.5" />
-							) : (
-								<LuChevronDown className="size-3.5" />
-							)}
-							Backlog · {board.data.backlog.length}
-						</button>
-					</h2>
-					{!folded.includes("backlog") &&
-						board.data.backlog.map((task) => (
-							<div
-								key={task.id}
-								className="mx-3 my-1.5 flex items-center gap-3 rounded-[10px] border border-border bg-card px-3 py-2.5"
-							>
-								<span className="min-w-0 flex-1 truncate text-[15px]">
-									{task.title}
-								</span>
-								<button
-									type="button"
-									disabled={start.isPending}
-									onClick={() => start.mutate({ id: task.id })}
-									className="h-9 shrink-0 rounded-full bg-secondary px-4 text-sm font-semibold text-primary"
-								>
-									Start
-								</button>
-							</div>
-						))}
-				</section>
+			{!!board.data?.backlog.length && !searching && (
+				<a
+					href="#/tasks"
+					className="mx-3 mt-4 flex items-center gap-2 rounded-[10px] border border-border bg-card px-3 py-2.5 text-[15px]"
+				>
+					<LuListTodo className="size-[18px] text-primary" />
+					<span className="flex-1">Tasks</span>
+					<span className="text-muted-foreground">
+						{board.data.backlog.length}
+					</span>
+					<LuChevronRight className="size-4 text-muted-foreground" />
+				</a>
 			)}
 			<DoneShelf rows={board.data?.done ?? []} />
 			<button
@@ -1709,6 +1687,139 @@ function NightAgent() {
  * The lock screen widget's tap: the sessions whose turn ended in the last
  * hour and still wait on you, newest first - what the widget counts.
  */
+const PRIORITY_DOT: Record<number, string> = {
+	1: "bg-muted-foreground/50",
+	2: "bg-primary",
+	3: "bg-danger",
+};
+
+/** Your tasks no session was started on yet: Up next in its order, then by priority. */
+function Tasks() {
+	const board = phone.board.useQuery(undefined, {
+		refetchInterval: POLL,
+		select: heldBoard,
+	});
+	const start = phone.start.useMutation({
+		onSuccess: ({ paneId }) => {
+			void board.refetch();
+			if (paneId) location.hash = `#/s/${paneId}`;
+		},
+	});
+	const [open, setOpen] = useState<string | null>(null);
+	const [adding, setAdding] = useState(false);
+	const rows = (board.data?.backlog ?? []) as PhoneTask[];
+	const now = Date.now();
+	return (
+		<div className="min-h-dvh pb-24">
+			<header className="sticky top-0 z-10 border-b border-border bg-background/95 px-3.5 pt-[calc(env(safe-area-inset-top)+10px)] pb-2 backdrop-blur">
+				<a
+					href="#/"
+					className="-ml-1.5 flex w-fit items-center px-1 py-1.5 text-[15px] text-primary"
+				>
+					<LuChevronLeft className="size-5" />
+					Board
+				</a>
+				<h1 className="mt-1 text-2xl font-bold">Tasks</h1>
+				<div className="text-[13px] text-muted-foreground">
+					Not started yet. Tap one for its notes.
+				</div>
+			</header>
+			<ErrorLine error={board.error ?? start.error} />
+			{board.isLoading && (
+				<div className="flex justify-center py-10">
+					<LuLoaderCircle className="size-8 animate-spin text-primary" />
+				</div>
+			)}
+			{board.data && rows.length === 0 && (
+				<div className="mx-3 my-3 rounded-[10px] border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">
+					No tasks waiting.
+				</div>
+			)}
+			{taskSections(rows).map((section) => (
+				<section key={section.key}>
+					<h2 className="px-4 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-faint-foreground">
+						{section.label} · {section.rows.length}
+					</h2>
+					{section.rows.map((task) => {
+						const due = task.due ? dueText(task.due, now) : null;
+						const expanded = open === task.id;
+						return (
+							<div
+								key={task.id}
+								className="mx-3 my-1.5 rounded-[10px] border border-border bg-card px-3 py-2.5"
+							>
+								<div className="flex items-center gap-3">
+									<button
+										type="button"
+										aria-expanded={expanded}
+										onClick={() => setOpen(expanded ? null : task.id)}
+										className="min-w-0 flex-1 text-left"
+									>
+										<div className="flex items-center gap-2">
+											{task.priority !== undefined && (
+												<span
+													className={`size-2 shrink-0 rounded-full ${PRIORITY_DOT[task.priority] ?? PRIORITY_DOT[2]}`}
+												/>
+											)}
+											<span
+												className={`min-w-0 text-[15px] ${expanded ? "" : "truncate"}`}
+											>
+												{task.title}
+											</span>
+										</div>
+										{(due || task.repo) && (
+											<div className="mt-0.5 flex gap-2 text-xs text-muted-foreground">
+												{due && (
+													<span className={due.late ? "text-danger" : ""}>
+														{due.text}
+													</span>
+												)}
+												{task.repo && (
+													<span className="truncate">{task.repo}</span>
+												)}
+											</div>
+										)}
+									</button>
+									<button
+										type="button"
+										disabled={start.isPending}
+										onClick={() => start.mutate({ id: task.id })}
+										className="h-9 shrink-0 rounded-full bg-secondary px-4 text-sm font-semibold text-primary"
+									>
+										Start
+									</button>
+								</div>
+								{expanded && task.notes && (
+									<div className="mt-2 text-sm whitespace-pre-wrap text-muted-foreground select-text">
+										{task.notes}
+									</div>
+								)}
+							</div>
+						);
+					})}
+				</section>
+			))}
+			<button
+				type="button"
+				aria-label="New task"
+				onClick={() => setAdding(true)}
+				className="fixed right-5 flex size-14 items-center justify-center rounded-full bg-(--brand) text-primary-foreground shadow-lg"
+				style={{ bottom: "calc(env(safe-area-inset-bottom) + 20px)" }}
+			>
+				<LuPlus className="size-7" />
+			</button>
+			{adding && (
+				<NewTask
+					onClose={() => {
+						setAdding(false);
+						void board.refetch();
+					}}
+				/>
+			)}
+		</div>
+	);
+}
+
 function RecentlyEnded() {
 	const board = phone.board.useQuery(undefined, {
 		refetchInterval: POLL,
@@ -1789,7 +1900,7 @@ function HostLinkSync() {
 }
 
 function App() {
-	const { paneId, night, ended } = useScreenFromHash();
+	const { paneId, night, ended, tasks } = useScreenFromHash();
 	// Drawn: screens Odin sent this phone worked, so boot.ts keeps them.
 	useEffect(markStarted, []);
 	if (!pairing && !hostPairing && !devToken && !demo)
@@ -1808,6 +1919,8 @@ function App() {
 				<NightAgent />
 			) : ended ? (
 				<RecentlyEnded />
+			) : tasks ? (
+				<Tasks />
 			) : (
 				<Home />
 			)}

@@ -342,6 +342,10 @@ export const phoneRouter = t.router({
 				started: boolean;
 				ran?: boolean;
 				repo?: string;
+				notes?: string;
+				due?: string;
+				upNext?: number;
+				priority?: number;
 			}[],
 		);
 		const [sessionRows, backlogRows, doneRows] = await Promise.all([
