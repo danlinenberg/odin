@@ -307,6 +307,7 @@ export async function closePullRequest(
 	url: string,
 	exec: GhExec = gh,
 ): Promise<{ closed: true } | { closed: false; error: string }> {
+	sharedStates.delete(url);
 	const errors: string[] = [];
 	const closed = await ghAsAnyAccount(
 		["pr", "close", url],
@@ -434,6 +435,32 @@ export async function pullRequestState(
 	if (!pr?.author) return pr;
 	const accounts = await loggedInAccounts(exec);
 	return { ...pr, mine: accounts.size ? accounts.has(pr.author) : null };
+}
+
+/**
+ * pullRequestState shared for a short while. The board, the brief, the chat
+ * drawer and the diff view each poll the same PRs once a minute, per card, and
+ * every call was one or more `gh` processes. Callers within this window share
+ * one answer, including one still in flight. closePullRequest drops its url.
+ */
+const STATE_SHARE_MS = 20_000;
+const sharedStates = new Map<
+	string,
+	{ at: number; state: Promise<PullRequestStatus | null> }
+>();
+
+export function sharedPullRequestState(
+	url: string,
+): Promise<PullRequestStatus | null> {
+	const hit = sharedStates.get(url);
+	if (hit && Date.now() - hit.at < STATE_SHARE_MS) return hit.state;
+	const state = pullRequestState(url);
+	sharedStates.set(url, { at: Date.now(), state });
+	// A failed lookup is not shared: the next poll asks again.
+	state.catch(() => {
+		if (sharedStates.get(url)?.state === state) sharedStates.delete(url);
+	});
+	return state;
 }
 
 const PR_PARTS = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)$/;

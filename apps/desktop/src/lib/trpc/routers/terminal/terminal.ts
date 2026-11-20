@@ -581,9 +581,9 @@ export const createTerminalRouter = () => {
 		pullRequestStates: publicProcedure
 			.input(z.object({ urls: z.array(z.string().url()).max(200) }))
 			.query(async ({ input }) => {
-				const { pullRequestState } = await import("./pr-state");
+				const { sharedPullRequestState } = await import("./pr-state");
 				const states = await Promise.all(
-					input.urls.map((url) => pullRequestState(url)),
+					input.urls.map((url) => sharedPullRequestState(url)),
 				);
 				return Object.fromEntries(
 					input.urls.map((url, index) => [url, states[index]]),
