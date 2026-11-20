@@ -145,7 +145,7 @@ import {
 	ScreenDialogCard,
 	ScreenMenuCard,
 } from "./ChatPrompts";
-import { collectRefs, linkify, withSchemes } from "./chat-links";
+import { linkify, refPairs, withSchemes } from "./chat-links";
 import { replyBoxOwnsEsc } from "./drawer-esc";
 import {
 	deliverOnHost,
@@ -363,6 +363,28 @@ function unqueue(line: Line): Line {
  * fills in the tool row it answers - that row gets a new object, the rest keep
  * theirs, so memoized rows don't re-render.
  */
+/**
+ * An item's PR and ticket refs, kept per item object. The drawer rebuilds its
+ * ref map on every new line, and applyLines keeps old items as they were (a
+ * tool result arrives as a new object), so only new items are scanned.
+ */
+const itemRefCache = new WeakMap<Item, [string, string][]>();
+
+function itemRefs(item: Item): [string, string][] {
+	let pairs = itemRefCache.get(item);
+	if (!pairs) {
+		pairs = refPairs(
+			item.kind === "tool"
+				? `${JSON.stringify(item.input)} ${(item.result ?? "").slice(0, 20_000)}`
+				: item.kind === "compact"
+					? ""
+					: item.text,
+		);
+		itemRefCache.set(item, pairs);
+	}
+	return pairs;
+}
+
 export function applyLines(items: Item[], lines: Line[]): Item[] {
 	const next = [...items];
 	const toolIndex = new Map<string, number>();
@@ -3547,19 +3569,7 @@ export function ChatView({
 	const dropRef = useRef<(files: File[]) => void>(undefined);
 	const [dragging, setDragging] = useState(false);
 	// PR and ticket refs this session has URLs for, so "#676" can link.
-	const refs = useMemo(
-		() =>
-			collectRefs(
-				items.map((item) =>
-					item.kind === "tool"
-						? `${JSON.stringify(item.input)} ${(item.result ?? "").slice(0, 20_000)}`
-						: item.kind === "compact"
-							? ""
-							: item.text,
-				),
-			),
-		[items],
-	);
+	const refs = useMemo(() => new Map(items.flatMap(itemRefs)), [items]);
 	const refsKey = [...refs.keys()].join(" ");
 	const write = electronTrpc.terminal.write.useMutation();
 	// A menu answer is a few keys in a row; each needs the TUI to have redrawn

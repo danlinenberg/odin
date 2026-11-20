@@ -9,14 +9,17 @@ const JIRA_URL =
  * it in the conversation could be any repo's.
  */
 export function collectRefs(texts: string[]): Map<string, string> {
-	const refs = new Map<string, string>();
-	for (const text of texts) {
-		for (const [url, number] of text.matchAll(PR_URL))
-			refs.set(`#${number}`, url);
-		for (const [url, key] of text.matchAll(JIRA_URL))
-			refs.set(key as string, url);
-	}
-	return refs;
+	return new Map(texts.flatMap(refPairs));
+}
+
+/** One text's refs as [ref, url] pairs, in collectRefs' order. */
+export function refPairs(text: string): [string, string][] {
+	const pairs: [string, string][] = [];
+	for (const [url, number] of text.matchAll(PR_URL))
+		pairs.push([`#${number}`, url]);
+	for (const [url, key] of text.matchAll(JIRA_URL))
+		pairs.push([key as string, url]);
+	return pairs;
 }
 
 /** Code, existing markdown links and raw URLs - left exactly as written. */

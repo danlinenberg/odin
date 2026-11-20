@@ -579,6 +579,9 @@ const RAIL_W = 52;
 const MIN_DRAWER_W = 480;
 
 // Built via string escapes - ANSI sequences are control chars by definition
+/** How much of a live session's scrollback the board polls. */
+const SCROLLBACK_LIVE_TAIL_BYTES = 512 * 1024;
+
 const ANSI_RE =
 	// biome-ignore lint/suspicious/noControlCharactersInRegex: matching them is the point
 	/\x1b\[[0-9;?<>]*[a-zA-Z]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[()][A-Z0-9]|\x1b[=>]|[\x00-\x08\x0b-\x1f]/g;
@@ -676,8 +679,15 @@ function ScrollbackView({ card, live }: { card: BoardCard; live: boolean }) {
 	// Read the persisted scrollback from disk - always reliable, unlike the
 	// embedded xterm which intermittently renders blank in this drawer. Poll
 	// while the session is live so the transcript stays current.
+	// While live, poll only the tail: the whole file (up to 5MB) was re-read,
+	// sent over IPC and ANSI-stripped every 1.5s. The full history shows once
+	// the session ends.
 	const { data, isLoading } = electronTrpc.terminal.readHistory.useQuery(
-		{ paneId: card.pane.id, workspaceId: card.workspaceId },
+		{
+			paneId: card.pane.id,
+			workspaceId: card.workspaceId,
+			...(live ? { tailBytes: SCROLLBACK_LIVE_TAIL_BYTES } : {}),
+		},
 		live ? { refetchInterval: 1500 } : undefined,
 	);
 	const ref = useRef<HTMLDivElement>(null);
