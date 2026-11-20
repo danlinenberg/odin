@@ -17,6 +17,7 @@ import {
 import {
 	launchFiles,
 	launchRequest,
+	withoutMarkdownImages,
 } from "../routes/_authenticated/_odin/board/launch-request";
 import { ActionCard } from "./action-card";
 import { Markdown } from "./markdown";
@@ -113,7 +114,9 @@ export function userBubbleText(
 		request === null || full
 			? text
 			: withFiles(request, launchFiles(text), images);
-	const shown = images ? raw.replace(/\[Image #\d+\]\s*/g, "").trim() : raw;
+	const shown = images
+		? withoutMarkdownImages(raw.replace(/\[Image #\d+\]\s*/g, ""))
+		: raw;
 	return { shown, folds: request !== null };
 }
 
