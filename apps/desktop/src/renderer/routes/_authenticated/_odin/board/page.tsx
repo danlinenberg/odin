@@ -5913,10 +5913,13 @@ function DevBoardPage() {
 	 * reconnect): no drawer, no dialog. "bulk" is a Resume over ticked rows:
 	 * no dialog either, but someone pressed it, so a conversation that is gone
 	 * starts over from its brief - what the dialog would have offered.
+	 * "phone" is a reply from the phone: nobody is at this Mac to answer a
+	 * dialog, so a conversation that is gone starts over from its brief with
+	 * the reply under it, instead of leaving both screens waiting on the Mac.
 	 */
 	const resumeCard = async (
 		card: BoardCard,
-		auto: boolean | "bulk" = false,
+		auto: boolean | "bulk" | "phone" = false,
 		prompt?: string,
 		restart = false,
 	) => {
@@ -5927,7 +5930,7 @@ function DevBoardPage() {
 			return;
 		// A bulk Resume leaves a queued card in line: starting it now is the
 		// "Start now" that skips the gate.
-		if (auto && card.pane.odinQueued) return;
+		if (auto && auto !== "phone" && card.pane.odinQueued) return;
 		// Never started: there's no conversation to resume, only the launch that
 		// was held back. Run it now - that's what "Start now" meant on the toast
 		// this queue replaced.
@@ -6150,8 +6153,13 @@ function DevBoardPage() {
 						// bulk Resume was pressed, and the only way back for a lost
 						// conversation is a new session from its brief - the dialog's
 						// offer, taken for each row rather than asked a dozen times.
-						if (auto === "bulk")
-							await startOverFromLost(card, lostCardPrompt(card), [], true);
+						if (auto === "bulk" || auto === "phone")
+							await startOverFromLost(
+								card,
+								[lostCardPrompt(card), prompt].filter(Boolean).join("\n\n"),
+								[],
+								true,
+							);
 						else if (!auto) setLostCard(card);
 						return;
 					}
@@ -6701,7 +6709,7 @@ function DevBoardPage() {
 				.flat()
 				.find((each) => each.pane.id === paneId);
 			if (!card) return "live";
-			void resumeCardRef.current(card, false, text);
+			void resumeCardRef.current(card, "phone", text);
 			return "resumed";
 		});
 		return () => setPhoneReply(null);
