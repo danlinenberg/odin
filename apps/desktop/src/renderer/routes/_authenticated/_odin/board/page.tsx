@@ -87,6 +87,7 @@ import {
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { canClaimKeyboard } from "renderer/lib/keyboard";
+import { SlackEmoji } from "renderer/lib/SlackEmoji";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { coldRestoreState } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/state";
 import { Terminal } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/Terminal";
@@ -2960,7 +2961,7 @@ interface BoardCardTileProps {
 	since: number | undefined;
 	focusedAt: number;
 	customTags: string[];
-	launchEmoji: string;
+	launchEmoji: React.ReactNode;
 	isAgent: boolean;
 	hostState: HostState;
 	resuming: boolean;
@@ -3539,8 +3540,10 @@ const autoDoneRuns = new Set<string>();
 
 function DevBoardPage() {
 	// The Auto-started pill wears whichever emoji you set to auto-start.
-	const launchEmoji = emojify(
-		`:${useOdinFeeds().reactions.data?.launchReaction ?? "robot_face"}:`,
+	const launchEmoji = (
+		<SlackEmoji
+			name={useOdinFeeds().reactions.data?.launchReaction ?? "robot_face"}
+		/>
 	);
 	const tabs = useTabsStore((state) => state.tabs);
 	const panes = useTabsStore((state) => state.panes);

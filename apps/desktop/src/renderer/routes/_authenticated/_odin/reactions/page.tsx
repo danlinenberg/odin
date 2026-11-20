@@ -6,7 +6,7 @@ import {
 } from "lib/trpc/routers/slack/reactions";
 import { useMemo, useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
-import { emojify } from "renderer/lib/emoji";
+import { SlackEmoji } from "renderer/lib/SlackEmoji";
 import {
 	TABLE_LIST,
 	TaskRow,
@@ -252,7 +252,7 @@ function ReactionChip({
 			onClick={() => setEditing(true)}
 			className={`shrink-0 rounded-[7px] px-2.5 py-1 text-[12px] font-medium transition-colors ${BUTTON.secondary}`}
 		>
-			{emojify(`:${value}:`)} {label}
+			<SlackEmoji name={value} /> {label}
 		</button>
 	);
 }
