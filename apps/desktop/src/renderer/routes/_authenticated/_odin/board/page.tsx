@@ -3184,14 +3184,15 @@ const BoardCardTile = memo(
 							});
 						}}
 						className={cn(
-							// A lit top edge, and a lift with a violet halo under the
-							// pointer - the board's one bit of motion you cause. The
+							// A lit top edge, and a violet halo under the pointer. The
 							// whole hover look (fill, violet edge, halo) is an ::after
-							// that only fades in: background, border and shadow can't
-							// animate on the compositor, so they repainted every frame
-							// and stuttered whenever the board was busy rendering.
-							"group relative isolate cursor-pointer rounded-[10px] border bg-card px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgb(255_255_255/0.04)] transition-[translate] duration-200 ease-out hover:-translate-y-px",
-							"after:pointer-events-none after:absolute after:-inset-px after:-z-10 after:rounded-[inherit] after:border after:border-primary/40 after:bg-secondary after:opacity-0 after:shadow-[inset_0_1px_0_rgb(255_255_255/0.05),0_10px_24px_-12px_color-mix(in_oklab,var(--primary)_55%,transparent)] after:transition-opacity after:duration-200 after:ease-out hover:after:opacity-100",
+							// that switches on at once, as do the card's Star, Done and
+							// Remind buttons: a lift or a fade put each card on its own
+							// layer and back as the pointer crossed it, and that churn
+							// (layerize, repaint, raster) made the hover trail behind
+							// the cursor between cards.
+							"group relative isolate cursor-pointer rounded-[10px] border bg-card px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgb(255_255_255/0.04)]",
+							"after:pointer-events-none after:absolute after:-inset-px after:-z-10 after:rounded-[inherit] after:border after:border-primary/40 after:bg-secondary after:opacity-0 after:shadow-[inset_0_1px_0_rgb(255_255_255/0.05),0_10px_24px_-12px_color-mix(in_oklab,var(--primary)_55%,transparent)] hover:after:opacity-100",
 							// Cards are neutral - the column header already says the
 							// status. Only a failure earns its red edge.
 							card.pane.status === "failed"
@@ -3240,7 +3241,7 @@ const BoardCardTile = memo(
 									actions.toggleStar(card.pane.id);
 								}}
 								className={cn(
-									"shrink-0 rounded-[5px] px-1 text-[12px] text-attention transition-opacity hover:bg-attention/15",
+									"shrink-0 rounded-[5px] px-1 text-[12px] text-attention hover:bg-attention/15",
 									!card.pane.odinStarred && "opacity-0 group-hover:opacity-100",
 								)}
 							>
@@ -3259,14 +3260,14 @@ const BoardCardTile = memo(
 									// so Done is the always-visible green pill there.
 									card.status === "review"
 										? `rounded-[7px] px-2.5 py-1 text-xs font-semibold transition-colors ${BUTTON.done}`
-										: "rounded-[5px] px-1.5 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:bg-success/15 hover:text-success group-hover:opacity-100",
+										: "rounded-[5px] px-1.5 text-[11px] text-muted-foreground opacity-0 hover:bg-success/15 hover:text-success group-hover:opacity-100",
 								)}
 							>
 								✓ Done
 							</button>
 							<RemindButton
 								onPick={(day) => actions.remindMe(card, day)}
-								className="rounded-[5px] px-1.5 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:bg-attention/15 hover:text-attention group-hover:opacity-100"
+								className="rounded-[5px] px-1.5 text-[11px] text-muted-foreground opacity-0 hover:bg-attention/15 hover:text-attention group-hover:opacity-100"
 							/>
 						</div>
 						<WatchReply paneId={card.pane.id} />
