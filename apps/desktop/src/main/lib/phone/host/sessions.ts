@@ -205,14 +205,15 @@ export function snapshotSentAt(): number {
  * Done on the laptop takes the card off its board and leaves the tmux
  * session, so one with no card on the board the laptop sent is listed only
  * when it started after that board: the runner's, or one the laptop started
- * since. A host the laptop never sent a board lists them all.
+ * since. A host the laptop never sent a board lists them all. The board's
+ * cards with a conversation here but no tmux any more come after, stopped.
  */
 export async function hostSessions(): Promise<HostSession[]> {
 	const live = await liveSessions();
 	const files = readPaneFiles();
 	const cards = readSnapshot().sessions;
 	const sentAt = snapshotSentAt();
-	return live.flatMap((session) => {
+	const rows: HostSession[] = live.flatMap((session) => {
 		const card =
 			cards?.find((c) => c.sessionId === session.sessionId) ??
 			cards?.find((c) => c.paneId === files.get(session.name)) ??
@@ -227,6 +228,39 @@ export async function hostSessions(): Promise<HostSession[]> {
 			card,
 		};
 	});
+	// A card whose tmux is gone (the host restarted, or Claude ended) still
+	// sits on the laptop's board: listed from its conversation here, stopped,
+	// so the phone shows what the laptop shows. A reply says to resume it there.
+	const listed = new Set(rows.map((row) => row.sessionId));
+	const here = transcriptIds();
+	for (const card of cards ?? [])
+		if (!listed.has(card.sessionId) && here.has(card.sessionId))
+			rows.push({
+				paneId: card.paneId,
+				sessionId: card.sessionId,
+				tmux: `odin-${card.sessionId}`,
+				claude: false,
+				card,
+			});
+	return rows;
+}
+
+/** The session ids with a conversation on this host. */
+function transcriptIds(): Set<string> {
+	const ids = new Set<string>();
+	let dirs: string[] = [];
+	try {
+		dirs = readdirSync(hostPaths.projects);
+	} catch {
+		return ids;
+	}
+	for (const dir of dirs) {
+		try {
+			for (const name of readdirSync(join(hostPaths.projects, dir)))
+				if (name.endsWith(".jsonl")) ids.add(name.slice(0, -6));
+		} catch {}
+	}
+	return ids;
 }
 
 /** The host session the phone names by its laptop card's id (or its session id). */

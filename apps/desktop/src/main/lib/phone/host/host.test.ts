@@ -417,6 +417,38 @@ test("a session the Mac's board no longer has is left out, unless it started aft
 	}
 });
 
+test("a card whose tmux is gone is listed stopped when its conversation is here", async () => {
+	const before = listed;
+	const board = join(hostPaths.dir, "board.json");
+	const GONE = "cccccccc-2222-3333-4444-555555555555";
+	const ELSEWHERE = "dddddddd-2222-3333-4444-555555555555";
+	listed = `odin-${SESSION}\t101\t1000\n`;
+	writeFileSync(join(project, `${GONE}.jsonl`), "");
+	writeFileSync(
+		board,
+		JSON.stringify({
+			sessions: [
+				{ paneId: "pane-abc", sessionId: SESSION },
+				{ paneId: "pane-gone", sessionId: GONE, column: "permission" },
+				// On another cluster host: that host's server lists it.
+				{ paneId: "pane-far", sessionId: ELSEWHERE },
+			],
+		}),
+	);
+	try {
+		const rows = await hostSessions();
+		expect(rows.map((s) => [s.paneId, s.claude])).toEqual([
+			["pane-abc", true],
+			["pane-gone", false],
+		]);
+		expect(hostStatus("", false, rows[1]?.card?.column)).toBe("permission");
+	} finally {
+		listed = before;
+		rmSync(board);
+		rmSync(join(project, `${GONE}.jsonl`));
+	}
+});
+
 test("the last star line for a session stands; a broken line is skipped", () => {
 	const stars = parseStars(
 		'{"paneId":"a","starred":true,"at":1}\nnot json\n{"paneId":"a","starred":false,"at":2}\n{"paneId":"b","starred":true,"at":3}\n',
