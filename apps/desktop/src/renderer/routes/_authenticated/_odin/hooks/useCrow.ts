@@ -51,6 +51,7 @@ import { useReminders } from "../components/Reminders";
 import { unreadPing, useReplyWatch } from "../components/ReplyWatch";
 import { phoneNights } from "../night-agent/night-log";
 import { addSchedule } from "./crow-schedule";
+import { readSettings, writeSetting } from "./crow-settings";
 import { readState, runAction, writeState } from "./crow-state";
 import { endSession, useDone } from "./useDone";
 import { useOdinProfile } from "./useOdinProfile";
@@ -537,6 +538,7 @@ export function useCrow() {
 		launch,
 		ensureWorkspace,
 		router,
+		utils,
 	};
 	const latest = useRef(deps);
 	latest.current = deps;
@@ -683,6 +685,8 @@ type CrowDeps = {
 	launch: ReturnType<typeof useLaunchTaskSession>["launch"];
 	ensureWorkspace: ReturnType<typeof useOdinWorkspace>["ensureWorkspace"];
 	router: ReturnType<typeof useRouter>;
+	/** Main's calls, and the window's caches of them, for action=setting. */
+	utils: ReturnType<typeof electronTrpc.useUtils>;
 };
 
 /**
@@ -906,23 +910,38 @@ function runOdinAction(
 		const max = args.max ? Number(args.max) : undefined;
 		if (max !== undefined && !(Number.isInteger(max) && max > 0))
 			return "max must be a whole number above 0.";
-		if (args.on === "true" || args.on === "false")
-			setOffHours({
-				enabled: args.on === "true",
-				...(args.start && { start: args.start }),
-				...(args.end && { end: args.end }),
-				...(max && { maxSessions: max }),
-			});
-		const { offHours: now, nightLog } = useNextInLinePrompt.getState();
-		const status = now.enabled
-			? `Night Agent is on: ${now.start} to ${now.end}, at most ${now.maxSessions} sessions, one at a time from the top of Next in line.`
-			: "Night Agent is off.";
-		const log = nightLog
-			.slice(-60)
-			.map((entry) => `${new Date(entry.at).toLocaleString()}  ${entry.event}`);
-		return log.length
-			? `${status}\n\nWhat it did, newest last:\n${log.join("\n")}`
-			: `${status}\n\nNo night has run yet.`;
+		const report = (refused?: string) => {
+			if (args.on === "true" || args.on === "false")
+				setOffHours({
+					...(args.on === "false" && { enabled: false }),
+					...(args.start && { start: args.start }),
+					...(args.end && { end: args.end }),
+					...(max && { maxSessions: max }),
+				});
+			const { offHours: now, nightLog } = useNextInLinePrompt.getState();
+			const status = now.enabled
+				? `Night Agent is on: ${now.start} to ${now.end}, at most ${now.maxSessions} sessions, one at a time from the top of Next in line.`
+				: "Night Agent is off.";
+			const log = nightLog
+				.slice(-60)
+				.map(
+					(entry) => `${new Date(entry.at).toLocaleString()}  ${entry.event}`,
+				);
+			return `${refused ? `${refused}\n\n` : ""}${
+				log.length
+					? `${status}\n\nWhat it did, newest last:\n${log.join("\n")}`
+					: `${status}\n\nNo night has run yet.`
+			}`;
+		};
+		// Turning it on asks in the window first, the same as action=setting.
+		if (args.on === "true" && !useNextInLinePrompt.getState().offHours.enabled)
+			return writeSetting(deps.utils, {
+				name: "Work the backlog overnight",
+				value: "on",
+			}).then((reply) =>
+				report(reply.startsWith("Changed") ? undefined : reply),
+			);
+		return report();
 	}
 	if (action === "night-page") {
 		// The phone's Night Agent page: the schedule, tonight's count, the nights.
@@ -947,6 +966,8 @@ function runOdinAction(
 	if (action === "state") return readState(args);
 	if (action === "set") return writeState(args);
 	if (action === "run") return runAction(args);
+	if (action === "settings") return readSettings(deps.utils, args);
+	if (action === "setting") return writeSetting(deps.utils, args);
 	if (action === "open") {
 		const screens = Object.keys(deps.router.routesByPath).filter(
 			(path) => !path.includes("$"),
@@ -1063,5 +1084,5 @@ function runOdinAction(
 		endSessionAndRow(pane, deps);
 		return `Reminding you ${args.day} - ${title}.`;
 	}
-	return `Unknown action "${action}" - use guide, tasks, start, add, star, sessions, night, done, remind, resume, state, set, open, api or call.`;
+	return `Unknown action "${action}" - use guide, tasks, start, add, star, sessions, night, done, remind, resume, settings, setting, state, set, open, api or call.`;
 }
