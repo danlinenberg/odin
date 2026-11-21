@@ -338,6 +338,284 @@ function ShippedChart({
 	);
 }
 
+/** One hue per kind of deliverable, in the order you listed them. */
+const KIND_COLORS = [
+	"#6b8fb8",
+	"#d9773f",
+	"#8b7cf6",
+	"#4fa38a",
+	"#c0679b",
+	"#b5a33f",
+	"#5aa0c8",
+	"#9a7b5c",
+];
+
+type Kind = { id: string; name: string; description: string };
+type Delivered = {
+	kinds: Kind[];
+	weeks: { start: number; counts: Record<string, number> }[];
+	judging: number;
+};
+
+/** The weeks the Delivered chart draws: the last eight. */
+const DELIVERED_WEEKS = 8;
+
+/**
+ * Shipped per week for work that isn't pull requests: the kinds of
+ * deliverable you name, counted from the finished sessions that delivered
+ * one, stacked per week. Edit opens the list; Suggest reads your recent
+ * sessions for kinds to add.
+ */
+function DeliveredSection({ delivered }: { delivered: Delivered | undefined }) {
+	const [editing, setEditing] = useState(false);
+	const kinds = delivered?.kinds ?? [];
+	return (
+		<Section
+			title="Delivered per week"
+			note={
+				kinds.length
+					? `finished sessions that delivered one of your kinds, by the week they ended${delivered?.judging ? ` - reading ${plural(delivered.judging, "session")}` : ""}`
+					: "for work that isn't pull requests"
+			}
+			aside={
+				kinds.length > 0 && !editing ? (
+					<button
+						type="button"
+						onClick={() => setEditing(true)}
+						className="text-[11px] text-muted-foreground hover:text-foreground"
+					>
+						Edit kinds
+					</button>
+				) : undefined
+			}
+		>
+			{editing ? (
+				<KindsEditor kinds={kinds} onDone={() => setEditing(false)} />
+			) : kinds.length === 0 ? (
+				<Card>
+					<div className="flex items-center gap-3">
+						<div className="flex-1 text-[12px] text-faint-foreground">
+							Not every job ships pull requests. Name what you deliver - an
+							email set live, an asset placed in the app, a site change handed
+							off - and Odin counts the sessions that delivered it each week.
+						</div>
+						<button
+							type="button"
+							onClick={() => setEditing(true)}
+							className="shrink-0 rounded-[6px] border border-border px-2 py-1 text-[11px] text-soft-foreground hover:border-primary"
+						>
+							Name your deliverables
+						</button>
+					</div>
+				</Card>
+			) : (
+				<DeliveredChart delivered={delivered as Delivered} />
+			)}
+		</Section>
+	);
+}
+
+function DeliveredChart({ delivered }: { delivered: Delivered }) {
+	const weeks = delivered.weeks.slice(-DELIVERED_WEEKS);
+	const totals = weeks.map((week) =>
+		Object.values(week.counts).reduce((sum, n) => sum + n, 0),
+	);
+	const max = Math.max(1, ...totals);
+	const color = (index: number) =>
+		KIND_COLORS[index % KIND_COLORS.length] as string;
+	return (
+		<Card>
+			<div className="flex items-end gap-3">
+				{weeks.map((week, w) => (
+					<div
+						key={week.start}
+						className="flex min-w-0 flex-1 flex-col items-center gap-2"
+						title={`Week of ${DATE.format(week.start)}: ${
+							delivered.kinds
+								.map((kind) => `${week.counts[kind.id] ?? 0} ${kind.name}`)
+								.join(", ") || "nothing"
+						}`}
+					>
+						<div className="flex h-[132px] w-full flex-col items-center justify-end">
+							<div className="mb-1 text-[11px] font-medium tabular-nums text-soft-foreground">
+								{totals[w]}
+							</div>
+							<div className="flex w-full max-w-[26px] flex-col-reverse overflow-hidden rounded-t-[3px]">
+								{totals[w] === 0 ? (
+									<div className="h-[2px] bg-border" />
+								) : (
+									delivered.kinds.map((kind, k) => {
+										const n = week.counts[kind.id] ?? 0;
+										return n > 0 ? (
+											<div
+												key={kind.id}
+												style={{
+													height: `${Math.max(3, (n / max) * 110)}px`,
+													background: color(k),
+												}}
+											/>
+										) : null;
+									})
+								)}
+							</div>
+						</div>
+						<div className="truncate text-[10.5px] text-faint-foreground">
+							{DATE.format(week.start)}
+						</div>
+					</div>
+				))}
+			</div>
+			<div className="mt-3 flex flex-wrap gap-3">
+				{delivered.kinds.map((kind, k) => (
+					<span key={kind.id} title={kind.description}>
+						<Legend color={color(k)} label={kind.name} />
+					</span>
+				))}
+			</div>
+		</Card>
+	);
+}
+
+/**
+ * Your kinds of deliverable: a name and what finished looks like. Suggest
+ * reads your recent sessions and offers kinds to add with one click.
+ */
+function KindsEditor({ kinds, onDone }: { kinds: Kind[]; onDone: () => void }) {
+	const utils = electronTrpc.useUtils();
+	const [rows, setRows] = useState<
+		{ id?: string; name: string; description: string }[]
+	>(kinds.length ? kinds : [{ name: "", description: "" }]);
+	const save = electronTrpc.insights.setDeliverableKinds.useMutation({
+		onSuccess: () => {
+			void utils.insights.workload.invalidate();
+			onDone();
+		},
+	});
+	const suggest = electronTrpc.insights.suggestDeliverableKinds.useMutation();
+	const offered = (suggest.data ?? []).filter(
+		(idea) =>
+			!rows.some((row) => row.name.toLowerCase() === idea.name.toLowerCase()),
+	);
+	const update = (index: number, patch: Partial<Kind>) =>
+		setRows(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+	const field =
+		"h-[26px] rounded-[6px] border border-border bg-background px-2 text-[12px] text-soft-foreground placeholder:text-faint-foreground focus:border-primary focus:outline-none";
+	return (
+		<Card>
+			<div className="flex flex-col gap-3">
+				<div className="text-[12px] text-muted-foreground">
+					Not every job ships pull requests. Name what you deliver - an email
+					set live in your email tool, an asset placed in the app, a site change
+					handed off - and say what finished looks like. Each week Odin reads
+					your finished sessions' briefs and counts the ones that delivered it.
+				</div>
+				{rows.map((row, index) => (
+					<div
+						// biome-ignore lint/suspicious/noArrayIndexKey: rows have no id until saved
+						key={index}
+						className="flex items-center gap-2"
+					>
+						<input
+							aria-label="Deliverable name"
+							placeholder="Name, e.g. Emails sent live"
+							value={row.name}
+							onChange={(event) => update(index, { name: event.target.value })}
+							className={`${field} w-[200px] shrink-0`}
+						/>
+						<input
+							aria-label="What counts as finished"
+							placeholder="What counts as finished, e.g. a campaign set live in the email tool"
+							value={row.description}
+							onChange={(event) =>
+								update(index, { description: event.target.value })
+							}
+							className={`${field} min-w-0 flex-1`}
+						/>
+						<button
+							type="button"
+							aria-label={`Remove ${row.name || "this kind"}`}
+							onClick={() => setRows(rows.filter((_, i) => i !== index))}
+							className="text-[12px] text-faint-foreground hover:text-foreground"
+						>
+							✕
+						</button>
+					</div>
+				))}
+				{offered.length > 0 && (
+					<div className="flex flex-wrap items-center gap-2">
+						<span className="text-[11px] text-faint-foreground">
+							From your sessions:
+						</span>
+						{offered.map((idea) => (
+							<button
+								key={idea.name}
+								type="button"
+								title={idea.description}
+								onClick={() =>
+									setRows([
+										...rows.filter((row) => row.name.trim()),
+										{ name: idea.name, description: idea.description },
+									])
+								}
+								className="rounded-full border border-border px-2 py-[2px] text-[11px] text-soft-foreground hover:border-primary"
+							>
+								+ {idea.name}
+							</button>
+						))}
+					</div>
+				)}
+				{suggest.isSuccess && suggest.data.length === 0 && (
+					<div className="text-[11px] text-faint-foreground">
+						No suggestions yet - there aren't enough finished sessions to read.
+					</div>
+				)}
+				{suggest.error && (
+					<div className="select-text cursor-text text-[11px] text-destructive">
+						{suggest.error.message}
+					</div>
+				)}
+				<div className="flex items-center gap-2">
+					<button
+						type="button"
+						disabled={rows.length >= 8}
+						onClick={() => setRows([...rows, { name: "", description: "" }])}
+						className="rounded-[6px] border border-border px-2 py-1 text-[11px] text-soft-foreground hover:border-primary disabled:opacity-40"
+					>
+						Add a kind
+					</button>
+					<button
+						type="button"
+						disabled={suggest.isPending}
+						onClick={() => suggest.mutate()}
+						className="flex items-center gap-1.5 rounded-[6px] border border-border px-2 py-1 text-[11px] text-soft-foreground hover:border-primary disabled:opacity-60"
+					>
+						{suggest.isPending && <Spinner />}
+						Suggest from my sessions
+					</button>
+					<span className="flex-1" />
+					{kinds.length > 0 && (
+						<button
+							type="button"
+							onClick={onDone}
+							className="px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+						>
+							Cancel
+						</button>
+					)}
+					<button
+						type="button"
+						disabled={save.isPending}
+						onClick={() => save.mutate(rows.filter((row) => row.name.trim()))}
+						className="rounded-[6px] bg-primary px-3 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-60"
+					>
+						Save
+					</button>
+				</div>
+			</div>
+		</Card>
+	);
+}
+
 /**
  * Sessions running side by side, per week: the column is the average while
  * any ran, the hover adds the most at one moment.
@@ -979,7 +1257,10 @@ function Workload() {
 		electronTrpc.insights.workload.useQuery(
 			{ only: repo, hide: [...excluded] },
 			{
-				refetchInterval: 120_000,
+				// While Delivered per week is still reading sessions, check back
+				// soon so its counts fill in; otherwise every two minutes.
+				refetchInterval: (query) =>
+					query.state.data?.delivered?.judging ? 10_000 : 120_000,
 				staleTime: 60_000,
 				// Switching repos keeps the old numbers up until the new ones land.
 				placeholderData: (previous) => previous,
@@ -1059,6 +1340,9 @@ function Workload() {
 						<ShippedChart weeks={data.weeks} since={data.since} />
 					</Section>
 				)}
+
+				{/* `delivered` is absent until the main process restarts onto this build. */}
+				{"delivered" in data && <DeliveredSection delivered={data.delivered} />}
 
 				{/* `parallel` is absent until the main process restarts onto this build. */}
 				{data.weeks[0]?.parallel !== undefined && (

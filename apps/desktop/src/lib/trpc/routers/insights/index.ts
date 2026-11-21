@@ -3,6 +3,13 @@ import { eq } from "drizzle-orm";
 import { BrowserWindow, powerMonitor } from "electron";
 import { appState } from "main/lib/app-state";
 import { cardTitles, rememberCardTitles } from "main/lib/card-titles";
+import {
+	deliveredPerWeek,
+	readKinds,
+	type SessionForVerdict,
+	suggestKinds,
+	writeKinds,
+} from "main/lib/deliverables";
 import { localDb } from "main/lib/local-db";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
@@ -10,6 +17,15 @@ import { activeProfileId } from "../odin-config";
 import { mergedPullRequests } from "../terminal/pr-state";
 import { sessionPeople, sessionProfileOf } from "../terminal/session-people";
 import { computeInsights } from "./insights";
+
+/** The sessions Insights last read, for Suggest to draw kinds from. */
+let lastSessions: SessionForVerdict[] = [];
+
+const kindInput = z.object({
+	id: z.string().optional(),
+	name: z.string(),
+	description: z.string(),
+});
 
 export const createInsightsRouter = () => {
 	return router({
@@ -70,6 +86,18 @@ export const createInsightsRouter = () => {
 		 * focus and you touched the machine in the last two minutes - an open
 		 * pane you walked away from isn't your time.
 		 */
+		/** Your kinds of deliverable (Insights → Delivered per week). */
+		deliverableKinds: publicProcedure.query(() => readKinds()),
+
+		setDeliverableKinds: publicProcedure
+			.input(z.array(kindInput).max(8))
+			.mutation(({ input }) => writeKinds(input)),
+
+		/** Kinds read off your recent sessions - one small model call. */
+		suggestDeliverableKinds: publicProcedure.mutation(() =>
+			suggestKinds(lastSessions),
+		),
+
 		attend: publicProcedure
 			.input(z.object({ sessionId: z.string().min(1) }))
 			.mutation(async ({ input }) => {
@@ -140,7 +168,25 @@ export const createInsightsRouter = () => {
 							.join("\n\n");
 						if (said) task.description = said;
 					}
-				return workload;
+				// Your own kinds of deliverable, judged from those same titles
+				// and briefs - see main/lib/deliverables.
+				const finished = workload.recap.flatMap((week) =>
+					week.tasks.map((task) => ({
+						sessionId: task.sessionId,
+						title: task.title,
+						description: task.description,
+						endedAt: task.endedAt,
+					})),
+				);
+				lastSessions = finished;
+				const delivered = await deliveredPerWeek(
+					workload.weeks.map((week) => week.start),
+					finished,
+				).catch((error) => {
+					console.warn("[insights] deliverables:", error);
+					return { kinds: [], weeks: [], judging: 0 };
+				});
+				return { ...workload, delivered };
 			}),
 	});
 };
