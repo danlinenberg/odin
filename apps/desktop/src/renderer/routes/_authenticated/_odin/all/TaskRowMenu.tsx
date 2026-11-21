@@ -20,8 +20,8 @@ import { useReminders } from "../components/Reminders";
 import { seriesOf, useMeetingActionItems } from "../hooks/meeting-action-items";
 import type { AllItem } from "./all-items";
 import { DropRuleMenu, WAITS } from "./DropRuleMenu";
-import type { TaskRows } from "./TaskTable";
 import { useManualMerges } from "./manual-merges";
+import type { TaskRows } from "./TaskTable";
 import { dayAfter, type QueuePlace, useTaskMeta } from "./task-meta";
 
 /**

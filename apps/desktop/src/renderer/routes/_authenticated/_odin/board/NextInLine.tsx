@@ -43,8 +43,8 @@ import type { AllItem } from "../all/all-items";
 import { allItems } from "../all/all-items";
 import { applyManualMerges, useManualMerges } from "../all/manual-merges";
 import { nextSelection, visibleSelection } from "../all/selection";
-import { useTaskMeta } from "../all/task-meta";
 import { cleanTitle, TaskDetails } from "../all/TaskDetails";
+import { useTaskMeta } from "../all/task-meta";
 import { useStartAllItem } from "../all/use-start-item";
 import {
 	DROP_LABEL,
