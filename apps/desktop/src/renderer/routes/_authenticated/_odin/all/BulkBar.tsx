@@ -12,6 +12,7 @@ import { guardTasksDone } from "../hooks/done-guard";
 import { useDone } from "../hooks/useDone";
 import type { AllItem } from "./all-items";
 import { useMetaOptions } from "./MetaOptionSelect";
+import { mergeTicked } from "./manual-merges";
 import { nextSelection, visibleSelection } from "./selection";
 import type { BulkActions } from "./TaskRowMenu";
 import type { TaskRows } from "./TaskTable";
@@ -23,7 +24,12 @@ import { dayAfter, type TaskStatus, useTaskMeta, WAIT_DAYS } from "./task-meta";
  * actions. Only rows still on screen count: a filter or a Done that hides a
  * ticked row takes it out of the next action.
  */
-export function useBulkTicks(items: readonly AllItem[], rows: TaskRows) {
+export function useBulkTicks(
+	items: readonly AllItem[],
+	rows: TaskRows,
+	/** `merge`: offer Merge with two or more ticked (All, where merged rows show). */
+	options: { merge?: boolean } = {},
+) {
 	const [selected, setSelected] = useState<Set<string>>(() => new Set());
 	const [anchor, setAnchor] = useState<string | null>(null);
 	const { set: setDone } = useDone();
@@ -90,6 +96,17 @@ export function useBulkTicks(items: readonly AllItem[], rows: TaskRows) {
 			day ? setDue(item.key, day, item.title) : clearDue(item.key);
 		clear();
 	};
+	// Two or more into one row that keeps every source's link and your notes
+	// on each. Undo on the toast, or Split on the row, takes it apart.
+	const merge = () => {
+		const undo = mergeTicked(pickedRows());
+		if (!undo) return;
+		toast.success(`Merged ${picked.length} tasks into one`, {
+			action: { label: "Undo", onClick: undo },
+		});
+		clear();
+	};
+	const canMerge = options.merge === true && picked.length > 1;
 	const bulk: BulkActions = {
 		count: picked.length,
 		upNext,
@@ -98,6 +115,7 @@ export function useBulkTicks(items: readonly AllItem[], rows: TaskRows) {
 		start,
 		done,
 		drop,
+		merge: canMerge ? merge : undefined,
 		clear,
 	};
 
@@ -180,6 +198,16 @@ export function useBulkTicks(items: readonly AllItem[], rows: TaskRows) {
 				>
 					Start {picked.length}
 				</button>
+				{canMerge && (
+					<button
+						type="button"
+						onClick={merge}
+						title="Merge the selected tasks into one row - every source's link and your notes stay, Undo or Split brings them back"
+						className={ROW_LINK_BUTTON}
+					>
+						Merge
+					</button>
+				)}
 				<DoneButton onClick={done} />
 				<button type="button" onClick={clear} className={ROW_LINK_BUTTON}>
 					Clear

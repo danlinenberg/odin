@@ -6,7 +6,7 @@ import type { AllItem } from "./all-items";
  * first - a ticket over the Notion page that copied it over the Slack message
  * that asked about it.
  */
-const OWNER: AllItem["source"][] = [
+export const OWNER: AllItem["source"][] = [
 	"Jira",
 	"GitHub",
 	"ClickUp",
