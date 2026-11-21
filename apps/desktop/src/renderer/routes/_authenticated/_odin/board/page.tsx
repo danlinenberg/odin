@@ -6214,6 +6214,7 @@ function DevBoardPage() {
 		}
 		const name = host.name || host.instanceId;
 		const loading = toast.loading(`Moving the session to ${name}...`);
+		let sent = false;
 		try {
 			if (
 				(await utils.client.remoteHost.hostUp
@@ -6221,17 +6222,23 @@ function DevBoardPage() {
 					.catch(() => null)) === false
 			)
 				throw new Error(`${name} is not available`);
-			const { note } = await utils.client.remoteHost.sendToHost.mutate({
-				sessionId,
-				cwd,
-			});
+			const { note, warning } = await utils.client.remoteHost.sendToHost.mutate(
+				{ sessionId, cwd },
+			);
+			sent = true;
 			const pane = { ...card.pane, odinRemote: name };
 			useTabsStore.setState((state) => ({
 				panes: { ...state.panes, [card.pane.id]: pane },
 			}));
 			toast.dismiss(loading);
 			await resumeCard({ ...card, pane }, false, note, true);
+			if (warning) toast.warning(warning);
 		} catch (error) {
+			// The copy of a shared checkout's work stays on origin only for the host to take.
+			if (sent)
+				void utils.client.remoteHost.dropSent
+					.mutate({ sessionId, cwd })
+					.catch(() => {});
 			toast.dismiss(loading);
 			toast.error(error instanceof Error ? error.message : String(error));
 		}
@@ -6255,16 +6262,17 @@ function DevBoardPage() {
 		const loading = toast.loading(`Moving the session to ${to}...`);
 		startMove(card.pane.id);
 		let held: HeldMessage[] = [];
+		let sentFrom: string | null = null;
 		try {
 			const { cwd } = await utils.client.remoteHost.bringHome.mutate({
 				sessionId,
 				cwd: wanted,
 				host: card.pane.odinRemote,
 			});
-			const { note } = await utils.client.remoteHost.sendToHost.mutate({
-				sessionId,
-				cwd,
-			});
+			const { note, warning } = await utils.client.remoteHost.sendToHost.mutate(
+				{ sessionId, cwd },
+			);
+			sentFrom = cwd;
 			const pane = {
 				...card.pane,
 				odinRemote: to,
@@ -6280,7 +6288,12 @@ function DevBoardPage() {
 			await resumeCard({ ...card, pane }, false, withHeld(note, held), true);
 			for (const message of held) message.sent();
 			toast.success(`Moved to ${to}`);
+			if (warning) toast.warning(warning);
 		} catch (error) {
+			if (sentFrom)
+				void utils.client.remoteHost.dropSent
+					.mutate({ sessionId, cwd: sentFrom })
+					.catch(() => {});
 			for (const message of [...held, ...endMove(card.pane.id)]) message.lost();
 			toast.dismiss(loading);
 			toast.error(error instanceof Error ? error.message : String(error));

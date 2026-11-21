@@ -139,7 +139,12 @@ import {
 	readNightStarted,
 	SECRETS_DIR_PLACEHOLDER,
 } from "main/lib/remote-host/night";
-import { pushWork, sentNote } from "main/lib/remote-host/send-to-host";
+import {
+	dropSnapshot,
+	pushWork,
+	SHARED_COPY_WARNING,
+	sentNote,
+} from "main/lib/remote-host/send-to-host";
 import {
 	type ClaudeLogin,
 	HOST_NOTIFY_HOOK,
@@ -1480,6 +1485,8 @@ export const createRemoteHostRouter = () =>
 					(await originOf(mainCheckoutOf(input.cwd)));
 				const repoName = origin ? repoNameOf(origin) : null;
 				return {
+					/** Shown to the person: the copy carries the shared checkout's other edits too. */
+					warning: work.snapshot ? SHARED_COPY_WARNING : null,
 					note:
 						sentNote(work, input.cwd, sessionBranch(input.sessionId)) +
 						hostNote({
@@ -1492,6 +1499,15 @@ export const createRemoteHostRouter = () =>
 						}),
 				};
 			}),
+
+		/** A move to the host failed after sendToHost: its copy leaves origin. */
+		dropSent: publicProcedure
+			.input(z.object({ sessionId: z.string().min(1), cwd: z.string() }))
+			.mutation(({ input }) =>
+				existsSync(input.cwd)
+					? dropSnapshot(input.cwd, input.sessionId)
+					: undefined,
+			),
 
 		/**
 		 * A remote session, moved to this computer with its code: the host

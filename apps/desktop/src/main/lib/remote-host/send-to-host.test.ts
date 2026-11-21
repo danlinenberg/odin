@@ -4,10 +4,11 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+	dropSnapshot,
 	pushWork,
 	SENT_WIP_MESSAGE,
 	sentNote,
-	snapshotBranch,
+	snapshotRef,
 } from "./send-to-host";
 
 const sh = (cwd: string, cmd: string) =>
@@ -70,7 +71,7 @@ test("a shared checkout on main sends a copy of its uncommitted work and local c
 		branch: null,
 		committed: true,
 		left: false,
-		snapshot: snapshotBranch(SESSION),
+		snapshot: snapshotRef(SESSION),
 	});
 	// The checkout here is untouched: same HEAD, same changes, nothing staged.
 	expect(sh(repo, "git log -1 --format=%s")).toBe("local");
@@ -95,13 +96,24 @@ test("a shared checkout on main sends a copy of its uncommitted work and local c
 			.sort(),
 	).toEqual(["?? .gitignore", "?? notes.md", "M a.txt"]);
 	expect(sh(host, "ls")).not.toContain("secret.env");
+	// The host deleted the copy from origin, and it was never a branch.
+	expect(sh(root, `git -C ${origin} for-each-ref refs/odin`)).toBe("");
+	expect(
+		sh(root, `git -C ${origin} branch --list '--format=%(refname:short)'`),
+	).toBe("main");
+	// The note says plainly that other sessions' edits came along.
+	expect(note).toContain("theirs included");
 
-	// Moving again replaces the copy.
+	// Moving again replaces the copy; a failed move deletes it.
 	writeFileSync(join(repo, "a.txt"), "edited again\n");
 	await pushWork(repo, SESSION);
-	expect(
-		sh(root, `git -C ${origin} show ${snapshotBranch(SESSION)}:a.txt`),
-	).toBe("edited again");
+	expect(sh(root, `git -C ${origin} show ${snapshotRef(SESSION)}:a.txt`)).toBe(
+		"edited again",
+	);
+	await dropSnapshot(repo, SESSION);
+	expect(sh(root, `git -C ${origin} for-each-ref refs/odin`)).toBe("");
+	// Nothing left to delete is no error.
+	await dropSnapshot(repo, SESSION);
 });
 
 test("a shared checkout on its own branch pushes it, and copies the uncommitted part", async () => {
@@ -113,13 +125,13 @@ test("a shared checkout on its own branch pushes it, and copies the uncommitted 
 		branch: "shared",
 		committed: true,
 		left: false,
-		snapshot: snapshotBranch(SESSION),
+		snapshot: snapshotRef(SESSION),
 	});
 	expect(sh(repo, "git status --porcelain -- a.txt")).toBe("M a.txt");
 	expect(sh(root, `git -C ${origin} log -1 --format=%s shared`)).toBe("base");
 	const note = sentNote(work, repo, "odin/abcdef12");
 	expect(note).toContain(
-		`git checkout -B shared origin/${snapshotBranch(SESSION)}`,
+		`git fetch origin ${snapshotRef(SESSION)} && git checkout -B shared FETCH_HEAD`,
 	);
 });
 

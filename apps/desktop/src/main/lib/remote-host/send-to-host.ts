@@ -8,9 +8,14 @@ const run = promisify(execFile);
 
 export const SENT_WIP_MESSAGE = "Odin: uncommitted work moved to the host";
 
-/** The branch a shared checkout's uncommitted work goes to origin on. */
-export const snapshotBranch = (sessionId: string) =>
-	`odin/moved-${sessionId.slice(0, 8)}`;
+/**
+ * Where a shared checkout's uncommitted work goes on origin. Not a branch
+ * (refs/heads): a push there starts no CI and lists no branch, and the host
+ * deletes it once it has the work (sentNote), or this computer does when the
+ * move fails (dropSnapshot). A later move of the same session overwrites it.
+ */
+export const snapshotRef = (sessionId: string) =>
+	`refs/odin/moved/${sessionId.slice(0, 8)}`;
 
 /** What a session on this computer took to origin before moving to the host. */
 export interface SentWork {
@@ -23,7 +28,9 @@ export interface SentWork {
 	/**
 	 * A shared checkout's work, copied rather than moved: one commit on top of
 	 * its HEAD (so with its commits no remote has) holding what wasn't
-	 * committed, pushed as this branch. The checkout here stays as it was.
+	 * committed, pushed as this ref (snapshotRef). The checkout here stays as
+	 * it was. It holds every uncommitted change in that checkout, other
+	 * sessions' edits there included.
 	 */
 	snapshot: string | null;
 }
@@ -35,7 +42,7 @@ export interface SentWork {
  * other sessions' files and change the branch they all start from): its
  * branch is pushed when it has one of its own, and what isn't committed - or,
  * on the default branch, commits no remote has - is copied as a commit on
- * top of HEAD, built in a throwaway index, and pushed as `snapshotBranch`.
+ * top of HEAD, built in a throwaway index, and pushed as `snapshotRef`.
  */
 export async function pushWork(
 	cwd: string,
@@ -106,8 +113,8 @@ export async function pushWork(
 			],
 			env,
 		);
-		const snapshot = snapshotBranch(sessionId);
-		await git(["push", "-q", "origin", `+${commit}:refs/heads/${snapshot}`]);
+		const snapshot = snapshotRef(sessionId);
+		await git(["push", "-q", "origin", `+${commit}:${snapshot}`]);
 		return {
 			branch: named ? branch : null,
 			committed: dirty,
@@ -118,6 +125,25 @@ export async function pushWork(
 		await rm(index, { force: true });
 	}
 }
+
+/** Deletes the session's copy from origin: the move failed. Never throws. */
+export async function dropSnapshot(
+	cwd: string,
+	sessionId: string,
+): Promise<void> {
+	await run("git", [
+		"-C",
+		cwd,
+		"push",
+		"-q",
+		"origin",
+		`:${snapshotRef(sessionId)}`,
+	]).catch(() => {});
+}
+
+/** What the person moving it is told: the copy may carry other sessions' edits. */
+export const SHARED_COPY_WARNING =
+	"Your checkout is shared, so the host got a copy of every uncommitted change in it, including other sessions' edits. Your checkout here is unchanged.";
 
 /**
  * What the Claude resumed on the host is told first, before its host note.
@@ -137,7 +163,7 @@ export function sentNote(
 		const what = work.committed
 			? "what was uncommitted there (and any commits no remote had)"
 			: "its commits no remote had";
-		return `${here} ${from} on my computer is a shared checkout, so Odin copied ${what} into one commit, "${SENT_WIP_MESSAGE}", on branch ${work.snapshot}, pushed to origin. First run git fetch origin ${work.snapshot} && git checkout -B ${onto} origin/${work.snapshot} && git reset -q HEAD~1 in the folder you start in: that gives you the same files as uncommitted changes, on branch ${onto}. Keep using that branch${work.branch ? " (and its PR, if it has one)" : ""}; never push ${work.snapshot} again.${left}`;
+		return `${here} ${from} on my computer is a shared checkout, so Odin copied ${what} into one commit, "${SENT_WIP_MESSAGE}", pushed to origin as ${work.snapshot}. First run git fetch origin ${work.snapshot} && git checkout -B ${onto} FETCH_HEAD && git reset -q HEAD~1 && git push -q origin :${work.snapshot} in the folder you start in: that gives you the same files as uncommitted changes, on branch ${onto}, and deletes the copy from origin. Keep using that branch${work.branch ? " (and its PR, if it has one)" : ""}. That checkout is shared by other sessions, so the copy holds every uncommitted change in it, theirs included: read git status and git diff, and leave out of your commits any file that isn't part of this work.${left}`;
 	}
 	if (!work.branch) return `${here}${left}`;
 	const wip = work.committed
