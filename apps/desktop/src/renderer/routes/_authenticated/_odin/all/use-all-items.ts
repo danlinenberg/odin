@@ -9,7 +9,9 @@ import {
 	upcomingMeetings,
 	urgencyOf,
 } from "./all-items";
+import { applyManualMerges, useManualMerges } from "./manual-merges";
 import { mergeDuplicates } from "./merge-duplicates";
+import { useTaskMeta } from "./task-meta";
 import { useTitleOverrides } from "./title-overrides";
 
 /** Every feed through allItems, under your own names, plus the Done check. */
@@ -94,9 +96,16 @@ function useItems(everything: boolean) {
  */
 export function useAllItems(): AllItem[] {
 	const { items, isDone } = useItems(false);
+	const groups = useManualMerges((s) => s.groups);
+	const notes = useTaskMeta((s) => s.notes);
 	return useMemo(
-		() => mergeDuplicates(items.filter((item) => !isDone(item))),
-		[items, isDone],
+		() =>
+			applyManualMerges(
+				mergeDuplicates(items.filter((item) => !isDone(item))),
+				groups,
+				notes,
+			),
+		[items, isDone, groups, notes],
 	);
 }
 

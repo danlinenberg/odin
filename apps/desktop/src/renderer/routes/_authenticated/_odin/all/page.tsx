@@ -498,7 +498,7 @@ function AllFeedPage() {
 
 	// Ticked rows, for acting on many at once - the bar over the list and a
 	// ticked row's right-click.
-	const ticks = useBulkTicks(items, rows);
+	const ticks = useBulkTicks(items, rows, { merge: true });
 
 	// From every row, not the filtered ones: narrowing the list shouldn't shut
 	// the panel you're reading. Marking it done does. Search all can open a row

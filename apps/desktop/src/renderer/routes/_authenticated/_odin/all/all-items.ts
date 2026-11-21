@@ -93,6 +93,8 @@ export interface AllItem {
 	launch: AllLaunch;
 	/** The same task in other feeds, folded into this row (merge-duplicates). */
 	also?: AllItem[];
+	/** Rows you merged into this one by hand (manual-merges): Split undoes it. */
+	merged?: boolean;
 	/**
 	 * My own tasks only: the sessions started on it. Holds the link when a
 	 * session's name no longer matches the task's - renamed, retitled from its

@@ -21,6 +21,7 @@ import { seriesOf, useMeetingActionItems } from "../hooks/meeting-action-items";
 import type { AllItem } from "./all-items";
 import { DropRuleMenu, WAITS } from "./DropRuleMenu";
 import type { TaskRows } from "./TaskTable";
+import { useManualMerges } from "./manual-merges";
 import { dayAfter, type QueuePlace, useTaskMeta } from "./task-meta";
 
 /**
@@ -37,6 +38,8 @@ export interface BulkActions {
 	done: () => void;
 	/** Drop every ticked row - Done everywhere, listed under Review's Dropped. */
 	drop: () => void;
+	/** Merge every ticked row into one (only where merged rows show: All). */
+	merge?: () => void;
 	clear: () => void;
 }
 
@@ -272,6 +275,15 @@ function RowItems({
 			>
 				Drop it
 			</ContextMenuItem>
+			{item.merged && (
+				<ContextMenuItem
+					onSelect={() => useManualMerges.getState().split(item.key)}
+					title="Back to one row per task, as before the merge"
+					className={ITEM}
+				>
+					Split merged tasks
+				</ContextMenuItem>
+			)}
 		</>
 	);
 }
@@ -293,6 +305,11 @@ function BulkItems({ bulk }: { bulk: BulkActions }) {
 			<ContextMenuItem onSelect={bulk.drop} className={ITEM}>
 				Drop {n} tasks
 			</ContextMenuItem>
+			{bulk.merge && (
+				<ContextMenuItem onSelect={bulk.merge} className={ITEM}>
+					Merge {n} into one
+				</ContextMenuItem>
+			)}
 			<ContextMenuSeparator />
 			<ContextMenuItem onSelect={() => bulk.upNext("top")} className={ITEM}>
 				Line {n} up - top of Up next

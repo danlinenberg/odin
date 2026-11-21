@@ -41,7 +41,9 @@ import { useTabsStore } from "renderer/stores/tabs/store";
 import { create } from "zustand";
 import type { AllItem } from "../all/all-items";
 import { allItems } from "../all/all-items";
+import { applyManualMerges, useManualMerges } from "../all/manual-merges";
 import { nextSelection, visibleSelection } from "../all/selection";
+import { useTaskMeta } from "../all/task-meta";
 import { cleanTitle, TaskDetails } from "../all/TaskDetails";
 import { useStartAllItem } from "../all/use-start-item";
 import {
@@ -224,16 +226,23 @@ function useNextInLineRows() {
 	// The Review sweep's verdicts go to the model too, so instructions like
 	// "DROPs last" have something to go on.
 	const swept = useReview((review) => review.swept);
+	// Tasks you merged by hand on Tasks are one card here too.
+	const merges = useManualMerges((s) => s.groups);
+	const notes = useTaskMeta((s) => s.notes);
 	const rows = useMemo(
 		() =>
-			allItems({
-				tasks: todos,
-				slack: reactions.data?.rows ?? [],
-				jira: jira.data?.issues ?? [],
-				pulls: pulls.data?.pulls ?? [],
-				notion: notion.data?.rows ?? [],
-			}),
-		[todos, reactions.data, jira.data, pulls.data, notion.data],
+			applyManualMerges(
+				allItems({
+					tasks: todos,
+					slack: reactions.data?.rows ?? [],
+					jira: jira.data?.issues ?? [],
+					pulls: pulls.data?.pulls ?? [],
+					notion: notion.data?.rows ?? [],
+				}),
+				merges,
+				notes,
+			),
+		[todos, reactions.data, jira.data, pulls.data, notion.data, merges, notes],
 	);
 	// Built on click, not per render: in All tasks order (newest activity
 	// first) with real ages, so "same order as All tasks" is something the
