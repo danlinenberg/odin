@@ -682,15 +682,26 @@ export const sentConversation = (sessionId: string) =>
 	`.odin/resume-${sessionId}.jsonl`;
 
 /**
+ * Whether this computer's copy (`size` bytes) goes over, given what the host
+ * said of its own: its size, "" for none, anything else when it couldn't say.
+ */
+export function sendsConversation(there: string, size: number): boolean {
+	if (there === "") return true;
+	const hostSize = Number(there.trim());
+	return /^\d+$/.test(there.trim()) && size > hostSize;
+}
+
+/**
  * Files the conversation the pane sent (sentConversation) under the folder
- * Claude starts in, unless this user already has it. A session that ran as
- * another Linux user on the host (before each Odin user got their own) has
- * its conversation in that user's home: Resume got "No conversation found".
+ * Claude starts in, or over this user's copy when the sent one is longer
+ * (newer: it went on on my computer after a move there). A session that ran
+ * as another Linux user on the host (before each Odin user got their own)
+ * has its conversation in that user's home: Resume got "No conversation found".
  */
 function placeConversation(sessionId: string): string {
 	const sent = `"$HOME"/${sh(sentConversation(sessionId))}`;
 	const id = sh(`${sessionId}.jsonl`);
-	return `if [ -f ${sent} ]; then ls "$HOME"/.claude/projects/*/${id} >/dev/null 2>&1 || { d="$HOME/.claude/projects/$(printf %s "$PWD" | sed 's/[^A-Za-z0-9]/-/g')"; mkdir -p "$d" && mv -f ${sent} "$d"/${id}; }; rm -f ${sent}; fi`;
+	return `if [ -f ${sent} ]; then f=$(ls "$HOME"/.claude/projects/*/${id} 2>/dev/null | head -1); if [ -z "$f" ]; then d="$HOME/.claude/projects/$(printf %s "$PWD" | sed 's/[^A-Za-z0-9]/-/g')"; mkdir -p "$d" && mv -f ${sent} "$d"/${id}; elif [ "$(wc -c < ${sent})" -gt "$(wc -c < "$f")" ]; then mv -f ${sent} "$f"; fi; rm -f ${sent}; fi`;
 }
 
 /** What runs inside tmux: tokens in, file gone, repo ready, Claude on. */

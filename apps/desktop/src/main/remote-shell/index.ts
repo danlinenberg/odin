@@ -23,6 +23,7 @@ import {
 	type RemoteFile,
 	type RemoteSessionSpec,
 	reconnectSpec,
+	sendsConversation,
 	sentConversation,
 	sh,
 	stashScript,
@@ -176,9 +177,12 @@ async function localConversation(sessionId: string): Promise<string | null> {
 }
 
 /**
- * A resumed conversation the host user doesn't have (it ran there as another
- * Linux user, or on another host) goes over from its copy here; the run
- * script files it where Claude starts (placeConversation).
+ * A resumed conversation goes over from its copy here when the host user
+ * doesn't have it (it ran there as another Linux user, or on another host),
+ * or has an older one: a session moved here, continued, then moved back
+ * found the host's copy from before the move and resumed without everything
+ * said here since. Conversations only grow, so the longer copy is the newer.
+ * The run script files it (placeConversation).
  */
 async function sendConversation(
 	client: Client,
@@ -187,15 +191,20 @@ async function sendConversation(
 ): Promise<void> {
 	const sessionId = spec.claudeArgs.match(/--resume (\S+)/)?.[1];
 	if (!sessionId) return;
+	// The host copy's size in bytes, "" when it has none.
 	const there = await exec(
 		client,
-		`ls "$HOME"/.claude/projects/*/${sh(`${sessionId}.jsonl`)} 2>/dev/null | head -1; true`,
+		`f=$(ls "$HOME"/.claude/projects/*/${sh(`${sessionId}.jsonl`)} 2>/dev/null | head -1); [ -n "$f" ] && wc -c < "$f"; true`,
 		"",
 	).catch(() => "unknown");
-	if (there) return;
 	const local = await localConversation(sessionId);
-	if (local)
-		await upload(sftp, [{ local, remote: sentConversation(sessionId) }]);
+	if (!local) return;
+	const size = await stat(local).then(
+		(st) => st.size,
+		() => 0,
+	);
+	if (!sendsConversation(there, size)) return;
+	await upload(sftp, [{ local, remote: sentConversation(sessionId) }]);
 }
 
 /**
