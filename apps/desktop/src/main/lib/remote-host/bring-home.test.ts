@@ -5,6 +5,7 @@ import {
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
+	realpathSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -143,7 +144,8 @@ test("a session on the shared checkout's default branch moves nothing and leaves
 });
 
 test("a branch the host already pushed lands here on that branch, in a worktree named after it", async () => {
-	const root = mkdtempSync(join(tmpdir(), "bring-home-pushed-"));
+	// Real path: git lists worktrees without symlinks (macOS /tmp is /private/tmp).
+	const root = realpathSync(mkdtempSync(join(tmpdir(), "bring-home-pushed-")));
 	const origin = join(root, "origin.git");
 	sh(root, `git init -q --bare -b main ${origin}`);
 	const seed = join(root, "seed");
