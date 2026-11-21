@@ -5,6 +5,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useBulkTicks } from "../all/BulkBar";
 import {
 	TABLE_LIST,
 	TaskRow,
@@ -39,6 +40,11 @@ function AirtablePage() {
 	const [editing, setEditing] = useState(false);
 	const noViews = views.data?.links.length === 0;
 
+	// Ticked rows, for acting on many at once - the same bar as All's.
+	const ticks = useBulkTicks(
+		rows.flatMap((row) => items.get(`airtable:${row.id}`) ?? []),
+		taskRows,
+	);
 	return (
 		<div className="flex h-full flex-col">
 			<FeedHeader>
@@ -87,11 +93,18 @@ function AirtablePage() {
 					</div>
 				)}
 				{rows.length > 0 && <TaskTableHeader />}
+				{ticks.bar}
 				{rows.map((row) => {
 					const item = items.get(`airtable:${row.id}`);
 					return (
 						item && (
-							<TaskRow key={item.key} item={item} rows={taskRows} now={now} />
+							<TaskRow
+								{...ticks.rowProps(item)}
+								key={item.key}
+								item={item}
+								rows={taskRows}
+								now={now}
+							/>
 						)
 					);
 				})}

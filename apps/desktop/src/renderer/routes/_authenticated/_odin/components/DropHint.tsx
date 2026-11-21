@@ -26,13 +26,32 @@ export const DROP_LABEL =
  * board card's session - and returns its undo, which the toast's Undo runs too.
  */
 export function useDropTask() {
+	const putAway = usePutAway();
+	return async (
+		row: SweptRow,
+		also: SweptRow[] = [],
+		end?: () => (() => void) | undefined,
+	) => {
+		const undo = await putAway(row, also, end);
+		if (!undo) return;
+		toast.success(`Dropped - ${row.title}`, {
+			action: { label: "Undo", onClick: undo },
+		});
+	};
+}
+
+/**
+ * The Drop itself, without its toast: resolves to the Undo, or null when it
+ * didn't go (Slack refused, and useSetSlackDone already said why).
+ */
+function usePutAway() {
 	const { activeId } = useOdinProfile();
 	const setSlackDone = useSetSlackDone();
 	return async (
 		row: SweptRow,
 		also: SweptRow[] = [],
 		end?: () => (() => void) | undefined,
-	) => {
+	): Promise<(() => void) | null> => {
 		const review = useBacklogReview.getState();
 		const done = useDoneStore.getState().setDone;
 		const rows = [row, ...also];
@@ -56,17 +75,14 @@ export function useDropTask() {
 		} catch {
 			// useSetSlackDone already toasted why.
 			mark(false);
-			return;
+			return null;
 		}
 		const unend = end?.();
-		const undo = () => {
+		return () => {
 			mark(false);
 			for (const id of slackIds) setSlackDone.mutate({ id, done: false });
 			unend?.();
 		};
-		toast.success(`Dropped - ${row.title}`, {
-			action: { label: "Undo", onClick: undo },
-		});
 	};
 }
 
@@ -75,6 +91,35 @@ export function useDropByHand() {
 	const drop = useDropTask();
 	return (item: Doable) =>
 		drop(droppedByHand(item), (item.also ?? []).map(droppedByHand));
+}
+
+/**
+ * Drop several ticked tasks by hand at once: one toast for the lot, and one
+ * Undo that brings back every one that went. Resolves to how many went.
+ */
+export function useDropMany() {
+	const putAway = usePutAway();
+	return async (items: Doable[]): Promise<number> => {
+		const undos = await Promise.all(
+			items.map((item) =>
+				putAway(droppedByHand(item), (item.also ?? []).map(droppedByHand)),
+			),
+		);
+		const went = undos.filter((undo): undo is () => void => !!undo);
+		if (went.length)
+			toast.success(
+				`Dropped - ${went.length} ${went.length === 1 ? "task" : "tasks"}`,
+				{
+					action: {
+						label: "Undo",
+						onClick: () => {
+							for (const undo of went) undo();
+						},
+					},
+				},
+			);
+		return went.length;
+	};
 }
 
 /**

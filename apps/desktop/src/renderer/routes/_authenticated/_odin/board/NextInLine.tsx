@@ -3,6 +3,7 @@ import {
 	HoverCardContent,
 	HoverCardTrigger,
 } from "@odin/ui/hover-card";
+import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
@@ -26,9 +27,15 @@ import { useTabsStore } from "renderer/stores/tabs/store";
 import { create } from "zustand";
 import type { AllItem } from "../all/all-items";
 import { allItems } from "../all/all-items";
+import { nextSelection, visibleSelection } from "../all/selection";
 import { cleanTitle, TaskDetails } from "../all/TaskDetails";
 import { useStartAllItem } from "../all/use-start-item";
-import { DROP_LABEL, SweepDrop, useDropByHand } from "../components/DropHint";
+import {
+	DROP_LABEL,
+	SweepDrop,
+	useDropByHand,
+	useDropMany,
+} from "../components/DropHint";
 import { FEED_TABS } from "../components/feed-counts";
 import { BUTTON, PILL } from "../components/pill";
 import {
@@ -371,6 +378,7 @@ export function NextInLine() {
 	const [showHidden, setShowHidden] = useState(false);
 	const {
 		start,
+		startMany,
 		isLaunching,
 		launchingKey,
 		reminders,
@@ -396,13 +404,53 @@ export function NextInLine() {
 	// Open hands the link to the OS: a Slack permalink goes through Slack's
 	// own hand-off into the desktop app, everything else to the browser.
 	// Same Done as every feed, so a row done here is done there and back.
-	const { markDone } = useDone();
+	const { markDone, set: setDone } = useDone();
 	const doneWithUndo = (item: AllItem) =>
 		markDone({ ...item, title: cleanTitle(item.title) });
 	// Drop by hand, same as every row's: the sweep's verdict isn't needed.
 	const dropByHand = useDropByHand();
 	const dropWithUndo = (item: AllItem) =>
 		void dropByHand({ ...item, title: cleanTitle(item.title) });
+	// Ticked cards, for acting on many at once: Start, Done or Drop the lot.
+	// Only cards still in the column count - one started or done elsewhere
+	// drops out of the next action. Shift-click ticks every card between.
+	const [ticked, setTicked] = useState<Set<string>>(() => new Set());
+	const [tickAnchor, setTickAnchor] = useState<string | null>(null);
+	const shown = [...tonight, ...pinnedRest, ...rest];
+	const shownKeys = shown.map((item) => item.key);
+	const picks = visibleSelection(ticked, shownKeys);
+	const pickedItems = shown.filter((item) => ticked.has(item.key));
+	const tick = (key: string, shift: boolean) => {
+		setTicked(nextSelection(ticked, shownKeys, key, shift, tickAnchor));
+		setTickAnchor(key);
+	};
+	const clearTicks = () => setTicked(new Set());
+	const doneTicked = () => {
+		const went = pickedItems;
+		for (const item of went) setDone(item, true);
+		toast.success(
+			`Done - ${went.length} ${went.length === 1 ? "task" : "tasks"}`,
+			{
+				action: {
+					label: "Undo",
+					onClick: () => {
+						for (const item of went) setDone(item, false);
+					},
+				},
+			},
+		);
+		clearTicks();
+	};
+	const dropMany = useDropMany();
+	const dropTicked = () => {
+		void dropMany(
+			pickedItems.map((item) => ({ ...item, title: cleanTitle(item.title) })),
+		);
+		clearTicks();
+	};
+	const startTicked = () => {
+		void startMany(pickedItems).then((went) => went && clearTicks());
+	};
 	const swept = useReview((review) => review.swept);
 	// Every verdict, not just DROPs: the hover says what the sweep found either way.
 	const sweptFor = useMemo(() => {
@@ -468,6 +516,55 @@ export function NextInLine() {
 				error={error}
 				count={waiting.length}
 			/>
+			{picks.length > 0 && (
+				<div className="mx-2 mb-2 flex flex-wrap items-center gap-1.5 rounded-md border border-primary/40 bg-secondary px-2 py-1.5 text-[11.5px]">
+					<span className="font-semibold text-foreground">
+						{picks.length} selected
+					</span>
+					{picks.length < shownKeys.length && (
+						<button
+							type="button"
+							onClick={() => setTicked(new Set(shownKeys))}
+							className="text-muted-foreground hover:text-foreground"
+						>
+							all {shownKeys.length}
+						</button>
+					)}
+					<span className="flex-1" />
+					<button
+						type="button"
+						onClick={doneTicked}
+						title="Mark them all done - off Next in line"
+						className="whitespace-nowrap rounded-md px-1.5 py-0.5 text-muted-foreground hover:bg-success/15 hover:text-success"
+					>
+						✓ Done
+					</button>
+					<button
+						type="button"
+						onClick={dropTicked}
+						title={DROP_LABEL}
+						className="whitespace-nowrap rounded-md px-1.5 py-0.5 text-muted-foreground hover:bg-danger/15 hover:text-danger"
+					>
+						Drop
+					</button>
+					<button
+						type="button"
+						disabled={isLaunching}
+						onClick={startTicked}
+						title="Start a session on each selected task - pick here or remote once for all"
+						className={`rounded-md px-2 py-0.5 font-semibold disabled:opacity-60 ${BUTTON.primary}`}
+					>
+						▶ Start {picks.length}
+					</button>
+					<button
+						type="button"
+						onClick={clearTicks}
+						className="text-muted-foreground hover:text-foreground"
+					>
+						Clear
+					</button>
+				</div>
+			)}
 			<div className="flex flex-col gap-2 overflow-y-auto px-2 pb-2.5">
 				{next.length + tonight.length === 0 ? (
 					<div className="px-2 py-6 text-center text-xs text-muted-foreground">
@@ -545,12 +642,14 @@ export function NextInLine() {
 		const duplicate = duplicateFor(item);
 		const pickIndex = picked.indexOf(item.key);
 		const pickFull = pickIndex < 0 && picked.length >= MAX_NIGHT_PICKS;
+		const isTicked = ticked.has(item.key);
 		return (
 			<div
 				key={item.key}
 				className={cn(
 					"group relative flex flex-col gap-1 rounded-[10px] border border-border bg-card px-2.5 py-2 transition-colors hover:border-input hover:bg-secondary",
 					(isAiHidden(item) || duplicate) && "opacity-50",
+					isTicked && "border-primary/60 bg-primary/8",
 				)}
 				title={
 					duplicate
@@ -635,6 +734,18 @@ export function NextInLine() {
 						launchingKey === item.launch.key && "visible",
 					)}
 				>
+					<input
+						type="checkbox"
+						aria-label={`Select ${cleanTitle(item.title)}`}
+						title="Select - then Start, Done or Drop them all at once. Shift-click selects a range"
+						checked={isTicked}
+						onChange={() => {}}
+						onClick={(event) => tick(item.key, event.shiftKey)}
+						className={cn(
+							"mr-auto ml-1 size-3.5 cursor-pointer accent-primary",
+							picks.length > 0 && "visible",
+						)}
+					/>
 					<button
 						type="button"
 						onClick={() =>

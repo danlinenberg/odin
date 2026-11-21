@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { usePersistedDraft } from "renderer/stores/chat-drafts";
+import { useBulkTicks } from "../all/BulkBar";
 import {
 	TABLE_LIST,
 	TaskRow,
@@ -41,6 +42,11 @@ function MyTasksPage() {
 	const { data: docs } = electronTrpc.system.listDocs.useQuery();
 	const { data: repos } = electronTrpc.repos.list.useQuery();
 
+	// Ticked rows, for acting on many at once - the same bar as All's.
+	const ticks = useBulkTicks(
+		tasks.flatMap((task) => items.get(`task:${task.id}`) ?? []),
+		rows,
+	);
 	return (
 		<div className="flex h-full flex-col">
 			<FeedHeader>
@@ -80,11 +86,13 @@ function MyTasksPage() {
 				) : (
 					<TaskTableHeader date="Created" />
 				)}
+				{ticks.bar}
 				{tasks.map((task) => {
 					const item = items.get(`task:${task.id}`);
 					return (
 						item && (
 							<TaskRow
+								{...ticks.rowProps(item)}
 								key={item.key}
 								item={item}
 								rows={rows}

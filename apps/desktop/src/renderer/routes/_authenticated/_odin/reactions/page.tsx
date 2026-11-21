@@ -7,6 +7,7 @@ import {
 import { useMemo, useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
 import { SlackEmoji } from "renderer/lib/SlackEmoji";
+import { useBulkTicks } from "../all/BulkBar";
 import {
 	TABLE_LIST,
 	TaskRow,
@@ -123,6 +124,11 @@ function ReactionsPage() {
 	const taskRows = useTaskRows(() => void reactions.refetch());
 	const now = Date.now();
 
+	// Ticked rows, for acting on many at once - the same bar as All's.
+	const ticks = useBulkTicks(
+		visible.flatMap((row) => items.get(`slack:${row.id}`) ?? []),
+		taskRows,
+	);
 	return (
 		<div className="flex h-full flex-col">
 			<FeedHeader>
@@ -181,11 +187,13 @@ function ReactionsPage() {
 				<FeedError error={reactions.error} />
 
 				{visible.length > 0 && <TaskTableHeader date="Posted" />}
+				{ticks.bar}
 				{visible.map((row) => {
 					const item = items.get(`slack:${row.id}`);
 					return (
 						item && (
 							<TaskRow
+								{...ticks.rowProps(item)}
 								key={item.key}
 								item={item}
 								rows={taskRows}

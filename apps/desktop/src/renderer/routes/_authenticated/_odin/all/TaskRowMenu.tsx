@@ -35,6 +35,8 @@ export interface BulkActions {
 	due: (day: string | null) => void;
 	start: () => void;
 	done: () => void;
+	/** Drop every ticked row - Done everywhere, listed under Review's Dropped. */
+	drop: () => void;
 	clear: () => void;
 }
 
@@ -287,6 +289,9 @@ function BulkItems({ bulk }: { bulk: BulkActions }) {
 			</ContextMenuItem>
 			<ContextMenuItem onSelect={bulk.done} className={ITEM}>
 				Done - {n} tasks
+			</ContextMenuItem>
+			<ContextMenuItem onSelect={bulk.drop} className={ITEM}>
+				Drop {n} tasks
 			</ContextMenuItem>
 			<ContextMenuSeparator />
 			<ContextMenuItem onSelect={() => bulk.upNext("top")} className={ITEM}>
