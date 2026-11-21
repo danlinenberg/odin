@@ -23,6 +23,7 @@ import { useStartAllItem } from "../all/use-start-item";
 import { ROW_LIVE_BUTTON } from "../components/FeedChrome";
 import { BUTTON } from "../components/pill";
 import { daysUntil, effectiveDue, useReminders } from "../components/Reminders";
+import { actionItems } from "./brief";
 import {
 	dueLabel,
 	type TodayEntry,
@@ -755,26 +756,52 @@ function SessionLines({
 							{item.facts}
 						</span>
 					)}
-					{item.from && (
-						<span>
-							- from {item.from.source}:{" "}
-							{item.from.url ? (
-								<button
-									type="button"
-									title={`Open it in ${item.from.source}`}
-									onClick={() => openUrl(item.from?.url ?? "")}
-									className="text-link hover:underline"
-								>
-									{item.from.title}
-								</button>
-							) : (
-								item.from.title
-							)}
-						</span>
+					{item.sessionId && (
+						<SessionActionItems
+							sessionId={item.sessionId}
+							onOpen={() => onOpen(item.key)}
+						/>
 					)}
 				</li>
 			))}
 		</ul>
+	);
+}
+
+/**
+ * The session's own ACTION ITEMS, each a button that opens the session beside
+ * the page, where its Action items card answers it. Nothing when it left none.
+ */
+function SessionActionItems({
+	sessionId,
+	onOpen,
+}: {
+	sessionId: string;
+	onOpen: () => void;
+}) {
+	const { data: transcript } =
+		electronTrpc.terminal.readClaudeTranscript.useQuery(
+			{ sessionId },
+			{ retry: false, staleTime: 60_000 },
+		);
+	const todo = transcript ? actionItems(transcript.messages) : [];
+	if (!todo.length) return null;
+	return (
+		<ol className="mt-1 flex w-full flex-col gap-1">
+			{todo.map((item, i) => (
+				<li key={item}>
+					<button
+						type="button"
+						title="Open the session to do or answer it"
+						onClick={onOpen}
+						className="flex w-full items-baseline gap-2 rounded-md border border-attention/35 bg-attention/[0.07] px-2.5 py-1 text-left text-[12.5px] text-foreground hover:bg-attention/15"
+					>
+						<span className="font-semibold text-attention-ink">{i + 1}.</span>
+						<span className="min-w-0 break-words">{item}</span>
+					</button>
+				</li>
+			))}
+		</ol>
 	);
 }
 
