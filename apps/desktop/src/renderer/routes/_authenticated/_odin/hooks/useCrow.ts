@@ -51,6 +51,7 @@ import { useReminders } from "../components/Reminders";
 import { unreadPing, useReplyWatch } from "../components/ReplyWatch";
 import { phoneNights } from "../night-agent/night-log";
 import { addSchedule } from "./crow-schedule";
+import { readSettings, writeSetting } from "./crow-settings";
 import { readState, runAction, writeState } from "./crow-state";
 import { endSession, useDone } from "./useDone";
 import { useOdinProfile } from "./useOdinProfile";
@@ -537,6 +538,7 @@ export function useCrow() {
 		launch,
 		ensureWorkspace,
 		router,
+		utils,
 	};
 	const latest = useRef(deps);
 	latest.current = deps;
@@ -683,6 +685,8 @@ type CrowDeps = {
 	launch: ReturnType<typeof useLaunchTaskSession>["launch"];
 	ensureWorkspace: ReturnType<typeof useOdinWorkspace>["ensureWorkspace"];
 	router: ReturnType<typeof useRouter>;
+	/** Main's calls, and the window's caches of them, for action=setting. */
+	utils: ReturnType<typeof electronTrpc.useUtils>;
 };
 
 /**
@@ -947,6 +951,8 @@ function runOdinAction(
 	if (action === "state") return readState(args);
 	if (action === "set") return writeState(args);
 	if (action === "run") return runAction(args);
+	if (action === "settings") return readSettings(deps.utils, args);
+	if (action === "setting") return writeSetting(deps.utils, args);
 	if (action === "open") {
 		const screens = Object.keys(deps.router.routesByPath).filter(
 			(path) => !path.includes("$"),
@@ -1063,5 +1069,5 @@ function runOdinAction(
 		endSessionAndRow(pane, deps);
 		return `Reminding you ${args.day} - ${title}.`;
 	}
-	return `Unknown action "${action}" - use guide, tasks, start, add, star, sessions, night, done, remind, resume, state, set, open, api or call.`;
+	return `Unknown action "${action}" - use guide, tasks, start, add, star, sessions, night, done, remind, resume, settings, setting, state, set, open, api or call.`;
 }
