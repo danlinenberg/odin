@@ -1,6 +1,7 @@
+import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import type { ComponentType, ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
 	LuCircleCheck,
 	LuHourglass,
@@ -17,15 +18,25 @@ import { useTabsStore } from "renderer/stores/tabs/store";
 import { useTodayOverview } from "renderer/stores/today-overview";
 import { type AllItem, livePanesOn, urgencyOf } from "../all/all-items";
 import { TaskDetails } from "../all/TaskDetails";
-import { useTaskMeta } from "../all/task-meta";
+import { dayAfter, useTaskMeta } from "../all/task-meta";
 import { useAllItems } from "../all/use-all-items";
 import { useStartAllItem } from "../all/use-start-item";
 import { ROW_LIVE_BUTTON } from "../components/FeedChrome";
 import { BUTTON } from "../components/pill";
 import { daysUntil, effectiveDue, useReminders } from "../components/Reminders";
+import {
+	isAnswerItem,
+	isApprovalItem,
+	isDoneItem,
+	isYouOnly,
+	itemOptions,
+} from "./action-items";
 import { actionItems } from "./brief";
+import { phoneReply } from "./phone-resume";
 import {
 	dueLabel,
+	itemKind,
+	rankToday,
 	type TodayEntry,
 	type TodayGroup,
 	type TodaySignals,
@@ -35,7 +46,7 @@ import {
 	todayGroupLabel,
 	todayLanes,
 	todayTasks,
-	yourAction,
+	todayTitle,
 } from "./today";
 import { moveSelection, type SideRow, todaySide } from "./today-side";
 
@@ -121,6 +132,9 @@ const GROUP_MARK: Record<
 	paused: { Icon: LuPause, tone: "text-muted-foreground" },
 };
 
+/** Moving without you folds past this many tasks. */
+const MOVING_FOLD = 3;
+
 const LINK =
 	"font-medium text-primary-ink underline-offset-2 hover:underline disabled:opacity-50";
 
@@ -141,13 +155,19 @@ export function TodayOverview({
 	cards,
 	openPaneId,
 	onOpen,
+	onDone,
+	onSnooze,
 }: {
 	cards: TodayCard[];
 	/** The session open beside the page: its task is marked. */
 	openPaneId?: string;
-	onOpen: (paneId: string) => void;
-}) {
-	const items = useTodayItems(cards);
+} & TodayActions) {
+	const now = Date.now();
+	const today = dayAfter(now, 0);
+	// In the order to do them, so the summary Claude writes starts where the
+	// page does.
+	const board = useTodayItems(cards);
+	const items = useMemo(() => rankToday(board, today), [board, today]);
 	const [refresh, setRefresh] = useState(0);
 	const { data, isFetching, error } =
 		electronTrpc.terminal.todayOverviewLines.useQuery(
@@ -196,16 +216,17 @@ export function TodayOverview({
 						...item,
 						goal: item.sessionId ? (goals?.[item.sessionId] ?? null) : null,
 					})),
+					today,
 				),
 			),
-		[data, items, goals],
+		[data, items, goals, today],
 	);
 	// Arrow keys walk the page top to bottom: your lane, then the other.
 	const tasks = useMemo(() => [...lanes.yours, ...lanes.moving], [lanes]);
 	const side = useTodaySide();
 	const enabled = useTodayOverview((s) => s.enabled);
 	const setEnabled = useTodayOverview((s) => s.setEnabled);
-	const now = Date.now();
+	const [allMoving, setAllMoving] = useState(false);
 	const dateLine = new Date(now).toLocaleDateString(undefined, {
 		weekday: "long",
 		month: "long",
@@ -218,11 +239,27 @@ export function TodayOverview({
 	// The task whose summary is open beside the page, like Tasks' side panel.
 	const [shown, setShown] = useState<string | null>(null);
 	const shownTask = tasks.find((task) => task.id === shown) ?? null;
-	// A session opens in the board's drawer: the summary makes room for it.
+	// A session opens in the board's drawer: the summary makes room for it,
+	// and comes back when the drawer closes.
+	const [backTo, setBackTo] = useState<string | null>(null);
 	const openSession = (paneId: string) => {
+		if (shown) setBackTo(shown);
 		setShown(null);
 		onOpen(paneId);
 	};
+	useEffect(() => {
+		if (openPaneId || !backTo) return;
+		setShown(backTo);
+		setBackTo(null);
+	}, [openPaneId, backTo]);
+	// After you answered, finished or snoozed a task: the next one waiting on
+	// you comes up in the panel (the list itself catches up on its own).
+	const nextAfter = (id: string) => {
+		const at = lanes.yours.findIndex((task) => task.id === id);
+		return lanes.yours[at + 1] ?? lanes.yours.find((task) => task.id !== id);
+	};
+	const advance = (id: string) => setShown(nextAfter(id)?.id ?? null);
+	const actions: TodayActions = { onOpen: openSession, onDone, onSnooze };
 	const step = (by: 1 | -1) => {
 		const next = moveSelection(by, selected, tasks.length);
 		if (next === null) return;
@@ -313,7 +350,7 @@ export function TodayOverview({
 										Waiting on you
 									</span>
 									<span className="text-[12.5px] text-muted-foreground">
-										do these first
+										in the order to do them
 									</span>
 								</h2>
 								{lanes.yours.length === 0 ? (
@@ -321,22 +358,37 @@ export function TodayOverview({
 										Nothing waits on you right now.
 									</p>
 								) : (
-									<ol className="flex flex-col gap-4">
-										{lanes.yours.map((task, i) => (
-											<YourTask
-												key={task.id}
-												task={task}
-												number={i + 1}
-												now={now}
-												picked={tasks[selected]?.id === task.id}
-												open={
-													shown === task.id ||
-													task.items.some((item) => item.key === openPaneId)
-												}
-												onOpen={openSession}
-												onShow={setShown}
-											/>
-										))}
+									<ol className="flex flex-col gap-2">
+										{lanes.yours.map((task, i) => {
+											const open =
+												shown === task.id ||
+												task.items.some((item) => item.key === openPaneId);
+											const picked = tasks[selected]?.id === task.id;
+											return i === 0 ? (
+												<StartHere
+													key={task.id}
+													task={task}
+													now={now}
+													picked={picked}
+													open={open}
+													actions={actions}
+													onShow={setShown}
+													onActed={() => {
+														if (shown === task.id) advance(task.id);
+													}}
+												/>
+											) : (
+												<YourRow
+													key={task.id}
+													task={task}
+													number={i + 1}
+													now={now}
+													picked={picked}
+													open={open}
+													onShow={setShown}
+												/>
+											);
+										})}
 									</ol>
 								)}
 							</section>
@@ -352,9 +404,12 @@ export function TodayOverview({
 												nothing to do, just so you know
 											</span>
 										</h2>
-										<ul className="flex flex-col gap-5">
-											{lanes.moving.map((task) => (
-												<MovingTask
+										<ul className="flex flex-col">
+											{(allMoving || lanes.moving.length <= MOVING_FOLD
+												? lanes.moving
+												: lanes.moving.slice(0, MOVING_FOLD)
+											).map((task) => (
+												<MovingRow
 													key={task.id}
 													task={task}
 													now={now}
@@ -363,11 +418,21 @@ export function TodayOverview({
 														shown === task.id ||
 														task.items.some((item) => item.key === openPaneId)
 													}
-													onOpen={openSession}
 													onShow={setShown}
 												/>
 											))}
 										</ul>
+										{lanes.moving.length > MOVING_FOLD && (
+											<button
+												type="button"
+												onClick={() => setAllMoving((all) => !all)}
+												className={cn(LINK, "mt-1 px-3 text-[12px]")}
+											>
+												{allMoving
+													? "Show fewer"
+													: `Show all ${lanes.moving.length}`}
+											</button>
+										)}
 									</section>
 								)}
 								<ComingUp side={side} onOpen={openSession} />
@@ -391,7 +456,11 @@ export function TodayOverview({
 				<TodayTaskPanel
 					task={shownTask}
 					now={now}
-					onOpen={openSession}
+					actions={actions}
+					onActed={() => advance(shownTask.id)}
+					onNext={
+						lanes.yours.length > 1 ? () => advance(shownTask.id) : undefined
+					}
 					onClose={() => setShown(null)}
 				/>
 			)}
@@ -407,7 +476,11 @@ const sentence = (text: string | null) => {
 	return /[.!?]$/.test(cap) ? cap : `${cap}.`;
 };
 
-/** Its due date, a high priority and its star, as short words after the text. */
+/** Where it stands and what is left, as one line. */
+const standing = (task: TodayTaskView<TodayItem>) =>
+	[task.line, task.left].map(sentence).filter(Boolean).join(" ") || null;
+
+/** Its due date, a high priority and its star, as chips in front of the title. */
 function TaskMarks({
 	task,
 	now,
@@ -422,22 +495,34 @@ function TaskMarks({
 	const left = due ? daysUntil(due, now) : null;
 	const high = task.items.find((item) => item.urgency === "high");
 	const starred = task.items.some((item) => item.starred);
+	if (!due && !high && !starred) return null;
 	return (
-		<>
+		<span className="inline-flex flex-wrap items-baseline gap-1.5 text-[11.5px] font-semibold">
 			{due && left !== null && (
-				<span className={cn("font-semibold", dueTone(left))}>
-					{" "}
-					{dueLabel(due, left)}.
-				</span>
+				<span className={cn(CHIP, dueTone(left))}>{dueLabel(due, left)}</span>
 			)}
 			{high && (
-				<span className="font-semibold text-danger-ink">
-					{" "}
-					{high.priority ?? "High"} priority.
+				<span className={cn(CHIP, "text-danger-ink")}>
+					{high.priority ?? "High"} priority
 				</span>
 			)}
-			{starred && <span className="text-attention-ink"> ★ Starred.</span>}
-		</>
+			{starred && <span className={cn(CHIP, "text-attention-ink")}>★</span>}
+		</span>
+	);
+}
+
+const CHIP = "rounded-md border border-border px-1.5 py-px";
+
+/** A session's latest ACTION ITEMS, read from its transcript; [] when it left none. */
+function useActionItems(sessionId: string | null | undefined): string[] {
+	const { data: transcript } =
+		electronTrpc.terminal.readClaudeTranscript.useQuery(
+			{ sessionId: sessionId ?? "" },
+			{ enabled: !!sessionId, retry: false, staleTime: 60_000 },
+		);
+	return useMemo(
+		() => (transcript ? actionItems(transcript.messages) : []),
+		[transcript],
 	);
 }
 
@@ -448,104 +533,419 @@ type TaskProps = {
 	picked: boolean;
 	/** Its summary, or one of its sessions, is open beside the page. */
 	open: boolean;
-	onOpen: (paneId: string) => void;
 	/** Opens its summary beside the page. */
 	onShow: (taskId: string) => void;
 };
-
-const rowClass = (open: boolean, picked: boolean) =>
-	cn(
-		"-mx-3 rounded-lg px-3 py-1.5",
-		open && "bg-primary/10",
-		picked && "ring-2 ring-primary/60",
-	);
 
 /** A small label over a block of a task's text. */
 const LABEL =
 	"mb-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-muted-foreground";
 
+/** What Today can do to a task's session without leaving the page. */
+export interface TodayActions {
+	/** Opens the session in the drawer beside the page. */
+	onOpen: (paneId: string) => void;
+	/** Ends the session and takes it off the board, like the board's Done. */
+	onDone?: (paneId: string) => void;
+	/** Done for now; it comes back on `day` (YYYY-MM-DD), like Remind me. */
+	onSnooze?: (paneId: string, day: string) => void;
+}
+
 /**
- * A task waiting on you, numbered in the order to do it: what you do as its
- * title, the task's name with its due date and priority, then side by side
- * when there is room an Explanation of what the task is and Where it stands,
- * and its sessions.
+ * The first task to do, set apart: "Start here", what you do, what the task
+ * is and why it matters, where it stands, its action items to answer right
+ * here, its sessions, and Open, Done and Snooze.
  */
-function YourTask({
+function StartHere({
 	task,
-	number,
 	now,
-	picked,
 	open,
-	onOpen,
+	picked,
+	actions,
 	onShow,
-}: TaskProps & { number: number }) {
-	const action = yourAction(task.next);
-	const fallback =
-		task.group === "almost-done" ? `Finish: ${task.name}` : task.name;
-	// What the task is about, in a line under the title: its name with what
-	// it is, or only what it is when the name is already the title.
-	const about = action
-		? [task.name, sentence(task.about)].filter(Boolean).join(": ")
-		: sentence(task.about);
-	const explain = task.explain;
-	const stands =
-		[task.line, task.left].map(sentence).filter(Boolean).join(" ") ||
-		todayGroupLabel(task.group);
+	onActed,
+}: Omit<TaskProps, "onShow"> & {
+	actions: TodayActions;
+	onShow: (taskId: string) => void;
+	/** After you answered, finished or snoozed it: the next task comes up. */
+	onActed: () => void;
+}) {
+	const first = task.items[0];
+	const todo = useActionItems(first.sessionId);
+	const stands = standing(task);
 	return (
 		<li
 			data-today-task={task.id}
 			className={cn(
-				"@container grid grid-cols-[26px_1fr] gap-x-2 rounded-xl border border-border bg-card/40 px-4 py-3.5",
-				open && "border-primary/50 bg-primary/10",
+				"@container flex flex-col gap-3 rounded-xl border-2 border-attention/45 bg-attention/[0.05] px-5 py-4",
+				open && "border-primary/60 bg-primary/10",
 				picked && "ring-2 ring-primary/60",
 			)}
 		>
-			<span className="text-[17px] font-semibold leading-snug text-attention">
-				{number}
-			</span>
-			<div className="flex min-w-0 flex-col gap-2.5">
-				<div>
-					<button
-						type="button"
-						title="Show what this task is about beside the page"
-						onClick={() => onShow(task.id)}
-						className="text-left text-[16px] font-semibold leading-snug underline-offset-2 hover:underline"
-					>
-						{action ?? fallback}
-					</button>
-					{about && (
-						<p className="mt-1 select-text cursor-text text-[13.5px] font-medium leading-snug text-foreground/90">
-							{about}
-							<TaskMarks task={task} now={now} />
-						</p>
-					)}
-				</div>
-				<div className="grid select-text cursor-text gap-x-6 gap-y-2.5 text-[13.5px] leading-relaxed @2xl:grid-cols-2">
-					{explain && (
-						<div>
-							<p className={LABEL}>Explanation</p>
-							<p className="text-foreground/90">{sentence(explain)}</p>
-						</div>
-					)}
+			<div className="flex flex-wrap items-center gap-2">
+				<span className="rounded-full bg-attention px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[.08em] text-background">
+					Start here
+				</span>
+				{todo[0] && (
+					<span className={cn(CHIP, "text-[11.5px] font-semibold")}>
+						{itemKind(todo[0])}
+					</span>
+				)}
+				<TaskMarks task={task} now={now} />
+			</div>
+			<button
+				type="button"
+				title="Show its summary beside the page"
+				onClick={() => onShow(task.id)}
+				className="text-left text-[19px] font-semibold leading-snug underline-offset-2 hover:underline"
+			>
+				{todayTitle(task, todo[0])}
+			</button>
+			<p className="select-text cursor-text text-[14px] leading-snug">
+				<span className="font-semibold">{task.name}</span>
+				{task.about && <>: {sentence(task.about)}</>}
+			</p>
+			<div className="grid select-text cursor-text gap-x-6 gap-y-2.5 text-[13.5px] leading-relaxed @2xl:grid-cols-2">
+				{task.explain && (
+					<div>
+						<p className={LABEL}>Why it matters</p>
+						<p className="text-foreground/90">{sentence(task.explain)}</p>
+					</div>
+				)}
+				{stands && (
 					<div>
 						<p className={LABEL}>Where it stands</p>
-						<p className="text-foreground/90">
-							{stands}
-							{!about && <TaskMarks task={task} now={now} />}
-						</p>
+						<p className="text-foreground/90">{stands}</p>
 					</div>
-				</div>
-				<SessionLines task={task} onOpen={onOpen} />
+				)}
 			</div>
+			<TaskItems task={task} onOpen={actions.onOpen} onSent={onActed} />
+			<TaskButtons task={task} actions={actions} onActed={onActed} />
 		</li>
 	);
 }
 
 /**
- * A task moving without you: its name and who has it now, then what it is,
- * where it stands, what is left and who acts next, and its sessions.
+ * Each of the task's sessions with its action items, answerable here; the
+ * session's title above them when the task has several.
  */
-function MovingTask({ task, now, picked, open, onOpen, onShow }: TaskProps) {
+function TaskItems({
+	task,
+	onOpen,
+	onSent,
+}: {
+	task: TodayTaskView<TodayItem>;
+	onOpen: (paneId: string) => void;
+	onSent?: () => void;
+}) {
+	return (
+		<div className="flex flex-col gap-3">
+			{task.items.map((item) => (
+				<SessionItems
+					key={item.key}
+					item={item}
+					titled={task.items.length > 1}
+					onOpen={onOpen}
+					onSent={onSent}
+				/>
+			))}
+		</div>
+	);
+}
+
+/** One session's line (title, facts) and its action items with their buttons. */
+function SessionItems({
+	item,
+	titled,
+	onOpen,
+	onSent,
+}: {
+	item: TodayItem;
+	titled: boolean;
+	onOpen: (paneId: string) => void;
+	onSent?: () => void;
+}) {
+	const todo = useActionItems(item.sessionId);
+	return (
+		<div className="flex flex-col gap-1.5">
+			<p className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[12px] text-muted-foreground">
+				<button
+					type="button"
+					title={`${todayGroupLabel(item.group)} - open it beside this page`}
+					onClick={() => onOpen(item.key)}
+					className={cn(LINK, "text-[12.5px]")}
+				>
+					{item.title}
+				</button>
+				{titled && (
+					<span className={GROUP_MARK[item.group].tone}>
+						{todayGroupLabel(item.group).toLowerCase()}
+					</span>
+				)}
+				{item.facts && (
+					<span className="inline-flex flex-wrap items-baseline gap-x-1.5">
+						<span>-</span>
+						{item.facts}
+					</span>
+				)}
+			</p>
+			{todo.length > 0 && (
+				<ol className="flex flex-col gap-1.5">
+					{todo.map((text, i) => (
+						<AnswerItem
+							key={text}
+							paneId={item.key}
+							item={text}
+							number={i + 1}
+							onSent={onSent}
+						/>
+					))}
+				</ol>
+			)}
+		</div>
+	);
+}
+
+/**
+ * Sends a line to a session from Today: an ended one resumes with it, a
+ * running remote one gets it once Claude is back, a running one has it typed in.
+ */
+function useSendToSession() {
+	const write = electronTrpc.terminal.write.useMutation();
+	return async (paneId: string, text: string) => {
+		if (phoneReply(paneId, text) === "live") {
+			const { typeIntoClaude } = await import("./ChatView");
+			await typeIntoClaude(write.mutateAsync, paneId, text);
+		}
+	};
+}
+
+/**
+ * One action item with what answers it, as in the session's Action items
+ * card: Approve, Done for a "tell me when", a button per choice and a reply
+ * box for a question, Do it for the rest; nothing for "(you only)".
+ */
+function AnswerItem({
+	paneId,
+	item,
+	number,
+	onSent,
+}: {
+	paneId: string;
+	item: string;
+	number: number;
+	onSent?: () => void;
+}) {
+	const send = useSendToSession();
+	const [sent, setSent] = useState(false);
+	const [answer, setAnswer] = useState("");
+	const { text, options } = itemOptions(item);
+	const asks = isAnswerItem(item) || options.length > 0;
+	const reply = (message: string) => {
+		setSent(true);
+		send(paneId, message)
+			.then(() => {
+				toast.success("Sent to the session");
+				onSent?.();
+			})
+			.catch((error) => {
+				setSent(false);
+				toast.error("Couldn't send it", {
+					description: error instanceof Error ? error.message : String(error),
+				});
+			});
+	};
+	const answerWith = (said: string) =>
+		reply(`Action item ${number} (${item}): ${said}`);
+	return (
+		<li className="flex flex-col gap-1.5 rounded-lg border border-attention/35 bg-attention/[0.07] px-3 py-2">
+			<p className="flex items-baseline gap-2 select-text cursor-text text-[13.5px] leading-snug">
+				<span className="font-semibold text-attention-ink">{number}.</span>
+				<span className="min-w-0 break-words">{text}</span>
+			</p>
+			{sent ? (
+				<p className="pl-5 text-[12px] text-muted-foreground">Sent.</p>
+			) : (
+				<div className="flex flex-wrap items-center gap-1.5 pl-5">
+					{isApprovalItem(item) ? (
+						<button
+							type="button"
+							className={ITEM_BUTTON}
+							onClick={() =>
+								reply(`Approved - go ahead with action item ${number}: ${item}`)
+							}
+						>
+							Approve
+						</button>
+					) : isDoneItem(item) ? (
+						<button
+							type="button"
+							className={ITEM_BUTTON}
+							onClick={() => answerWith("Done")}
+						>
+							Done
+						</button>
+					) : asks ? (
+						<>
+							{options.map((option) => (
+								<button
+									key={option}
+									type="button"
+									className={ITEM_BUTTON}
+									onClick={() => answerWith(option)}
+								>
+									{option}
+								</button>
+							))}
+							<form
+								className="flex min-w-[200px] flex-1 items-center gap-1.5"
+								onSubmit={(event) => {
+									event.preventDefault();
+									if (answer.trim()) answerWith(answer.trim());
+								}}
+							>
+								<input
+									value={answer}
+									onChange={(event) => setAnswer(event.target.value)}
+									placeholder="Your answer"
+									className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-0.5 text-[12.5px]"
+								/>
+								<button
+									type="submit"
+									disabled={!answer.trim()}
+									className={ITEM_BUTTON}
+								>
+									Send
+								</button>
+							</form>
+						</>
+					) : isYouOnly(item) ? null : (
+						<button
+							type="button"
+							className={ITEM_BUTTON}
+							onClick={() => reply(`Do action item ${number} for me: ${item}`)}
+						>
+							Do it
+						</button>
+					)}
+				</div>
+			)}
+		</li>
+	);
+}
+
+const ITEM_BUTTON =
+	"shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[11.5px] font-medium text-attention-ink hover:bg-attention/15 disabled:opacity-50";
+
+/** Go to session, Done and Snooze until tomorrow, for the task's first session. */
+function TaskButtons({
+	task,
+	actions,
+	onActed,
+	onNext,
+}: {
+	task: TodayTaskView<TodayItem>;
+	actions: TodayActions;
+	onActed: () => void;
+	/** Shown in the summary panel: moves to the next task waiting on you. */
+	onNext?: () => void;
+}) {
+	const paneId = task.items[0].key;
+	const ghost =
+		"rounded-[7px] px-2.5 py-1 text-[12px] font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground";
+	return (
+		<div className="flex flex-wrap items-center gap-2">
+			<button
+				type="button"
+				onClick={() => actions.onOpen(paneId)}
+				className={ROW_LIVE_BUTTON}
+			>
+				Go to session →
+			</button>
+			{actions.onDone && (
+				<button
+					type="button"
+					title="End the session and take it off the board"
+					onClick={() => {
+						actions.onDone?.(paneId);
+						onActed();
+					}}
+					className={ghost}
+				>
+					✓ Done
+				</button>
+			)}
+			{actions.onSnooze && (
+				<button
+					type="button"
+					title="Put it away; it comes back tomorrow"
+					onClick={() => {
+						actions.onSnooze?.(paneId, dayAfter(Date.now(), 1));
+						onActed();
+					}}
+					className={ghost}
+				>
+					Snooze till tomorrow
+				</button>
+			)}
+			{onNext && (
+				<button type="button" onClick={onNext} className={cn(ghost, "ml-auto")}>
+					Next →
+				</button>
+			)}
+		</div>
+	);
+}
+
+/**
+ * A task waiting on you after the first: one line with its number, what you
+ * do, what kind of item it is, how many items, and its due date and priority.
+ * The rest is in its summary beside the page.
+ */
+function YourRow({
+	task,
+	number,
+	now,
+	picked,
+	open,
+	onShow,
+}: TaskProps & { number: number }) {
+	const todo = useActionItems(task.items[0].sessionId);
+	return (
+		<li data-today-task={task.id}>
+			<button
+				type="button"
+				title="Show its summary beside the page"
+				onClick={() => onShow(task.id)}
+				className={cn(
+					"flex w-full flex-wrap items-baseline gap-x-2 gap-y-1 rounded-lg px-3 py-2 text-left hover:bg-secondary/60",
+					open && "bg-primary/10",
+					picked && "ring-2 ring-primary/60",
+				)}
+			>
+				<span className="w-5 shrink-0 text-[14px] font-semibold text-attention">
+					{number}
+				</span>
+				<span className="min-w-0 flex-1 text-[14.5px] font-medium leading-snug">
+					{todayTitle(task, todo[0])}
+					<span className="ml-2 text-[12.5px] font-normal text-muted-foreground">
+						{task.name}
+					</span>
+				</span>
+				{todo[0] && (
+					<span className={cn(CHIP, "text-[11px] font-semibold")}>
+						{itemKind(todo[0])}
+						{todo.length > 1 && ` +${todo.length - 1}`}
+					</span>
+				)}
+				<TaskMarks task={task} now={now} />
+			</button>
+		</li>
+	);
+}
+
+/** A task moving without you, in one muted line: its name and who has it now. */
+function MovingRow({ task, now, picked, open, onShow }: TaskProps) {
 	const { Icon, tone } = GROUP_MARK[task.group];
 	const waitingOn = task.group === "waiting" ? task.items[0].waitingOn : null;
 	const word =
@@ -554,66 +954,49 @@ function MovingTask({ task, now, picked, open, onOpen, onShow }: TaskProps) {
 			: waitingOn
 				? `waiting on ${waitingOn}`
 				: todayGroupLabel(task.group).toLowerCase();
-
-	const prose = [task.line, task.left, task.next]
-		.map(sentence)
-		.filter(Boolean)
-		.join(" ");
 	return (
-		<li data-today-task={task.id} className={rowClass(open, picked)}>
-			<p className="flex flex-wrap items-baseline gap-x-2">
-				<button
-					type="button"
-					title="Show what this task is about beside the page"
-					onClick={() => onShow(task.id)}
-					className="text-left text-[14.5px] font-semibold underline-offset-2 hover:underline"
-				>
-					{task.name}
-				</button>
+		<li data-today-task={task.id}>
+			<button
+				type="button"
+				title={task.about ?? "Show its summary beside the page"}
+				onClick={() => onShow(task.id)}
+				className={cn(
+					"flex w-full flex-wrap items-baseline gap-x-2 rounded-lg px-3 py-1.5 text-left text-[13.5px] text-muted-foreground hover:bg-secondary/60",
+					open && "bg-primary/10",
+					picked && "ring-2 ring-primary/60",
+				)}
+			>
+				<span className="font-medium text-foreground/85">{task.name}</span>
 				<span
 					className={cn("inline-flex items-center gap-1 text-[12px]", tone)}
 				>
 					<Icon className="size-3" aria-hidden />
 					{word}
 				</span>
-			</p>
-			{task.about && (
-				<p className="mt-1 select-text cursor-text text-[13.5px] font-medium leading-snug text-foreground/90">
-					{sentence(task.about)}
-				</p>
-			)}
-			{task.explain && (
-				<p className="mt-1 select-text cursor-text text-[13.5px] leading-relaxed text-foreground/85">
-					{sentence(task.explain)}
-				</p>
-			)}
-			{(prose || task.items.some((item) => item.due || item.starred)) && (
-				<p className="mt-1 select-text cursor-text text-[13px] leading-relaxed text-muted-foreground">
-					{prose}
-					<TaskMarks task={task} now={now} />
-				</p>
-			)}
-			<div className="mt-1">
-				<SessionLines task={task} onOpen={onOpen} />
-			</div>
+				<TaskMarks task={task} now={now} />
+			</button>
 		</li>
 	);
 }
 
 /**
- * A task's summary beside the page, like the Tasks side panel: what it is,
- * the Explanation, where it stands, what is left and who acts next, its
- * sessions, and the task it was started from as Tasks shows it.
+ * A task's summary beside the page: its action items to answer here, what
+ * it is, why it matters, where it stands and who acts next, its sessions,
+ * the task it was started from, and Go to session, Done, Snooze and Next.
  */
 function TodayTaskPanel({
 	task,
 	now,
-	onOpen,
+	actions,
+	onActed,
+	onNext,
 	onClose,
 }: {
 	task: TodayTaskView<TodayItem>;
 	now: number;
-	onOpen: (paneId: string) => void;
+	actions: TodayActions;
+	onActed: () => void;
+	onNext?: () => void;
 	onClose: () => void;
 }) {
 	const { Icon, tone } = GROUP_MARK[task.group];
@@ -628,9 +1011,8 @@ function TodayTaskPanel({
 	const parts = (
 		[
 			["What it is", task.about],
-			["Explanation", task.explain],
-			["Where it stands", task.line],
-			["What's left", task.left],
+			["Why it matters", task.explain],
+			["Where it stands", standing(task)],
 			["Next", task.next],
 		] as const
 	).filter(([, text]) => !!text);
@@ -638,7 +1020,7 @@ function TodayTaskPanel({
 		<aside
 			aria-label="Task summary"
 			data-today-panel
-			className="flex w-[400px] shrink-0 flex-col border-l border-border"
+			className="flex w-[420px] shrink-0 flex-col border-l border-border"
 		>
 			<div className="flex shrink-0 items-center gap-2 px-4 pt-2.5 pb-1.5">
 				<span
@@ -660,14 +1042,13 @@ function TodayTaskPanel({
 				</button>
 			</div>
 			<div className="min-h-0 flex-1 space-y-3.5 overflow-y-auto px-4 pb-5">
-				<div>
+				<div className="space-y-1">
 					<h2 className="select-text cursor-text text-[17px] font-semibold leading-snug">
 						{task.name}
 					</h2>
-					<p className="text-[12.5px]">
-						<TaskMarks task={task} now={now} />
-					</p>
+					<TaskMarks task={task} now={now} />
 				</div>
+				<TaskItems task={task} onOpen={actions.onOpen} onSent={onActed} />
 				{parts.length === 0 && (
 					<p className="text-[13px] text-muted-foreground">
 						Claude hasn't written about this task yet.
@@ -681,14 +1062,6 @@ function TodayTaskPanel({
 						</p>
 					</div>
 				))}
-				<div>
-					<p className={LABEL}>
-						{task.items.length === 1
-							? "Its session"
-							: `Its ${task.items.length} sessions`}
-					</p>
-					<SessionLines task={task} onOpen={onOpen} />
-				</div>
 				{linked.map((row) => (
 					<div key={row.key} className="border-t border-border pt-3">
 						<p className={LABEL}>Started from</p>
@@ -696,112 +1069,24 @@ function TodayTaskPanel({
 					</div>
 				))}
 			</div>
-			<div className="flex shrink-0 items-center gap-2 border-t border-border px-4 py-2.5">
-				<button
-					type="button"
-					onClick={() => onOpen(task.items[0].key)}
-					className={ROW_LIVE_BUTTON}
-				>
-					Go to session →
-				</button>
+			<div className="flex shrink-0 flex-col gap-2 border-t border-border px-4 py-2.5">
+				<TaskButtons
+					task={task}
+					actions={actions}
+					onActed={onActed}
+					onNext={onNext}
+				/>
 				{task.items[0].from?.url && (
 					<button
 						type="button"
 						onClick={() => openUrl(task.items[0].from?.url ?? "")}
-						className="text-[12px] font-semibold text-muted-foreground hover:text-foreground"
+						className="self-start text-[12px] font-semibold text-muted-foreground hover:text-foreground"
 					>
 						Open in {task.items[0].from.source} ↗
 					</button>
 				)}
 			</div>
 		</aside>
-	);
-}
-
-/**
- * A line per session: its title (opens it), where it stands when the task
- * has several, its facts - where it runs, repo, last message, pull requests -
- * and the task it came from.
- */
-function SessionLines({
-	task,
-	onOpen,
-}: {
-	task: TodayTaskView<TodayItem>;
-	onOpen: (paneId: string) => void;
-}) {
-	return (
-		<ul className="flex flex-col gap-1 border-l-2 border-border pl-3 text-[12px] text-muted-foreground">
-			{task.items.map((item) => (
-				<li
-					key={item.key}
-					className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5"
-				>
-					<button
-						type="button"
-						title={`${todayGroupLabel(item.group)} - open it beside this page`}
-						onClick={() => onOpen(item.key)}
-						className={cn(LINK, "text-[12.5px]")}
-					>
-						{item.title}
-					</button>
-					{task.items.length > 1 && (
-						<span className={GROUP_MARK[item.group].tone}>
-							{todayGroupLabel(item.group).toLowerCase()}
-						</span>
-					)}
-					{item.facts && (
-						<span className="inline-flex flex-wrap items-baseline gap-x-1.5">
-							<span>-</span>
-							{item.facts}
-						</span>
-					)}
-					{item.sessionId && (
-						<SessionActionItems
-							sessionId={item.sessionId}
-							onOpen={() => onOpen(item.key)}
-						/>
-					)}
-				</li>
-			))}
-		</ul>
-	);
-}
-
-/**
- * The session's own ACTION ITEMS, each a button that opens the session beside
- * the page, where its Action items card answers it. Nothing when it left none.
- */
-function SessionActionItems({
-	sessionId,
-	onOpen,
-}: {
-	sessionId: string;
-	onOpen: () => void;
-}) {
-	const { data: transcript } =
-		electronTrpc.terminal.readClaudeTranscript.useQuery(
-			{ sessionId },
-			{ retry: false, staleTime: 60_000 },
-		);
-	const todo = transcript ? actionItems(transcript.messages) : [];
-	if (!todo.length) return null;
-	return (
-		<ol className="mt-1 flex w-full flex-col gap-1">
-			{todo.map((item, i) => (
-				<li key={item}>
-					<button
-						type="button"
-						title="Open the session to do or answer it"
-						onClick={onOpen}
-						className="flex w-full items-baseline gap-2 rounded-md border border-attention/35 bg-attention/[0.07] px-2.5 py-1 text-left text-[12.5px] text-foreground hover:bg-attention/15"
-					>
-						<span className="font-semibold text-attention-ink">{i + 1}.</span>
-						<span className="min-w-0 break-words">{item}</span>
-					</button>
-				</li>
-			))}
-		</ol>
 	);
 }
 

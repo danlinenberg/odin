@@ -8110,6 +8110,14 @@ function DevBoardPage() {
 						setDrawerFraction((fraction) => Math.min(fraction, 0.6));
 						openDrawer(card);
 					}}
+					onDone={(paneId) => {
+						const card = cardById(paneId);
+						if (card) markDone(card);
+					}}
+					onSnooze={(paneId, day) => {
+						const card = cardById(paneId);
+						if (card) remindMe(card, day);
+					}}
 				/>
 			)}
 			<div

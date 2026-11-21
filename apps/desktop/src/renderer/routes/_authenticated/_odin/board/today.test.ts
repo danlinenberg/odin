@@ -1,7 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import {
 	dueLabel,
+	itemKind,
 	plainLine,
+	rankToday,
 	shouldShowToday,
 	type TodayEntry,
 	type TodayGroup,
@@ -10,6 +12,7 @@ import {
 	todayGroups,
 	todayLanes,
 	todayTasks,
+	todayTitle,
 	yourAction,
 } from "./today";
 
@@ -240,5 +243,51 @@ describe("todayLanes", () => {
 		]);
 		expect(yours.map((x) => x.id)).toEqual(["a", "c", "d"]);
 		expect(moving.map((x) => x.id)).toEqual(["b", "e"]);
+	});
+});
+
+describe("rankToday", () => {
+	const at = (key: string, group: TodayGroup, due?: string) => ({
+		key,
+		group,
+		due: due ?? null,
+	});
+	it("due now first, then quick wins, then questions, then the rest", () => {
+		const ranked = rankToday(
+			[
+				at("question", "needs-you"),
+				at("running", "running"),
+				at("merge", "almost-done"),
+				at("overdue", "running", "2026-01-01"),
+				at("later", "needs-you", "2099-01-01"),
+			],
+			"2026-06-01",
+		);
+		expect(ranked.map((e) => e.key)).toEqual([
+			"overdue",
+			"merge",
+			"later",
+			"question",
+			"running",
+		]);
+	});
+});
+
+describe("todayTitle and itemKind", () => {
+	const task = { name: "CSV export", group: "needs-you" as const, next: null };
+	it("the first action item titles the card, its choices left out", () => {
+		expect(todayTitle(task, "Pick the wording [Short | Long]")).toBe(
+			"Pick the wording",
+		);
+		expect(todayTitle({ ...task, next: "You: merge it" })).toBe("Merge it");
+		expect(todayTitle({ ...task, group: "almost-done" })).toBe(
+			"Finish: CSV export",
+		);
+	});
+	it("a kind word per item", () => {
+		expect(itemKind("Approve the plan")).toBe("Approve");
+		expect(itemKind("Pick one [A | B]")).toBe("Answer");
+		expect(itemKind("Merge the pull request")).toBe("Merge");
+		expect(itemKind("Test it on your phone")).toBe("Do");
 	});
 });
