@@ -184,7 +184,7 @@ export const createInsightsRouter = () => {
 					finished,
 				).catch((error) => {
 					console.warn("[insights] deliverables:", error);
-					return { kinds: [], weeks: [], judging: 0 };
+					return { kinds: [], weeks: [], judging: 0, failed: null };
 				});
 				return { ...workload, delivered };
 			}),

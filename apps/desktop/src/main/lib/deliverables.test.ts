@@ -3,6 +3,8 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+	BACKOFF_MAX_MS,
+	BACKOFF_MS,
 	classifyPrompt,
 	deliveredPerWeek,
 	judgeInBackground,
@@ -89,7 +91,7 @@ describe("deliveredPerWeek", () => {
 				return "";
 			},
 		});
-		expect(out).toEqual({ kinds: [], weeks: [], judging: 0 });
+		expect(out).toEqual({ kinds: [], weeks: [], judging: 0, failed: null });
 		expect(calls).toBe(0);
 	});
 
@@ -154,4 +156,49 @@ describe("deliveredPerWeek", () => {
 		await judgeInBackground(sessions, { path, now: NOW, model });
 		expect(calls).toBe(2);
 	});
+});
+
+test("a failed call waits 15 minutes, doubling, before the next; a good call or new kinds reset it", async () => {
+	const path = storePath();
+	await writeKinds(KINDS, path);
+	const sessions = [session("a", "Spring sale email", WEEK1)];
+	let calls = 0;
+	let broken = true;
+	const model = async () => {
+		calls++;
+		if (broken) throw new Error("claude -p failed (exit 1): not signed in");
+		return "S1: email";
+	};
+	const at = (t: number) =>
+		deliveredPerWeek([WEEK1], sessions, { path, now: t, model });
+	const settle = (t: number) =>
+		judgeInBackground(sessions, { path, now: t, model });
+
+	await settle(NOW);
+	expect(calls).toBe(1);
+	// Every refresh inside the wait: the failure once, no new call.
+	for (const t of [NOW + 10_000, NOW + 60_000, NOW + BACKOFF_MS - 1]) {
+		const out = await at(t);
+		expect(out.failed).toEqual({
+			error: "claude -p failed (exit 1): not signed in",
+			retryAt: NOW + BACKOFF_MS,
+		});
+		await settle(t);
+	}
+	expect(calls).toBe(1);
+	// Then one try, which fails again: the wait doubles.
+	await settle(NOW + BACKOFF_MS);
+	expect(calls).toBe(2);
+	expect((await at(NOW + BACKOFF_MS + 1)).failed?.retryAt).toBe(
+		NOW + 3 * BACKOFF_MS,
+	);
+	// New kinds reset the wait: the next refresh calls again at once, and a
+	// call that works leaves no failure behind.
+	broken = false;
+	await writeKinds([KINDS[0] as (typeof KINDS)[number]], path);
+	expect((await at(NOW + BACKOFF_MS + 2)).failed).toBeNull();
+	await settle(NOW + BACKOFF_MS + 3);
+	expect(calls).toBe(3);
+	expect((await at(NOW + BACKOFF_MS + 4)).failed).toBeNull();
+	expect(BACKOFF_MAX_MS).toBe(4 * 3_600_000);
 });

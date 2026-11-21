@@ -226,6 +226,41 @@ export function pending(
 
 let running: Promise<void> | null = null;
 
+/** First wait after a failed call, doubled on each failure after, up to the cap. */
+export const BACKOFF_MS = 15 * 60_000;
+export const BACKOFF_MAX_MS = 4 * 3_600_000;
+
+/**
+ * After a failed model call, no new call until `until`: Insights refreshes
+ * every 10 seconds while sessions are pending, and a broken `claude` would
+ * otherwise be spawned on each one. Per store path; reset by a call that
+ * works, or by new kinds.
+ */
+const backoffs = new Map<
+	string,
+	{ until: number; delayMs: number; kindsKey: string; error: string }
+>();
+
+const kindsKeyOf = (kinds: DeliverableKind[]) =>
+	hash(JSON.stringify(kinds.map((k) => [k.id, k.name, k.description])));
+
+/** The current failure, while its wait lasts; null when a call may go. */
+export function backoffFor(
+	path: string,
+	kinds: DeliverableKind[],
+	now: number,
+): { error: string; retryAt: number } | null {
+	const backoff = backoffs.get(path);
+	if (!backoff) return null;
+	if (backoff.kindsKey !== kindsKeyOf(kinds)) {
+		backoffs.delete(path);
+		return null;
+	}
+	return now < backoff.until
+		? { error: backoff.error, retryAt: backoff.until }
+		: null;
+}
+
 /**
  * Judges what's pending in the background, newest first, a few batches per
  * run. Only one run at a time; Insights' next refresh shows what it found.
@@ -243,6 +278,7 @@ export function judgeInBackground(
 		const store = await load(path);
 		const kinds = store.kinds;
 		if (!kinds.length) return;
+		if (backoffFor(path, kinds, now)) return;
 		const todo = pending(sessions, kinds, store.verdicts, now).slice(
 			0,
 			BATCH * MAX_BATCHES,
@@ -253,9 +289,21 @@ export function judgeInBackground(
 			try {
 				reply = await model(classifyPrompt(batch, kinds));
 			} catch (error) {
+				const last = backoffs.get(path);
+				const delayMs =
+					last && last.kindsKey === kindsKeyOf(kinds)
+						? Math.min(last.delayMs * 2, BACKOFF_MAX_MS)
+						: BACKOFF_MS;
+				backoffs.set(path, {
+					until: now + delayMs,
+					delayMs,
+					kindsKey: kindsKeyOf(kinds),
+					error: error instanceof Error ? error.message : String(error),
+				});
 				console.warn("[deliverables]", error);
 				break;
 			}
+			backoffs.delete(path);
 			const found = parseClassification(reply, batch.length, kinds);
 			batch.forEach((session, index) => {
 				store.verdicts[session.sessionId] = {
@@ -327,11 +375,14 @@ export async function deliveredPerWeek(
 	kinds: DeliverableKind[];
 	weeks: DeliveredWeek[];
 	judging: number;
+	/** The last model call failed: why, and when the next one may go. */
+	failed: { error: string; retryAt: number } | null;
 }> {
 	const path = options.path ?? defaultStorePath();
 	const now = options.now ?? Date.now();
 	const store = await load(path);
-	if (!store.kinds.length) return { kinds: [], weeks: [], judging: 0 };
+	if (!store.kinds.length)
+		return { kinds: [], weeks: [], judging: 0, failed: null };
 	const tally = tallyDelivered(
 		weekStarts,
 		sessions,
@@ -339,9 +390,10 @@ export async function deliveredPerWeek(
 		store.verdicts,
 		now,
 	);
-	if (tally.judging > 0)
+	const failed = backoffFor(path, store.kinds, now);
+	if (tally.judging > 0 && !failed)
 		void judgeInBackground(sessions, { ...options, path, now });
-	return { kinds: store.kinds, ...tally };
+	return { kinds: store.kinds, ...tally, failed };
 }
 
 export function suggestPrompt(sessions: SessionForVerdict[]): string {

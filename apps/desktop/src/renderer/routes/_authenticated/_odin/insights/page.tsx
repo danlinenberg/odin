@@ -355,7 +355,13 @@ type Delivered = {
 	kinds: Kind[];
 	weeks: { start: number; counts: Record<string, number> }[];
 	judging: number;
+	failed?: { error: string; retryAt: number } | null;
 };
+
+const TIME = new Intl.DateTimeFormat(undefined, {
+	hour: "numeric",
+	minute: "2-digit",
+});
 
 /** The weeks the Delivered chart draws: the last eight. */
 const DELIVERED_WEEKS = 8;
@@ -374,7 +380,13 @@ function DeliveredSection({ delivered }: { delivered: Delivered | undefined }) {
 			title="Delivered per week"
 			note={
 				kinds.length
-					? `finished sessions that delivered one of your kinds, by the week they ended${delivered?.judging ? ` - reading ${plural(delivered.judging, "session")}` : ""}`
+					? `finished sessions that delivered one of your kinds, by the week they ended${
+							delivered?.failed
+								? ` - couldn't read ${plural(delivered.judging, "session")}: ${delivered.failed.error}; trying again at ${TIME.format(delivered.failed.retryAt)}`
+								: delivered?.judging
+									? ` - reading ${plural(delivered.judging, "session")}`
+									: ""
+						}`
 					: "for work that isn't pull requests"
 			}
 			aside={
@@ -1260,7 +1272,10 @@ function Workload() {
 				// While Delivered per week is still reading sessions, check back
 				// soon so its counts fill in; otherwise every two minutes.
 				refetchInterval: (query) =>
-					query.state.data?.delivered?.judging ? 10_000 : 120_000,
+					query.state.data?.delivered?.judging &&
+					!query.state.data.delivered.failed
+						? 10_000
+						: 120_000,
 				staleTime: 60_000,
 				// Switching repos keeps the old numbers up until the new ones land.
 				placeholderData: (previous) => previous,
