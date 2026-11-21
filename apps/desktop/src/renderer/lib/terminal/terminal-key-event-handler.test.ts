@@ -28,21 +28,19 @@ describe("createTerminalKeyEventHandler", () => {
 	});
 
 	it("keeps a bare arrow key in the terminal even when the app binds it", () => {
-		// Catch up binds the right arrow (CATCH_UP_SKIP). Arrows have no keypress,
+		// Today binds the down arrow (TODAY_NEXT). Arrows have no keypress,
 		// so a keydown the terminal gives up never reaches the PTY: the cursor
-		// stopped moving right while typing.
+		// stopped moving while typing.
 		const terminal = {
 			input: () => {},
 			hasSelection: () => false,
 		} as unknown as XTerm;
 		const handle = createTerminalKeyEventHandler(terminal, { platform: "mac" });
-		expect(handle(keydown({ key: "ArrowRight", code: "ArrowRight" }))).toBe(
-			true,
-		);
+		expect(handle(keydown({ key: "ArrowDown", code: "ArrowDown" }))).toBe(true);
 	});
 
 	it("keeps a bare Enter in the terminal even when the app binds it", () => {
-		// CATCH_UP_ACCEPT is Enter.
+		// TODAY_OPEN is Enter.
 		const terminal = {
 			input: () => {},
 			hasSelection: () => false,

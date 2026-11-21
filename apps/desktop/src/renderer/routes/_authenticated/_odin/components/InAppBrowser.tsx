@@ -592,14 +592,14 @@ export function InAppBrowser() {
 	useEffect(() => {
 		if (!url) return;
 		const site = siteOf(url);
-		// Whatever had focus when the link opened - the session's terminal,
-		// Catch up - gets it back on close, instead of it falling to <body>.
+		// Whatever had focus when the link opened - the session's terminal -
+		// gets it back on close, instead of it falling to <body>.
 		const opener = document.activeElement;
 		// Typing goes to the link, not the terminal under the panel. A site's
 		// first link has no page yet; its <webview> takes focus as it mounts.
 		views.current[site]?.focus();
 		// Captured and stopped at the window: Esc closes the panel and nothing
-		// under it - not the session drawer, not Catch up, not the terminal.
+		// under it - not the session drawer, not the terminal.
 		const onKey = (event: KeyboardEvent) => {
 			// The toolbar, or whatever kept focus under the panel.
 			if (isCopyLink(event)) {

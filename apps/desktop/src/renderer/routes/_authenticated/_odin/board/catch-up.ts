@@ -8,8 +8,9 @@ import {
 } from "./brief";
 
 /**
- * What Catch up offers to do with a card, and why - so catching up is one key
- * per card, not a read of each. Built only from what the board already knows.
+ * The board's call on a card that asks for you, and why: Done, a duplicate,
+ * only a merge left, or yours. Today reads it to put a card in Almost done.
+ * Built only from what the board already knows.
  */
 export interface CatchUpSuggestion {
 	kind: "done" | "duplicate" | "merge" | "yours";
@@ -90,22 +91,4 @@ export function catchUpSuggestion(s: CatchUpSignals): CatchUpSuggestion {
 		why: items[0] ?? "Open the session to see what it needs.",
 		from: items.length ? `Action item 1 of ${items.length}` : "No action items",
 	};
-}
-
-const RANK: Record<CatchUpSuggestion["kind"], number> = {
-	done: 0,
-	duplicate: 1,
-	merge: 2,
-	yours: 3,
-};
-
-/** Easy calls first: Done, then duplicates, then merges, then yours. Stable. */
-export function catchUpOrder<T>(
-	cards: T[],
-	suggestionOf: (card: T) => CatchUpSuggestion,
-): T[] {
-	return cards
-		.map((card, i) => ({ card, i, rank: RANK[suggestionOf(card).kind] }))
-		.sort((a, b) => a.rank - b.rank || a.i - b.i)
-		.map(({ card }) => card);
 }

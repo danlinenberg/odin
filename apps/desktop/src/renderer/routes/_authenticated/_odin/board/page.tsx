@@ -43,7 +43,6 @@ import {
 	LuCircleCheck,
 	LuClock,
 	LuCode,
-	LuCopy,
 	LuEye,
 	LuEyeOff,
 	LuFileText,
@@ -67,7 +66,6 @@ import {
 	LuStar,
 	LuSun,
 	LuTerminal,
-	LuUser,
 } from "react-icons/lu";
 import { SiJira, SiNotion, SiSlack } from "react-icons/si";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
@@ -246,15 +244,12 @@ import { type SweptRow, sessionFor } from "../review/verdicts";
 import { AgentsView, SubagentsButton, SubagentsPill } from "./AgentsView";
 import type { BriefMessage } from "./brief";
 import {
-	actionItems,
 	ciRunning,
 	claimOpened,
 	droppedReason,
 	elapsedLabel,
-	jiraIssue,
 	lastMessageAt,
 	launchPullRequest,
-	linkRefs,
 	mergeCheckUrls,
 	mergeConflicts,
 	mergeReady,
@@ -285,11 +280,7 @@ import {
 	typeIntoClaude,
 } from "./ChatView";
 import { droppedFlags, useCardFlags } from "./card-flags";
-import {
-	type CatchUpSuggestion,
-	catchUpOrder,
-	catchUpSuggestion,
-} from "./catch-up";
+import { catchUpSuggestion } from "./catch-up";
 import {
 	ciWakeMessage,
 	ciWakePlan,
@@ -322,7 +313,7 @@ import {
 	planLimitResumeKey,
 	restartedOnKey,
 } from "./plan-limit-resume";
-import { HoverBrief, MyTodos, SessionBrief } from "./SessionBrief";
+import { HoverBrief, SessionBrief } from "./SessionBrief";
 import {
 	PREFIX as REMIND_PREFIX,
 	RemindButton,
@@ -789,238 +780,6 @@ function WatchKeySync({ card }: { card: BoardCard }) {
 function useCardSessionId(card: BoardCard): string | null {
 	const mirrored = usePaneMeta((s) => s.sessionIdByPane[card.pane.id]);
 	return card.pane.claudeSessionId ?? mirrored ?? null;
-}
-
-/**
- * The agent's `inline code` as code, not as literal backticks; the prose
- * between goes through `prose` (Catch up links its PRs there).
- */
-function withCode(
-	text: string,
-	prose: (part: string) => React.ReactNode = (part) => part,
-): React.ReactNode[] {
-	return text.split("`").map((part, i) =>
-		i % 2 ? (
-			// biome-ignore lint/suspicious/noArrayIndexKey: a fixed split, never reordered
-			<code key={i} className="rounded bg-secondary px-1 text-[0.9em]">
-				{part}
-			</code>
-		) : (
-			// biome-ignore lint/suspicious/noArrayIndexKey: a fixed split, never reordered
-			<Fragment key={i}>{prose(part)}</Fragment>
-		),
-	);
-}
-
-/**
- * Catch up's card: what the issue was, what's yours to do, where it stands
- * and what we did, and the PRs, tickets and threads it's about - nothing else.
- * The conversation and the brief panel are one click away, not on screen:
- * catching up is deciding Next or Done, not reading.
- */
-function CatchUpCard({
-	card,
-	title,
-	suggestion,
-	onShowSession,
-}: {
-	card: BoardCard;
-	/** The board's title for it - finds the transcript of a session with no id. */
-	title: string;
-	suggestion: CatchUpSuggestion;
-	onShowSession: () => void;
-}) {
-	const { data: transcript } = useCardTranscript(card, false);
-	const sessionId = useCardSessionId(card);
-	const { data: written } =
-		electronTrpc.terminal.summarizeClaudeSession.useQuery(
-			{ sessionId: sessionId ?? "" },
-			{ enabled: !!sessionId, retry: false, staleTime: 30_000 },
-		);
-	// The agent's own list, verbatim; the brief's one-liner when it left none.
-	const todo = transcript ? actionItems(transcript.messages) : [];
-	// "Merge acme-mcp #2" opens #2 - the PRs and ticket the session quoted.
-	const quoted = transcript ? (transcript.links ?? transcript.messages) : [];
-	const prs = pullRequests(quoted);
-	const issue = jiraIssue(quoted);
-	const text = (value: string) =>
-		withCode(value, (part) =>
-			linkRefs(part, prs, issue).map(({ text: run, url }, i) =>
-				url ? (
-					// An <a>, not a <button>: a button lays out inline-block whatever its
-					// display, so "PR #1." could wrap before its period. The click is
-					// stopped, so the app window doesn't navigate; main opens it.
-					<a
-						// biome-ignore lint/suspicious/noArrayIndexKey: a fixed split, never reordered
-						key={i}
-						href={url}
-						title={url}
-						onClick={(event) => {
-							event.preventDefault();
-							openUrl(url);
-						}}
-						className="text-link hover:underline"
-					>
-						{run}
-					</a>
-				) : (
-					run
-				),
-			),
-		);
-	// The notes you submitted - the question you saved for when it finished.
-	const hasTodos = usePaneMeta((s) => !!s.todosByPane[card.pane.id]);
-	const label = "mb-1.5 text-[11px] font-semibold uppercase tracking-[.4px]";
-	return (
-		<div className="flex min-h-0 flex-1 select-text cursor-text flex-col gap-6 overflow-y-auto px-8 py-7">
-			<SuggestionBox suggestion={suggestion} text={text} />
-			{/* What it's about first, at the size of the action items: you can't
-			    decide Next or Done on a session you don't recognise. Its label is
-			    grey: amber is the one label that means something - yours to do. */}
-			{written?.goal && (
-				<div>
-					<div className={cn(label, "text-muted-foreground")}>The issue</div>
-					<div className="text-[15px] leading-relaxed text-foreground">
-						{text(written.goal)}
-					</div>
-				</div>
-			)}
-			<div>
-				<div className={cn(label, "text-attention")}>Your action items</div>
-				{todo.length > 0 ? (
-					<ol className="list-decimal space-y-1.5 pl-5 text-[15px] leading-relaxed text-foreground">
-						{todo.map((item) => (
-							<li key={item} className="break-words">
-								{text(item)}
-							</li>
-						))}
-					</ol>
-				) : (
-					<div className="text-[15px] leading-relaxed text-foreground">
-						{written?.next
-							? text(written.next)
-							: sessionId
-								? "reading the conversation…"
-								: "-"}
-					</div>
-				)}
-			</div>
-			{hasTodos && (
-				<div>
-					<div className={cn(label, "text-attention")}>Your to-dos</div>
-					<MyTodos paneId={card.pane.id} />
-				</div>
-			)}
-			{written?.status && (
-				<div>
-					<div className={cn(label, "text-muted-foreground")}>
-						Where it stands
-					</div>
-					<div className="text-[13.5px] leading-relaxed text-soft-foreground">
-						{text(written.status)}
-					</div>
-				</div>
-			)}
-			{written?.done && (
-				<div>
-					<div className={cn(label, "text-muted-foreground")}>What we did</div>
-					<div className="text-[13.5px] leading-relaxed text-soft-foreground">
-						{text(written.done)}
-					</div>
-				</div>
-			)}
-			<SessionBrief
-				resourcesOnly
-				paneId={card.pane.id}
-				cwd={card.pane.cwd ?? null}
-				claudeSessionId={card.pane.claudeSessionId ?? null}
-				marker={title}
-				live={false}
-				launch={card.pane.odinBrief}
-			/>
-			<button
-				type="button"
-				onClick={onShowSession}
-				title="Leave Catch up and open this session"
-				className={cn(
-					"mt-auto self-start rounded-[7px] px-3 py-1.5 text-xs font-semibold",
-					BUTTON.secondary,
-				)}
-			>
-				Back to session
-			</button>
-		</div>
-	);
-}
-
-const SUGGESTION = {
-	done: {
-		icon: LuCircleCheck,
-		what: "Suggested: Done",
-		box: "border-success/40 bg-success/10",
-		ink: "text-success-ink",
-		button: "✓ Done",
-		style: BUTTON.done,
-	},
-	duplicate: {
-		icon: LuCopy,
-		what: "Suggested: Close as duplicate",
-		box: "border-border bg-secondary",
-		ink: "text-muted-foreground",
-		button: "Close as duplicate",
-		style: BUTTON.done,
-	},
-	merge: {
-		icon: LuGitMerge,
-		what: "Suggested: Merge",
-		box: "border-primary/40 bg-primary/10",
-		ink: "text-primary-ink",
-		button: "Open PR to merge",
-		style: BUTTON.primary,
-	},
-	yours: {
-		icon: LuUser,
-		what: "Yours to do",
-		box: "border-attention/40 bg-attention/10",
-		ink: "text-attention-ink",
-		button: "Open session",
-		style: BUTTON.remind,
-	},
-} as const;
-
-/** Catch up's call on this card and why - the reason you can press Enter on. */
-function SuggestionBox({
-	suggestion,
-	text,
-}: {
-	suggestion: CatchUpSuggestion;
-	text: (value: string) => React.ReactNode;
-}) {
-	const look = SUGGESTION[suggestion.kind];
-	const Icon = look.icon;
-	return (
-		<div
-			className={cn("-mx-2 flex gap-3 rounded-xl border px-3.5 py-3", look.box)}
-		>
-			<Icon className={cn("mt-0.5 size-[18px] shrink-0", look.ink)} />
-			<div className="min-w-0">
-				<div
-					className={cn(
-						"text-[11px] font-bold uppercase tracking-[.4px]",
-						look.ink,
-					)}
-				>
-					{look.what}
-				</div>
-				<div className="mt-0.5 break-words text-[14.5px] leading-snug text-foreground">
-					{text(suggestion.why)}
-				</div>
-				<div className="mt-1 text-[11.5px] text-muted-foreground">
-					{suggestion.from}
-				</div>
-			</div>
-		</div>
-	);
 }
 
 /**
@@ -3645,19 +3404,6 @@ function DevBoardPage() {
 			setSelecting(false);
 		}
 	}, [drawerCard]);
-	// Catch up (Slack mobile's): Needs you one card at a time in the drawer.
-	// The pane ids are a snapshot taken on start, so ✓ done doesn't reshuffle
-	// the cards you haven't reached.
-	const [catchUp, setCatchUp] = useState<string[] | null>(null);
-	// Catch up lasts as long as its drawer. Only ‹ and "All caught up" used to
-	// end it, so a click outside, Esc or Minimize left the queue behind - and
-	// opening one of its cards from the board later came up as Catch up.
-	useEffect(() => {
-		if (!drawerCard) setCatchUp(null);
-	}, [drawerCard]);
-	// Catch up shows a card's full session only after you ask, per card - a pane
-	// id, so the next card starts lean again without an effect to reset it.
-	const [catchUpFull, setCatchUpFull] = useState<string | null>(null);
 	// Rename a session. Same home as tags (the pane, in app-state.json) and the
 	// first thing cardTitle reads, so the new name shows everywhere and sticks.
 	// Non-null = the drawer's title is being edited.
@@ -5054,14 +4800,10 @@ function DevBoardPage() {
 	};
 	// Dev only: hold Vite's reloads while a session is open (see coalesceFullReloadPlugin).
 	const drawerOpen = !!drawerCard;
-	const inCatchUp = !!drawerCard && !!catchUp?.includes(drawerCard.pane.id);
-	// Catch up has no Diff or Shell - one left open in a normal drawer doesn't
-	// follow you in, since there'd be no button to close it.
-	const catchUpLean = inCatchUp && catchUpFull !== drawerCard?.pane.id;
 	// The footer's Chat View / Terminal View button. The ▣ View tab covers the
 	// chat's own Terminal View, so while the app shows the footer goes back to
 	// the view under it.
-	const hostScreenOpen = isViewOpen && !inCatchUp;
+	const hostScreenOpen = isViewOpen;
 	const viewSwitch = drawerViewSwitch({
 		chat: chatView,
 		peeking: !!drawerCard && terminalPaneId === drawerCard.pane.id,
@@ -5573,10 +5315,10 @@ function DevBoardPage() {
 			}),
 		);
 	}, [cardsByStatus]);
-	// Catch up's call per card, from what the board already read: the sweep,
-	// PR states, duplicates and the transcript's ACTION ITEMS.
+	// Today's almost-done call per card, from what the board already read: the
+	// sweep, PR states, duplicates and the transcript's ACTION ITEMS.
 	const swept = useReview((review) => review.swept);
-	const catchUpSuggestionOf = (card: BoardCard): CatchUpSuggestion => {
+	const catchUpSuggestionOf = (card: BoardCard) => {
 		const id = card.pane.id;
 		const at = mergeCandidates.findIndex((c) => c.paneId === id);
 		const other = duplicateOf.get(id);
@@ -5613,7 +5355,7 @@ function DevBoardPage() {
 	useReadableSlackTitles();
 	// Each id carries whether its card stopped working, so a session finishing
 	// re-fires the warm at once and its final brief is ready before you open
-	// Catch up - not on the next tick, and not throttled as if still busy.
+	// it - not on the next tick, and not throttled as if still busy.
 	const briefSessionIds = useMemo(
 		() =>
 			[...cardsByStatus]
@@ -7448,7 +7190,7 @@ function DevBoardPage() {
 	// ⌘⌥↑/↓ walk the drawer's session list as shown, Idle rows included once
 	// the group is open; stops at either end.
 	const stepSession = (step: 1 | -1) => {
-		if (!drawerCard || inCatchUp) return;
+		if (!drawerCard) return;
 		const at = switchRows.findIndex(
 			(card) => card.pane.id === drawerCard.pane.id,
 		);
@@ -7536,51 +7278,9 @@ function DevBoardPage() {
 		stepSession(1),
 	);
 
-	/** Catch up's next card (✓ Done ends this one first), or all caught up. */
-	const catchUpNext = (done: boolean) => {
-		const queue = catchUp ?? [];
-		const current = drawerCard?.pane.id;
-		if (done && drawerCard) endCard(drawerCard);
-		const live = new Map(
-			[...cardsByStatus.values()].flat().map((card) => [card.pane.id, card]),
-		);
-		const next = queue
-			.slice(current ? queue.indexOf(current) + 1 : 0)
-			.map((id) => live.get(id))
-			.find((card) => card);
-		if (next) return openDrawer(next);
-		setCatchUp(null);
-		setDrawerCard(null);
-		toast.success("All caught up");
-	};
-
-	const catchUpCall =
-		inCatchUp && drawerCard ? catchUpSuggestionOf(drawerCard) : null;
-	/** Do what Catch up suggests: Done, or open the PR, or open the session. */
-	const acceptCatchUp = (suggestion: CatchUpSuggestion) => {
-		if (suggestion.kind === "yours") return setCatchUp(null);
-		if (suggestion.kind === "merge") {
-			if (suggestion.url) openUrl(suggestion.url);
-			return catchUpNext(false);
-		}
-		catchUpNext(true);
-	};
-	// One key per card: Enter takes the suggestion, → skips, E is Done.
 	// "" when the stop is unassigned in Settings -> Keyboard.
 	const stopDisplay = useHotkeyDisplay("STOP_TURN").text;
 	const stopKeys = useBinding("STOP_TURN") ? stopDisplay : "";
-	const catchUpKeys = {
-		enabled: !!catchUpCall,
-		enableOnFormTags: false,
-		enableOnContentEditable: false,
-	};
-	useHotkey(
-		"CATCH_UP_ACCEPT",
-		() => catchUpCall && acceptCatchUp(catchUpCall),
-		catchUpKeys,
-	);
-	useHotkey("CATCH_UP_SKIP", () => catchUpNext(false), catchUpKeys);
-	useHotkey("CATCH_UP_DONE", () => catchUpNext(true), catchUpKeys);
 
 	// Done from wherever the card is: the open session moves the drawer on,
 	// another row in the drawer's list leaves the drawer where it is.
@@ -7916,7 +7616,7 @@ function DevBoardPage() {
 						showLocal
 					/>
 				</span>
-				{hostScreen && !inCatchUp && (
+				{hostScreen && (
 					<button
 						type="button"
 						aria-label={
@@ -7955,7 +7655,7 @@ function DevBoardPage() {
 				)}
 				{/* View and Agents come and go, so they sit left of Diff: Diff, Shell
 				    and Brief keep their place. */}
-				{drawerCard.pane.type === "terminal" && !inCatchUp && (
+				{drawerCard.pane.type === "terminal" && (
 					<DrawerAgentsButton
 						card={drawerCard}
 						alive={agentPaneIds.has(drawerCard.pane.id)}
@@ -7968,7 +7668,7 @@ function DevBoardPage() {
 						}}
 					/>
 				)}
-				{drawerCard.pane.type === "terminal" && !inCatchUp && (
+				{drawerCard.pane.type === "terminal" && (
 					<button
 						type="button"
 						title="Show what this session changed (git diff)"
@@ -7988,8 +7688,7 @@ function DevBoardPage() {
 						⑂ Diff
 					</button>
 				)}
-				{/* Not in Catch up (nor Diff): you're deciding Next or Done. */}
-				{drawerCard.pane.type === "terminal" && !inCatchUp && (
+				{drawerCard.pane.type === "terminal" && (
 					// One control: the shell, and - once it's open - where it is.
 					<div className="flex shrink-0 items-stretch">
 						<button
@@ -8038,33 +7737,29 @@ function DevBoardPage() {
 						)}
 					</div>
 				)}
-				{!catchUpLean && (
-					<button
-						type="button"
-						title="Toggle the session brief"
-						onClick={() => setIsBriefOpen((open) => !open)}
-						className={cn(
-							"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
-							isBriefOpen
-								? "bg-primary/15 text-primary"
-								: "bg-secondary text-muted-foreground hover:text-foreground",
-						)}
-					>
-						ⓘ Brief
-					</button>
-				)}
-				{!inCatchUp && (
-					<button
-						type="button"
-						title="Toggle full width"
-						onClick={() =>
-							setDrawerFraction((fraction) => (fraction < 1 ? 1 : 0.6))
-						}
-						className="shrink-0 rounded-md bg-secondary px-2 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
-					>
-						⛶
-					</button>
-				)}
+				<button
+					type="button"
+					title="Toggle the session brief"
+					onClick={() => setIsBriefOpen((open) => !open)}
+					className={cn(
+						"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
+						isBriefOpen
+							? "bg-primary/15 text-primary"
+							: "bg-secondary text-muted-foreground hover:text-foreground",
+					)}
+				>
+					ⓘ Brief
+				</button>
+				<button
+					type="button"
+					title="Toggle full width"
+					onClick={() =>
+						setDrawerFraction((fraction) => (fraction < 1 ? 1 : 0.6))
+					}
+					className="shrink-0 rounded-md bg-secondary px-2 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
+				>
+					⛶
+				</button>
 			</div>
 		</div>
 	);
@@ -8183,7 +7878,6 @@ function DevBoardPage() {
 				    open or not - a copy in the toolbar and one in the drawer jumped
 				    across the screen on every click. */}
 				{viewToggleSlot &&
-					!inCatchUp &&
 					createPortal(
 						<ViewToggle
 							sessionsOpen={!!drawerCard}
@@ -8448,11 +8142,6 @@ function DevBoardPage() {
 						sections[0]?.[0] === "queued" ||
 						sections[0]?.[0] === "waiting";
 					const isDropTarget = column.status === "idle";
-					// Needs you and Done are the two columns you clear: walk either one
-					// card at a time - once there are more than five, fewer you just scan.
-					const canCatchUp =
-						(column.status === "permission" || column.status === "review") &&
-						cards.length > 5;
 					return (
 						// biome-ignore lint/a11y/noStaticElementInteractions: drop zone - drag is the mouse-only shortcut for parking a card in Idle
 						<div
@@ -8502,35 +8191,9 @@ function DevBoardPage() {
 							<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-soft-foreground">
 								<span className="size-2 rounded-full bg-(--col) shadow-[0_0_8px_var(--col)]" />
 								{PANE_STATUS[column.status].label}
-								{canCatchUp && (
-									<button
-										type="button"
-										title="Catch up - go through these one at a time"
-										onClick={() => {
-											const queue = catchUpOrder(
-												sections.flatMap(([, group]) => group),
-												catchUpSuggestionOf,
-											);
-											setCatchUp(queue.map((card) => card.pane.id));
-											openDrawer(queue[0]);
-										}}
-										// Solid, with a play icon: the dim pill read as a tag beside
-										// the count, not as something to press. Wears the column's hue.
-										className={cn(
-											"ml-auto flex items-center gap-1 rounded-md bg-gradient-to-b to-(--col) px-2.5 py-1 text-[11px] font-semibold normal-case tracking-normal text-background shadow-[0_2px_10px_-3px_color-mix(in_oklab,var(--col)_75%,transparent)] hover:brightness-110",
-											column.status === "review"
-												? "from-success-ink"
-												: "from-attention-ink",
-										)}
-									>
-										<LuPlay className="size-2.5 fill-current" />
-										Catch up
-									</button>
-								)}
 								<span
 									className={cn(
-										"rounded-[10px] bg-secondary px-2 font-medium",
-										!canCatchUp && "ml-auto",
+										"ml-auto rounded-[10px] bg-secondary px-2 font-medium",
 									)}
 								>
 									{isBoardSettled ? cards.length : "-"}
@@ -8614,75 +8277,16 @@ function DevBoardPage() {
 			{drawerCard && (
 				<>
 					{/* Today stays usable beside the drawer: no backdrop over it. */}
-					{(!todayOpen || inCatchUp) && (
+					{!todayOpen && (
 						<button
 							type="button"
 							aria-label="Close drawer"
 							className={cn(
 								"absolute inset-0 z-40 cursor-default bg-none",
-								inCatchUp ? "bg-black/70" : "bg-black/35",
+								"bg-black/35",
 							)}
 							onClick={() => setDrawerCard(null)}
 						/>
-					)}
-					{/* Catch up (Slack mobile's): the drawer becomes the top card of a
-					    stack, with how many are left above it and Next / Done below. */}
-					{inCatchUp && catchUp && catchUpCall && (
-						<>
-							<div className="absolute left-1/2 top-3 z-50 flex w-[min(760px,calc(100%-32px))] -translate-x-1/2 items-center justify-center">
-								<button
-									type="button"
-									title="Stop catching up - back to the board"
-									onClick={() => {
-										setCatchUp(null);
-										setDrawerCard(null);
-									}}
-									className="absolute left-0 px-2 text-2xl leading-none text-muted-foreground hover:text-foreground"
-								>
-									‹
-								</button>
-								<span className="text-base font-semibold text-foreground">
-									{catchUp.length - catchUp.indexOf(drawerCard.pane.id)} Left
-								</span>
-							</div>
-							<div className="absolute bottom-5 left-1/2 z-50 flex w-[min(760px,calc(100%-32px))] -translate-x-1/2 gap-4">
-								<button
-									type="button"
-									title="Leave it on the board and go to the next one (→)"
-									onClick={() => catchUpNext(false)}
-									className={cn(
-										"flex-1 rounded-2xl py-3.5 text-[15px] font-semibold",
-										BUTTON.secondary,
-									)}
-								>
-									Skip
-								</button>
-								<button
-									type="button"
-									title={`${catchUpCall.why} (Enter)`}
-									onClick={() => acceptCatchUp(catchUpCall)}
-									className={cn(
-										"flex-[1.6] rounded-2xl py-3.5 text-[15px] font-semibold",
-										SUGGESTION[catchUpCall.kind].style,
-									)}
-								>
-									{SUGGESTION[catchUpCall.kind].button}
-								</button>
-								{catchUpCall.kind !== "done" && (
-									<button
-										type="button"
-										title="Done anyway - remove it from the board and go to the next one (E)"
-										onClick={() => catchUpNext(true)}
-										className={cn(
-											"rounded-2xl px-5 py-3.5 text-[15px] font-semibold",
-											BUTTON.done,
-										)}
-									>
-										✓ Done
-									</button>
-								)}
-							</div>
-						</>
 					)}
 					{/* absolute, not fixed: it fills the content area, which starts below
 					    the top bar. A top-0 fixed drawer put its title under the macOS
@@ -8690,561 +8294,515 @@ function DevBoardPage() {
 					<div
 						className={cn(
 							"@container absolute z-50 flex flex-col bg-tertiary",
-							inCatchUp
-								? // Two cards peeking out underneath: the rest of the pile.
-									"bottom-[92px] left-1/2 top-12 w-[min(760px,calc(100%-32px))] -translate-x-1/2 overflow-hidden rounded-[26px] border border-border shadow-[0_8px_0_-3px_var(--card),0_16px_0_-6px_var(--tertiary)]"
-								: "right-0 top-0 h-full max-w-full border-l border-border",
+							"right-0 top-0 h-full max-w-full border-l border-border",
 						)}
-						style={
-							inCatchUp
-								? undefined
-								: {
-										width: `max(${MIN_DRAWER_W}px, calc((100vw - ${RAIL_W}px) * ${drawerFraction}))`,
-									}
-						}
+						style={{
+							width: `max(${MIN_DRAWER_W}px, calc((100vw - ${RAIL_W}px) * ${drawerFraction}))`,
+						}}
 					>
 						{/* drag handle - resize the drawer from its left edge */}
-						{!inCatchUp && (
-							<div
-								onPointerDown={startDrawerResize}
-								className="absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-primary/40"
-							/>
-						)}
+						<div
+							onPointerDown={startDrawerResize}
+							className="absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-primary/40"
+						/>
 						{/* Minimize, on the edge the pointer is already on - the Close
 						    button is a whole drawer away. The session keeps running. */}
-						{!inCatchUp && (
-							<button
-								type="button"
-								aria-label="Minimize"
-								title="Minimize - back to the board (the session keeps running)"
-								onClick={() => setDrawerCard(null)}
-								className="absolute left-0 top-1/2 z-20 -translate-y-1/2 rounded-r-[7px] border border-l-0 border-border bg-secondary py-2.5 pl-[3px] pr-1 text-[11px] leading-none text-muted-foreground hover:bg-accent hover:text-foreground"
-							>
-								›
-							</button>
-						)}
-						{catchUpLean ? (
-							<>
-								{drawerHeader}
-								<CatchUpCard
-									card={drawerCard}
-									title={cardTitle(drawerCard)}
-									suggestion={catchUpSuggestionOf(drawerCard)}
-									// Out of Catch up, onto this card's normal drawer.
-									onShowSession={() => setCatchUp(null)}
-								/>
-							</>
-						) : (
-							/* terminal on the left, "what's going on" brief on the right */
-							<div ref={measureSwitchPanel} className="flex min-h-0 flex-1">
-								{/* The other sessions in flight, one click away - no Minimize
+						<button
+							type="button"
+							aria-label="Minimize"
+							title="Minimize - back to the board (the session keeps running)"
+							onClick={() => setDrawerCard(null)}
+							className="absolute left-0 top-1/2 z-20 -translate-y-1/2 rounded-r-[7px] border border-l-0 border-border bg-secondary py-2.5 pl-[3px] pr-1 text-[11px] leading-none text-muted-foreground hover:bg-accent hover:text-foreground"
+						>
+							›
+						</button>
+						{/* terminal on the left, "what's going on" brief on the right */}
+						<div ref={measureSwitchPanel} className="flex min-h-0 flex-1">
+							{/* The other sessions in flight, one click away - no Minimize
 								    and hunt for the card on the board. Hidden on a narrow
 								    drawer, where the chat needs the room. */}
-								{!inCatchUp &&
-									switchCards.length + idleSwitchCards.length > 1 && (
-										<>
-											<nav
-												aria-label="Sessions"
-												className={cn(
-													"hidden shrink-0 flex-col overflow-y-auto border-r border-border py-1.5 @3xl:flex",
-													isSwitchListMin && "w-8",
-												)}
-												style={
+							{switchCards.length + idleSwitchCards.length > 1 && (
+								<>
+									<nav
+										aria-label="Sessions"
+										className={cn(
+											"hidden shrink-0 flex-col overflow-y-auto border-r border-border py-1.5 @3xl:flex",
+											isSwitchListMin && "w-8",
+										)}
+										style={
+											isSwitchListMin ? undefined : { width: switchListWidth }
+										}
+									>
+										<div className="mb-1 flex h-6 shrink-0 items-center">
+											{!isSwitchListMin && (
+												<button
+													type="button"
+													onClick={openComposerOnCurrentRepo}
+													title="New session - describe a task and start an agent session, then open it here"
+													className="ml-3 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+												>
+													<LuPlus className="size-3" />
+													New session
+												</button>
+											)}
+											<button
+												type="button"
+												title={
 													isSwitchListMin
-														? undefined
-														: { width: switchListWidth }
+														? "Show session list"
+														: "Minimize session list"
 												}
+												aria-label={
+													isSwitchListMin
+														? "Show session list"
+														: "Minimize session list"
+												}
+												onClick={toggleSwitchList}
+												className={cn(
+													"flex h-6 min-w-0 flex-1 items-center text-muted-foreground hover:text-foreground",
+													isSwitchListMin
+														? "justify-center"
+														: "justify-end px-2",
+												)}
 											>
-												<div className="mb-1 flex h-6 shrink-0 items-center">
-													{!isSwitchListMin && (
-														<button
-															type="button"
-															onClick={openComposerOnCurrentRepo}
-															title="New session - describe a task and start an agent session, then open it here"
-															className="ml-3 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
-														>
-															<LuPlus className="size-3" />
-															New session
-														</button>
+												{isSwitchListMin ? (
+													<LuChevronRight className="size-3.5" />
+												) : (
+													<LuChevronLeft className="size-3.5" />
+												)}
+											</button>
+										</div>
+										{!isSwitchListMin && (
+											<div className="mb-1 flex items-center gap-1.5 px-3 text-[11px] text-muted-foreground">
+												<select
+													value={switchSort}
+													onChange={(e) =>
+														pickSwitchSort(e.target.value as SwitchSort)
+													}
+													aria-label="Sort sessions"
+													title="Sort sessions"
+													className="shrink-0 cursor-pointer rounded border border-border bg-card px-1 py-0.5 outline-none hover:text-foreground"
+												>
+													{Object.entries(
+														switchControls === "tight"
+															? SWITCH_SORTS_SHORT
+															: SWITCH_SORTS,
+													).map(([value, label]) => (
+														<option key={value} value={value}>
+															{label}
+														</option>
+													))}
+												</select>
+												<button
+													type="button"
+													onClick={toggleSwitchGrouped}
+													aria-pressed={isSwitchGrouped}
+													aria-label="Group by status"
+													title="Group by status"
+													className={cn(
+														"shrink-0 rounded border hover:text-foreground",
+														switchControls === "full"
+															? "px-1 py-0.5"
+															: "p-[3px]",
+														isSwitchGrouped
+															? "border-primary/50 bg-primary/15 text-foreground"
+															: "border-border bg-card",
 													)}
+												>
+													{switchControls === "full" ? (
+														"Group"
+													) : (
+														<LuLayers className="size-3.5" aria-hidden />
+													)}
+												</button>
+												<button
+													type="button"
+													onClick={() =>
+														showTicks ? clearPicked() : setSelecting(true)
+													}
+													aria-pressed={showTicks}
+													aria-label="Select sessions"
+													title="Select several sessions to resume, finish or park together (Esc to stop)"
+													className={cn(
+														"shrink-0 rounded border hover:text-foreground",
+														switchControls === "full"
+															? "px-1 py-0.5"
+															: "p-[3px]",
+														showTicks
+															? "border-primary/50 bg-primary/15 text-foreground"
+															: "border-border bg-card",
+													)}
+												>
+													{switchControls === "full" ? (
+														"Select"
+													) : (
+														<LuListChecks className="size-3.5" aria-hidden />
+													)}
+												</button>
+												<span
+													className="ml-auto min-w-0 truncate font-mono"
+													title={`Previous session ${prevSessionKey} - next session ${nextSessionKey}`}
+												>
+													{prevSessionKey} {nextSessionKey}
+												</span>
+											</div>
+										)}
+										{!isSwitchListMin && pickedRowIds.length > 0 && (
+											<div className="sticky top-0 z-10 mx-2 mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-primary/40 bg-secondary px-2 py-1 text-[11px] text-muted-foreground">
+												<span className="font-semibold text-foreground">
+													{pickedRowIds.length} selected
+												</span>
+												{pickedRowIds.length < switchRows.length && (
 													<button
 														type="button"
-														title={
-															isSwitchListMin
-																? "Show session list"
-																: "Minimize session list"
-														}
-														aria-label={
-															isSwitchListMin
-																? "Show session list"
-																: "Minimize session list"
-														}
-														onClick={toggleSwitchList}
-														className={cn(
-															"flex h-6 min-w-0 flex-1 items-center text-muted-foreground hover:text-foreground",
-															isSwitchListMin
-																? "justify-center"
-																: "justify-end px-2",
-														)}
+														title="Select every row shown"
+														onClick={() => setPickedIds(new Set(switchRowIds))}
+														className="hover:text-foreground"
 													>
-														{isSwitchListMin ? (
-															<LuChevronRight className="size-3.5" />
-														) : (
-															<LuChevronLeft className="size-3.5" />
-														)}
+														All {switchRows.length}
 													</button>
-												</div>
-												{!isSwitchListMin && (
-													<div className="mb-1 flex items-center gap-1.5 px-3 text-[11px] text-muted-foreground">
-														<select
-															value={switchSort}
-															onChange={(e) =>
-																pickSwitchSort(e.target.value as SwitchSort)
-															}
-															aria-label="Sort sessions"
-															title="Sort sessions"
-															className="shrink-0 cursor-pointer rounded border border-border bg-card px-1 py-0.5 outline-none hover:text-foreground"
-														>
-															{Object.entries(
-																switchControls === "tight"
-																	? SWITCH_SORTS_SHORT
-																	: SWITCH_SORTS,
-															).map(([value, label]) => (
-																<option key={value} value={value}>
-																	{label}
-																</option>
-															))}
-														</select>
-														<button
-															type="button"
-															onClick={toggleSwitchGrouped}
-															aria-pressed={isSwitchGrouped}
-															aria-label="Group by status"
-															title="Group by status"
-															className={cn(
-																"shrink-0 rounded border hover:text-foreground",
-																switchControls === "full"
-																	? "px-1 py-0.5"
-																	: "p-[3px]",
-																isSwitchGrouped
-																	? "border-primary/50 bg-primary/15 text-foreground"
-																	: "border-border bg-card",
-															)}
-														>
-															{switchControls === "full" ? (
-																"Group"
-															) : (
-																<LuLayers className="size-3.5" aria-hidden />
-															)}
-														</button>
-														<button
-															type="button"
-															onClick={() =>
-																showTicks ? clearPicked() : setSelecting(true)
-															}
-															aria-pressed={showTicks}
-															aria-label="Select sessions"
-															title="Select several sessions to resume, finish or park together (Esc to stop)"
-															className={cn(
-																"shrink-0 rounded border hover:text-foreground",
-																switchControls === "full"
-																	? "px-1 py-0.5"
-																	: "p-[3px]",
-																showTicks
-																	? "border-primary/50 bg-primary/15 text-foreground"
-																	: "border-border bg-card",
-															)}
-														>
-															{switchControls === "full" ? (
-																"Select"
-															) : (
-																<LuListChecks
-																	className="size-3.5"
-																	aria-hidden
-																/>
-															)}
-														</button>
-														<span
-															className="ml-auto min-w-0 truncate font-mono"
-															title={`Previous session ${prevSessionKey} - next session ${nextSessionKey}`}
-														>
-															{prevSessionKey} {nextSessionKey}
-														</span>
-													</div>
 												)}
-												{!isSwitchListMin && pickedRowIds.length > 0 && (
-													<div className="sticky top-0 z-10 mx-2 mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-primary/40 bg-secondary px-2 py-1 text-[11px] text-muted-foreground">
-														<span className="font-semibold text-foreground">
-															{pickedRowIds.length} selected
-														</span>
-														{pickedRowIds.length < switchRows.length && (
-															<button
-																type="button"
-																title="Select every row shown"
-																onClick={() =>
-																	setPickedIds(new Set(switchRowIds))
-																}
-																className="hover:text-foreground"
-															>
-																All {switchRows.length}
-															</button>
-														)}
-														<button
-															type="button"
-															title="Clear the selection (Esc)"
-															onClick={clearPicked}
-															className="ml-auto hover:text-foreground"
-														>
-															Clear
-														</button>
-														<span className="basis-full" />
-														<button
-															type="button"
-															disabled={resumablePicked.length === 0}
-															title={
-																resumablePicked.length
-																	? "Resume the closed and queued sessions selected - live ones are left alone"
-																	: "Nothing selected is closed or queued - live sessions are left alone"
-															}
-															onClick={resumePicked}
-															className="flex items-center gap-1 hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
-														>
-															<LuPlay className="size-3" aria-hidden />
-															Resume
-														</button>
-														<button
-															type="button"
-															title="Done - remove the selected sessions from the board"
-															onClick={finishPicked}
-															className="flex items-center gap-1 hover:text-success"
-														>
-															<span className="text-success">✓</span>
-															Done
-														</button>
-														<button
-															type="button"
-															disabled={parkablePicked.length === 0}
-															title={
-																parkablePicked.length
-																	? "Park the selected sessions in Idle - they stay open, a running turn is stopped"
-																	: "Everything selected is already in Idle"
-															}
-															onClick={() => void parkPicked()}
-															className="flex items-center gap-1 hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
-														>
-															<LuPause className="size-3" aria-hidden />
-															Idle
-														</button>
-														<button
-															type="button"
-															disabled={pickedCards.length < 2 || isLaunching}
-															title={
-																pickedCards.length < 2
-																	? "Select two or more sessions to merge"
-																	: "Merge - one new session carries the selected ones on as one task; they go to Done"
-															}
-															onClick={() => void mergePicked()}
-															className="flex items-center gap-1 hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
-														>
-															<LuGitMerge className="size-3" aria-hidden />
-															Merge
-														</button>
-													</div>
-												)}
-												{switchCards.map((card, index) => (
-													<Fragment key={card.pane.id}>
-														{isSwitchGrouped &&
-															card.status !== switchCards[index - 1]?.status &&
-															(isSwitchListMin ? (
-																index > 0 && (
-																	<div className="mx-2 my-1 border-t border-border" />
-																)
-															) : (
-																<div className="mt-2 mb-0.5 px-3 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
-																	{PANE_STATUS[card.status].label}
-																</div>
-															))}
-														{switchRow(card)}
-													</Fragment>
-												))}
-												{idleSwitchCards.length > 0 &&
+												<button
+													type="button"
+													title="Clear the selection (Esc)"
+													onClick={clearPicked}
+													className="ml-auto hover:text-foreground"
+												>
+													Clear
+												</button>
+												<span className="basis-full" />
+												<button
+													type="button"
+													disabled={resumablePicked.length === 0}
+													title={
+														resumablePicked.length
+															? "Resume the closed and queued sessions selected - live ones are left alone"
+															: "Nothing selected is closed or queued - live sessions are left alone"
+													}
+													onClick={resumePicked}
+													className="flex items-center gap-1 hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
+												>
+													<LuPlay className="size-3" aria-hidden />
+													Resume
+												</button>
+												<button
+													type="button"
+													title="Done - remove the selected sessions from the board"
+													onClick={finishPicked}
+													className="flex items-center gap-1 hover:text-success"
+												>
+													<span className="text-success">✓</span>
+													Done
+												</button>
+												<button
+													type="button"
+													disabled={parkablePicked.length === 0}
+													title={
+														parkablePicked.length
+															? "Park the selected sessions in Idle - they stay open, a running turn is stopped"
+															: "Everything selected is already in Idle"
+													}
+													onClick={() => void parkPicked()}
+													className="flex items-center gap-1 hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
+												>
+													<LuPause className="size-3" aria-hidden />
+													Idle
+												</button>
+												<button
+													type="button"
+													disabled={pickedCards.length < 2 || isLaunching}
+													title={
+														pickedCards.length < 2
+															? "Select two or more sessions to merge"
+															: "Merge - one new session carries the selected ones on as one task; they go to Done"
+													}
+													onClick={() => void mergePicked()}
+													className="flex items-center gap-1 hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
+												>
+													<LuGitMerge className="size-3" aria-hidden />
+													Merge
+												</button>
+											</div>
+										)}
+										{switchCards.map((card, index) => (
+											<Fragment key={card.pane.id}>
+												{isSwitchGrouped &&
+													card.status !== switchCards[index - 1]?.status &&
 													(isSwitchListMin ? (
-														isIdleSwitchOpen && (
+														index > 0 && (
 															<div className="mx-2 my-1 border-t border-border" />
 														)
 													) : (
-														<button
-															type="button"
-															onClick={toggleIdleSwitch}
-															aria-expanded={isIdleSwitchOpen}
-															className="mt-2 mb-0.5 flex items-center gap-1 px-3 text-left text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground hover:text-foreground"
-														>
-															{isIdleSwitchOpen ? (
-																<LuChevronDown className="size-3" />
-															) : (
-																<LuChevronRight className="size-3" />
-															)}
-															{PANE_STATUS.idle.label} ({idleSwitchCards.length}
-															)
-														</button>
+														<div className="mt-2 mb-0.5 px-3 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
+															{PANE_STATUS[card.status].label}
+														</div>
 													))}
-												{isIdleSwitchOpen &&
-													idleSwitchCards.map((card) => (
-														<Fragment key={card.pane.id}>
-															{switchRow(card)}
-														</Fragment>
-													))}
-											</nav>
-											{/* Drag the list's right edge to widen it, double-click
+												{switchRow(card)}
+											</Fragment>
+										))}
+										{idleSwitchCards.length > 0 &&
+											(isSwitchListMin ? (
+												isIdleSwitchOpen && (
+													<div className="mx-2 my-1 border-t border-border" />
+												)
+											) : (
+												<button
+													type="button"
+													onClick={toggleIdleSwitch}
+													aria-expanded={isIdleSwitchOpen}
+													className="mt-2 mb-0.5 flex items-center gap-1 px-3 text-left text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground hover:text-foreground"
+												>
+													{isIdleSwitchOpen ? (
+														<LuChevronDown className="size-3" />
+													) : (
+														<LuChevronRight className="size-3" />
+													)}
+													{PANE_STATUS.idle.label} ({idleSwitchCards.length})
+												</button>
+											))}
+										{isIdleSwitchOpen &&
+											idleSwitchCards.map((card) => (
+												<Fragment key={card.pane.id}>
+													{switchRow(card)}
+												</Fragment>
+											))}
+									</nav>
+									{/* Drag the list's right edge to widen it, double-click
 											    for the default width. Outside the nav: inside, it
 											    would scroll away with the rows. */}
-											{!isSwitchListMin && (
-												<div className="relative hidden w-0 shrink-0 @3xl:block">
-													{/* biome-ignore lint/a11y/noStaticElementInteractions: a mouse-only resize edge, like the drawer's own */}
-													<div
-														title="Drag to resize the session list, double-click to reset"
-														onPointerDown={startSwitchListResize}
-														onDoubleClick={resetSwitchListWidth}
-														className="absolute -left-1 top-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-primary/40"
-													/>
-												</div>
-											)}
-										</>
-									)}
-								<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-									{drawerHeader}
-									<HostFrozenNotice
-										paneId={drawerCard.pane.id}
-										onMoveHere={
-											drawerCard.pane.odinQueued
-												? undefined
-												: () => void runHere(drawerCard)
-										}
-									/>
-									{drawerCard.pane.type === "terminal" && (
-										<PlanLimitNotice
-											paneId={drawerCard.pane.id}
-											onRestart={
-												!drawerCard.pane.odinQueued ||
-												isQueuedResume(drawerCard.pane.odinQueued)
-													? () =>
-															void resumeCard(
-																drawerCard,
-																false,
-																undefined,
-																true,
-															)
-													: undefined
-											}
-										/>
-									)}
-									{isViewOpen && hostScreen && !inCatchUp ? (
-										<HostScreenView
-											key={drawerCard.pane.id}
-											paneId={drawerCard.pane.id}
-											screen={hostScreen}
-										/>
-									) : isShellOpen && drawerShell ? (
-										// A shell in the same checkout, mounted like any other pane -
-										// it spawns on first mount with the session's cwd.
-										<div className="flex min-h-0 flex-1 flex-col bg-background">
-											<div className="flex items-center gap-2 border-b border-border px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
-												{drawerNamedShells.length ? (
-													// One tab per Shell: the main one, then each named one an agent ran.
-													[
-														...(shellPaneOf(drawerCard)
-															? [["", shellPaneOf(drawerCard) as Pane] as const]
-															: []),
-														...drawerNamedShells,
-													].map(([name, pane]) => (
-														<button
-															key={pane.id}
-															type="button"
-															onClick={() => setShellName(name || null)}
-															className={cn(
-																"rounded px-1.5 py-0.5 normal-case tracking-normal",
-																pane.id === drawerShell.id
-																	? "bg-primary/15 text-primary"
-																	: "hover:text-foreground",
-															)}
-														>
-															❯ {name || "Shell"}
-														</button>
-													))
-												) : (
-													<span className="rounded bg-primary/15 px-1.5 py-0.5 normal-case tracking-normal text-primary">
-														❯ Shell
-													</span>
-												)}
-												Your terminal - ❯ Shell again goes back to the session
-											</div>
-											<div className="min-h-0 flex-1 p-2">
-												<Terminal
-													key={drawerShell.id}
-													paneId={drawerShell.id}
-													tabId={drawerShell.tabId}
-													workspaceId={drawerCard.workspaceId}
-												/>
-											</div>
-										</div>
-									) : isDiffOpen &&
-										!inCatchUp &&
-										drawerCard.pane.type === "terminal" ? (
-										<DiffView
-											key={drawerCard.pane.id}
-											paneId={drawerCard.pane.id}
-											cwd={sessionCwd(drawerCard.pane) ?? null}
-											claudeSessionId={drawerCard.pane.claudeSessionId ?? null}
-											workspaceId={drawerCard.workspaceId}
-										/>
-									) : isAgentsOpen &&
-										!inCatchUp &&
-										drawerCard.pane.type === "terminal" ? (
-										<AgentsView
-											key={drawerCard.pane.id}
-											sessionId={
-												drawerCard.pane.claudeSessionId ??
-												usePaneMeta.getState().sessionIdByPane[
-													drawerCard.pane.id
-												] ??
-												null
-											}
-											alive={agentPaneIds.has(drawerCard.pane.id)}
-										/>
-									) : drawerCard.pane.type !== "terminal" ? (
-										<div className="flex-1 select-text cursor-text overflow-y-auto px-4 py-3 text-[12.5px] text-muted-foreground">
-											{drawerCard.pane.cwd && (
-												<div>cwd: {drawerCard.pane.cwd}</div>
-											)}
-											<div className="mt-2">
-												Chat session - no terminal to embed.
-											</div>
-										</div>
-									) : agentPaneIds.has(drawerCard.pane.id) &&
-										chatView &&
-										terminalPaneId !== drawerCard.pane.id ? (
-										<ChatView
-											key={drawerCard.pane.id}
-											paneId={drawerCard.pane.id}
-											sessionId={
-												drawerCard.pane.claudeSessionId ??
-												usePaneMeta.getState().sessionIdByPane[
-													drawerCard.pane.id
-												] ??
-												null
-											}
-											cwd={sessionCwd(drawerCard.pane) ?? drawerCard.repoPath}
-											workspaceId={drawerCard.workspaceId}
-											working={isWorkingNow(drawerCard.pane.id)}
-											onShowTerminal={() =>
-												setTerminalPaneId(drawerCard.pane.id)
-											}
-											onShellStarted={(name) => {
-												setShellName(name);
-												setIsDiffOpen(false);
-												setIsAgentsOpen(false);
-												closeHostScreen();
-												setIsShellOpen(true);
-											}}
-											onShellDone={() => {
-												const shown = shownShellRef.current;
-												if (
-													shown.paneId === drawerCard.pane.id &&
-													shown.shellName === "local"
-												)
-													setIsShellOpen(false);
-											}}
-											onStop={() => void interruptPane(drawerCard.pane.id)}
-											onRestart={(prompt) =>
-												void resumeCard(drawerCard, false, prompt, true)
-											}
-											onMoveToHost={
-												drawerCard.pane.odinQueued
-													? undefined
-													: (to) => void moveToHost(drawerCard, to)
-											}
-											onMoveHere={
-												drawerCard.pane.odinRemote &&
-												!drawerCard.pane.odinQueued
-													? () => void runHere(drawerCard)
-													: undefined
-											}
-										/>
-									) : agentPaneIds.has(drawerCard.pane.id) ? (
-										// Claude running - the real PTY, attached read/write. xterm is the
-										// only thing that renders Claude Code's full-screen TUI legibly
-										// (scrollback replay is a stream of overlapping frames = mush).
-										<div className="flex min-h-0 flex-1 flex-col bg-background p-2">
-											<Terminal
-												key={drawerCard.pane.id}
-												paneId={drawerCard.pane.id}
-												tabId={drawerCard.tabId}
-												workspaceId={drawerCard.workspaceId}
+									{!isSwitchListMin && (
+										<div className="relative hidden w-0 shrink-0 @3xl:block">
+											{/* biome-ignore lint/a11y/noStaticElementInteractions: a mouse-only resize edge, like the drawer's own */}
+											<div
+												title="Drag to resize the session list, double-click to reset"
+												onPointerDown={startSwitchListResize}
+												onDoubleClick={resetSwitchListWidth}
+												className="absolute -left-1 top-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-primary/40"
 											/>
 										</div>
-									) : startingPaneIds.includes(drawerCard.pane.id) ? (
-										// Its launch is still doing the slow part: no history
-										// and no PTY yet, nothing to resume.
-										<StartingView label="Starting session…" />
-									) : resumingPaneIds.includes(drawerCard.pane.id) &&
-										!panes[drawerCard.pane.id]?.odinQueued &&
-										chatView ? (
-										// Same slot and type as the ended view below, so its
-										// ChatView stays mounted and your message stays on screen.
-										<HistoryView card={drawerCard} live={false} resuming />
-									) : resumingPaneIds.includes(drawerCard.pane.id) ||
-										panes[drawerCard.pane.id]?.odinQueued ? (
-										// Between the click and the PTY coming up, "Session ended"
-										// history reads as if Resume did nothing. A queued task has
-										// no history at all yet - it's waiting for a free slot.
-										<StartingView
-											label={
-												resumingPaneIds.includes(drawerCard.pane.id)
-													? panes[drawerCard.pane.id]?.odinQueued
-														? "Starting session…"
-														: "Resuming session…"
-													: `Waiting to start - ${panes[drawerCard.pane.id]?.odinQueued?.reason}`
-											}
-											onStartOnMac={
-												panes[drawerCard.pane.id]?.odinQueued?.remote?.prompt &&
-												!resumingPaneIds.includes(drawerCard.pane.id)
-													? () => {
-															const pane = panes[drawerCard.pane.id];
-															if (pane)
-																void resumeCard({ ...drawerCard, pane });
-														}
-													: undefined
-											}
-										/>
-									) : (
-										// Claude has exited - the PTY is dead, or a bare zsh outlived
-										// the conversation. Show the conversation, read-only.
-										<HistoryView
-											card={drawerCard}
-											live={false}
-											onDo={(text) => void resumeCard(drawerCard, false, text)}
-										/>
 									)}
-								</div>
-								{isBriefOpen && (
-									<SessionBrief
-										key={drawerCard.pane.id}
+								</>
+							)}
+							<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+								{drawerHeader}
+								<HostFrozenNotice
+									paneId={drawerCard.pane.id}
+									onMoveHere={
+										drawerCard.pane.odinQueued
+											? undefined
+											: () => void runHere(drawerCard)
+									}
+								/>
+								{drawerCard.pane.type === "terminal" && (
+									<PlanLimitNotice
 										paneId={drawerCard.pane.id}
-										cwd={drawerCard.pane.cwd ?? null}
-										claudeSessionId={drawerCard.pane.claudeSessionId ?? null}
-										marker={cardTitle(drawerCard)}
-										live={alivePaneIds.has(drawerCard.pane.id)}
-										launch={drawerCard.pane.odinBrief}
-										starting={
-											!!panes[drawerCard.pane.id]?.odinQueued ||
-											resumingPaneIds.includes(drawerCard.pane.id) ||
-											startingPaneIds.includes(drawerCard.pane.id) ||
-											drawerCard.pane.status === "working"
+										onRestart={
+											!drawerCard.pane.odinQueued ||
+											isQueuedResume(drawerCard.pane.odinQueued)
+												? () =>
+														void resumeCard(drawerCard, false, undefined, true)
+												: undefined
 										}
 									/>
 								)}
+								{isViewOpen && hostScreen ? (
+									<HostScreenView
+										key={drawerCard.pane.id}
+										paneId={drawerCard.pane.id}
+										screen={hostScreen}
+									/>
+								) : isShellOpen && drawerShell ? (
+									// A shell in the same checkout, mounted like any other pane -
+									// it spawns on first mount with the session's cwd.
+									<div className="flex min-h-0 flex-1 flex-col bg-background">
+										<div className="flex items-center gap-2 border-b border-border px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
+											{drawerNamedShells.length ? (
+												// One tab per Shell: the main one, then each named one an agent ran.
+												[
+													...(shellPaneOf(drawerCard)
+														? [["", shellPaneOf(drawerCard) as Pane] as const]
+														: []),
+													...drawerNamedShells,
+												].map(([name, pane]) => (
+													<button
+														key={pane.id}
+														type="button"
+														onClick={() => setShellName(name || null)}
+														className={cn(
+															"rounded px-1.5 py-0.5 normal-case tracking-normal",
+															pane.id === drawerShell.id
+																? "bg-primary/15 text-primary"
+																: "hover:text-foreground",
+														)}
+													>
+														❯ {name || "Shell"}
+													</button>
+												))
+											) : (
+												<span className="rounded bg-primary/15 px-1.5 py-0.5 normal-case tracking-normal text-primary">
+													❯ Shell
+												</span>
+											)}
+											Your terminal - ❯ Shell again goes back to the session
+										</div>
+										<div className="min-h-0 flex-1 p-2">
+											<Terminal
+												key={drawerShell.id}
+												paneId={drawerShell.id}
+												tabId={drawerShell.tabId}
+												workspaceId={drawerCard.workspaceId}
+											/>
+										</div>
+									</div>
+								) : isDiffOpen && drawerCard.pane.type === "terminal" ? (
+									<DiffView
+										key={drawerCard.pane.id}
+										paneId={drawerCard.pane.id}
+										cwd={sessionCwd(drawerCard.pane) ?? null}
+										claudeSessionId={drawerCard.pane.claudeSessionId ?? null}
+										workspaceId={drawerCard.workspaceId}
+									/>
+								) : isAgentsOpen && drawerCard.pane.type === "terminal" ? (
+									<AgentsView
+										key={drawerCard.pane.id}
+										sessionId={
+											drawerCard.pane.claudeSessionId ??
+											usePaneMeta.getState().sessionIdByPane[
+												drawerCard.pane.id
+											] ??
+											null
+										}
+										alive={agentPaneIds.has(drawerCard.pane.id)}
+									/>
+								) : drawerCard.pane.type !== "terminal" ? (
+									<div className="flex-1 select-text cursor-text overflow-y-auto px-4 py-3 text-[12.5px] text-muted-foreground">
+										{drawerCard.pane.cwd && (
+											<div>cwd: {drawerCard.pane.cwd}</div>
+										)}
+										<div className="mt-2">
+											Chat session - no terminal to embed.
+										</div>
+									</div>
+								) : agentPaneIds.has(drawerCard.pane.id) &&
+									chatView &&
+									terminalPaneId !== drawerCard.pane.id ? (
+									<ChatView
+										key={drawerCard.pane.id}
+										paneId={drawerCard.pane.id}
+										sessionId={
+											drawerCard.pane.claudeSessionId ??
+											usePaneMeta.getState().sessionIdByPane[
+												drawerCard.pane.id
+											] ??
+											null
+										}
+										cwd={sessionCwd(drawerCard.pane) ?? drawerCard.repoPath}
+										workspaceId={drawerCard.workspaceId}
+										working={isWorkingNow(drawerCard.pane.id)}
+										onShowTerminal={() => setTerminalPaneId(drawerCard.pane.id)}
+										onShellStarted={(name) => {
+											setShellName(name);
+											setIsDiffOpen(false);
+											setIsAgentsOpen(false);
+											closeHostScreen();
+											setIsShellOpen(true);
+										}}
+										onShellDone={() => {
+											const shown = shownShellRef.current;
+											if (
+												shown.paneId === drawerCard.pane.id &&
+												shown.shellName === "local"
+											)
+												setIsShellOpen(false);
+										}}
+										onStop={() => void interruptPane(drawerCard.pane.id)}
+										onRestart={(prompt) =>
+											void resumeCard(drawerCard, false, prompt, true)
+										}
+										onMoveToHost={
+											drawerCard.pane.odinQueued
+												? undefined
+												: (to) => void moveToHost(drawerCard, to)
+										}
+										onMoveHere={
+											drawerCard.pane.odinRemote && !drawerCard.pane.odinQueued
+												? () => void runHere(drawerCard)
+												: undefined
+										}
+									/>
+								) : agentPaneIds.has(drawerCard.pane.id) ? (
+									// Claude running - the real PTY, attached read/write. xterm is the
+									// only thing that renders Claude Code's full-screen TUI legibly
+									// (scrollback replay is a stream of overlapping frames = mush).
+									<div className="flex min-h-0 flex-1 flex-col bg-background p-2">
+										<Terminal
+											key={drawerCard.pane.id}
+											paneId={drawerCard.pane.id}
+											tabId={drawerCard.tabId}
+											workspaceId={drawerCard.workspaceId}
+										/>
+									</div>
+								) : startingPaneIds.includes(drawerCard.pane.id) ? (
+									// Its launch is still doing the slow part: no history
+									// and no PTY yet, nothing to resume.
+									<StartingView label="Starting session…" />
+								) : resumingPaneIds.includes(drawerCard.pane.id) &&
+									!panes[drawerCard.pane.id]?.odinQueued &&
+									chatView ? (
+									// Same slot and type as the ended view below, so its
+									// ChatView stays mounted and your message stays on screen.
+									<HistoryView card={drawerCard} live={false} resuming />
+								) : resumingPaneIds.includes(drawerCard.pane.id) ||
+									panes[drawerCard.pane.id]?.odinQueued ? (
+									// Between the click and the PTY coming up, "Session ended"
+									// history reads as if Resume did nothing. A queued task has
+									// no history at all yet - it's waiting for a free slot.
+									<StartingView
+										label={
+											resumingPaneIds.includes(drawerCard.pane.id)
+												? panes[drawerCard.pane.id]?.odinQueued
+													? "Starting session…"
+													: "Resuming session…"
+												: `Waiting to start - ${panes[drawerCard.pane.id]?.odinQueued?.reason}`
+										}
+										onStartOnMac={
+											panes[drawerCard.pane.id]?.odinQueued?.remote?.prompt &&
+											!resumingPaneIds.includes(drawerCard.pane.id)
+												? () => {
+														const pane = panes[drawerCard.pane.id];
+														if (pane) void resumeCard({ ...drawerCard, pane });
+													}
+												: undefined
+										}
+									/>
+								) : (
+									// Claude has exited - the PTY is dead, or a bare zsh outlived
+									// the conversation. Show the conversation, read-only.
+									<HistoryView
+										card={drawerCard}
+										live={false}
+										onDo={(text) => void resumeCard(drawerCard, false, text)}
+									/>
+								)}
 							</div>
-						)}
+							{isBriefOpen && (
+								<SessionBrief
+									key={drawerCard.pane.id}
+									paneId={drawerCard.pane.id}
+									cwd={drawerCard.pane.cwd ?? null}
+									claudeSessionId={drawerCard.pane.claudeSessionId ?? null}
+									marker={cardTitle(drawerCard)}
+									live={alivePaneIds.has(drawerCard.pane.id)}
+									launch={drawerCard.pane.odinBrief}
+									starting={
+										!!panes[drawerCard.pane.id]?.odinQueued ||
+										resumingPaneIds.includes(drawerCard.pane.id) ||
+										startingPaneIds.includes(drawerCard.pane.id) ||
+										drawerCard.pane.status === "working"
+									}
+								/>
+							)}
+						</div>
 						<div className="flex gap-2 border-t border-border px-4 py-3">
 							{drawerCard.pane.type === "terminal" && (
 								<button
@@ -9257,9 +8815,6 @@ function DevBoardPage() {
 										isSettledAgent(drawerCard.pane.id)
 									}
 									onClick={() => {
-										// Catch up's lean card hides the terminal - resuming there
-										// left you staring at "Working…" with the session out of view.
-										if (inCatchUp) setCatchUpFull(drawerCard.pane.id);
 										const pane = panes[drawerCard.pane.id];
 										void resumeCard(
 											pane ? { ...drawerCard, pane } : drawerCard,
@@ -9363,20 +8918,17 @@ function DevBoardPage() {
 							{/* Done, Remind and Minimize sit right; RemindButton wraps its button
 							    in a span, so the gap is a spacer rather than ml-auto. */}
 							<div className="flex-1" />
-							{/* Catch up has its own ✓ Done and ‹ below and above the card. */}
-							{!inCatchUp && (
-								<button
-									type="button"
-									onClick={() => markDoneInDrawer(drawerCard)}
-									title="Done - end the session and remove it from the board"
-									className={cn(
-										"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
-										BUTTON.done,
-									)}
-								>
-									✓ Done
-								</button>
-							)}
+							<button
+								type="button"
+								onClick={() => markDoneInDrawer(drawerCard)}
+								title="Done - end the session and remove it from the board"
+								className={cn(
+									"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+									BUTTON.done,
+								)}
+							>
+								✓ Done
+							</button>
 							<RemindButton
 								onPick={(day) => remindMe(drawerCard, day)}
 								label="Remind me"
@@ -9385,18 +8937,16 @@ function DevBoardPage() {
 									BUTTON.remind,
 								)}
 							/>
-							{!inCatchUp && (
-								<button
-									type="button"
-									onClick={() => setDrawerCard(null)}
-									className={cn(
-										"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
-										BUTTON.secondary,
-									)}
-								>
-									Minimize Session
-								</button>
-							)}
+							<button
+								type="button"
+								onClick={() => setDrawerCard(null)}
+								className={cn(
+									"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+									BUTTON.secondary,
+								)}
+							>
+								Minimize Session
+							</button>
 							<button
 								type="button"
 								aria-label="More session actions"

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { BriefMessage } from "./brief";
-import { catchUpOrder, catchUpSuggestion } from "./catch-up";
+import { catchUpSuggestion } from "./catch-up";
 
 const reply = (text: string): BriefMessage[] => [
 	{ role: "user", text: "do it", at: null },
@@ -61,23 +61,5 @@ describe("catchUpSuggestion", () => {
 
 	it("keeps an unread card yours", () => {
 		expect(catchUpSuggestion({}).kind).toBe("yours");
-	});
-});
-
-describe("catchUpOrder", () => {
-	it("puts easy calls first and keeps ties in board order", () => {
-		const kinds = {
-			a: "yours",
-			b: "done",
-			c: "merge",
-			d: "done",
-			e: "duplicate",
-		} as const;
-		const order = catchUpOrder(Object.keys(kinds), (id) => ({
-			kind: kinds[id as keyof typeof kinds],
-			why: "",
-			from: "",
-		}));
-		expect(order).toEqual(["b", "d", "e", "c", "a"]);
 	});
 });
