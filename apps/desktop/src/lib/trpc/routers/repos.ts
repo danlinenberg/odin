@@ -4,6 +4,7 @@ import {
 	copyFile,
 	mkdtemp,
 	readFile,
+	realpath,
 	rm,
 	stat,
 	writeFile,
@@ -681,9 +682,21 @@ export const createReposRouter = (
 /** Biggest file the Diff tab opens for editing: a textarea, not an IDE. */
 const MAX_EDIT_BYTES = 2_000_000;
 
+/** True when `rel` (from relative()) leaves its base or points into `.git`. */
+function outsideCheckout(rel: string): boolean {
+	return (
+		!rel ||
+		rel === ".." ||
+		rel.startsWith(`..${sep}`) ||
+		rel.split(sep)[0] === ".git"
+	);
+}
+
 /**
  * A diff's path (relative to the repo's top, as git prints it) as a file on
- * disk, or an error: it must stay inside the checkout and out of `.git`.
+ * disk, or an error: it must stay inside the checkout and out of `.git` -
+ * by name, and again once symlinks are followed, so a link in the repo can't
+ * send a save somewhere else on the machine.
  */
 export async function checkoutFilePath(
 	dir: string,
@@ -696,18 +709,28 @@ export async function checkoutFilePath(
 		})
 	).stdout.trim();
 	const full = resolve(top, path);
-	const rel = relative(top, full);
-	if (
-		!rel ||
-		rel.startsWith(`..${sep}`) ||
-		rel === ".." ||
-		rel.split(sep)[0] === ".git"
-	)
-		throw new TRPCError({
+	const refuse = () =>
+		new TRPCError({
 			code: "BAD_REQUEST",
 			message: `${path} is not a file in this checkout.`,
 		});
-	return full;
+	if (outsideCheckout(relative(top, full))) throw refuse();
+	// Missing (or a dangling link): the caller's stat finds nothing to edit.
+	const real = await realpath(full).catch(() => null);
+	if (real && outsideCheckout(relative(await realpath(top), real)))
+		throw refuse();
+	return real ?? full;
+}
+
+/**
+ * The edited text with the file's own line endings: a textarea hands back
+ * plain \n, so a CRLF file would otherwise be rewritten line by line.
+ */
+export function withLineEndingsOf(original: string, edited: string): string {
+	const crlf = original.match(/\r\n/g)?.length ?? 0;
+	const lf = (original.match(/\n/g)?.length ?? 0) - crlf;
+	if (crlf === 0 || crlf < lf) return edited;
+	return edited.replace(/\r?\n/g, "\r\n");
 }
 
 /** A text file's content and mtime, for editing it in the Diff tab. */
@@ -759,7 +782,8 @@ export async function writeWorkingFile(
 			code: "CONFLICT",
 			message: `${path} changed on disk after you opened it. Copy your edit, Cancel, and Edit again.`,
 		});
-	await writeFile(full, content, "utf-8");
+	const original = await readFile(full, "utf-8");
+	await writeFile(full, withLineEndingsOf(original, content), "utf-8");
 	return { mtimeMs: (await stat(full)).mtimeMs };
 }
 

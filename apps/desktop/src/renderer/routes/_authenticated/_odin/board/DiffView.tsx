@@ -193,7 +193,12 @@ export function DiffView({
 				{ ...checkout, path: current.path },
 				{ staleTime: 0 },
 			);
-			setEditing({ path: current.path, ...file });
+			// A textarea only holds \n; Save puts a CRLF file's endings back.
+			setEditing({
+				path: current.path,
+				content: file.content.replace(/\r\n/g, "\n"),
+				mtimeMs: file.mtimeMs,
+			});
 		} catch (failure) {
 			setEditError(
 				failure instanceof Error ? failure.message : String(failure),
