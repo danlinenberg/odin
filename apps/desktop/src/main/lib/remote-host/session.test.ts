@@ -16,8 +16,11 @@ import {
 	SLACK_ALLOW_RULES,
 	SLACK_DENY_RULES,
 } from "../agent-setup/slack-tools";
+import { removeWorktreeScript } from "./bring-home";
 import {
 	attachScript,
+	BRANCH_RENAME_RULE,
+	branchKey,
 	CLAUDE_LOGIN_SCRIPT,
 	CONVERSATION_DIR,
 	CUT_OFF_TURN,
@@ -582,6 +585,63 @@ test("a session resumed after Done gets its worktree back on its own branch", ()
 	expect(bash(worktree, "git branch --show-current").trim()).toBe(
 		"odin/abcdef12",
 	);
+});
+
+test("a branch the agent renamed comes back on a Resume after Done", () => {
+	const root = mkdtempSync(join(tmpdir(), "session-wt-named-"));
+	const bash = (cwd: string, cmd: string) =>
+		execFileSync("bash", ["-c", cmd], {
+			cwd,
+			encoding: "utf8",
+			env: { ...process.env, HOME: root },
+		});
+	const g = "git -c user.name=t -c user.email=t@t";
+	const origin = join(root, "origin.git");
+	bash(root, `git init -q --bare -b main ${origin}`);
+	bash(
+		root,
+		`git clone -q ${origin} seed 2>/dev/null && cd seed && echo base > a.txt && ${g} add a.txt && ${g} commit -q -m base && git push -q origin main`,
+	);
+	bash(root, `git clone -q ${origin} repos/x`);
+	const worktree = join(root, "repos", "x", ".worktrees", "odin-abcdef12");
+	const line =
+		runScript(
+			{
+				...spec,
+				reposRoot: join(root, "repos"),
+				repoName: "x",
+				pane: "abcdef1234",
+			},
+			"/d",
+		)
+			.split("\n")
+			.find((l) => l.includes("worktree add")) ?? "false";
+	bash(root, line);
+	// The agent names its branch after the work and commits.
+	bash(
+		worktree,
+		`git branch -m fix/login-timeout && echo w > b.txt && ${g} add b.txt && ${g} commit -q -m work`,
+	);
+	bash(root, removeWorktreeScript("abcdef1234", join(root, "repos")));
+	expect(existsSync(worktree)).toBe(false);
+	expect(
+		bash(
+			root,
+			`git -C repos/x config --get ${branchKey("odin-abcdef12")}`,
+		).trim(),
+	).toBe("fix/login-timeout");
+	bash(root, line);
+	expect(bash(worktree, "git branch --show-current").trim()).toBe(
+		"fix/login-timeout",
+	);
+	expect(bash(worktree, "git log -1 --format=%s").trim()).toBe("work");
+});
+
+test("the host note tells the agent to name its placeholder branch after the work", () => {
+	for (const repoName of ["odin", null])
+		expect(
+			hostNote({ user: "ubuntu", name: "h", repoName, pane: "0d202ff3aa" }),
+		).toContain(BRANCH_RENAME_RULE);
 });
 
 test("a Resume starts Claude in the folder its conversation is filed under", () => {

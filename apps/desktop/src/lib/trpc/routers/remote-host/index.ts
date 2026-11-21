@@ -67,6 +67,7 @@ import { fallbackAwsProfile } from "main/lib/remote-host/aws-profile";
 import {
 	bringMirrorHome,
 	bringSessionHome,
+	checkoutPushed,
 	endHostSession,
 	findMirror,
 	type HostWork,
@@ -1494,7 +1495,9 @@ export const createRemoteHostRouter = () =>
 		/**
 		 * A remote session, moved to this computer with its code: the host
 		 * branch, its commits and its uncommitted work land in a worktree of
-		 * this computer's checkout of the same repo, and the conversation
+		 * this computer's checkout of the same repo, named after the branch (a
+		 * branch already pushed is checked out from origin under its own name),
+		 * and the conversation
 		 * resumes there; its tmux session on the host ends. A session on the
 		 * host's default branch (the shared checkout) brings no code and lands
 		 * in this computer's checkout itself. With no such checkout: the folder
@@ -1525,6 +1528,17 @@ export const createRemoteHostRouter = () =>
 						});
 						branch = unpacked.branch;
 						return join(unpacked.dir, work.sub);
+					}
+					// Its own branch, already pushed: check that out, not the checkout's own branch.
+					if (repo && work?.own && work.branch) {
+						const pushed = await checkoutPushed(repo, work.branch).catch(
+							() => null,
+						);
+						if (pushed) {
+							branch = pushed.branch;
+							const sub = join(pushed.dir, work.sub);
+							return existsSync(sub) ? sub : pushed.dir;
+						}
 					}
 					if (repo) {
 						const sub = join(repo, work?.sub ?? "");
