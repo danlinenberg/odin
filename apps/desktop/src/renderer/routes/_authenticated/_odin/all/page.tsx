@@ -42,6 +42,7 @@ import {
 } from "../components/FeedChrome";
 import { effectiveDue, isDue, useReminders } from "../components/Reminders";
 import { NewTaskFieldsPicker, TaskBox } from "../components/TaskBox";
+import { guardTaskDone } from "../hooks/done-guard";
 import { useBacklogReview } from "../hooks/useBacklogReview";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
@@ -413,10 +414,13 @@ function AllFeedPage() {
 	// A finished row leaves Up next too, so an Undo doesn't bring it back there.
 	// List or Board, kept. The board lays out the same rows the list shows.
 	const { view, groupBy, setView, setGroupBy } = useTaskView();
-	const finish = (item: AllItem) => {
-		markDone(item);
-		dequeue(item.key);
-	};
+	// Done from the side panel; it closes once the task is Done, not on Cancel.
+	const finish = (item: AllItem) =>
+		guardTaskDone(item, () => {
+			markDone(item);
+			dequeue(item.key);
+			setOpenKey(null);
+		});
 	const onDragEnd = ({ active, over }: DragEndEvent) => {
 		if (over) move(String(active.id), String(over.id));
 	};
@@ -1006,10 +1010,7 @@ function AllFeedPage() {
 									? undo(openItem)
 									: markReading(openItem)
 							}
-							onDone={() => {
-								finish(openItem);
-								setOpenKey(null);
-							}}
+							onDone={() => finish(openItem)}
 							onDrop={() => {
 								rows.drop(openItem);
 								setOpenKey(null);
