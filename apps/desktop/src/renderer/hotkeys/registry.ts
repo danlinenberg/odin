@@ -190,6 +190,13 @@ export const HOTKEYS_REGISTRY = {
 		category: "Navigation",
 		description: "Send a task, prompt or note from its text box",
 	},
+	// Save in the Diff tab's Edit.
+	SAVE_FILE: {
+		key: { mac: L("meta+s"), windows: L("ctrl+s"), linux: L("ctrl+s") },
+		label: "Save file",
+		category: "Navigation",
+		description: "Save the file you are editing in a session's Diff tab",
+	},
 	// Claude Code's own Ctrl+Enter: cut into the running turn instead of queueing.
 	CHAT_SEND_NOW: {
 		key: { mac: "ctrl+enter", windows: "ctrl+enter", linux: "ctrl+enter" },

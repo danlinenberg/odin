@@ -1,11 +1,19 @@
 import { expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import {
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	symlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+	checkoutFilePath,
 	createReposRouter,
 	detectReposFolder,
+	readWorkingFile,
 	renderBranchDiff,
 	renderDiff,
 	renderPullRequestDiff,
@@ -13,6 +21,8 @@ import {
 	scanRepos,
 	snapshotTree,
 	splitPatch,
+	withLineEndingsOf,
+	writeWorkingFile,
 } from "./repos";
 
 test("scanRepos finds checkouts, skips pruned dirs and nested worktrees", async () => {
@@ -290,4 +300,84 @@ test("renderSinceDiff shows only what changed after the snapshot, and the snapsh
 	const owned = await renderSinceDiff(repo, since, "edited a.txt");
 	expect(owned.files.map((file) => file.path)).toEqual(["a.txt"]);
 	expect(owned.note).toContain("1 file(s) changed by other sessions");
+});
+
+test("the Diff tab's Edit reads and saves a working file, and refuses a stale save", async () => {
+	const repo = mkdtempSync(join(tmpdir(), "odin-edit-"));
+	execFileSync("git", ["init", "-q"], { cwd: repo });
+	mkdirSync(join(repo, "src"));
+	writeFileSync(join(repo, "src", "app.ts"), "const a = 1;\n");
+	// Paths are the repo's, whatever subdirectory the session sits in.
+	const read = await readWorkingFile(join(repo, "src"), "src/app.ts");
+	expect(read.content).toBe("const a = 1;\n");
+	const saved = await writeWorkingFile(
+		repo,
+		"src/app.ts",
+		"const a = 2;\n",
+		read.mtimeMs,
+	);
+	expect((await readWorkingFile(repo, "src/app.ts")).content).toBe(
+		"const a = 2;\n",
+	);
+	// Written again after it was read (the agent, say): the old read can't save.
+	await Bun.sleep(20);
+	writeFileSync(join(repo, "src", "app.ts"), "const a = 3;\n");
+	await expect(
+		writeWorkingFile(repo, "src/app.ts", "mine", saved.mtimeMs),
+	).rejects.toThrow("changed on disk");
+	expect((await readWorkingFile(repo, "src/app.ts")).content).toBe(
+		"const a = 3;\n",
+	);
+});
+
+test("Edit stays inside the checkout and out of .git", async () => {
+	const repo = mkdtempSync(join(tmpdir(), "odin-edit-"));
+	execFileSync("git", ["init", "-q"], { cwd: repo });
+	await expect(checkoutFilePath(repo, "../outside.txt")).rejects.toThrow(
+		"not a file in this checkout",
+	);
+	await expect(checkoutFilePath(repo, ".git/config")).rejects.toThrow(
+		"not a file in this checkout",
+	);
+	await expect(readWorkingFile(repo, "gone.ts")).rejects.toThrow(
+		"deleted files can't be edited",
+	);
+});
+
+test("Save keeps a CRLF file's line endings", async () => {
+	const repo = mkdtempSync(join(tmpdir(), "odin-edit-"));
+	execFileSync("git", ["init", "-q"], { cwd: repo });
+	writeFileSync(join(repo, "win.txt"), "one\r\ntwo\r\n");
+	const read = await readWorkingFile(repo, "win.txt");
+	await writeWorkingFile(repo, "win.txt", "one\ntwo\nthree\n", read.mtimeMs);
+	expect(readFileSync(join(repo, "win.txt"), "utf8")).toBe(
+		"one\r\ntwo\r\nthree\r\n",
+	);
+	expect(withLineEndingsOf("a\nb\n", "a\nc\n")).toBe("a\nc\n");
+	expect(withLineEndingsOf("", "a\n")).toBe("a\n");
+	// Mostly LF with a stray CRLF stays LF.
+	expect(withLineEndingsOf("a\nb\nc\r\n", "x\ny\n")).toBe("x\ny\n");
+});
+
+test("a symlink in the checkout can't send a read or save outside it", async () => {
+	const repo = mkdtempSync(join(tmpdir(), "odin-edit-"));
+	const outside = mkdtempSync(join(tmpdir(), "odin-outside-"));
+	execFileSync("git", ["init", "-q"], { cwd: repo });
+	writeFileSync(join(outside, "secret.txt"), "keep\n");
+	symlinkSync(join(outside, "secret.txt"), join(repo, "link.txt"));
+	symlinkSync(outside, join(repo, "dir"));
+	await expect(checkoutFilePath(repo, "link.txt")).rejects.toThrow(
+		"not a file in this checkout",
+	);
+	await expect(checkoutFilePath(repo, "dir/secret.txt")).rejects.toThrow(
+		"not a file in this checkout",
+	);
+	await expect(
+		writeWorkingFile(repo, "link.txt", "changed", 0),
+	).rejects.toThrow("not a file in this checkout");
+	expect(readFileSync(join(outside, "secret.txt"), "utf8")).toBe("keep\n");
+	// A link that stays inside the checkout is fine.
+	writeFileSync(join(repo, "real.txt"), "x\n");
+	symlinkSync(join(repo, "real.txt"), join(repo, "alias.txt"));
+	expect((await readWorkingFile(repo, "alias.txt")).content).toBe("x\n");
 });

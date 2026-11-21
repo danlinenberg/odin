@@ -6,6 +6,8 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { DIFF_POOL_RENDER_OPTIONS } from "renderer/screens/main/components/WorkspaceView/utils/code-theme/diff-render-options";
 import { pullRequests } from "./brief";
 import { typeIntoClaude } from "./ChatView";
+import { DiffFileEditor } from "./DiffFileEditor";
+import { canEditDiffFile } from "./diff-edit";
 import {
 	BRANCH,
 	commentTarget,
@@ -38,6 +40,9 @@ type Draft = Omit<ReviewComment, "id" | "text">;
  * send every comment on the diff to the session as one message - the agent gets
  * the file, the lines and the code without a word typed, and the PR on GitHub
  * gets no review comments.
+ *
+ * On the working tree, Edit opens a file as it is on disk to change it in
+ * place; Save writes it back and the diff reloads. History stays read-only.
  */
 export function DiffView({
 	paneId,
@@ -151,6 +156,73 @@ export function DiffView({
 
 	const files = data?.files ?? [];
 	const current = files[Math.min(selected, files.length - 1)];
+
+	/** The file open in Edit, with the mtime it was read at. */
+	const [editing, setEditing] = useState<{
+		path: string;
+		content: string;
+		mtimeMs: number;
+	} | null>(null);
+	const [editDirty, setEditDirty] = useState(false);
+	const [editError, setEditError] = useState<string | null>(null);
+	const utils = electronTrpc.useUtils();
+	const saveFile = electronTrpc.repos.saveWorkingFile.useMutation();
+	const editable = canEditDiffFile(choice, data?.source, current);
+	const checkout = { cwd, claudeSessionId, workspaceId };
+	const closeEditor = () => {
+		setEditing(null);
+		setEditDirty(false);
+		setEditError(null);
+	};
+	/** Leaving an unsaved edit asks first; true when it's fine to go on. */
+	const leaveEditor = () => {
+		if (
+			editing &&
+			editDirty &&
+			!window.confirm(`Discard your unsaved edit to ${editing.path}?`)
+		)
+			return false;
+		closeEditor();
+		return true;
+	};
+	const openEditor = async () => {
+		if (!current) return;
+		setEditError(null);
+		try {
+			const file = await utils.repos.workingFile.fetch(
+				{ ...checkout, path: current.path },
+				{ staleTime: 0 },
+			);
+			// A textarea only holds \n; Save puts a CRLF file's endings back.
+			setEditing({
+				path: current.path,
+				content: file.content.replace(/\r\n/g, "\n"),
+				mtimeMs: file.mtimeMs,
+			});
+		} catch (failure) {
+			setEditError(
+				failure instanceof Error ? failure.message : String(failure),
+			);
+		}
+	};
+	const saveEdit = async (content: string) => {
+		if (!editing) return;
+		setEditError(null);
+		try {
+			await saveFile.mutateAsync({
+				...checkout,
+				path: editing.path,
+				content,
+				mtimeMs: editing.mtimeMs,
+			});
+			closeEditor();
+			void refetch();
+		} catch (failure) {
+			setEditError(
+				failure instanceof Error ? failure.message : String(failure),
+			);
+		}
+	};
 	/** Files ticked as reviewed, like GitHub's Viewed box. Kept per session
 	 * beside the comments; a push that changes a file clears its tick. */
 	const [marks, setMarks] = useState(() => loadMarks(paneId));
@@ -249,6 +321,7 @@ export function DiffView({
 				<select
 					value={choice ?? ""}
 					onChange={(event) => {
+						if (!leaveEditor()) return;
 						setChoice(event.target.value || null);
 						setSelected(0);
 					}}
@@ -413,7 +486,7 @@ export function DiffView({
 													? `${file.path}\nBinary file - no text diff to show`
 													: file.path
 											}
-											onClick={() => setSelected(index)}
+											onClick={() => leaveEditor() && setSelected(index)}
 											className={`flex min-w-0 flex-1 items-baseline gap-2 py-[3px] pr-3 pl-2 text-left text-[12px] text-soft-foreground ${
 												ticked ? "opacity-60" : ""
 											}`}
@@ -464,61 +537,99 @@ export function DiffView({
 							{data.note}
 						</div>
 					)}
-					{current ? (
-						<PatchDiff
-							key={`${choice}:${current.path}`}
-							patch={current.patch}
-							options={{
-								...DIFF_POOL_RENDER_OPTIONS,
-								diffStyle: "unified",
-								overflow: wrap ? "wrap" : "scroll",
-								// pierre scrolls each file sideways inside itself (and paint-
-								// contains it), so the bar sat under the file's last line.
-								// Unclipped, this panel's own box - one screen tall - scrolls.
-								// Odin's body is user-select: none, and the code inherits it
-								// through the shadow root: text, so you can mark and copy it.
-								// The line numbers keep pierre's own none.
-								unsafeCSS:
-									"[data-code] { overflow-x: visible; contain: none; user-select: text; cursor: text; }",
-								// GitHub's +: click it for one line, drag it for several.
-								enableGutterUtility: true,
-								onGutterUtilityClick: (range) =>
-									setDraft({
-										pr: choice,
-										path: current.path,
-										...commentTarget(current.patch, current.path, range),
-									}),
-							}}
-							lineAnnotations={annotations}
-							renderAnnotation={(annotation) => {
-								const id = annotation.metadata?.id;
-								if (!id)
-									return (
-										<DraftBox
-											onCancel={() => setDraft(null)}
-											onSave={(text) => {
-												if (draft)
-													saveComments([
-														...comments,
-														{ ...draft, id: crypto.randomUUID(), text },
-													]);
-												setDraft(null);
-											}}
-										/>
-									);
-								const comment = comments.find((each) => each.id === id);
-								return (
-									comment && (
-										<CommentCard
-											comment={comment}
-											onDelete={() =>
-												saveComments(comments.filter((each) => each.id !== id))
-											}
-										/>
-									)
-								);
-							}}
+					{editing ? (
+						<DiffFileEditor
+							key={editing.path}
+							path={editing.path}
+							initial={editing.content}
+							saving={saveFile.isPending}
+							error={editError}
+							onSave={(content) => void saveEdit(content)}
+							onCancel={leaveEditor}
+							onDirty={setEditDirty}
 						/>
+					) : current ? (
+						<>
+							{editable && (
+								<div className="flex items-center gap-2 border-b border-border px-4 py-1 text-[11.5px]">
+									<span
+										className="min-w-0 truncate text-faint-foreground"
+										title={current.path}
+									>
+										{current.path}
+									</span>
+									<button
+										type="button"
+										onClick={() => void openEditor()}
+										title="Change this file in place and save it to disk"
+										className="ml-auto shrink-0 text-primary hover:underline"
+									>
+										✎ Edit
+									</button>
+								</div>
+							)}
+							{editError && (
+								<div className="select-text cursor-text border-b border-border px-4 py-2 text-[12px] text-danger">
+									{editError}
+								</div>
+							)}
+							<PatchDiff
+								key={`${choice}:${current.path}`}
+								patch={current.patch}
+								options={{
+									...DIFF_POOL_RENDER_OPTIONS,
+									diffStyle: "unified",
+									overflow: wrap ? "wrap" : "scroll",
+									// pierre scrolls each file sideways inside itself (and paint-
+									// contains it), so the bar sat under the file's last line.
+									// Unclipped, this panel's own box - one screen tall - scrolls.
+									// Odin's body is user-select: none, and the code inherits it
+									// through the shadow root: text, so you can mark and copy it.
+									// The line numbers keep pierre's own none.
+									unsafeCSS:
+										"[data-code] { overflow-x: visible; contain: none; user-select: text; cursor: text; }",
+									// GitHub's +: click it for one line, drag it for several.
+									enableGutterUtility: true,
+									onGutterUtilityClick: (range) =>
+										setDraft({
+											pr: choice,
+											path: current.path,
+											...commentTarget(current.patch, current.path, range),
+										}),
+								}}
+								lineAnnotations={annotations}
+								renderAnnotation={(annotation) => {
+									const id = annotation.metadata?.id;
+									if (!id)
+										return (
+											<DraftBox
+												onCancel={() => setDraft(null)}
+												onSave={(text) => {
+													if (draft)
+														saveComments([
+															...comments,
+															{ ...draft, id: crypto.randomUUID(), text },
+														]);
+													setDraft(null);
+												}}
+											/>
+										);
+									const comment = comments.find((each) => each.id === id);
+									return (
+										comment && (
+											<CommentCard
+												comment={comment}
+												onDelete={() =>
+													saveComments(
+														comments.filter((each) => each.id !== id),
+													)
+												}
+											/>
+										)
+									);
+								}}
+							/>
+						</>
 					) : (
 						data && (
 							<div className="px-4 py-3 text-[12px] text-muted-foreground">
