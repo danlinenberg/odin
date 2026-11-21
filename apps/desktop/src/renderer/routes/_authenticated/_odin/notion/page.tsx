@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTabsStore } from "renderer/stores/tabs/store";
+import { useBulkTicks } from "../all/BulkBar";
 import {
 	TABLE_LIST,
 	TaskRow,
@@ -109,6 +110,13 @@ function NotionPage() {
 	const taskRows = useTaskRows();
 	const now = Date.now();
 
+	// Ticked rows, for acting on many at once - the same bar as All's.
+	const ticks = useBulkTicks(
+		groups
+			.flatMap(([, group]) => group)
+			.flatMap((row) => items.get(`notion:${row.pageId}`) ?? []),
+		taskRows,
+	);
 	return (
 		<div className="flex h-full flex-col">
 			<FeedHeader>
@@ -200,6 +208,7 @@ function NotionPage() {
 				)}
 
 				{groups.length > 0 && <TaskTableHeader />}
+				{ticks.bar}
 				{groups.map(([status, group]) => (
 					<div key={status} className="mb-1">
 						<div className="flex items-center gap-2 py-1 pl-1 text-[11px] font-medium uppercase tracking-[.3px] text-muted-foreground">
@@ -219,6 +228,7 @@ function NotionPage() {
 							return (
 								item && (
 									<TaskRow
+										{...ticks.rowProps(item)}
 										key={item.key}
 										item={item}
 										rows={taskRows}

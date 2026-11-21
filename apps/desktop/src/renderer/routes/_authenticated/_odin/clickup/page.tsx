@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
+import { useBulkTicks } from "../all/BulkBar";
 import {
 	TABLE_LIST,
 	TaskRow,
@@ -30,6 +31,11 @@ function ClickupPage() {
 	const taskRows = useTaskRows();
 	const now = Date.now();
 
+	// Ticked rows, for acting on many at once - the same bar as All's.
+	const ticks = useBulkTicks(
+		rows.flatMap((task) => items.get(`clickup:${task.id}`) ?? []),
+		taskRows,
+	);
 	return (
 		<div className="flex h-full flex-col">
 			<FeedHeader>
@@ -59,11 +65,18 @@ function ClickupPage() {
 					</div>
 				)}
 				{rows.length > 0 && <TaskTableHeader />}
+				{ticks.bar}
 				{rows.map((task) => {
 					const item = items.get(`clickup:${task.id}`);
 					return (
 						item && (
-							<TaskRow key={item.key} item={item} rows={taskRows} now={now} />
+							<TaskRow
+								{...ticks.rowProps(item)}
+								key={item.key}
+								item={item}
+								rows={taskRows}
+								now={now}
+							/>
 						)
 					);
 				})}

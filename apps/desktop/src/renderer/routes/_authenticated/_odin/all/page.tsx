@@ -10,7 +10,6 @@ import {
 	SortableContext,
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
@@ -64,16 +63,15 @@ import {
 	todoPanesOn,
 	type Urgency,
 } from "./all-items";
+import { useBulkTicks } from "./BulkBar";
 import { ruleLabel, useDropRules } from "./drop-rules";
 import { droppedWhy, putAwayWhy } from "./graveyard";
 import { MetaOptionSelect, useMetaOptions } from "./MetaOptionSelect";
 import { applyNewTaskFields, NO_NEW_TASK_FIELDS } from "./new-task-fields";
 import { revealRow, rowPlace } from "./reveal-row";
-import { nextSelection, visibleSelection } from "./selection";
 import { TaskBoard, TaskViewSwitch } from "./TaskBoard";
 import { TaskDescription } from "./TaskDescription";
 import { TaskDetails } from "./TaskDetails";
-import type { BulkActions } from "./TaskRowMenu";
 import {
 	type SortableBits,
 	SortableRow,
@@ -202,13 +200,7 @@ function AllFeedPage() {
 	const needle = search.trim().toLowerCase();
 	const reminders = useReminders((s) => s.reminders);
 	const rows = useTaskRows(() => void reactions.refetch());
-	const {
-		start: handleStart,
-		startMany,
-		livePaneFor,
-		isLaunching,
-		launchingKey,
-	} = rows;
+	const { start: handleStart, livePaneFor, isLaunching, launchingKey } = rows;
 	const goToPane = (paneId: string) => {
 		usePendingFocus.getState().focus(paneId);
 		navigate({ to: "/board" });
@@ -218,14 +210,7 @@ function AllFeedPage() {
 	// waiting on you. They're one click away under Done, with Undo.
 	// Reading material is the same put-away, for rows with nothing left to do
 	// but worth keeping: off every queue and the Night Agent, listed in Later.
-	const {
-		markDone,
-		markReading,
-		undo,
-		recent,
-		reading,
-		set: setDone,
-	} = useDone();
+	const { markDone, markReading, undo, recent, reading } = useDone();
 	const [shelf, setShelf] = useState(false);
 	// Work closed in Jira, GitHub or ClickUp itself never reached a feed, so
 	// the Done list asks those sources too - only while it's on.
@@ -268,7 +253,6 @@ function AllFeedPage() {
 		setType: setRowType,
 		setNote: setRowNote,
 		enqueue,
-		enqueueAt,
 		dequeue,
 		move,
 		waiting: parkedBy,
@@ -508,70 +492,9 @@ function AllFeedPage() {
 	};
 	const board = view === "board" && !showDone;
 
-	// Ticked rows, for acting on many at once. Only rows still on screen count:
-	// a filter or a Done that hides a ticked row takes it out of the next action.
-	const [selected, setSelected] = useState<Set<string>>(() => new Set());
-	const [anchor, setAnchor] = useState<string | null>(null);
-	const visibleKeys = items.map((item) => item.key);
-	const picked = visibleSelection(selected, visibleKeys);
-	const tick = (key: string, shift: boolean) => {
-		setSelected(nextSelection(selected, visibleKeys, key, shift, anchor));
-		setAnchor(key);
-	};
-	const clearPicked = () => setSelected(new Set());
-	// One toast for the lot, and one Undo that brings every row back.
-	const finishPicked = () => {
-		const rows = items.filter((item) => selected.has(item.key));
-		for (const item of rows) {
-			setDone(item, true);
-			dequeue(item.key);
-		}
-		toast.success(
-			`Done - ${rows.length} ${rows.length === 1 ? "task" : "tasks"}`,
-			{
-				action: {
-					label: "Undo",
-					onClick: () => {
-						for (const item of rows) setDone(item, false);
-					},
-				},
-			},
-		);
-		clearPicked();
-	};
-
-	// The bar's other buttons, named so a ticked row's right-click runs the
-	// very same ones (TaskRowMenu).
-	const pickedRows = () => items.filter((item) => selected.has(item.key));
-	const upNextPicked = (place: "top" | "end" = "end") => {
-		// Placed at the top one by one, the last lands first: go bottom-up.
-		const keys = place === "top" ? [...picked].reverse() : picked;
-		for (const key of keys) enqueueAt(key, place);
-		clearPicked();
-	};
-	const waitPicked = (days = WAIT_DAYS) => {
-		const until = dayAfter(Date.now(), days);
-		for (const item of pickedRows()) wait(item.key, "", until, item.title);
-		clearPicked();
-	};
-	const startPicked = () => {
-		void startMany(pickedRows()).then((went) => went && clearPicked());
-	};
-	const duePicked = (day: string | null) => {
-		const { setDue, clear } = useReminders.getState();
-		for (const item of pickedRows())
-			day ? setDue(item.key, day, item.title) : clear(item.key);
-		clearPicked();
-	};
-	const bulk: BulkActions = {
-		count: picked.length,
-		upNext: upNextPicked,
-		wait: waitPicked,
-		due: duePicked,
-		start: startPicked,
-		done: finishPicked,
-		clear: clearPicked,
-	};
+	// Ticked rows, for acting on many at once - the bar over the list and a
+	// ticked row's right-click.
+	const ticks = useBulkTicks(items, rows);
 
 	// From every row, not the filtered ones: narrowing the list shouldn't shut
 	// the panel you're reading. Marking it done does. Search all can open a row
@@ -671,13 +594,9 @@ function AllFeedPage() {
 			now={now}
 			created={sortBy === "created"}
 			drag={drag}
-			select={{
-				checked: selected.has(item.key),
-				onTick: (shift) => tick(item.key, shift),
-			}}
+			{...ticks.rowProps(item)}
 			open={item.key === openKey}
 			onOpen={() => setOpenKey(item.key === openKey ? null : item.key)}
-			bulk={picked.length > 1 && picked.includes(item.key) ? bulk : undefined}
 		/>
 	);
 
@@ -896,77 +815,7 @@ function AllFeedPage() {
 							date={sortBy === "created" ? "Created" : "Updated"}
 						/>
 					)}
-					{!showDone && picked.length > 0 && (
-						<div className="sticky top-0 z-10 mb-1 flex items-center gap-2 rounded-md border border-primary/40 bg-secondary px-3 py-1.5 text-[12px]">
-							<span className="font-semibold text-foreground">
-								{picked.length} selected
-							</span>
-							{picked.length < visibleKeys.length && (
-								<button
-									type="button"
-									onClick={() => setSelected(new Set(visibleKeys))}
-									className={ROW_LINK_BUTTON}
-								>
-									Select all {visibleKeys.length}
-								</button>
-							)}
-							<span className="flex-1" />
-							<FeedSelect
-								value=""
-								onChange={(value) => {
-									for (const key of picked)
-										setRowStatus(
-											key,
-											value === "waiting" ? null : (value as TaskStatus),
-										);
-								}}
-								title="Set the status of every selected row"
-							>
-								<option value="" disabled>
-									Set status
-								</option>
-								<option value="waiting">Waiting on you</option>
-								{taskStatuses.map(({ id, label }) => (
-									<option key={id} value={id}>
-										{label}
-									</option>
-								))}
-							</FeedSelect>
-							<button
-								type="button"
-								onClick={() => upNextPicked()}
-								title="Line them all up - Up next, above the list"
-								className={ROW_LINK_BUTTON}
-							>
-								Up next
-							</button>
-							<button
-								type="button"
-								onClick={() => waitPicked()}
-								title={`Waiting on someone else - back on Up next in ${WAIT_DAYS} days`}
-								className={ROW_LINK_BUTTON}
-							>
-								Waiting
-							</button>
-							<button
-								type="button"
-								disabled={isLaunching}
-								onClick={startPicked}
-								title="Start a session on each selected row - pick here or remote once for all"
-								className={ROW_START_BUTTON}
-							>
-								Start {picked.length}
-							</button>
-							<DoneButton onClick={finishPicked} />
-							<button
-								type="button"
-								onClick={clearPicked}
-								className={ROW_LINK_BUTTON}
-							>
-								Clear
-							</button>
-						</div>
-					)}
+					{!showDone && ticks.bar}
 					{!showDone && queued.length > 0 && (
 						<>
 							<div className={SECTION_LABEL}>

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
+import { useBulkTicks } from "../all/BulkBar";
 import {
 	TABLE_LIST,
 	TaskRow,
@@ -120,6 +121,11 @@ function MyPullRequestsPage() {
 	const taskRows = useTaskRows();
 	const now = Date.now();
 
+	// Ticked rows, for acting on many at once - the same bar as All's.
+	const ticks = useBulkTicks(
+		rows.flatMap((pull) => items.get(`pr:${pull.id}`) ?? []),
+		taskRows,
+	);
 	return (
 		<div className="flex h-full flex-col">
 			<FeedHeader>
@@ -191,11 +197,18 @@ function MyPullRequestsPage() {
 				)}
 
 				{rows.length > 0 && <TaskTableHeader />}
+				{ticks.bar}
 				{rows.map((pull) => {
 					const item = items.get(`pr:${pull.id}`);
 					return (
 						item && (
-							<TaskRow key={item.key} item={item} rows={taskRows} now={now} />
+							<TaskRow
+								{...ticks.rowProps(item)}
+								key={item.key}
+								item={item}
+								rows={taskRows}
+								now={now}
+							/>
 						)
 					);
 				})}
