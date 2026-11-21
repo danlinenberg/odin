@@ -33,6 +33,7 @@ beforeEach(() => {
 		slackClientSecret: "csecret",
 		slackRedirectUrl: "https://example.test/slack.html",
 		slackToken: undefined,
+		slackSendAllowed: undefined,
 	});
 });
 
@@ -83,6 +84,18 @@ describe("startSlackOAuth", () => {
 			"https://example.test/slack.html",
 		);
 		expect(readSlackOAuthResult(state)?.status).toBe("pending");
+	});
+
+	test("asks to post as me only while sessions may send Slack messages", async () => {
+		await startSlackOAuth(capture);
+		expect(new URL(opened[0]).searchParams.get("user_scope")).not.toContain(
+			"chat:write",
+		);
+		updateOdinConfig({ slackSendAllowed: true });
+		await startSlackOAuth(capture);
+		expect(new URL(opened[1]).searchParams.get("user_scope")).toContain(
+			"chat:write",
+		);
 	});
 
 	test("refuses to start when no app is configured", async () => {
@@ -232,5 +245,13 @@ describe("missingSlackScopes", () => {
 			),
 		).toEqual([]);
 		expect(missingSlackScopes(null)).toEqual([]);
+	});
+
+	test("a read-only token needs chat:write only once sending is on", () => {
+		const readOnly =
+			"reactions:read,users:read,channels:read,groups:read,im:read,mpim:read,channels:history,groups:history,im:history,mpim:history,files:read,search:read";
+		expect(missingSlackScopes(readOnly, false)).toEqual([]);
+		expect(missingSlackScopes(readOnly, true)).toEqual(["chat:write"]);
+		expect(missingSlackScopes(`${readOnly},chat:write`, true)).toEqual([]);
 	});
 });

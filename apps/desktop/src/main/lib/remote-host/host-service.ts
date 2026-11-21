@@ -66,6 +66,8 @@ export function hostGithubLoginFile(login: string): string {
  */
 export interface HostTokensFile {
 	slack?: string;
+	/** Settings > Personalization "Let sessions send Slack messages": the host's proxy refuses Slack posts without it. */
+	slackSend?: boolean;
 	notion?: string;
 	clickup?: string;
 	jira?: string;
@@ -370,6 +372,8 @@ def call_service(form):
     base, headers = service_base(name, tokens())
     if not base:
         return 200, name + " isn't on this host. Turn it on in Odin: Settings > Remote > Connectors on the host.\\n"
+    if name == "slack" and not tokens().get("slackSend") and re.match(r"^/*chat[.](postMessage|postEphemeral|scheduleMessage|meMessage|update|delete|deleteScheduledMessage)\\b", form.get("path", ""), re.I):
+        return 200, "Sending Slack messages is off. Turn on Settings > Personalization > Let sessions send Slack messages, or write a draft for the user to send.\\n"
     url = urllib.parse.urljoin(base, form.get("path", "").lstrip("/"))
     if urllib.parse.urlsplit(url).netloc != urllib.parse.urlsplit(base).netloc:
         return 200, "path must be relative to " + base + "\\n"
