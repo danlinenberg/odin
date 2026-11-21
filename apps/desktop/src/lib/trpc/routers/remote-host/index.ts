@@ -153,6 +153,7 @@ import {
 	repoNameOf,
 	runScript,
 	secretsFile,
+	sessionBranch,
 } from "main/lib/remote-host/session";
 import {
 	connectHost,
@@ -1461,7 +1462,7 @@ export const createRemoteHostRouter = () =>
 
 		/**
 		 * A session on this computer, moved to the host: its branch goes to
-		 * origin (pushWork) and `note` is what the Claude resumed there is
+		 * origin, and a shared checkout's uncommitted work as a copy (pushWork) and `note` is what the Claude resumed there is
 		 * told first - that it moved, where its work is, and the host note a
 		 * new host session starts with. The pane's Resume on the host sends
 		 * the conversation over.
@@ -1472,15 +1473,15 @@ export const createRemoteHostRouter = () =>
 				const host = readOdinConfig().remoteHost;
 				if (!host) throw new Error("No remote host is set up.");
 				const work = existsSync(input.cwd)
-					? await pushWork(input.cwd)
-					: { branch: null, committed: false, left: false };
+					? await pushWork(input.cwd, input.sessionId)
+					: { branch: null, committed: false, left: false, snapshot: null };
 				const origin =
 					(await originOf(input.cwd)) ??
 					(await originOf(mainCheckoutOf(input.cwd)));
 				const repoName = origin ? repoNameOf(origin) : null;
 				return {
 					note:
-						sentNote(work, input.cwd) +
+						sentNote(work, input.cwd, sessionBranch(input.sessionId)) +
 						hostNote({
 							user: host.user,
 							name: host.name || host.instanceId,

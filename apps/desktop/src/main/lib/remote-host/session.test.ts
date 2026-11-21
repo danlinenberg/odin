@@ -50,6 +50,7 @@ import {
 	runScript,
 	SKIP_FIRST_RUN,
 	secretsFile,
+	sendsConversation,
 	sentConversation,
 	sh,
 	tmuxSession,
@@ -675,7 +676,7 @@ test("a Resume starts Claude in the folder its conversation is filed under", () 
 	}
 });
 
-test("a Resume files a conversation sent from this computer where Claude starts, unless the host user has it", () => {
+test("a Resume files a conversation sent from this computer where Claude starts, or over an older copy the host user has", () => {
 	const line =
 		runScript({ ...spec, claudeArgs: "--resume abc" }, "/d")
 			.split("\n")
@@ -702,14 +703,28 @@ test("a Resume files a conversation sent from this computer where Claude starts,
 		run();
 		expect(readFileSync(filed, "utf8")).toBe("sent\n");
 		expect(existsSync(join(home, sentConversation("abc")))).toBe(false);
-		// The host user's own copy stays; the sent one goes.
-		writeFileSync(join(home, sentConversation("abc")), "older\n");
+		// A shorter one is older: the host user's own copy stays, the sent one goes.
+		writeFileSync(join(home, sentConversation("abc")), "old\n");
 		run();
 		expect(readFileSync(filed, "utf8")).toBe("sent\n");
+		expect(existsSync(join(home, sentConversation("abc")))).toBe(false);
+		// A longer one went on on my computer after a move there: it replaces it.
+		writeFileSync(join(home, sentConversation("abc")), "sent\nmore here\n");
+		run();
+		expect(readFileSync(filed, "utf8")).toBe("sent\nmore here\n");
 		expect(existsSync(join(home, sentConversation("abc")))).toBe(false);
 	} finally {
 		rmSync(home, { recursive: true, force: true });
 	}
+});
+
+test("this computer's copy of a conversation goes to the host when the host has none or a shorter one", () => {
+	expect(sendsConversation("", 10)).toBe(true);
+	expect(sendsConversation("5", 10)).toBe(true);
+	expect(sendsConversation("10", 10)).toBe(false);
+	expect(sendsConversation("20", 10)).toBe(false);
+	// The host couldn't say: leave its copy alone.
+	expect(sendsConversation("unknown", 10)).toBe(false);
 });
 
 test("a clone URL names its repo", () => {
