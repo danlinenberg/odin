@@ -8939,8 +8939,8 @@ function DevBoardPage() {
 							<button
 								type="button"
 								onClick={() =>
-					guardCards([drawerCard], () => markDoneInDrawer(drawerCard))
-				}
+									guardCards([drawerCard], () => markDoneInDrawer(drawerCard))
+								}
 								title="Done - end the session and remove it from the board"
 								className={cn(
 									"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
