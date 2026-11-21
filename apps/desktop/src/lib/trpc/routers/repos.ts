@@ -1,6 +1,13 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
+import {
+	copyFile,
+	mkdtemp,
+	readFile,
+	rm,
+	stat,
+	writeFile,
+} from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
@@ -638,6 +645,29 @@ export const createReposRouter = (
 					: renderDiff(dir, transcript, input.wholeFile);
 			}),
 
+		/** A working-tree file of the session's checkout, for the Diff tab's Edit. */
+		workingFile: publicProcedure
+			.input(sessionCheckoutInput.extend({ path: z.string().min(1) }))
+			.query(async ({ input }) => {
+				const { dir } = await sessionCheckout(input);
+				return readWorkingFile(dir, input.path);
+			}),
+
+		/** Saves the Diff tab's Edit, unless the file changed on disk since it was read. */
+		saveWorkingFile: publicProcedure
+			.input(
+				sessionCheckoutInput.extend({
+					path: z.string().min(1),
+					content: z.string().max(MAX_EDIT_BYTES),
+					/** The mtime `workingFile` read; a later write on disk wins. */
+					mtimeMs: z.number(),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				const { dir } = await sessionCheckout(input);
+				return writeWorkingFile(dir, input.path, input.content, input.mtimeMs);
+			}),
+
 		/** The session's checkout as it is now, for a later `diff` `since` it. */
 		reviewSnapshot: publicProcedure
 			.input(sessionCheckoutInput)
@@ -647,6 +677,91 @@ export const createReposRouter = (
 			}),
 	});
 };
+
+/** Biggest file the Diff tab opens for editing: a textarea, not an IDE. */
+const MAX_EDIT_BYTES = 2_000_000;
+
+/**
+ * A diff's path (relative to the repo's top, as git prints it) as a file on
+ * disk, or an error: it must stay inside the checkout and out of `.git`.
+ */
+export async function checkoutFilePath(
+	dir: string,
+	path: string,
+): Promise<string> {
+	const top = (
+		await execWithShellEnv("git", ["rev-parse", "--show-toplevel"], {
+			cwd: dir,
+			timeout: 10_000,
+		})
+	).stdout.trim();
+	const full = resolve(top, path);
+	const rel = relative(top, full);
+	if (
+		!rel ||
+		rel.startsWith(`..${sep}`) ||
+		rel === ".." ||
+		rel.split(sep)[0] === ".git"
+	)
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: `${path} is not a file in this checkout.`,
+		});
+	return full;
+}
+
+/** A text file's content and mtime, for editing it in the Diff tab. */
+export async function readWorkingFile(
+	dir: string,
+	path: string,
+): Promise<{ content: string; mtimeMs: number }> {
+	const full = await checkoutFilePath(dir, path);
+	const info = await stat(full).catch(() => null);
+	if (!info?.isFile())
+		throw new TRPCError({
+			code: "NOT_FOUND",
+			message: `${path} isn't on disk - deleted files can't be edited.`,
+		});
+	if (info.size > MAX_EDIT_BYTES)
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: `${path} is too big to edit here (${Math.round(info.size / 1000)}kB).`,
+		});
+	const content = await readFile(full, "utf-8");
+	if (content.includes("\0"))
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: `${path} is a binary file.`,
+		});
+	return { content, mtimeMs: info.mtimeMs };
+}
+
+/**
+ * Writes the edited text back, unless something else (the agent, most
+ * likely) wrote the file after it was read: then nothing is written and the
+ * error says to reload, so neither edit is lost silently.
+ */
+export async function writeWorkingFile(
+	dir: string,
+	path: string,
+	content: string,
+	mtimeMs: number,
+): Promise<{ mtimeMs: number }> {
+	const full = await checkoutFilePath(dir, path);
+	const info = await stat(full).catch(() => null);
+	if (!info?.isFile())
+		throw new TRPCError({
+			code: "NOT_FOUND",
+			message: `${path} is no longer on disk.`,
+		});
+	if (Math.abs(info.mtimeMs - mtimeMs) > 1)
+		throw new TRPCError({
+			code: "CONFLICT",
+			message: `${path} changed on disk after you opened it. Copy your edit, Cancel, and Edit again.`,
+		});
+	await writeFile(full, content, "utf-8");
+	return { mtimeMs: (await stat(full)).mtimeMs };
+}
 
 const sessionCheckoutInput = z.object({
 	/**
