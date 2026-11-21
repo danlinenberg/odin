@@ -57,6 +57,30 @@ const STORES: Record<string, Store> = {
 	sessions: useTabsStore,
 } as unknown as Record<string, Store>;
 
+/**
+ * Switches that start work with nobody watching. Only action=setting turns
+ * one on, after asking in the window; action=set and action=run turning one
+ * on are refused (and undone), so that question can't be skipped. Turning
+ * one off stays open to both.
+ */
+export const GUARDED: {
+	store: string;
+	label: string;
+	on: (state: Record<string, unknown>) => boolean;
+	off: () => void;
+}[] = [
+	{
+		store: "nightAgent",
+		label: "Work the backlog overnight",
+		on: (state) =>
+			(state.offHours as { enabled?: unknown } | undefined)?.enabled === true,
+		off: () => useNextInLinePrompt.getState().setOffHours({ enabled: false }),
+	},
+];
+
+const guardedReply = (label: string) =>
+	`Not changed: "${label}" is turned on with action=setting, which asks the user in Odin first.`;
+
 const MAX_REPLY = 30_000;
 const clip = (text: string) =>
 	text.length > MAX_REPLY
@@ -143,8 +167,17 @@ export async function runAction(args: Record<string, string>): Promise<string> {
 		return "args must be a JSON array.";
 	}
 	if (!Array.isArray(params)) return "args must be a JSON array.";
+	const guards = GUARDED.filter((guard) => guard.store === args.store);
+	const wasOn = guards.map((guard) => guard.on(dataOf(store)));
 	try {
 		const result = await fn(...params);
+		const turnedOn = guards.find(
+			(guard, index) => !wasOn[index] && guard.on(dataOf(store)),
+		);
+		if (turnedOn) {
+			turnedOn.off();
+			return guardedReply(turnedOn.label);
+		}
 		return result === undefined
 			? `Ran ${args.store}.${args.fn}.`
 			: clip(JSON.stringify(result, null, 1));
@@ -168,6 +201,11 @@ export function writeState(args: Record<string, string>): string {
 	const unknownKeys = Object.keys(patch).filter((key) => !(key in data));
 	if (unknownKeys.length)
 		return `${args.store} has no ${unknownKeys.join(", ")} - read it with action=state.`;
-	store.setState(merge(data, patch) as Record<string, unknown>);
+	const next = merge(data, patch) as Record<string, unknown>;
+	const turnedOn = GUARDED.find(
+		(guard) => guard.store === args.store && !guard.on(data) && guard.on(next),
+	);
+	if (turnedOn) return guardedReply(turnedOn.label);
+	store.setState(next);
 	return `Updated ${args.store}: ${Object.keys(patch).join(", ")}.`;
 }

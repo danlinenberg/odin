@@ -23,6 +23,32 @@ export const clip = (text: string) =>
 		? `${text.slice(0, MAX_REPLY)}\n... cut at ${MAX_REPLY} characters.`
 		: text;
 
+/**
+ * Settings the raven's general call may not change: sign-ins, tokens and
+ * connections, the remote host, auto-start and phone access, and the switches
+ * that let sessions act with nobody watching. The ones a user may hand him go
+ * through action=setting, which asks in Odin's window first; this keeps
+ * action=call from skipping that question.
+ */
+const GUARDED_NAMESPACES = ["connections.", "remoteHost.", "phone."];
+/** connections.* that only pick or name a profile, not a sign-in. */
+const PROFILE_MUTATIONS =
+	/^connections\.(setActiveProfile|createProfile|renameProfile|deleteProfile|restoreProfile)$/;
+const GUARDED_PATHS = new Set(["slack.setSendAllowed"]);
+/** Any mutation whose name touches a sign-in, token or secret. */
+const SENSITIVE_NAME =
+	/token|sign-?in|sign-?out|log-?in|log-?out|auth|connect|secret|api-?key|oauth|credential|password|permission/i;
+
+export function isGuardedMutation(path: string): boolean {
+	if (GUARDED_PATHS.has(path)) return true;
+	if (PROFILE_MUTATIONS.test(path)) return false;
+	if (GUARDED_NAMESPACES.some((prefix) => path.startsWith(prefix))) return true;
+	return SENSITIVE_NAME.test(path.split(".").pop() ?? "");
+}
+
+export const GUARDED_REPLY =
+	"Not through action=call: sign-ins, tokens, connections, the remote host, auto-start, phone access and Slack sending are the user's to change in Settings. Settings you may change go through action=setting, which asks the user first where it has to.";
+
 type ProcedureDef = {
 	_def: { type: "query" | "mutation" | "subscription"; inputs: unknown[] };
 };
@@ -72,6 +98,7 @@ export async function callProcedure(
 	// here: the call reported success and the theme stayed dark.
 	if (path.startsWith("uiState.") && def.type === "mutation")
 		return "The window owns this state - change it with action=state / action=run (e.g. store=theme fn=setTheme), or the window writes it back.";
+	if (def.type === "mutation" && isGuardedMutation(path)) return GUARDED_REPLY;
 	let parsed: unknown;
 	try {
 		parsed = input ? JSON.parse(input) : undefined;

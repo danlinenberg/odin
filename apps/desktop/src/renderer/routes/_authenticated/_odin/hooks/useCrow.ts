@@ -910,23 +910,38 @@ function runOdinAction(
 		const max = args.max ? Number(args.max) : undefined;
 		if (max !== undefined && !(Number.isInteger(max) && max > 0))
 			return "max must be a whole number above 0.";
-		if (args.on === "true" || args.on === "false")
-			setOffHours({
-				enabled: args.on === "true",
-				...(args.start && { start: args.start }),
-				...(args.end && { end: args.end }),
-				...(max && { maxSessions: max }),
-			});
-		const { offHours: now, nightLog } = useNextInLinePrompt.getState();
-		const status = now.enabled
-			? `Night Agent is on: ${now.start} to ${now.end}, at most ${now.maxSessions} sessions, one at a time from the top of Next in line.`
-			: "Night Agent is off.";
-		const log = nightLog
-			.slice(-60)
-			.map((entry) => `${new Date(entry.at).toLocaleString()}  ${entry.event}`);
-		return log.length
-			? `${status}\n\nWhat it did, newest last:\n${log.join("\n")}`
-			: `${status}\n\nNo night has run yet.`;
+		const report = (refused?: string) => {
+			if (args.on === "true" || args.on === "false")
+				setOffHours({
+					...(args.on === "false" && { enabled: false }),
+					...(args.start && { start: args.start }),
+					...(args.end && { end: args.end }),
+					...(max && { maxSessions: max }),
+				});
+			const { offHours: now, nightLog } = useNextInLinePrompt.getState();
+			const status = now.enabled
+				? `Night Agent is on: ${now.start} to ${now.end}, at most ${now.maxSessions} sessions, one at a time from the top of Next in line.`
+				: "Night Agent is off.";
+			const log = nightLog
+				.slice(-60)
+				.map(
+					(entry) => `${new Date(entry.at).toLocaleString()}  ${entry.event}`,
+				);
+			return `${refused ? `${refused}\n\n` : ""}${
+				log.length
+					? `${status}\n\nWhat it did, newest last:\n${log.join("\n")}`
+					: `${status}\n\nNo night has run yet.`
+			}`;
+		};
+		// Turning it on asks in the window first, the same as action=setting.
+		if (args.on === "true" && !useNextInLinePrompt.getState().offHours.enabled)
+			return writeSetting(deps.utils, {
+				name: "Work the backlog overnight",
+				value: "on",
+			}).then((reply) =>
+				report(reply.startsWith("Changed") ? undefined : reply),
+			);
+		return report();
 	}
 	if (action === "night-page") {
 		// The phone's Night Agent page: the schedule, tonight's count, the nights.
