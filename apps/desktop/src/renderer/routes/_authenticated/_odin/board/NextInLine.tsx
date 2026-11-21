@@ -58,6 +58,7 @@ import {
 	effectiveDue,
 	useReminders,
 } from "../components/Reminders";
+import { guardTaskDone, guardTasksDone } from "../hooks/done-guard";
 import { slackTaken } from "../hooks/night-send";
 import { useReview } from "../hooks/useBacklogReview";
 import { useDone } from "../hooks/useDone";
@@ -472,7 +473,9 @@ export function NextInLine() {
 	// Same Done as every feed, so a row done here is done there and back.
 	const { markDone, set: setDone } = useDone();
 	const doneWithUndo = (item: AllItem) =>
-		markDone({ ...item, title: cleanTitle(item.title) });
+		guardTaskDone(item, () =>
+			markDone({ ...item, title: cleanTitle(item.title) }),
+		);
 	// Drop by hand, same as every row's: the sweep's verdict isn't needed.
 	const dropByHand = useDropByHand();
 	const dropWithUndo = (item: AllItem) =>
@@ -491,8 +494,12 @@ export function NextInLine() {
 		setTickAnchor(key);
 	};
 	const clearTicks = () => setTicked(new Set());
+	// Unticked to-dos in a session on any ticked card ask first, once for all.
 	const doneTicked = () => {
 		const went = pickedItems;
+		guardTasksDone(went, () => finishTicked(went));
+	};
+	const finishTicked = (went: AllItem[]) => {
 		for (const item of went) setDone(item, true);
 		toast.success(
 			`Done - ${went.length} ${went.length === 1 ? "task" : "tasks"}`,

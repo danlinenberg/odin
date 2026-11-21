@@ -21,6 +21,7 @@ import { useTabsStore } from "renderer/stores/tabs/store";
 import type { AllItem } from "../all/all-items";
 import { useSearchableItems } from "../all/use-all-items";
 import { useStartAllItem } from "../all/use-start-item";
+import { guardTaskDone } from "../hooks/done-guard";
 import { useDone } from "../hooks/useDone";
 import { useOdinProfile } from "../hooks/useOdinProfile";
 import { useMyTasks } from "../hooks/useOdinTasks";
@@ -315,7 +316,10 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 				? []
 				: [
 						{ label: "Read later", run: () => go(() => markReading(item)) },
-						{ label: "Done", run: () => go(() => markDone(item)) },
+						{
+							label: "Done",
+							run: () => go(() => guardTaskDone(item, () => markDone(item))),
+						},
 					]),
 		];
 	};

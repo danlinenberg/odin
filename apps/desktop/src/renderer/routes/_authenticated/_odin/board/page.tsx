@@ -225,6 +225,7 @@ import {
 	watchingFor,
 } from "../components/ReplyWatch";
 import { TranscriptView } from "../components/TranscriptView";
+import { guardDone } from "../hooks/done-guard";
 import { autoDoneRun } from "../hooks/useAutomationRunner";
 import {
 	droppedByHand,
@@ -7291,6 +7292,12 @@ function DevBoardPage() {
 		stepSession(1),
 	);
 
+	// Done as you press it: a session with unticked My notes to-dos asks first.
+	const guardCards = (cards: BoardCard[], proceed: () => void) =>
+		guardDone(
+			cards.map((card) => ({ paneId: card.pane.id, title: cardTitle(card) })),
+			proceed,
+		);
 	// "" when the stop is unassigned in Settings -> Keyboard.
 	const stopDisplay = useHotkeyDisplay("STOP_TURN").text;
 	const stopKeys = useBinding("STOP_TURN") ? stopDisplay : "";
@@ -7521,7 +7528,7 @@ function DevBoardPage() {
 		setDragOverIdle,
 		setTagMenu,
 		toggleStar,
-		markDone,
+		markDone: (card) => guardCards([card], () => markDone(card)),
 		endCard: (card) => {
 			setDrawerCard(null);
 			return endCard(card);
@@ -7988,7 +7995,10 @@ function DevBoardPage() {
 						if (name)
 							updatePanes((current) => withGroupColor(current, name, color));
 					}}
-					onDone={() => tagMenuCard && doneAnywhere(tagMenuCard)}
+					onDone={() =>
+						tagMenuCard &&
+						guardCards([tagMenuCard], () => doneAnywhere(tagMenuCard))
+					}
 					onPark={
 						tagMenuCard && tagMenuCard.status !== "idle"
 							? () => void parkCard(tagMenuCard)
@@ -8125,7 +8135,7 @@ function DevBoardPage() {
 					}}
 					onDone={(paneId) => {
 						const card = cardById(paneId);
-						if (card) markDone(card);
+						if (card) guardCards([card], () => markDone(card));
 					}}
 					onSnooze={(paneId, day) => {
 						const card = cardById(paneId);
@@ -8509,7 +8519,7 @@ function DevBoardPage() {
 												<button
 													type="button"
 													title="Done - remove the selected sessions from the board"
-													onClick={finishPicked}
+													onClick={() => guardCards(pickedCards, finishPicked)}
 													className="flex items-center gap-1 hover:text-success"
 												>
 													<span className="text-success">✓</span>
@@ -8941,7 +8951,9 @@ function DevBoardPage() {
 							<div className="flex-1" />
 							<button
 								type="button"
-								onClick={() => markDoneInDrawer(drawerCard)}
+								onClick={() =>
+									guardCards([drawerCard], () => markDoneInDrawer(drawerCard))
+								}
 								title="Done - end the session and remove it from the board"
 								className={cn(
 									"rounded-[7px] px-3 py-1.5 text-xs font-semibold",

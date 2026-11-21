@@ -8,6 +8,7 @@ import {
 	ROW_START_BUTTON,
 } from "../components/FeedChrome";
 import { useReminders } from "../components/Reminders";
+import { guardTasksDone } from "../hooks/done-guard";
 import { useDone } from "../hooks/useDone";
 import type { AllItem } from "./all-items";
 import { useMetaOptions } from "./MetaOptionSelect";
@@ -37,9 +38,13 @@ export function useBulkTicks(items: readonly AllItem[], rows: TaskRows) {
 		setAnchor(key);
 	};
 	const clear = () => setSelected(new Set());
-	// One toast for the lot, and one Undo that brings every row back.
+	// One toast for the lot, and one Undo that brings every row back. Unticked
+	// to-dos in a session on any of them ask first, once for the lot.
 	const done = () => {
 		const went = pickedRows();
+		guardTasksDone(went, () => finish(went));
+	};
+	const finish = (went: AllItem[]) => {
 		for (const item of went) {
 			setDone(item, true);
 			dequeue(item.key);

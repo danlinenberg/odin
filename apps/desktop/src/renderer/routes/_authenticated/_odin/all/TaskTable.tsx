@@ -38,6 +38,7 @@ import {
 	useReminders,
 } from "../components/Reminders";
 import { TonightButton } from "../components/TonightButton";
+import { guardTaskDone } from "../hooks/done-guard";
 import { useDone } from "../hooks/useDone";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
@@ -241,10 +242,11 @@ export function useTaskRows(onSlackStarted?: () => void) {
 		markReading,
 		undo,
 		/** Done, and off Up next too, so an Undo doesn't bring it back there. */
-		finish: (item: AllItem) => {
-			markDone(item);
-			dequeue(item.key);
-		},
+		finish: (item: AllItem) =>
+			guardTaskDone(item, () => {
+				markDone(item);
+				dequeue(item.key);
+			}),
 		/** Drop by hand: Done everywhere and under Review's Dropped. Off Up next too, like Done. */
 		drop: (item: AllItem) => {
 			void dropByHand(item);

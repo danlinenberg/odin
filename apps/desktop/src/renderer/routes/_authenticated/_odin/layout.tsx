@@ -37,6 +37,7 @@ import { CrowButton } from "./components/CrowButton";
 import { FEED_TABS } from "./components/feed-counts";
 import { GettingStarted } from "./components/GettingStarted";
 import { InAppBrowser } from "./components/InAppBrowser";
+import { OpenTodosDialog } from "./components/OpenTodosDialog";
 import { BUTTON, PILL } from "./components/pill";
 import {
 	type UpstreamDue,
@@ -711,6 +712,7 @@ function OdinShell() {
 			</div>
 
 			<SessionContextDialog />
+			<OpenTodosDialog />
 			{isQuickAddOpen && <QuickAddTask onClose={closeQuickAdd} />}
 			{isSearchAllOpen && (
 				<SearchAll onClose={() => setIsSearchAllOpen(false)} />
