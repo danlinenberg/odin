@@ -58,6 +58,7 @@ export async function hostTokens(
 		if (name === "slack") {
 			const token = resolveSlackToken();
 			if (token) tokens.slack = token;
+			if (config.slackSendAllowed) tokens.slackSend = true;
 		} else if (name === "notion") {
 			const token = resolveNotionToken();
 			if (token) tokens.notion = token;

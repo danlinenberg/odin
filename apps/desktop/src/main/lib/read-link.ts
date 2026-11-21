@@ -433,6 +433,26 @@ async function serviceBase(service: string): Promise<
 	}
 }
 
+/**
+ * Slack API methods that post or schedule as the user. Odin's own Slack
+ * sign-in can hold chat:write (asked for while sessions may send), so the
+ * service proxy refuses these whenever that setting is off: turning it off
+ * stops posting at once, without a new sign-in.
+ */
+const SLACK_SEND_METHOD =
+	/^\/*chat\.(postMessage|postEphemeral|scheduleMessage|meMessage|update|delete|deleteScheduledMessage)\b/i;
+
+/** Why a call is refused, or null when it may go. */
+export function slackSendRefusal(
+	service: string,
+	path: string,
+	sendAllowed: boolean,
+): string | null {
+	if (sendAllowed || service !== "slack" || !SLACK_SEND_METHOD.test(path))
+		return null;
+	return "Sending Slack messages is off. Turn on Settings > Personalization > Let sessions send Slack messages, or write a draft for the user to send.";
+}
+
 /** `path` under `base`, or null when it would leave base's host. */
 export function serviceUrl(base: string, path: string): URL | null {
 	const url = new URL(path.replace(/^\/+/, ""), base);
@@ -450,6 +470,12 @@ export async function callService(
 	method = "GET",
 	body?: string,
 ): Promise<string> {
+	const refused = slackSendRefusal(
+		service,
+		path,
+		readOdinConfig().slackSendAllowed === true,
+	);
+	if (refused) return refused;
 	const target = await serviceBase(service);
 	if (typeof target === "string") return target;
 	const url = serviceUrl(target.base, path);
