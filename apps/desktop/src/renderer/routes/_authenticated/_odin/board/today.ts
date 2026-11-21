@@ -1,3 +1,10 @@
+import {
+	isAnswerItem,
+	isApprovalItem,
+	isDoneItem,
+	itemOptions,
+} from "./action-items";
+
 /**
  * The Today overview: every open session on the board, grouped by where it
  * stands and ordered by what to look at first. Built only from what the board
@@ -104,6 +111,45 @@ export function todayGroups<T extends TodayEntry>(
 	})).filter(({ items }) => items.length > 0);
 }
 
+/** Quick wins before questions: a merge or a look takes seconds. */
+const LANE_RANK: Record<TodayGroup, number> = {
+	"almost-done": 0,
+	"needs-you": 1,
+	running: 2,
+	waiting: 3,
+	paused: 4,
+};
+
+/**
+ * The order to do things in, across groups: overdue or due today first,
+ * then what is almost done (seconds of work), then what needs you, then the
+ * rest. Inside that, the nearest due date, high priority, star, board order.
+ * Without `today`, no date counts as due now.
+ */
+export function rankToday<T extends TodayEntry>(entries: T[], today = ""): T[] {
+	const now = (entry: T) => (entry.due && entry.due <= today ? 0 : 1);
+	return entries
+		.map((entry, i) => ({ entry, i }))
+		.sort((a, b) => {
+			const na = now(a.entry);
+			const nb = now(b.entry);
+			if (na !== nb) return na - nb;
+			const ga = LANE_RANK[a.entry.group];
+			const gb = LANE_RANK[b.entry.group];
+			if (ga !== gb) return ga - gb;
+			const da = a.entry.due ?? "\uffff";
+			const db = b.entry.due ?? "\uffff";
+			if (da !== db) return da < db ? -1 : 1;
+			const ua = a.entry.urgency ? URGENCY_RANK[a.entry.urgency] : 3;
+			const ub = b.entry.urgency ? URGENCY_RANK[b.entry.urgency] : 3;
+			if (ua !== ub) return ua - ub;
+			const sa = a.entry.starred ? 0 : 1;
+			const sb = b.entry.starred ? 0 : 1;
+			return sa - sb || a.i - b.i;
+		})
+		.map(({ entry }) => entry);
+}
+
 /** A task as the model wrote it: the sessions' keys, and its words. */
 export interface WrittenTask {
 	keys: string[];
@@ -139,8 +185,7 @@ export interface TodayTaskView<T> {
  * The page's tasks: the model's grouping over the sessions open now. A
  * session it left out (it is new, or the answer is not back yet) is a task
  * of its own, titled by the session, its brief's status as the line. Tasks
- * come in the order todayGroups ranks their most pressing session: Needs
- * you first, then by due date, priority and star.
+ * come in the order rankToday ranks their most pressing session.
  */
 export function todayTasks<
 	T extends TodayEntry & {
@@ -149,8 +194,8 @@ export function todayTasks<
 		/** The session's goal from its brief: what it is about, until the model says. */
 		goal?: string | null;
 	},
->(written: readonly WrittenTask[], items: T[]): TodayTaskView<T>[] {
-	const ranked = todayGroups(items).flatMap((g) => g.items);
+>(written: readonly WrittenTask[], items: T[], today = ""): TodayTaskView<T>[] {
+	const ranked = rankToday(items, today);
 	const rank = new Map(ranked.map((item, i) => [item.key, i]));
 	const byKey = new Map(items.map((item) => [item.key, item]));
 	const taken = new Set<string>();
@@ -201,6 +246,35 @@ export function yourAction(next: string | null | undefined): string | null {
 	const said = /^you\s*:\s*(.+?)\.?$/i.exec(next?.trim() ?? "");
 	if (!said) return null;
 	return said[1][0].toUpperCase() + said[1].slice(1);
+}
+
+/** What an action item asks of you, as a one-word chip. */
+export function itemKind(item: string): string {
+	if (isApprovalItem(item)) return "Approve";
+	if (isDoneItem(item)) return "Confirm";
+	if (isAnswerItem(item) || itemOptions(item).options.length) return "Answer";
+	if (/\bmerge\b/i.test(item)) return "Merge";
+	return "Do";
+}
+
+/**
+ * A card's title: the session's first action item (its own words, cut at a
+ * word near 120 characters), else the model's next step when it is yours,
+ * else the task's name ("Finish: name" when only a merge or a look is left).
+ */
+export function todayTitle(
+	task: { name: string; group: TodayGroup; next: string | null },
+	firstItem?: string | null,
+): string {
+	const item = firstItem ? itemOptions(firstItem).text.trim() : "";
+	if (item)
+		return item.length > 120
+			? `${item.slice(0, 120).replace(/\s+\S*$/, "")}...`
+			: item;
+	return (
+		yourAction(task.next) ??
+		(task.group === "almost-done" ? `Finish: ${task.name}` : task.name)
+	);
 }
 
 /**

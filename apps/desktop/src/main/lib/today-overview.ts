@@ -58,18 +58,18 @@ export interface TodayLines {
 }
 
 const INSTRUCTIONS = `You write a morning overview of someone's open work, in plain language, for a busy person reading it over coffee who may not remember the details.
-Each numbered line below is one work session: number | where it stands | due | priority | waiting on | started from | title | opening request (what the person first asked, in their words) | goal | what was done so far | status | next step.
+Each numbered line below is one work session, listed in the order to do them: number | board state (Needs you, Almost done, Running, ...) | due | priority | waiting on | started from | title | opening request (what the person first asked, in their words) | goal | what was done so far | status | next step.
 Several sessions often serve the same task (the same feature, bug, request or investigation): put those in one task.
 Reply with ONLY these lines, no markdown, no preamble:
-SUMMARY: <one or two short, natural sentences, like a colleague telling them where to start: name the one or two tasks to do first by their names and why (a deadline, someone waiting, it unblocks other work). Example: "Start with the sign-in fix: new users are stuck, and only your pick of the email wording is left. The CSV export is due tomorrow and just needs a merge.">
+SUMMARY: <one or two short sentences starting with a verb, like a colleague telling them where to start. Start with the task holding the lowest-numbered session whose next step is theirs, and say why it comes first (a deadline, someone waiting, it unblocks other work, it takes a minute). Then the second only if it is urgent. Call each task exactly by its name from its TASK line.>
 TASK <session numbers, comma separated>: <name> | <what it is> | <explanation> | <where it stands> | <what is left> | <next>
 The six parts of a TASK line:
-- name: 2 to 6 words naming the work.
+- name: 2 to 6 words, a noun phrase naming the thing ("Sign-in for new users", "CSV export"), not a verb. Never copy the session title or the opening request: if they read like an instruction ("fix the...", "can you..."), name the thing instead.
 - what it is: one short sentence on the subject itself, not the work steps: what the thing is (the feature, screen, bug, report or question) and who it is for. Never just repeat the name.
-- explanation: three to five plain sentences that let someone who never saw this work understand it: what the thing is and what it does today (or what goes wrong, for whom, and how it shows), who asked for it or how it was found, what will be different once it is done, and why it matters now. Read it from the opening request first, then the goal. Explain any technical idea in everyday words. Never describe the session itself ("Claude is working on", "this session").
+- explanation: why it matters, in two or three plain sentences for someone who never saw this work: what goes wrong today and for whom (or what is missing), who asked for it or how it was found, and what changes once it is done. Do not repeat "what it is". Understand it from the opening request and the goal, but never quote them. Explain any technical idea in everyday words. Never describe the session itself ("Claude is working on", "this session").
 - where it stands: what is already done, concretely ("the fix is written and the tests pass", "the export works for one team").
 - what is left: the remaining steps before it is done, and roughly how much ("only a review and a merge", "about half: the email and its test").
-- next: who acts next and what, starting with "You:", "Claude:" or the person's name ("You: pick the email wording", "Claude: is writing the test", "Alex: has to reply on the ticket").
+- next: who acts next, then a verb and the exact thing, starting with "You:", "Claude:" or the person's name ("You: pick between the two email wordings", "You: merge the pull request", "Claude: is writing the test", "Alex: has to reply on the ticket"). When the board state is Needs you or Almost done, next starts with "You:" and names the exact question, approval or decision. Never just "You: review" or "You: check".
 Every session number goes in exactly one TASK line. A session that shares nothing with the others is a task of its own.
 
 Rules:
@@ -77,7 +77,7 @@ Rules:
 - In the summary: no counts of sessions or tasks, no session numbers, and nothing about what is missing (no due dates, no details, no notes). Never pad a sentence with ", and none..." or ", and nothing...".
 - No PR numbers, ticket keys, issue numbers, commit hashes, branch names, file paths or URLs. Say "the pull request" or "the ticket" instead.
 - Say what the work is about in everyday words, not code names. Name the product area or the user it affects.
-- Under 220 characters for the summary and for each part of a TASK line, except the explanation: under 700.`;
+- Under 220 characters for the summary and for each part of a TASK line, except the explanation: under 400.`;
 
 const clean = (text: string | null | undefined, cap: number) =>
 	(text ?? "").replace(/\s+/g, " ").replace(/\|/g, "/").trim().slice(0, cap) ||
