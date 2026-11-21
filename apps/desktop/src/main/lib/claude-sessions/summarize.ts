@@ -30,7 +30,7 @@ import {
 export interface WrittenBrief {
 	/** A card-sized name for the session - what it's about, not its first line. */
 	title: string | null;
-	/** The session's main objective - what Catch up calls "The issue". */
+	/** The session's main objective. */
 	goal: string | null;
 	/** What the session did about it - found, changed, shipped. */
 	done: string | null;

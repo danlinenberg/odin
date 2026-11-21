@@ -728,7 +728,6 @@ export function SessionBrief({
 	live,
 	launch = null,
 	starting = false,
-	resourcesOnly = false,
 	actions,
 }: {
 	paneId: string;
@@ -741,8 +740,6 @@ export function SessionBrief({
 	launch?: string | null;
 	/** Queued or launching: no transcript yet is expected, not an error. */
 	starting?: boolean;
-	/** Just the resource sections - no brief, notes or link input. */
-	resourcesOnly?: boolean;
 	/** Buttons at the right end of the header. */
 	actions?: React.ReactNode;
 }) {
@@ -1136,8 +1133,7 @@ export function SessionBrief({
 
 	// The resources - Jira, Slack, PRs, Notion, artifacts, links you added.
 	// Outside the transcript branch: the ones you added are yours, and a
-	// session with no readable conversation still has them. Catch up's card
-	// shows only these, under its own action items.
+	// session with no readable conversation still has them.
 	const resources = (
 		<>
 			{(issue || mine("jira").length > 0) && (
@@ -1312,14 +1308,6 @@ export function SessionBrief({
 			)}
 		</>
 	);
-
-	if (resourcesOnly)
-		return (
-			<div className="flex flex-col gap-3.5">
-				{conflictNote}
-				{resources}
-			</div>
-		);
 
 	return (
 		<div className="flex w-[340px] shrink-0 flex-col border-l border-border bg-tertiary">
