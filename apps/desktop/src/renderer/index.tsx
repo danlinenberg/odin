@@ -53,7 +53,8 @@ const unsubscribe = router.subscribe("onResolved", (event) => {
 
 const handleDeepLink = (path: string) => {
 	console.log("[deep-link] Navigating to:", path);
-	router.navigate({ to: path });
+	// `href`, not `to`: a link like odin://sessions?q=...&open=... carries a query.
+	router.navigate({ href: path });
 };
 const ipcRenderer = window.ipcRenderer as typeof window.ipcRenderer | undefined;
 if (ipcRenderer) {

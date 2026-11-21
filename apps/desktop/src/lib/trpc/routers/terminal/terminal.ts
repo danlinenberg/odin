@@ -15,9 +15,9 @@ import { getTerminalHostClient } from "main/lib/terminal-host/client";
 import { getWorkspaceRuntimeRegistry } from "main/lib/workspace-runtime";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
-import { activeProfileId } from "../odin-config";
 import { assertWorkspaceUsable } from "../workspaces/utils/usability";
 import { awsSsoLogin } from "./aws-sso";
+import { historySearch } from "./history-search";
 import { localRunSize, readLocalRun, startLocalRun } from "./local-run";
 import { resolveTerminalThemeType } from "./theme-type";
 import { getWorkspaceTerminalContext, resolveCwd } from "./utils";
@@ -495,26 +495,14 @@ export const createTerminalRouter = () => {
 					profileId: z.string().optional(),
 				}),
 			)
-			.query(async ({ input }) => {
-				const { cachedBriefs, searchSessions } = await import(
-					"main/lib/claude-sessions"
-				);
-				const { cardTitles } = await import("main/lib/card-titles");
-				const { profileHistory } = await import("./session-people");
-				// The name the board knew it by (a rename, kept after the card
-				// closes), else the brief's title - same order as Insights.
-				const titles: Record<string, string> = {};
-				for (const [id, brief] of await cachedBriefs())
-					if (brief.title) titles[id] = brief.title;
-				Object.assign(titles, cardTitles());
-				return searchSessions({
+			.query(async ({ input }) =>
+				historySearch({
 					query: input.query,
 					limit: input.limit,
 					cursor: input.cursor ?? 0,
-					titles,
-					...profileHistory(input.profileId ?? activeProfileId()),
-				});
-			}),
+					profileId: input.profileId,
+				}),
+			),
 
 		/**
 		 * The conversation behind a session, as readable prose turns. `project` is

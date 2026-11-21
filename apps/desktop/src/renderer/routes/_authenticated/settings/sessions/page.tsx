@@ -120,6 +120,13 @@ function SessionsSettingsPage() {
 				</SettingsSection>
 			)}
 
+			<SettingsSection
+				title="From your browser"
+				description="Find the sessions that worked on the page you have open: a design file, an email campaign, a doc."
+			>
+				<ChromeExtensionRow />
+			</SettingsSection>
+
 			<SettingsSection title="When they won't start">
 				<RestartCompletelyRow />
 			</SettingsSection>
@@ -217,6 +224,36 @@ function FullDiskAccessRow() {
 					Open System Settings
 				</Button>
 			)}
+		</SettingRow>
+	);
+}
+
+/**
+ * The Odin extension for Chrome (main/lib/chrome-extension.ts): its folder is
+ * written and shown, and Chrome loads it with Load unpacked.
+ */
+function ChromeExtensionRow() {
+	const get = electronTrpc.external.getChromeExtension.useMutation({
+		onSuccess: () =>
+			toast.success(
+				"In Chrome, open chrome://extensions, turn on Developer mode, click Load unpacked and pick the chrome-extension folder.",
+				{ duration: 15_000 },
+			),
+		onError: (error) => toast.error(error.message),
+	});
+	return (
+		<SettingRow
+			label="Chrome extension"
+			description="Its icon counts the sessions that worked on the page you're on, and lists them: pick one to open it in Session History. Load it in Chrome from the folder this shows (chrome://extensions, Developer mode, Load unpacked). Pasting a page's link into Session History finds the same sessions without it."
+		>
+			<Button
+				variant="outline"
+				size="sm"
+				className="h-8"
+				onClick={() => get.mutate()}
+			>
+				Get the extension
+			</Button>
 		</SettingRow>
 	);
 }

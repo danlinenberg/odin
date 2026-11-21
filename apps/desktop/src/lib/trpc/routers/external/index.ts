@@ -166,6 +166,16 @@ export const createExternalRouter = () => {
 				shell.showItemInFolder(input);
 			}),
 
+		/** Settings > Sessions: write the Chrome extension's folder and show it. */
+		getChromeExtension: publicProcedure.mutation(async () => {
+			const { writeChromeExtension } = await import(
+				"main/lib/chrome-extension"
+			);
+			const dir = writeChromeExtension();
+			shell.showItemInFolder(dir);
+			return dir;
+		}),
+
 		saveToDownloads: publicProcedure
 			.input(
 				z.object({

@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import express from "express";
 import { readOdinConfig } from "lib/trpc/routers/odin-config";
 import { awsSsoLogin } from "lib/trpc/routers/terminal/aws-sso";
-import { NOTIFICATION_EVENTS } from "shared/constants";
+import { NOTIFICATION_EVENTS, PROTOCOL_SCHEME } from "shared/constants";
 import { env } from "shared/env.shared";
 import { parseHostLoad } from "shared/host-load";
 import type {
@@ -303,6 +303,42 @@ app.get("/read", async (req, res) => {
 	} catch (error) {
 		res.status(502).send(`${error instanceof Error ? error.message : error}\n`);
 	}
+});
+
+/**
+ * The sessions that worked on the page a browser has open, for the Odin
+ * extension for Chrome (resources/chrome-extension): the ids in its URL
+ * matched against what each session's MCP calls and links named. Session
+ * titles are private, so web pages are refused; only an extension (its
+ * `chrome-extension://` origin) or a tool with no origin gets an answer.
+ *
+ * `curl -sfG http://127.0.0.1:$ODIN_PORT/sessions/for-url --data-urlencode url=<page>`
+ */
+app.get("/sessions/for-url", async (req, res) => {
+	const origin = req.headers.origin;
+	if (origin && !origin.startsWith("chrome-extension://")) {
+		return res.status(403).send("Not from a web page.\n");
+	}
+	const { url } = req.query;
+	if (typeof url !== "string" || !/^https?:\/\//.test(url)) {
+		return res.status(400).send("Need url: the page's http(s) address.\n");
+	}
+	const { historySearch } = await import(
+		"lib/trpc/routers/terminal/history-search"
+	);
+	const { sessions } = await historySearch({ query: url, limit: 10 });
+	res.json({
+		sessions: sessions.map((session) => ({
+			sessionId: session.sessionId,
+			title: session.title,
+			updatedAt: session.updatedAt,
+			// Session History with this URL searched and the session open.
+			open: `${PROTOCOL_SCHEME}://sessions?${new URLSearchParams({
+				q: url,
+				open: session.sessionId,
+			})}`,
+		})),
+	});
 });
 
 /**
