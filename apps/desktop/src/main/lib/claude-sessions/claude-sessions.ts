@@ -9,6 +9,13 @@ import {
 import { toolDescription } from "renderer/routes/_authenticated/_odin/board/tool-description";
 import { PR_RULES_HEADER } from "shared/odin-rules";
 import { isInterruptMarker, withoutWrapping } from "shared/user-text";
+import {
+	assetDepth,
+	idsInText,
+	idsInToolInput,
+	idsInUrl,
+	urlQuery,
+} from "./asset-ids";
 import { type SessionCredential, transcriptCredential } from "./credential";
 import { type SessionUsage, transcriptUsage } from "./usage";
 
@@ -267,6 +274,9 @@ type TranscriptDigest = {
 	fromOdin: boolean;
 	cwd: string | null;
 	turns: { role: "user" | "assistant"; text: string }[];
+	/** The ids of what it worked on: its MCP calls' inputs and the links in
+	 *  its prose (asset-ids.ts), for finding it from a page's URL. */
+	ids: Set<string>;
 };
 
 function digestTranscript(jsonl: string): TranscriptDigest {
@@ -278,6 +288,7 @@ function digestTranscript(jsonl: string): TranscriptDigest {
 	let cwdHere = false;
 	const seen = new Set<string>();
 	const turns: TranscriptDigest["turns"] = [];
+	const ids = new Set<string>();
 
 	for (const line of jsonl.split("\n")) {
 		if (!line) continue;
@@ -310,12 +321,16 @@ function digestTranscript(jsonl: string): TranscriptDigest {
 		}
 		const role = entry.type as "user" | "assistant";
 		const message = entry.message as { content?: unknown } | undefined;
+		if (role === "assistant" && Array.isArray(message?.content))
+			for (const block of message.content)
+				if (block?.type === "tool_use") idsInToolInput(block.input, ids);
 		const text = messageText(message?.content).trim();
 		if (!text) continue;
 		// Only what you typed and what Claude said - injected context is neither,
 		// and it's identical in every session, so it can't tell them apart.
 		if (role === "user" && !isTypedByUser(entry, text)) continue;
 		turns.push({ role, text });
+		idsInText(text, ids);
 		if (role === "user" && !prompt) {
 			// Before cleanPrompt, which strips the marker off the stored prompt.
 			fromOdin = ODIN_LAUNCH_MARKER.test(text);
@@ -327,7 +342,7 @@ function digestTranscript(jsonl: string): TranscriptDigest {
 			prompt = cleanPrompt(text).slice(0, 600) || null;
 		}
 	}
-	return { aiTitle, cardTitle, prompt, fromOdin, cwd, turns };
+	return { aiTitle, cardTitle, prompt, fromOdin, cwd, turns, ids };
 }
 
 function scoreDigest(
@@ -486,11 +501,16 @@ export async function searchSessions({
 	askers: string[];
 }> {
 	const files = await listTranscripts(root);
-	const terms = queryTerms(query);
+	// A pasted page URL finds the sessions that worked on what it shows, by
+	// the ids in it (asset-ids.ts), not by keywords.
+	const assetUrl = urlQuery(query);
+	const urlIds = assetUrl ? idsInUrl(assetUrl) : [];
+	const terms = urlIds.length > 0 ? [] : queryTerms(query);
+	const searching = terms.length > 0 || urlIds.length > 0;
 	const kept = new Set<string>();
 	const scored: { session: SessionSummary; score: number }[] = [];
 	let scanned = 0;
-	const start = terms.length > 0 ? 0 : cursor;
+	const start = searching ? 0 : cursor;
 	let index = start;
 	// A session moved between machines has its log twice (the mirror and the
 	// moved copy): the newest one stands for it, as files run newest first.
@@ -503,7 +523,7 @@ export async function searchSessions({
 		if (!includes(file.sessionId)) continue;
 		// Browsing wants the newest `limit`; searching has to see everything it
 		// can before ranking, or the best hit may never be read.
-		if (terms.length === 0 && scored.length >= limit) break;
+		if (!searching && scored.length >= limit) break;
 		if (scanned >= maxFiles) break;
 		scanned++;
 		const who = people.get(file.sessionId);
@@ -534,6 +554,8 @@ export async function searchSessions({
 			// Not launched from Odin - a conversation from some other terminal,
 			// which this board never tracked and can't resume into a card.
 			if (!summary.fromOdin) continue;
+			const depth = assetDepth(urlIds, digest.digest.ids);
+			if (urlIds.length > 0 && depth === 0) continue;
 			// Matched only in injected context or tool output - not a real hit.
 			if (
 				terms.length > 0 &&
@@ -554,6 +576,7 @@ export async function searchSessions({
 				// terms beats a session that merely says "Olivia" a lot, which is
 				// what clicking a person chip has to do.
 				score:
+					depth +
 					6 * whoTerms.size +
 					scoreOf(
 						terms,
@@ -582,11 +605,11 @@ export async function searchSessions({
 		}
 	}
 	// A search walks the newest maxFiles: anything it didn't is gone or older.
-	if (terms.length > 0)
+	if (searching)
 		for (const path of digests.keys())
 			if (!kept.has(path)) digests.delete(path);
 	// Best match first when searching; newest first when browsing (already sorted).
-	if (terms.length > 0) {
+	if (searching) {
 		scored.sort(
 			(a, b) => b.score - a.score || b.session.updatedAt - a.session.updatedAt,
 		);
@@ -602,12 +625,17 @@ export async function searchSessions({
 				.filter((name): name is string => Boolean(name)),
 		),
 	].slice(0, MAX_ASKERS);
+	// A URL lists only the sessions on its most specific thing any session
+	// touched: the frame's sessions, not every session that opened the file.
+	const best = scored[0]?.score ?? 0;
+	const listed =
+		urlIds.length > 0 ? scored.filter((entry) => entry.score === best) : scored;
 	return {
-		sessions: scored.slice(0, limit).map((entry) => entry.session),
+		sessions: listed.slice(0, limit).map((entry) => entry.session),
 		scanned,
 		total: files.length,
 		terms,
-		nextCursor: terms.length === 0 && index < files.length ? index : null,
+		nextCursor: !searching && index < files.length ? index : null,
 		askers,
 	};
 }
