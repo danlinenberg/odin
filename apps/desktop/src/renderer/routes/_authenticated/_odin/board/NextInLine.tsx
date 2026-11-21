@@ -1,4 +1,18 @@
 import {
+	closestCenter,
+	DndContext,
+	type DragEndEvent,
+	MouseSensor,
+	useSensor,
+	useSensors,
+} from "@dnd-kit/core";
+import {
+	SortableContext,
+	useSortable,
+	verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
 	HoverCard,
 	HoverCardContent,
 	HoverCardTrigger,
@@ -44,6 +58,7 @@ import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
 import type { SweptRow } from "../review/verdicts";
 import { duplicateOf, type LedgerRow, liveRows } from "./duplicates";
+import { applyManualOrder, movedOrder } from "./manual-order";
 import { useNightAgentIntro } from "./NightAgentIntro";
 
 /**
@@ -82,6 +97,12 @@ const LEDGER_FEED: Record<LedgerRow["source"], string> = {
 const LAST_RANKING_KEY = "odin-next-in-line-last-ranking";
 /** Whether the AI's order and hides are on, or the column is All tasks order. */
 const APPLIED_KEY = "odin-next-in-line-applied";
+/**
+ * Your own order, set by dragging cards: task keys, top first. Bounded by the
+ * tasks waiting (each drag keeps only keys still in the column); cleared by
+ * Sort with AI and by reset.
+ */
+const MANUAL_KEY = "odin-next-in-line-manual-order";
 
 interface Ranking {
 	keys: string[];
@@ -97,6 +118,26 @@ function loadSaved(): Ranking | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+function loadManual(): string[] {
+	try {
+		const saved = JSON.parse(localStorage.getItem(MANUAL_KEY) ?? "null");
+		return Array.isArray(saved)
+			? saved.filter((key): key is string => typeof key === "string")
+			: [];
+	} catch {
+		return [];
+	}
+}
+
+/** Your dragged order, or [] to go back to Newest first / the AI's order. */
+function setManual(order: string[]) {
+	useAiRanking.setState({ manual: order });
+	try {
+		if (order.length) localStorage.setItem(MANUAL_KEY, JSON.stringify(order));
+		else localStorage.removeItem(MANUAL_KEY);
+	} catch {}
 }
 
 function loadApplied(): boolean {
@@ -115,11 +156,14 @@ function loadApplied(): boolean {
 const useAiRanking = create<{
 	ranking: Ranking | undefined;
 	applied: boolean;
+	/** Your dragged order - wins over both until Sort with AI or reset. */
+	manual: string[];
 	startedAt: number | null;
 	error: string | null;
 }>(() => ({
 	ranking: loadSaved(),
 	applied: loadApplied(),
+	manual: loadManual(),
 	startedAt: null,
 	error: null,
 }));
@@ -149,6 +193,8 @@ async function applyAiRanking(input: RankInput) {
 		);
 		useAiRanking.setState({ ranking, startedAt: null });
 		setApplied(true);
+		// Asking the AI again is asking for its order: yours steps aside.
+		setManual([]);
 		try {
 			localStorage.setItem(LAST_RANKING_KEY, JSON.stringify(ranking));
 		} catch {}
@@ -259,7 +305,7 @@ export function useNextInLineQueue(showHidden = false) {
 		slackTaken,
 		refetchSlack,
 	} = useNextInLineRows();
-	const { ranking, applied } = useAiRanking();
+	const { ranking, applied, manual } = useAiRanking();
 	const pinOverdueDays = useNextInLinePrompt((s) => s.pinOverdueDays);
 	const startItem = useStartAllItem(refetchSlack);
 	const { livePaneFor } = startItem;
@@ -319,12 +365,14 @@ export function useNextInLineQueue(showHidden = false) {
 		: waiting.filter((item) => !isAiHidden(item));
 	const order = new Map(applied ? ranking?.keys.map((key, i) => [key, i]) : []);
 	// Stable sort: a row the model hasn't seen yet (arrived since) goes last.
-	const next = order.size
+	const aiNext = order.size
 		? candidates.toSorted(
 				(a, b) =>
 					(order.get(a.key) ?? order.size) - (order.get(b.key) ?? order.size),
 			)
 		: candidates;
+	// Your dragged order wins over both; a task it hasn't seen goes last.
+	const next = applyManualOrder(aiNext, manual);
 	// Anything due, or overdue by up to a month, is pinned above the order,
 	// soonest first - a deadline outranks whatever the model thinks. Older
 	// than that it's a stale ticket's leftover, not a deadline: it stays put.
@@ -360,7 +408,7 @@ export function useNextInLineQueue(showHidden = false) {
 }
 
 export function NextInLine() {
-	const { ranking, applied, startedAt, error } = useAiRanking();
+	const { ranking, applied, manual, startedAt, error } = useAiRanking();
 	const picked = useNextInLinePrompt((s) => s.offHours.picked);
 	const afterPicks = useNextInLinePrompt((s) => s.offHours.afterPicks);
 	const nightAgentOn = useNextInLinePrompt((s) => s.offHours.enabled);
@@ -393,6 +441,24 @@ export function NextInLine() {
 	const notPicked = (item: AllItem) => !picked.includes(item.key);
 	const pinnedRest = pinned.filter(notPicked);
 	const rest = unpinned.filter(notPicked);
+	// Drag a card in Everything else to put it where you want it. The order
+	// sticks across reloads, and the Night Agent works through it too.
+	const sensors = useSensors(
+		useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+	);
+	const restKeys = rest.map((item) => item.key);
+	const onDragEnd = ({ active, over }: DragEndEvent) => {
+		if (!over || active.id === over.id) return;
+		setManual(
+			movedOrder(
+				restKeys,
+				manual,
+				String(active.id),
+				String(over.id),
+				new Set(waiting.map((item) => item.key)),
+			),
+		);
+	};
 	// Open hands the link to the OS: a Slack permalink goes through Slack's
 	// own hand-off into the desktop app, everything else to the browser.
 	// Same Done as every feed, so a row done here is done there and back.
@@ -461,6 +527,8 @@ export function NextInLine() {
 				startedAt={startedAt}
 				ranked={!!ranking?.keys.length}
 				applied={applied}
+				manual={manual.length > 0}
+				onReset={() => setManual([])}
 				// Everything waiting, hidden rows too: what's hidden is the model's
 				// call as much as the order is.
 				onApply={() => void applyAiRanking(rankInput(waiting))}
@@ -531,7 +599,22 @@ export function NextInLine() {
 									Everything else
 								</div>
 							)}
-						{rest.map((item) => card(item, false))}
+						<DndContext
+							sensors={sensors}
+							collisionDetection={closestCenter}
+							onDragEnd={onDragEnd}
+						>
+							<SortableContext
+								items={restKeys}
+								strategy={verticalListSortingStrategy}
+							>
+								{rest.map((item) => (
+									<SortableCard key={item.key} id={item.key}>
+										{(drag) => card(item, false, drag)}
+									</SortableCard>
+								))}
+							</SortableContext>
+						</DndContext>
 					</>
 				)}
 			</div>
@@ -539,7 +622,7 @@ export function NextInLine() {
 		</div>
 	);
 
-	function card(item: AllItem, due: boolean) {
+	function card(item: AllItem, due: boolean, drag?: CardDrag) {
 		const Icon = ICON[item.to];
 		const meta = [item.person, item.context].filter(Boolean).join(" · ");
 		const duplicate = duplicateFor(item);
@@ -548,8 +631,14 @@ export function NextInLine() {
 		return (
 			<div
 				key={item.key}
+				ref={drag?.setNodeRef}
+				style={drag?.style}
+				{...drag?.attributes}
+				{...drag?.listeners}
 				className={cn(
 					"group relative flex flex-col gap-1 rounded-[10px] border border-border bg-card px-2.5 py-2 transition-colors hover:border-input hover:bg-secondary",
+					drag && "cursor-grab active:cursor-grabbing",
+					drag?.dragging && "z-10 shadow-lg",
 					(isAiHidden(item) || duplicate) && "opacity-50",
 				)}
 				title={
@@ -756,6 +845,8 @@ function RankStatus({
 	startedAt,
 	ranked,
 	applied,
+	manual,
+	onReset,
 	onApply,
 	onUndo,
 	error,
@@ -764,6 +855,9 @@ function RankStatus({
 	startedAt: number | null;
 	ranked: boolean;
 	applied: boolean;
+	/** Your dragged order is on. */
+	manual: boolean;
+	onReset: () => void;
 	onApply: () => void;
 	onUndo: () => void;
 	error: string | null;
@@ -800,13 +894,29 @@ function RankStatus({
 			className="ml-auto flex shrink-0 items-center gap-1 rounded-md bg-primary/15 px-2 py-0.5 font-medium text-primary hover:bg-primary/25"
 		>
 			<LuSparkles className="size-3 text-primary" aria-hidden />
-			{applied && ranked ? "Re-sort" : "Sort with AI"}
+			{applied && ranked && !manual ? "Re-sort" : "Sort with AI"}
 		</button>
 	);
 	return (
 		<div className="mx-2 mb-2 px-1 text-[11px] text-muted-foreground">
 			<div className="flex items-center gap-1.5">
-				{applied && ranked ? (
+				{manual ? (
+					<>
+						Your order
+						<button
+							type="button"
+							onClick={onReset}
+							title={
+								applied && ranked
+									? "Back to the AI's order"
+									: "Back to newest first"
+							}
+							className="hover:text-foreground"
+						>
+							· reset
+						</button>
+					</>
+				) : applied && ranked ? (
 					<>
 						<LuSparkles className="size-3 text-primary" aria-hidden />
 						Sorted by AI
@@ -819,7 +929,9 @@ function RankStatus({
 						</button>
 					</>
 				) : (
-					"Newest first"
+					<span title="Drag a card to put it in your own order">
+						Newest first
+					</span>
 				)}
 				{button}
 			</div>
@@ -860,4 +972,37 @@ function HiddenToggle({
 			{showing ? "hide" : "show"} hidden ({count})
 		</button>
 	);
+}
+
+type CardDrag = {
+	setNodeRef: (node: HTMLElement | null) => void;
+	style: React.CSSProperties;
+	attributes: ReturnType<typeof useSortable>["attributes"];
+	listeners: ReturnType<typeof useSortable>["listeners"];
+	dragging: boolean;
+};
+
+/** A card you can drag to reorder Everything else. */
+function SortableCard({
+	id,
+	children,
+}: {
+	id: string;
+	children: (drag: CardDrag) => React.ReactNode;
+}) {
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		transform,
+		transition,
+		isDragging,
+	} = useSortable({ id });
+	return children({
+		setNodeRef,
+		style: { transform: CSS.Transform.toString(transform), transition },
+		attributes,
+		listeners,
+		dragging: isDragging,
+	});
 }

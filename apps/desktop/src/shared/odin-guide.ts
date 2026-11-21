@@ -44,6 +44,7 @@ Tabs, in two groups split by a hairline: Odin's own (All, Tasks, Docs), then the
 ## Next in line (Dev Board column)
 Tasks waiting to start, from Tasks, Slack, Jira, GitHub and Notion only (not Email, ClickUp, Calendar, Drive, Airtable or Determ). Anything with a live session, ever started, or Done drops out.
 - "Newest first" until you click **Sort with AI**; then it reads "Sorted by AI · undo" with Re-sort. The sort words live in Settings → Backlog ("How to sort it"). Rows the AI hides come back with "show hidden (N)".
+- **Drag a card** (below Tonight and Due, when those show) to put it in your own order. It then reads "Your order · reset", stays across reloads, and the Night Agent works through it in that order. A task that arrives later goes at the end. Sort with AI replaces your order with the AI's; reset goes back to the AI's order (if it was on) or Newest first. Tonight's picks keep pick order and Due stays soonest first.
 - Sections: **Tonight** (your picks, at most 20), then **Due** (dated tasks; overdue ones stay pinned up to 30 days by default, "Pin overdue tasks for"), then **Everything else**.
 - Suspected duplicates are dimmed, and the Night Agent skips them: the same ticket, PR link or title as a session already run, or one still open, including a session on one of your own tasks.
 - Store: nightAgent.
