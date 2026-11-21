@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+	readOdinConfig,
 	resolveSlackOAuthApp,
 	resolveSlackToken,
 	updateOdinConfig,
@@ -51,14 +52,34 @@ const USER_SCOPES = [
 const NICE_TO_HAVE_SCOPES = ["emoji:read"];
 
 /**
+ * Posting as me, asked for only while Settings > Personalization "Let
+ * sessions send Slack messages" is on. Off, Odin's token stays read-only, so
+ * nothing holding it can post. Turning it on makes the connection ask for a
+ * Reconnect, which adds it.
+ */
+const SEND_SCOPES = ["chat:write"];
+
+function slackSendAllowed(): boolean {
+	return readOdinConfig().slackSendAllowed === true;
+}
+
+/** Every scope Odin needs right now, given the send setting. */
+function requiredScopes(sendAllowed: boolean): string[] {
+	return sendAllowed ? [...USER_SCOPES, ...SEND_SCOPES] : USER_SCOPES;
+}
+
+/**
  * The scopes Odin asks for that a token lacks, read off Slack's
  * `x-oauth-scopes` header (comma-separated). None when the header is absent:
  * no header is no evidence.
  */
-export function missingSlackScopes(granted: string | null): string[] {
+export function missingSlackScopes(
+	granted: string | null,
+	sendAllowed: boolean = slackSendAllowed(),
+): string[] {
 	if (!granted) return [];
 	const have = new Set(granted.split(",").map((s) => s.trim()));
-	return USER_SCOPES.filter((scope) => !have.has(scope));
+	return requiredScopes(sendAllowed).filter((scope) => !have.has(scope));
 }
 
 /** A consent screen the person abandons shouldn't be resumable forever. */
@@ -115,7 +136,7 @@ export async function startSlackOAuth(
 	// Only user scopes: no bot user, so nothing has to be invited to channels.
 	url.searchParams.set(
 		"user_scope",
-		[...USER_SCOPES, ...NICE_TO_HAVE_SCOPES].join(","),
+		[...requiredScopes(slackSendAllowed()), ...NICE_TO_HAVE_SCOPES].join(","),
 	);
 	url.searchParams.set("redirect_uri", app.redirectUrl);
 	url.searchParams.set("state", state);
