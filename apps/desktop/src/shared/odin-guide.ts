@@ -218,7 +218,7 @@ What a session runs, rarely changed:
 - **Update plugins**: refreshes every plugin marketplace and moves each enabled plugin to its newest version, so a team runs the same skills. New sessions get the new versions; open ones keep theirs until they restart.
 - **Today** (Experimental section, off by default): adds the Today icon beside Board view in the top bar, and the once-a-day switch to it. Off, the Board is the only board view. Store: todayOverview.
 - **GSD Mode** (Experimental section, off by default): adds the GSD Mode switch under a session's reply box and the GSD Mode limits to Settings → Sessions. Turning it off ends GSD Mode in every session. Store: gsdModeEnabled.
-- **Default prompt**: added to the end of every task prompt (how to work, the Shell, ACTION ITEMS). Its text box is collapsed: click Show prompt to read or edit it. Has Reset to default. The board reads ACTION ITEMS from each reply. Store: sessionInstructions.
+- **Default prompt**: added to the end of every task prompt (how to work, the Shell, ACTION ITEMS). Its text box is collapsed: click Show prompt to read or edit it. Has Reset to default. The board reads ACTION ITEMS from each reply. Tell a session to stop showing action items and it leaves the section out for the rest of that session, until you ask for it back. Store: sessionInstructions.
 
 ## Remote (Settings → Remote)
 Your sessions when you're not at this computer.
