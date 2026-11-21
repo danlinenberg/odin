@@ -118,6 +118,20 @@ export const hostHome = (user: string) =>
 /** The session's own worktree and branch, named after its conversation. */
 export const sessionBranch = (pane: string) => `odin/${pane.slice(0, 8)}`;
 export const worktreeDir = (pane: string) => `odin-${pane.slice(0, 8)}`;
+/**
+ * The git config key, in the session's repo on the host, that keeps the name
+ * its agent gave the branch: Done removes the worktree, and a Resume gets it
+ * back on that branch rather than on a new placeholder one.
+ */
+export const branchKey = (dir: string) => `odin.${dir}.branch`;
+
+/**
+ * The session's branch starts as a placeholder named after its id; the agent
+ * renames it after the work, so the PR, a move to my computer and an app that
+ * shows its branch all read as the work, not as `odin/1a2b3c4d`.
+ */
+export const BRANCH_RENAME_RULE =
+	"That branch name is only a placeholder: unless you switch to a branch that already has a name for the work, as soon as you know what the work is, and before your first push, rename it to a short name for the work with git branch -m (e.g. fix/login-timeout), and keep working in the same folder.";
 
 /** Single-quote for a POSIX shell. */
 export const sh = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
@@ -687,7 +701,8 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 	// a resume finds the same one by name, or, after Done removed it, gets it
 	// back from its branch, which Done keeps.
 	const worktree = `${repo}/.worktrees/${sh(worktreeDir(spec.pane))}`;
-	const addWorktree = `[ -d ${worktree} ] || git -C ${repo} worktree add -q -b ${sh(sessionBranch(spec.pane))} ${worktree} origin/HEAD 2>/dev/null || git -C ${repo} worktree add -q -b ${sh(sessionBranch(spec.pane))} ${worktree} 2>/dev/null || git -C ${repo} worktree add -q ${worktree} ${sh(sessionBranch(spec.pane))} 2>/dev/null || true`;
+	const named = `b=$(git -C ${repo} config --get ${sh(branchKey(worktreeDir(spec.pane)))}) && git -C ${repo} worktree add -q ${worktree} "$b"`;
+	const addWorktree = `[ -d ${worktree} ] || { ${named}; } 2>/dev/null || git -C ${repo} worktree add -q -b ${sh(sessionBranch(spec.pane))} ${worktree} origin/HEAD 2>/dev/null || git -C ${repo} worktree add -q -b ${sh(sessionBranch(spec.pane))} ${worktree} 2>/dev/null || git -C ${repo} worktree add -q ${worktree} ${sh(sessionBranch(spec.pane))} 2>/dev/null || true`;
 	// The prompt as Claude's last argument, in an array so a session with
 	// nothing to say gets no argument at all. A reconnect's attach puts it in
 	// only when the conversation has not taken it. A Resume with nothing to
@@ -996,9 +1011,9 @@ export function hostNote(spec: {
 		// you instead of Final Review.
 		"A rule step that acts on my computer but doesn't block the work (pulling a checkout there after a merge, cleaning up a folder) is not an action item: say in one line above the section that it is left for my computer, and still end with ACTION ITEMS: none when nothing else needs me.",
 		spec.repoName
-			? `Your worktree of ${spec.repoName} is the folder you start in, on branch ${sessionBranch(spec.pane)}. Push it and open the PR from here with gh. If that folder is not a git repository, clone the repo into ${repos} yourself.`
+			? `Your worktree of ${spec.repoName} is the folder you start in, on branch ${sessionBranch(spec.pane)}. ${BRANCH_RENAME_RULE} Push it and open the PR from here with gh. If that folder is not a git repository, clone the repo into ${repos} yourself.`
 			: [
-					`No repo was picked for this task: pick the one it is about. Clone it with git clone <url> ${repos}/<name> (skip that if it is already there), then git -C ${repos}/<name> worktree add -b ${sessionBranch(spec.pane)} ${repos}/<name>/.worktrees/${worktreeDir(spec.pane)} origin/HEAD, and work there.`,
+					`No repo was picked for this task: pick the one it is about. Clone it with git clone <url> ${repos}/<name> (skip that if it is already there), then git -C ${repos}/<name> worktree add -b ${sessionBranch(spec.pane)} ${repos}/<name>/.worktrees/${worktreeDir(spec.pane)} origin/HEAD, and work there. ${BRANCH_RENAME_RULE}`,
 					...(spec.known?.length
 						? [
 								"The repos on my computer:",

@@ -5,6 +5,7 @@ import {
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
+	realpathSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -12,7 +13,9 @@ import { join } from "node:path";
 import { Readable } from "node:stream";
 import type { SFTPWrapper } from "ssh2";
 import {
+	branchDir,
 	bringMirrorHome,
+	checkoutPushed,
 	claudeProjectDir,
 	lastCwd,
 	movedNote,
@@ -70,7 +73,7 @@ test("a host branch with commits and uncommitted work lands in a local worktree"
 	const bundlePath = join(root, "x.bundle");
 	const out = sh(root, packScript(join(top, "sub"), bundlePath)).trim();
 	const { bundlePath: path, ...packed } = parsePacked(out);
-	expect(packed).toMatchObject({ branch: "odin/abc", sub: "sub" });
+	expect(packed).toMatchObject({ branch: "odin/abc", sub: "sub", own: true });
 	expect(path).toBe(bundlePath);
 
 	// This computer: its own clone, already holding a branch of that name.
@@ -83,7 +86,8 @@ test("a host branch with commits and uncommitted work lands in a local worktree"
 		bundle: readFileSync(bundlePath),
 	});
 	expect(branch).toBe("odin/abc-2");
-	expect(dir).toBe(join(local, ".worktrees", "odin-abc"));
+	// The folder is named after the branch it lands on.
+	expect(dir).toBe(join(local, ".worktrees", "odin-abc-2"));
 	expect(git(dir, "log -1 --format=%s").trim()).toBe("work");
 	expect(readFileSync(join(dir, "a.txt"), "utf8")).toBe("edited\n");
 	expect(existsSync(join(dir, "sub", "c.txt"))).toBe(true);
@@ -114,7 +118,13 @@ test("a session on the shared checkout's default branch moves nothing and leaves
 	const pack = () =>
 		parsePacked(sh(root, packScript(hostRepo, bundlePath)).trim());
 	const { bundlePath: path, ...packed } = pack();
-	expect(packed).toMatchObject({ sub: "", origin, branch: "main", left: true });
+	expect(packed).toMatchObject({
+		sub: "",
+		origin,
+		branch: "main",
+		left: true,
+		own: false,
+	});
 	expect(path).toBeNull();
 	expect(existsSync(bundlePath)).toBe(false);
 	// No commit on the shared branch, and the stray file stays untracked.
@@ -131,6 +141,68 @@ test("a session on the shared checkout's default branch moves nothing and leaves
 	expect(
 		movedNote("/Users/me/repo", { ...clean, bundle: null }, null),
 	).toContain("Paths from the host do not exist here");
+});
+
+test("a branch the host already pushed lands here on that branch, in a worktree named after it", async () => {
+	// Real path: git lists worktrees without symlinks (macOS /tmp is /private/tmp).
+	const root = realpathSync(mkdtempSync(join(tmpdir(), "bring-home-pushed-")));
+	const origin = join(root, "origin.git");
+	sh(root, `git init -q --bare -b main ${origin}`);
+	const seed = join(root, "seed");
+	sh(root, `git clone -q ${origin} seed`);
+	writeFileSync(join(seed, "a.txt"), "base\n");
+	git(seed, "add a.txt");
+	git(seed, "commit -q -m base");
+	git(seed, "push -q origin main");
+
+	// The host: the agent renamed its placeholder branch, committed and pushed.
+	const hostRepo = join(root, "host-repo");
+	sh(root, `git clone -q ${origin} host-repo`);
+	const top = join(hostRepo, ".worktrees", "odin-abc");
+	git(hostRepo, `worktree add -q -b odin/abc ${top} origin/main`);
+	git(top, "branch -m fix/login-timeout");
+	writeFileSync(join(top, "b.txt"), "pushed\n");
+	git(top, "add b.txt");
+	git(top, "commit -q -m work");
+	git(top, "push -q -u origin fix/login-timeout");
+	const bundlePath = join(root, "x.bundle");
+	const { bundlePath: path, ...packed } = parsePacked(
+		sh(root, packScript(top, bundlePath)).trim(),
+	);
+	// Nothing origin lacks, so no bundle - but the branch is the session's own.
+	expect(path).toBeNull();
+	expect(packed).toMatchObject({ branch: "fix/login-timeout", own: true });
+
+	// This computer: its checkout sits on main.
+	const local = join(root, "local");
+	sh(root, `git clone -q ${origin} local`);
+	const { dir, branch } = await checkoutPushed(local, "fix/login-timeout");
+	expect(branch).toBe("fix/login-timeout");
+	expect(dir).toBe(join(local, ".worktrees", "fix-login-timeout"));
+	expect(git(dir, "branch --show-current").trim()).toBe("fix/login-timeout");
+	expect(git(dir, "log -1 --format=%s").trim()).toBe("work");
+	expect(git(dir, "rev-parse --abbrev-ref @{u}").trim()).toBe(
+		"origin/fix/login-timeout",
+	);
+	expect(git(local, "branch --show-current").trim()).toBe("main");
+
+	// Moved again after more pushes: the same worktree, fast-forwarded.
+	writeFileSync(join(top, "c.txt"), "more\n");
+	git(top, "add c.txt");
+	git(top, "commit -q -m more");
+	git(top, "push -q");
+	const again = await checkoutPushed(local, "fix/login-timeout");
+	expect(again.dir).toBe(dir);
+	expect(git(dir, "log -1 --format=%s").trim()).toBe("more");
+
+	// A branch origin never got throws, and the move lands as before.
+	await expect(checkoutPushed(local, "odin/never-pushed")).rejects.toThrow();
+});
+
+test("a worktree folder is named after its branch", () => {
+	expect(branchDir("fix/login-timeout")).toBe("fix-login-timeout");
+	expect(branchDir("odin/abc-2")).toBe("odin-abc-2");
+	expect(branchDir("..")).toBe("branch");
 });
 
 test("outside a git checkout the script prints nothing", () => {

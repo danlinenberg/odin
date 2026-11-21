@@ -9,11 +9,11 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import type { SFTPWrapper } from "ssh2";
 import { lastCwd } from "../claude-sessions/claude-sessions";
-import { homePath, sh, tmuxSession, worktreeDir } from "./session";
+import { branchKey, homePath, sh, tmuxSession, worktreeDir } from "./session";
 import { connectHost, type HostLogin, runOnHost } from "./ssh";
 
 export { lastCwd };
@@ -41,6 +41,8 @@ export interface HostWork {
 	 * or local commits: not the session's own work, so it stays on the host.
 	 */
 	left: boolean;
+	/** On a branch of the session's own (not the default branch). */
+	own: boolean;
 }
 
 export const WIP_MESSAGE = "Odin: uncommitted work moved from the host";
@@ -49,7 +51,8 @@ export const WIP_MESSAGE = "Odin: uncommitted work moved from the host";
  * Run in the session's folder on the host: on the session's own branch,
  * commits what isn't committed and bundles the branch's commits no remote
  * has into `bundle`. Prints the checkout's top, the session's folder inside
- * it, origin, branch, the bundle path, and "left" when work stayed behind.
+ * it, origin, branch, the bundle path, "left" when work stayed behind, and
+ * "own" when the branch is the session's own.
  *
  * The default branch (origin/HEAD, else main or master) is never the
  * session's own: a session there is in the shared checkout, where `git add
@@ -75,13 +78,13 @@ if [ -n "$own" ] && [ -n "$(git rev-list -1 HEAD --not --remotes)" ]; then
 	git bundle create ${sh(bundle)} "$branch" --not --remotes >/dev/null 2>&1 || true
 fi
 left=; [ -z "$own" ] && [ -n "$(git status --porcelain)$(git rev-list -1 HEAD --not --remotes)" ] && left=left
-printf '%s\\n' "$top" "\${sub%/}" "$(git remote get-url origin 2>/dev/null)" "$branch" "$([ -f ${sh(bundle)} ] && echo ${sh(bundle)})" "$left"`;
+printf '%s\\n' "$top" "\${sub%/}" "$(git remote get-url origin 2>/dev/null)" "$branch" "$([ -f ${sh(bundle)} ] && echo ${sh(bundle)})" "$left" "\${own:+own}"`;
 
 /** packScript's output. */
 export function parsePacked(
 	out: string,
 ): Omit<HostWork, "bundle"> & { bundlePath: string | null } {
-	const [top = "", sub = "", origin, branch, bundlePath, left] =
+	const [top = "", sub = "", origin, branch, bundlePath, left, own] =
 		out.split("\n");
 	return {
 		top,
@@ -90,6 +93,7 @@ export function parsePacked(
 		branch: branch || null,
 		bundlePath: bundlePath || null,
 		left: left === "left",
+		own: own === "own",
 	};
 }
 
@@ -226,11 +230,16 @@ async function free(
 	}
 }
 
+/** A worktree folder named after its branch: fix/login -> fix-login. */
+export const branchDir = (branch: string) =>
+	branch.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^[.-]+/, "") || "branch";
+
 /**
  * The host's branch in a worktree of the local checkout `repo`, under the
  * same name when it's free: its commits from the bundle, and the work that
- * wasn't committed back as uncommitted changes. Returns the worktree and
- * the branch.
+ * wasn't committed back as uncommitted changes. The folder is named after
+ * the branch, so it reads as the work, not as the session's id. Returns the
+ * worktree and the branch.
  */
 export async function unpackWork(
 	repo: string,
@@ -248,7 +257,7 @@ export async function unpackWork(
 			),
 		);
 		const dir = await free(
-			join(repo, ".worktrees", basename(work.top)),
+			join(repo, ".worktrees", branchDir(branch)),
 			async (path) => existsSync(path),
 		);
 		await git(repo, "fetch", "--quiet", file, `${work.branch}:${branch}`);
@@ -263,6 +272,81 @@ export async function unpackWork(
 	} finally {
 		await rm(file, { force: true });
 	}
+}
+
+/** The worktree of `repo` that has `branch` checked out, if one does. */
+export async function worktreeOf(
+	repo: string,
+	branch: string,
+): Promise<string | null> {
+	const { stdout } = await git(repo, "worktree", "list", "--porcelain");
+	for (const block of stdout.split("\n\n")) {
+		const lines = block.split("\n");
+		if (lines.includes(`branch refs/heads/${branch}`))
+			return lines[0]?.replace(/^worktree /, "") ?? null;
+	}
+	return null;
+}
+
+/**
+ * The session's own branch, already pushed (nothing on the host that origin
+ * lacks), checked out from origin on this computer under its own name: in
+ * the worktree that already has it, else a new one named after it. Without
+ * this the session landed in the local checkout on whatever branch that was,
+ * and the branch it worked on was nowhere here. Throws when origin has no
+ * such branch.
+ */
+export async function checkoutPushed(
+	repo: string,
+	branch: string,
+): Promise<{ dir: string; branch: string }> {
+	const remote = `refs/remotes/origin/${branch}`;
+	await git(
+		repo,
+		"fetch",
+		"--quiet",
+		"origin",
+		`+refs/heads/${branch}:${remote}`,
+	);
+	const local = await git(
+		repo,
+		"rev-parse",
+		"--verify",
+		"--quiet",
+		`refs/heads/${branch}`,
+	).then(
+		() => true,
+		() => false,
+	);
+	const fastForward = (dir: string) =>
+		git(dir, "merge", "--ff-only", "--quiet", remote).catch(() => {});
+	if (local) {
+		const at = await worktreeOf(repo, branch);
+		if (at) {
+			await fastForward(at);
+			return { dir: at, branch };
+		}
+	}
+	const dir = await free(
+		join(repo, ".worktrees", branchDir(branch)),
+		async (path) => existsSync(path),
+	);
+	if (local) {
+		await git(repo, "worktree", "add", "--quiet", dir, branch);
+		await fastForward(dir);
+	} else
+		await git(
+			repo,
+			"worktree",
+			"add",
+			"--quiet",
+			"--track",
+			"-b",
+			branch,
+			dir,
+			remote,
+		);
+	return { dir, branch };
 }
 
 /** What the resumed Claude is told first: it moved, and where its work is. */
@@ -308,6 +392,8 @@ export function removeWorktreeScript(
 	return `for wt in ${homePath(reposRoot)}/*/.worktrees/${sh(name)} "$HOME"/repos/*/.worktrees/${sh(name)}; do
 	[ -e "$wt/.git" ] || continue
 	repo=$(dirname "$(dirname "$wt")")
+	# The agent renames its branch after the work; a Resume gets the worktree back on that name.
+	b=$(git -C "$wt" symbolic-ref --short -q HEAD) && git -C "$repo" config ${sh(branchKey(name))} "$b"
 	if [ -n "$(git -C "$wt" status --porcelain)" ]; then
 		# A throwaway index: gitignored output (node_modules) stays out, as in a commit.
 		index=$(mktemp)
