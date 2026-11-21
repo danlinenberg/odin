@@ -13,19 +13,3 @@ export function canEditDiffFile(
 		return false;
 	return !/^\+\+\+ \/dev\/null$/m.test(file.patch);
 }
-
-/** Cmd+S on a Mac, Ctrl+S elsewhere: the Save of every editor. */
-export function isSaveKey(event: {
-	key: string;
-	metaKey: boolean;
-	ctrlKey: boolean;
-	altKey: boolean;
-	shiftKey: boolean;
-}): boolean {
-	return (
-		event.key.toLowerCase() === "s" &&
-		(event.metaKey || event.ctrlKey) &&
-		!event.altKey &&
-		!event.shiftKey
-	);
-}

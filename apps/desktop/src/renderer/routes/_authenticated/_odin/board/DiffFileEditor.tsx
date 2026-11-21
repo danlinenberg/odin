@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { isSaveKey } from "./diff-edit";
+import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 
 /**
  * The Diff tab's Edit: the file as it is on disk, in a plain code box. Save
- * (or Cmd/Ctrl+S) writes it back and the diff reloads; Cancel drops the edit.
+ * (or the Save file key, Cmd/Ctrl+S) writes it back and the diff reloads; Cancel drops the edit.
  * Tab types a tab instead of leaving the box. Lines never wrap, so the
  * numbers beside them stay true.
  */
@@ -26,6 +26,7 @@ export function DiffFileEditor({
 	onDirty: (dirty: boolean) => void;
 }) {
 	const [text, setText] = useState(initial);
+	const saveKeys = useHotkeyDisplay("SAVE_FILE").text;
 	const dirty = text !== initial;
 	const lines = text.split("\n").length;
 	return (
@@ -36,7 +37,7 @@ export function DiffFileEditor({
 				</span>
 				{dirty && <span className="text-attention">unsaved</span>}
 				<span className="ml-auto text-faint-foreground">
-					{navigator.platform.startsWith("Mac") ? "⌘S" : "Ctrl+S"} saves
+					{saveKeys !== "Unassigned" && `${saveKeys} saves`}
 				</span>
 				<button
 					type="button"
@@ -79,7 +80,7 @@ export function DiffFileEditor({
 						onDirty(event.target.value !== initial);
 					}}
 					onKeyDown={(event) => {
-						if (isSaveKey(event)) {
+						if (isHotkey("SAVE_FILE", event.nativeEvent)) {
 							event.preventDefault();
 							if (dirty && !saving) onSave(text);
 						} else if (event.key === "Tab" && !event.shiftKey) {

@@ -26,6 +26,7 @@ export const LISTED_HOTKEYS: HotkeyId[] = [
 	"ODIN_ASK_CROW",
 	"ODIN_COPY_LINK",
 	"SUBMIT",
+	"SAVE_FILE",
 	"NAVIGATE_BACK",
 	"NAVIGATE_FORWARD",
 	// Board

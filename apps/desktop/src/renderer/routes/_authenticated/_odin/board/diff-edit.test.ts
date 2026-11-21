@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { canEditDiffFile, isSaveKey } from "./diff-edit";
+import { canEditDiffFile } from "./diff-edit";
 import { BRANCH } from "./diff-review";
 
 const edited = {
@@ -32,21 +32,5 @@ describe("canEditDiffFile", () => {
 		expect(
 			canEditDiffFile(null, "uncommitted changes", { ...edited, binary: true }),
 		).toBe(false);
-	});
-});
-
-describe("isSaveKey", () => {
-	const key = {
-		key: "s",
-		metaKey: false,
-		ctrlKey: false,
-		altKey: false,
-		shiftKey: false,
-	};
-	it("takes Cmd+S or Ctrl+S, not plain s or Shift+Cmd+S", () => {
-		expect(isSaveKey({ ...key, metaKey: true })).toBe(true);
-		expect(isSaveKey({ ...key, ctrlKey: true })).toBe(true);
-		expect(isSaveKey(key)).toBe(false);
-		expect(isSaveKey({ ...key, metaKey: true, shiftKey: true })).toBe(false);
 	});
 });
