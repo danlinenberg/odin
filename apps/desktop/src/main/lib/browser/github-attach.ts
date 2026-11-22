@@ -99,18 +99,24 @@ export function attachScript(
 		box = findBox();
 	}
 	if (!box) return { error: "no comment box on the PR page" };
-	let input = null;
-	for (let el = box.parentElement; el && !input; el = el.parentElement)
-		input = el.querySelector('input[type="file"]');
-	if (!input) return { error: "no file upload next to the comment box" };
 	const before = box.value;
 	const transfer = new DataTransfer();
 	for (const file of files) {
 		const bytes = Uint8Array.from(atob(file.data), (c) => c.charCodeAt(0));
 		transfer.items.add(new File([bytes], file.name, { type: file.type }));
 	}
-	input.files = transfer.files;
-	input.dispatchEvent(new Event("change", { bubbles: true }));
+	let input = null;
+	for (let el = box.parentElement; el && !input; el = el.parentElement)
+		input = el.querySelector('input[type="file"]');
+	if (input) {
+		input.files = transfer.files;
+		input.dispatchEvent(new Event("change", { bubbles: true }));
+	} else {
+		// GitHub's React comment box has no file input until its button is
+		// clicked; it takes files dropped on the box instead.
+		for (const type of ["dragenter", "dragover", "drop"])
+			box.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer }));
+	}
 	const links = /https:\\/\\/github\\.com\\/user-attachments\\/assets\\//g;
 	for (const end = Date.now() + timeoutMs; Date.now() < end; ) {
 		await new Promise((r) => setTimeout(r, 500));

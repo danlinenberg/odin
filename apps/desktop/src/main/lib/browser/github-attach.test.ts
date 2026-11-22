@@ -91,4 +91,56 @@ describe("attachScript", () => {
 		expect(() => new Function(`return ${script}`)).not.toThrow();
 		expect(script).toContain('"type":"image/png"');
 	});
+
+	test("drops the images on a comment box that has no file input", async () => {
+		const link = "![a](https://github.com/user-attachments/assets/abc-123)";
+		class FakeTransfer {
+			files: unknown[] = [];
+			items = { add: (file: unknown) => this.files.push(file) };
+		}
+		class FakeDragEvent {
+			constructor(
+				readonly type: string,
+				readonly init: { dataTransfer: FakeTransfer },
+			) {}
+		}
+		const seen: string[] = [];
+		const box = {
+			value: "draft",
+			offsetParent: {},
+			id: "new_comment_field",
+			getAttribute: () => null,
+			parentElement: { querySelector: () => null, parentElement: null },
+			dispatchEvent(event: FakeDragEvent) {
+				seen.push(event.type);
+				if (event.type === "drop" && event.init.dataTransfer.files.length)
+					this.value += `\n${link}`;
+			},
+		};
+		class FakeTextArea {}
+		Object.defineProperty(FakeTextArea.prototype, "value", {
+			set(this: typeof box, value: string) {
+				this.value = value;
+			},
+		});
+		const run = new Function(
+			"document",
+			"DataTransfer",
+			"DragEvent",
+			"File",
+			"HTMLTextAreaElement",
+			"Event",
+			`return ${attachScript([{ name: "a.png", data: png }], ["image/png"], 2000)}`,
+		);
+		const result = await run(
+			{ querySelectorAll: () => [box] },
+			FakeTransfer,
+			FakeDragEvent,
+			class {},
+			FakeTextArea,
+			class {},
+		);
+		expect(seen).toEqual(["dragenter", "dragover", "drop"]);
+		expect(result).toEqual({ markdown: `draft\n${link}` });
+	});
 });
