@@ -275,4 +275,21 @@ describe("notifications/server", () => {
 			}
 		});
 	});
+	// A page with no ids in its URL has nothing to match, not every session
+	// that ever mentioned a link.
+	describe("GET /sessions/for-url", () => {
+		it("lists nothing for a URL with no ids", async () => {
+			const server = notificationsApp.listen(0, "127.0.0.1");
+			await new Promise((resolve) => server.once("listening", resolve));
+			try {
+				const { port } = server.address() as AddressInfo;
+				const response = await fetch(
+					`http://127.0.0.1:${port}/sessions/for-url?url=${encodeURIComponent("https://example.com/")}`,
+				);
+				expect(await response.json()).toEqual({ sessions: [] });
+			} finally {
+				server.close();
+			}
+		});
+	});
 });
