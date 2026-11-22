@@ -314,6 +314,7 @@ app.get("/read", async (req, res) => {
  *
  * `curl -sfG http://127.0.0.1:$ODIN_PORT/sessions/for-url --data-urlencode url=<page>`
  */
+let forUrlQueue: Promise<unknown> = Promise.resolve();
 app.get("/sessions/for-url", async (req, res) => {
 	const origin = req.headers.origin;
 	if (origin && !origin.startsWith("chrome-extension://")) {
@@ -330,7 +331,14 @@ app.get("/sessions/for-url", async (req, res) => {
 	const { historySearch } = await import(
 		"lib/trpc/routers/terminal/history-search"
 	);
-	const { sessions } = await historySearch({ query: url, limit: 10 });
+	// One search at a time: Chrome asks for every tab it loads, and the first
+	// search reads each transcript from disk. Run side by side, a burst of tabs
+	// reads them all once per tab; in a line, only the first one pays.
+	const search = forUrlQueue.then(() =>
+		historySearch({ query: url, limit: 10 }),
+	);
+	forUrlQueue = search.catch(() => undefined);
+	const { sessions } = await search;
 	res.json({
 		sessions: sessions.map((session) => ({
 			sessionId: session.sessionId,
@@ -344,6 +352,38 @@ app.get("/sessions/for-url", async (req, res) => {
 		})),
 	});
 });
+
+/**
+ * Opens a session from the extension's list in the Odin that answered, with
+ * Session History searched for the page. An `odin://` link would go to
+ * whichever Odin macOS registered for it, which is never a dev build.
+ */
+app.post(
+	"/sessions/open",
+	express.urlencoded({ extended: false }),
+	async (req, res) => {
+		const origin = req.headers.origin;
+		if (origin && !origin.startsWith("chrome-extension://")) {
+			return res.status(403).send("Not from a web page.\n");
+		}
+		const { id, url } = req.body ?? {};
+		if (typeof id !== "string" || !id) {
+			return res.status(400).send("Need id: the session to open.\n");
+		}
+		const { BrowserWindow } = await import("electron");
+		const [window] = BrowserWindow.getAllWindows();
+		if (!window) return res.status(503).send("No Odin window open.\n");
+		if (window.isMinimized()) window.restore();
+		window.show();
+		window.focus();
+		const query = new URLSearchParams({
+			q: typeof url === "string" ? url : "",
+			open: id,
+		});
+		window.webContents.send("deep-link-navigate", `/sessions?${query}`);
+		res.send("Opened.\n");
+	},
+);
 
 /**
  * How I write (main/lib/voice-profile.ts), for a session drafting a message I

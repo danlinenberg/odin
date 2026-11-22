@@ -26,7 +26,7 @@ export function chromeExtensionFiles(
 	const manifest = {
 		manifest_version: 3,
 		name: "Odin",
-		version: "1.0.0",
+		version: "1.0.1",
 		description:
 			"Shows the Odin sessions that worked on the page you have open.",
 		permissions: ["tabs", "storage"],
@@ -101,8 +101,15 @@ async function show() {
 			when.className = "when";
 			when.textContent = ago(session.updatedAt);
 			link.append(when);
-			// Odin's own link: Chrome hands it to Odin and keeps this page.
-			link.onclick = () => chrome.tabs.update(tab.id, { url: session.open });
+			// The Odin that listed it opens it (a dev build has no odin:// link).
+			link.onclick = async () => {
+				const { port } = await chrome.storage.local.get({ port: DEFAULT_PORT });
+				await fetch("http://127.0.0.1:" + port + "/sessions/open", {
+					method: "POST",
+					body: new URLSearchParams({ id: session.sessionId, url: tab.url }),
+				});
+				window.close();
+			};
 			list.append(link);
 		}
 	} catch {
