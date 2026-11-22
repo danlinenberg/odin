@@ -572,6 +572,9 @@ const carried = new Map<string, Sent[]>();
  */
 const pendingSetters = new Map<string, Dispatch<SetStateAction<Sent[]>>>();
 
+/** Panes restarted in the last two minutes to resend a message Claude never took. */
+const autoRestarted = new Set<string>();
+
 /** Replies still waiting for the host, by bubble id: a remounted view keeps them. */
 const waitingIds = new Set<number>();
 
@@ -3815,6 +3818,26 @@ export function ChatView({
 		if (!onHost && !onSend && !onResumeRef.current)
 			setTimeout(() => {
 				if (itemsRef.current.length === 0) return;
+				// Lost: quit Claude and reopen the conversation with this message as
+				// its opening one, once per pane in two minutes so a session that
+				// keeps dropping messages doesn't restart in a loop. Not with pasted
+				// attachments: the text alone would drop them.
+				const restart = onRestartRef.current;
+				if (
+					restart &&
+					!previews?.length &&
+					!autoRestarted.has(paneId) &&
+					!arrived(itemsRef.current, queuedRef.current, { text, seen })
+				) {
+					autoRestarted.add(paneId);
+					setTimeout(() => autoRestarted.delete(paneId), 120_000);
+					setPending((list) => list.filter((sent) => sent.id !== id));
+					toast.info(
+						"Claude never took your message - restarting the session to resend it",
+					);
+					restart(text);
+					return;
+				}
 				setPending((list) =>
 					list.map((sent) =>
 						sent.id === id &&
@@ -3885,6 +3908,8 @@ export function ChatView({
 	// A ref, so a fresh arrow from the drawer doesn't re-render every message.
 	const onResumeRef = useRef(onResumeWith);
 	onResumeRef.current = onResumeWith;
+	const onRestartRef = useRef(onRestart);
+	onRestartRef.current = onRestart;
 	const sendToClaude = useCallback(
 		(message: string) => {
 			const text = withGsdOff(paneId, withDismissals(paneId, message));
