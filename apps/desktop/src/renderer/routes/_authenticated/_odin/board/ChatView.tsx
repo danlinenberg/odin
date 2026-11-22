@@ -2943,6 +2943,54 @@ function ClaudeLogin({
 	);
 }
 
+/**
+ * Claude Code quits at startup with "Can't read the current directory (EPERM)"
+ * when macOS keeps the session's folder (Documents, Desktop, iCloud Drive)
+ * from Odin, which everything a session runs is charged to.
+ */
+export function cantReadSessionFolder(text: string): boolean {
+	return /Can't read the current directory \((?:EPERM|EACCES)\)/i.test(text);
+}
+
+/**
+ * A session that died before Claude's first reply leaves only its raw output,
+ * so the chat's sign-in button never shows. Say what blocked it and how to
+ * fix it: Full Disk Access for a blocked folder, a Claude sign-in when signed out.
+ */
+export function SessionStartError({
+	paneId,
+	text,
+	onRestart,
+}: {
+	paneId: string;
+	text: string;
+	onRestart?: (prompt?: string) => void;
+}) {
+	const openFda = electronTrpc.permissions.requestFullDiskAccess.useMutation();
+	if (cantReadSessionFolder(text))
+		return (
+			<div className="border-b border-border px-4 py-2 text-xs text-attention">
+				macOS is blocking Odin from this session's folder. Turn Odin on under
+				Full Disk Access, then quit and reopen Odin.
+				<button
+					type="button"
+					onClick={() => openFda.mutate()}
+					className={cn(ACTION_BUTTON, "ml-2")}
+				>
+					Open System Settings
+				</button>
+			</div>
+		);
+	if (needsClaudeLogin(text))
+		return (
+			<div className="border-b border-border px-4 py-2 text-xs text-attention">
+				Claude is signed out. Sign in, then Resume this session.
+				<ClaudeLogin paneId={paneId} onRestart={onRestart} />
+			</div>
+		);
+	return null;
+}
+
 export function needsAwsSsoLogin(text: string): boolean {
 	return /run 'aws sso login'/i.test(text);
 }

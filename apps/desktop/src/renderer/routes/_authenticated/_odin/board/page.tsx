@@ -278,6 +278,7 @@ import {
 	interruptClaude,
 	movedHere,
 	needsClaudeLogin,
+	SessionStartError,
 	typeIntoClaude,
 } from "./ChatView";
 import { droppedFlags, useCardFlags } from "./card-flags";
@@ -633,7 +634,7 @@ function HistoryView({
 			</div>
 		);
 	}
-	return <ScrollbackView card={card} live={live} />;
+	return <ScrollbackView card={card} live={live} onDo={onDo} />;
 }
 
 /** Spinner for the gap before a session has anything to show. */
@@ -668,7 +669,16 @@ function StartingView({
 }
 
 /** The persisted PTY output, for panes with no Claude conversation behind them. */
-function ScrollbackView({ card, live }: { card: BoardCard; live: boolean }) {
+function ScrollbackView({
+	card,
+	live,
+	onDo,
+}: {
+	card: BoardCard;
+	live: boolean;
+	/** Resume the session with this as its opening message. */
+	onDo?: (text: string) => void;
+}) {
 	// Read the persisted scrollback from disk - always reliable, unlike the
 	// embedded xterm which intermittently renders blank in this drawer. Poll
 	// while the session is live so the transcript stays current.
@@ -697,6 +707,17 @@ function ScrollbackView({ card, live }: { card: BoardCard; live: boolean }) {
 					? "Session transcript · live"
 					: "Conversation history · session ended"}
 			</div>
+			{!live && (
+				<SessionStartError
+					paneId={card.pane.id}
+					text={text}
+					onRestart={
+						onDo
+							? (prompt) => onDo(prompt ?? CLAUDE_SIGNED_IN_RETRY)
+							: undefined
+					}
+				/>
+			)}
 			<div
 				ref={ref}
 				className="min-h-0 flex-1 select-text cursor-text overflow-y-auto whitespace-pre-wrap break-words bg-background px-4 py-3 font-mono text-[11.5px] leading-relaxed text-soft-foreground"
