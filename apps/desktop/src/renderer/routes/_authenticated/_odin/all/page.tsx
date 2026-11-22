@@ -23,37 +23,27 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { usePersistedDraft } from "renderer/stores/chat-drafts";
 import { openUrl } from "renderer/stores/in-app-browser";
-import { useTabsStore } from "renderer/stores/tabs/store";
-import { MyTodos } from "../board/SessionBrief";
-import { DoneButton } from "../components/DoneButton";
-import { DROP_LABEL, SweepDrop } from "../components/DropHint";
 import {
 	FEED_ROW,
 	FeedDivider,
 	FeedHeader,
 	FeedSearch,
 	FeedSelect,
-	ROW_LINK_BUTTON,
-	ROW_LIVE_BUTTON,
-	ROW_START_BUTTON,
 	SECTION_HINT,
 	SECTION_LABEL,
 	SyncButton,
 } from "../components/FeedChrome";
 import { effectiveDue, isDue, useReminders } from "../components/Reminders";
 import { NewTaskFieldsPicker, TaskBox } from "../components/TaskBox";
-import { guardTaskDone } from "../hooks/done-guard";
 import { useBacklogReview } from "../hooks/useBacklogReview";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import {
 	PRIORITY_LABELS,
 	parseTask,
-	priorityOf,
 	useMyTasks,
 	useOdinTasks,
 } from "../hooks/useOdinTasks";
-import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import {
 	type AllItem,
@@ -61,18 +51,16 @@ import {
 	bandOf,
 	matchesStatus,
 	NO_STATUS,
-	todoPanesOn,
 	type Urgency,
 } from "./all-items";
 import { useBulkTicks } from "./BulkBar";
 import { ruleLabel, useDropRules } from "./drop-rules";
 import { droppedWhy, putAwayWhy } from "./graveyard";
-import { MetaOptionSelect, useMetaOptions } from "./MetaOptionSelect";
+import { useMetaOptions } from "./MetaOptionSelect";
 import { applyNewTaskFields, NO_NEW_TASK_FIELDS } from "./new-task-fields";
 import { revealRow, rowPlace } from "./reveal-row";
 import { TaskBoard, TaskViewSwitch } from "./TaskBoard";
-import { TaskDescription } from "./TaskDescription";
-import { TaskDetails } from "./TaskDetails";
+import { TaskSidePanel } from "./TaskSidePanel";
 import {
 	type SortableBits,
 	SortableRow,
@@ -82,18 +70,9 @@ import {
 	useTaskRows,
 } from "./TaskTable";
 import { groupTasks, useTaskView } from "./task-board";
-import {
-	dayAfter,
-	type TaskStatus,
-	type TaskType,
-	typeOf,
-	useTaskMeta,
-	WAIT_DAYS,
-	type Waiting,
-} from "./task-meta";
+import { type TaskStatus, type TaskType, useTaskMeta } from "./task-meta";
 import { useTitleOverrides } from "./title-overrides";
 import { useAllItems, useSearchableItems } from "./use-all-items";
-import { START_ANOTHER_TIP, START_SESSION_TIP } from "./use-start-item";
 
 /** `open`: a row key whose details to open - how Search all lands on a row. */
 type AllSearch = { open?: string };
@@ -201,7 +180,7 @@ function AllFeedPage() {
 	const needle = search.trim().toLowerCase();
 	const reminders = useReminders((s) => s.reminders);
 	const rows = useTaskRows(() => void reactions.refetch());
-	const { start: handleStart, livePaneFor, isLaunching, launchingKey } = rows;
+	const { livePaneFor } = rows;
 	const goToPane = (paneId: string) => {
 		usePendingFocus.getState().focus(paneId);
 		navigate({ to: "/board" });
@@ -211,7 +190,7 @@ function AllFeedPage() {
 	// waiting on you. They're one click away under Done, with Undo.
 	// Reading material is the same put-away, for rows with nothing left to do
 	// but worth keeping: off every queue and the Night Agent, listed in Later.
-	const { markDone, markReading, undo, recent, reading } = useDone();
+	const { undo, recent, reading } = useDone();
 	const [shelf, setShelf] = useState(false);
 	// Work closed in Jira, GitHub or ClickUp itself never reached a feed, so
 	// the Done list asks those sources too - only while it's on.
@@ -248,17 +227,11 @@ function AllFeedPage() {
 	const {
 		statuses,
 		types,
-		notes: rowNotes,
 		queue,
 		setStatus: setRowStatus,
 		setType: setRowType,
-		setNote: setRowNote,
-		enqueue,
-		dequeue,
 		move,
 		waiting: parkedBy,
-		wait,
-		unwait,
 	} = useTaskMeta();
 	const statusOf = useCallback(
 		(item: AllItem): string =>
@@ -268,9 +241,8 @@ function AllFeedPage() {
 	// The compose box, same as Mine's - a task written here lands on this list.
 	const { add } = useMyTasks();
 	const tasks = useOdinTasks((s) => s.tasks);
-	const { setPriority, setNotes } = useOdinTasks.getState();
+	const { setPriority } = useOdinTasks.getState();
 	// Slack, Jira and the rest: your level over the source's, kept in Odin.
-	const priorityOverrides = useTitleOverrides((s) => s.priorities);
 	const setRowPriority = useTitleOverrides((s) => s.setPriority);
 	const [draft, setDraft, markSent] = usePersistedDraft("all-tasks-box");
 	const [draftRepo, setDraftRepo] = useState("");
@@ -414,13 +386,6 @@ function AllFeedPage() {
 	// A finished row leaves Up next too, so an Undo doesn't bring it back there.
 	// List or Board, kept. The board lays out the same rows the list shows.
 	const { view, groupBy, setView, setGroupBy } = useTaskView();
-	// Done from the side panel; it closes once the task is Done, not on Cancel.
-	const finish = (item: AllItem) =>
-		guardTaskDone(item, () => {
-			markDone(item);
-			dequeue(item.key);
-			setOpenKey(null);
-		});
 	const onDragEnd = ({ active, over }: DragEndEvent) => {
 		if (over) move(String(active.id), String(over.id));
 	};
@@ -506,7 +471,6 @@ function AllFeedPage() {
 	const openItem =
 		allRows.find((item) => item.key === openKey) ??
 		everyRow.find((item) => item.key === openKey);
-	const openTask = tasks.find((task) => `task:${task.id}` === openItem?.key);
 	// Where the open row is, so the panel can say when it isn't beside it.
 	const listedKeys = useMemo(
 		() => new Set([...items, ...queued, ...parked].map((item) => item.key)),
@@ -905,11 +869,12 @@ function AllFeedPage() {
 						)}
 				</div>
 				{openItem && (
-					<DetailsPanel
-						onGoTo={goToPane}
+					<TaskSidePanel
 						item={openItem}
+						onGoTo={goToPane}
 						onClose={() => setOpenKey(null)}
 						onOpenFeed={() => navigate({ to: openItem.to })}
+						onSlackStarted={() => void reactions.refetch()}
 						notice={
 							openPlace === "filtered" ? (
 								<>
@@ -931,92 +896,7 @@ function AllFeedPage() {
 								`Not in the list - it lives on the ${openItem.source} tab.`
 							) : null
 						}
-						fields={
-							<TaskFields
-								status={statuses[openItem.key] ?? ""}
-								type={typeOf(openItem, types) ?? ""}
-								priority={
-									openTask
-										? String(priorityOf(openTask))
-										: (priorityOverrides[openItem.key] ?? "")
-								}
-								priorityOptions={
-									openTask
-										? OWN_PRIORITIES
-										: [
-												[
-													"",
-													`${(openItem.sourcePriority !== undefined ? openItem.sourcePriority : openItem.priority) ?? "No priority"} (from ${openItem.source})`,
-												],
-												...SOURCE_PRIORITIES,
-											]
-								}
-								queued={queue.includes(openItem.key)}
-								waiting={parkedBy[openItem.key]}
-								person={openItem.person}
-								onWait={(on, until) =>
-									wait(openItem.key, on, until, openItem.title)
-								}
-								onUnwait={() => unwait(openItem.key, true)}
-								onStatus={(value) =>
-									setRowStatus(openItem.key, (value as TaskStatus) || null)
-								}
-								onType={(value) =>
-									setRowType(openItem.key, (value as TaskType) || null)
-								}
-								onPriority={(value) =>
-									openTask
-										? setPriority(openTask.id, Number(value))
-										: setRowPriority(openItem.key, value)
-								}
-								onQueue={() =>
-									queue.includes(openItem.key)
-										? dequeue(openItem.key)
-										: enqueue(openItem.key)
-								}
-							/>
-						}
-						description={
-							openTask && (
-								<TaskDescription
-									key={openTask.id}
-									notes={openTask.notes}
-									onSave={(notes) => setNotes(openTask.id, notes)}
-								/>
-							)
-						}
-						notes={
-							// Slack, Jira and the rest keep their own text as the body;
-							// yours goes under it, kept in Odin only.
-							!openTask && (
-								<TaskDescription
-									key={openItem.key}
-									notes={rowNotes[openItem.key] ?? ""}
-									onSave={(notes) => setRowNote(openItem.key, notes)}
-								/>
-							)
-						}
-					>
-						<DetailsActions
-							activePaneId={livePaneFor(openItem)}
-							sessionCount={rows.livePanesFor(openItem).length}
-							isLaunching={isLaunching}
-							launching={launchingKey === openItem.launch.key}
-							onStart={() => void handleStart(openItem)}
-							onGoTo={goToPane}
-							reading={readingKeys.has(openItem.key)}
-							onReadLater={() =>
-								readingKeys.has(openItem.key)
-									? undo(openItem)
-									: markReading(openItem)
-							}
-							onDone={() => finish(openItem)}
-							onDrop={() => {
-								rows.drop(openItem);
-								setOpenKey(null);
-							}}
-						/>
-					</DetailsPanel>
+					/>
 				)}
 			</div>
 		</div>
@@ -1142,467 +1022,6 @@ function Toggle({
 			/>
 			{label}
 		</label>
-	);
-}
-
-/**
- * One row in full, beside the list - so reading a task doesn't cost you your
- * place in it. Its own feed and its upstream page stay one click away.
- */
-function DetailsPanel({
-	item,
-	onGoTo,
-	onClose,
-	onOpenFeed,
-	notice,
-	fields,
-	description,
-	notes,
-	children,
-}: {
-	item: AllItem;
-	/** Opens a session on the board. */
-	onGoTo: (paneId: string) => void;
-	onClose: () => void;
-	onOpenFeed: () => void;
-	/** Why the row isn't in the list beside the panel, when it isn't. */
-	notice?: ReactNode;
-	fields: ReactNode;
-	description: ReactNode;
-	/** Your notes on another source's row, under its own text. */
-	notes?: ReactNode;
-	children: ReactNode;
-}) {
-	const url = item.url;
-	const rename = useTitleOverrides((s) => s.rename);
-	return (
-		<aside
-			data-task-panel
-			className="flex w-[380px] shrink-0 flex-col border-l border-border"
-		>
-			<div className="flex shrink-0 items-center gap-2 px-3.5 pt-2 pb-1.5">
-				<button
-					type="button"
-					onClick={onOpenFeed}
-					className="text-[12px] font-semibold text-muted-foreground hover:text-foreground"
-				>
-					{item.source} feed →
-				</button>
-				{url && (
-					<button
-						type="button"
-						title={url}
-						onClick={() => openUrl(url)}
-						className="text-[12px] font-semibold text-muted-foreground hover:text-foreground"
-					>
-						Open ↗
-					</button>
-				)}
-				<button
-					type="button"
-					onClick={onClose}
-					aria-label="Close details"
-					className="ml-auto rounded-[7px] px-2 py-0.5 text-[13px] text-muted-foreground hover:bg-secondary hover:text-foreground"
-				>
-					✕
-				</button>
-			</div>
-			{notice && (
-				<div className="px-3.5 pb-1.5 text-[11px] text-muted-foreground">
-					{notice}
-				</div>
-			)}
-			<div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-[18px]">
-				{fields}
-				<div className="mb-2 empty:hidden">
-					<SweepDrop itemKey={item.key} url={item.url} inline={false} />
-				</div>
-				<TaskDetails item={item} onRename={rename} description={description}>
-					{notes && (
-						<div>
-							<div
-								className={PANEL_LABEL}
-								title="Kept in Odin only - nothing goes back to the source. Start session adds them to the brief."
-							>
-								Notes
-							</div>
-							{notes}
-						</div>
-					)}
-					<SessionTodos item={item} onGoTo={onGoTo} />
-				</TaskDetails>
-			</div>
-			{children}
-		</aside>
-	);
-}
-
-/**
- * The to-dos from My notes on each session linked to this task, ticked and
- * edited in the same store the session drawer uses. With several sessions,
- * each list sits under its session's name.
- */
-function SessionTodos({
-	item,
-	onGoTo,
-}: {
-	item: AllItem;
-	onGoTo: (paneId: string) => void;
-}) {
-	const panes = useTabsStore((s) => s.panes);
-	const todosByPane = usePaneMeta((s) => s.todosByPane);
-	const titleByPane = usePaneMeta((s) => s.titleByPane);
-	const linked = useMemo(
-		() => todoPanesOn(Object.values(panes), item, todosByPane),
-		[panes, item, todosByPane],
-	);
-	if (!linked.length) return null;
-	return (
-		<div>
-			<div
-				className={PANEL_LABEL}
-				title="From My notes in this task's sessions - ticking one here ticks it there too."
-			>
-				Session to-dos
-			</div>
-			<div className="flex flex-col gap-2">
-				{linked.map((pane) => (
-					<div key={pane.id} className="flex flex-col gap-1">
-						{linked.length > 1 && (
-							<button
-								type="button"
-								onClick={() => onGoTo(pane.id)}
-								title="Go to this session"
-								className="truncate text-left text-[11px] text-muted-foreground hover:text-foreground hover:underline"
-							>
-								{titleByPane[pane.id] ??
-									pane.odinTaskTitle ??
-									pane.userTitle ??
-									pane.name}{" "}
-								→
-							</button>
-						)}
-						<MyTodos paneId={pane.id} onGoToReply={() => onGoTo(pane.id)} />
-					</div>
-				))}
-			</div>
-		</div>
-	);
-}
-
-/** The row's own buttons, so a task read in the panel is acted on there. */
-function DetailsActions({
-	activePaneId,
-	sessionCount,
-	isLaunching,
-	launching,
-	onStart,
-	onGoTo,
-	reading,
-	onReadLater,
-	onDone,
-	onDrop,
-}: {
-	activePaneId: string | null;
-	/** Sessions open on this task; Go to session opens the newest. */
-	sessionCount: number;
-	isLaunching: boolean;
-	launching: boolean;
-	onStart: () => void;
-	onGoTo: (paneId: string) => void;
-	reading: boolean;
-	onReadLater: () => void;
-	onDone: () => void;
-	onDrop: () => void;
-}) {
-	return (
-		<div className="flex shrink-0 items-center gap-2 border-t border-border px-3.5 py-2.5">
-			{activePaneId ? (
-				<>
-					<button
-						type="button"
-						onClick={() => onGoTo(activePaneId)}
-						title={
-							sessionCount > 1
-								? `${sessionCount} sessions on this task - this opens the newest`
-								: undefined
-						}
-						className={ROW_LIVE_BUTTON}
-					>
-						Go to session →
-					</button>
-					<button
-						type="button"
-						disabled={isLaunching}
-						onClick={onStart}
-						title={START_ANOTHER_TIP}
-						className={ROW_LINK_BUTTON}
-					>
-						{launching ? "Starting…" : "Start another session"}
-					</button>
-				</>
-			) : (
-				<button
-					type="button"
-					disabled={isLaunching}
-					onClick={onStart}
-					aria-label="Start session"
-					title={START_SESSION_TIP}
-					className={ROW_START_BUTTON}
-				>
-					{launching ? "Starting…" : "Start session"}
-				</button>
-			)}
-			<ReadLaterButton on={reading} onClick={onReadLater} />
-			<button
-				type="button"
-				onClick={onDrop}
-				title={DROP_LABEL}
-				className={cn(ROW_LINK_BUTTON, "hover:text-danger")}
-			>
-				Drop
-			</button>
-			<span className="ml-auto">
-				<DoneButton onClick={onDone} />
-			</span>
-		</div>
-	);
-}
-
-/** Read later, or back from it. Read later moves the row to Docs. */
-function ReadLaterButton({
-	on,
-	onClick,
-}: {
-	on: boolean;
-	onClick: () => void;
-}) {
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			title={
-				on ? "Back to Waiting on you" : "Mark it Read later - it moves to Docs"
-			}
-			className={ROW_LINK_BUTTON}
-		>
-			{on ? "↺ Read later" : "Read later"}
-		</button>
-	);
-}
-
-const OWN_PRIORITIES: [string, string][] = [3, 2, 1].map((level) => [
-	String(level),
-	PRIORITY_LABELS[level],
-]);
-/** Another source's row: your level, kept in Odin - nothing goes upstream. */
-const SOURCE_PRIORITIES: [string, string][] = ["High", "Medium", "Low"].map(
-	(label) => [label, label],
-);
-
-/** The name box "+ Add status..." / "+ Add type..." opens, sized like the pill it replaces. */
-const PANEL_INPUT =
-	"w-[180px] rounded-full border border-primary bg-card px-2.5 py-1 text-[12px] text-foreground outline-none";
-
-/**
- * Status, type, priority and Up next for any row. Priority on another
- * source's row is yours only - Jira and Slack keep their own.
- */
-function TaskFields({
-	status,
-	type,
-	priority,
-	priorityOptions,
-	queued,
-	onStatus,
-	onType,
-	onPriority,
-	onQueue,
-	waiting,
-	person,
-	onWait,
-	onUnwait,
-}: {
-	status: string;
-	type: string;
-	priority: string;
-	priorityOptions: [string, string][];
-	queued: boolean;
-	onStatus: (value: string) => void;
-	onType: (value: string) => void;
-	onPriority: (value: string) => void;
-	onQueue: () => void;
-	waiting: Waiting | undefined;
-	person: string | null;
-	onWait: (on: string, until: string) => void;
-	onUnwait: () => void;
-}) {
-	return (
-		<>
-			<div className="mb-2.5 flex flex-wrap items-end gap-1.5">
-				<PanelField label="Status">
-					<MetaOptionSelect
-						kind="status"
-						value={status}
-						onChange={onStatus}
-						empty={<option value="">Waiting on you</option>}
-						inputClassName={PANEL_INPUT}
-						select={(value, onChange, options) => (
-							<FeedSelect value={value} onChange={onChange} title="Status">
-								{options}
-							</FeedSelect>
-						)}
-					/>
-				</PanelField>
-				<PanelField label="Type">
-					<MetaOptionSelect
-						kind="type"
-						value={type}
-						onChange={onType}
-						empty={<option value="">No type</option>}
-						inputClassName={PANEL_INPUT}
-						select={(value, onChange, options) => (
-							<FeedSelect value={value} onChange={onChange} title="Task type">
-								{options}
-							</FeedSelect>
-						)}
-					/>
-				</PanelField>
-				<PanelField label="Priority">
-					<FeedSelect value={priority} onChange={onPriority} title="Priority">
-						{priorityOptions.map(([value, label]) => (
-							<option key={value} value={value}>
-								{label}
-							</option>
-						))}
-					</FeedSelect>
-				</PanelField>
-				<button
-					type="button"
-					onClick={onQueue}
-					className={cn(ROW_LINK_BUTTON, queued && "text-foreground")}
-				>
-					{queued ? "✓ Up next" : "+ Up next"}
-				</button>
-			</div>
-			<WaitField
-				waiting={waiting}
-				person={person}
-				onWait={onWait}
-				onUnwait={onUnwait}
-			/>
-		</>
-	);
-}
-
-/**
- * Waiting on someone else: who or what, and the day to look again - not the
- * due date. Parking it takes it off Up next; on that day it goes back on top.
- */
-function WaitField({
-	waiting,
-	person,
-	onWait,
-	onUnwait,
-}: {
-	waiting: Waiting | undefined;
-	person: string | null;
-	onWait: (on: string, until: string) => void;
-	onUnwait: () => void;
-}) {
-	const [on, setOn] = useState(waiting?.on ?? "");
-	const [until, setUntil] = useState(
-		() => waiting?.until ?? dayAfter(Date.now(), WAIT_DAYS),
-	);
-	// Another row opened in the panel, or the wait changed elsewhere.
-	useEffect(() => {
-		setOn(waiting?.on ?? "");
-		setUntil(waiting?.until ?? dayAfter(Date.now(), WAIT_DAYS));
-	}, [waiting]);
-	const today = dayAfter(Date.now(), 0);
-	// The task's own person first, then everyone in Slack. Free text still
-	// goes in: a PR or a date is a fine thing to wait on.
-	const { data: slackPeople } = electronTrpc.slack.people.useQuery(undefined, {
-		staleTime: 60 * 60_000,
-	});
-	const people = [
-		...new Set([...(person ? [person] : []), ...(slackPeople ?? [])]),
-	];
-	return (
-		<div className="mb-2.5 flex flex-wrap items-center gap-1.5 text-[12px]">
-			<datalist id="odin-wait-people">
-				{people.map((name) => (
-					<option key={name} value={name} />
-				))}
-			</datalist>
-			<span className="text-muted-foreground">Waiting on</span>
-			<input
-				value={on}
-				onChange={(e) => setOn(e.target.value)}
-				onBlur={() => waiting && on.trim() !== waiting.on && onWait(on, until)}
-				placeholder="a teammate, a PR, a date..."
-				aria-label="Waiting on"
-				list="odin-wait-people"
-				className="h-7 min-w-0 flex-1 rounded-[6px] border border-border bg-transparent px-2 text-[12px] text-foreground placeholder:text-muted-foreground"
-			/>
-			<span className="text-muted-foreground">back on Up next</span>
-			<input
-				type="date"
-				value={until}
-				min={dayAfter(Date.now(), 1)}
-				onChange={(e) => {
-					const day = e.target.value;
-					if (!day) return;
-					setUntil(day);
-					if (waiting && day > today) onWait(on, day);
-				}}
-				aria-label="Back on Up next on"
-				title="The day you expect it to move - not its due date. On that day it goes back on top of Up next."
-				style={{ colorScheme: "dark" }}
-				className="h-7 rounded-[6px] border border-border bg-transparent px-1.5 text-[12px] text-foreground"
-			/>
-			{waiting ? (
-				<button
-					type="button"
-					onClick={onUnwait}
-					title="Back on top of Up next now"
-					className={ROW_LINK_BUTTON}
-				>
-					Stop waiting
-				</button>
-			) : (
-				<button
-					type="button"
-					onClick={() =>
-						onWait(on, until > today ? until : dayAfter(Date.now(), WAIT_DAYS))
-					}
-					title="Park it off Up next until that day"
-					className={ROW_LINK_BUTTON}
-				>
-					Wait
-				</button>
-			)}
-		</div>
-	);
-}
-
-/** The small name over a side panel field. */
-const PANEL_LABEL =
-	"mb-0.5 select-none text-[10.5px] font-medium text-muted-foreground";
-
-/** A side panel field with its name above it, so the dropdowns tell apart. */
-function PanelField({
-	label,
-	children,
-}: {
-	label: string;
-	children: ReactNode;
-}) {
-	return (
-		<div className="flex flex-col">
-			<span className={PANEL_LABEL}>{label}</span>
-			{children}
-		</div>
 	);
 }
 
