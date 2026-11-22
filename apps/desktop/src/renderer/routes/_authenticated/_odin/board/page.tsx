@@ -7238,6 +7238,10 @@ function DevBoardPage() {
 	const todayExperiment = useTodayOverview((s) => s.experiment);
 	const [todayShown, setTodayOpen] = useState(false);
 	const todayOpen = todayExperiment && todayShown;
+	// The drawer's list of the other sessions, with 2 or more in flight. Not
+	// beside Today: the page is the list there.
+	const showSwitchList =
+		!todayOpen && switchCards.length + idleSwitchCards.length > 1;
 	const todayCards: TodayCard[] = [...cardsByStatus.values()]
 		.flat()
 		.map((card) => {
@@ -8373,7 +8377,7 @@ function DevBoardPage() {
 							{/* The other sessions in flight, one click away - no Minimize
 								    and hunt for the card on the board. Hidden on a narrow
 								    drawer, where the chat needs the room. */}
-							{switchCards.length + idleSwitchCards.length > 1 && (
+							{showSwitchList && (
 								<>
 									<nav
 										aria-label="Sessions"
