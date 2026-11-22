@@ -122,7 +122,7 @@ function SessionsSettingsPage() {
 
 			<SettingsSection
 				title="From your browser"
-				description="Find the sessions that worked on the page you have open: a design file, an email campaign, a doc."
+				description="Find the sessions that worked on the page you have open: a design file, an email campaign, a doc, a chat thread, an issue."
 			>
 				<ChromeExtensionRow />
 			</SettingsSection>
