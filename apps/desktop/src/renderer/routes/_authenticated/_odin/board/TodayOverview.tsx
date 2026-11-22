@@ -619,7 +619,12 @@ function StartHere({
 					</div>
 				)}
 			</div>
-			<TaskItems task={task} onOpen={actions.onOpen} onSent={onActed} />
+			<TaskItems
+				task={task}
+				onOpen={actions.onOpen}
+				onShow={() => onShow(task.id)}
+				onSent={onActed}
+			/>
 			<TaskButtons task={task} actions={actions} onActed={onActed} />
 		</li>
 	);
@@ -632,10 +637,13 @@ function StartHere({
 function TaskItems({
 	task,
 	onOpen,
+	onShow,
 	onSent,
 }: {
 	task: TodayTaskView<TodayItem>;
 	onOpen: (paneId: string) => void;
+	/** On the page: a session's title opens the task's summary, not the session. */
+	onShow?: () => void;
 	onSent?: () => void;
 }) {
 	return (
@@ -645,7 +653,8 @@ function TaskItems({
 					key={item.key}
 					item={item}
 					titled={task.items.length > 1}
-					onOpen={onOpen}
+					onOpen={onShow ? () => onShow() : onOpen}
+					preview={!!onShow}
 					onSent={onSent}
 				/>
 			))}
@@ -658,11 +667,14 @@ function SessionItems({
 	item,
 	titled,
 	onOpen,
+	preview,
 	onSent,
 }: {
 	item: TodayItem;
 	titled: boolean;
 	onOpen: (paneId: string) => void;
+	/** The title opens the task's summary beside the page. */
+	preview?: boolean;
 	onSent?: () => void;
 }) {
 	const todo = useActionItems(item.sessionId);
@@ -671,7 +683,11 @@ function SessionItems({
 			<p className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[12px] text-muted-foreground">
 				<button
 					type="button"
-					title={`${todayGroupLabel(item.group)} - open it beside this page`}
+					title={
+						preview
+							? "Show its summary beside the page"
+							: `${todayGroupLabel(item.group)} - open it beside this page`
+					}
 					onClick={() => onOpen(item.key)}
 					className={cn(LINK, "text-[12.5px]")}
 				>
