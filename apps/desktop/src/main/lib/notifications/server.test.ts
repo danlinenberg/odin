@@ -292,4 +292,22 @@ describe("notifications/server", () => {
 			}
 		});
 	});
+
+	describe("POST /sessions/open", () => {
+		it("refuses a web page", async () => {
+			const server = notificationsApp.listen(0, "127.0.0.1");
+			await new Promise((resolve) => server.once("listening", resolve));
+			try {
+				const { port } = server.address() as AddressInfo;
+				const response = await fetch(`http://127.0.0.1:${port}/sessions/open`, {
+					method: "POST",
+					headers: { Origin: "https://example.com" },
+					body: new URLSearchParams({ id: "abc" }),
+				});
+				expect(response.status).toBe(403);
+			} finally {
+				server.close();
+			}
+		});
+	});
 });
