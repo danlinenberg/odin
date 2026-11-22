@@ -1,3 +1,5 @@
+import { feedLines, type LineReader } from "./lines";
+
 /** What a conversation has used, from the `usage` Claude Code logs per API message. */
 export interface SessionUsage {
 	/**
@@ -53,6 +55,16 @@ interface Usage {
 }
 
 export function transcriptUsage(jsonl: string): SessionUsage | null {
+	const reader = usageReader();
+	feedLines(jsonl, reader);
+	return reader.result();
+}
+
+/** transcriptUsage, a line at a time - see LineReader. */
+export function usageReader(): LineReader & {
+	/** `tail` is an unfinished last line, matched for a /model switch only. */
+	result(tail?: string): SessionUsage | null;
+} {
 	// Claude Code writes one line per content block, each repeating its
 	// message's usage - the last line of a message has its final count.
 	const byMessage = new Map<string, { model: string; usage: Usage }>();
@@ -60,20 +72,23 @@ export function transcriptUsage(jsonl: string): SessionUsage | null {
 	let compacted: number | undefined;
 	// A /model since the last reply: Claude Code says "Set model to `Sonnet 5.5`".
 	let switched: string | undefined;
-	for (const line of jsonl.split("\n")) {
-		const picked = /Set model to `([^`]+)`/.exec(line);
-		if (picked) switched = picked[1];
-		if (!line.includes('"usage"') && !line.includes('"compact_boundary"'))
-			continue;
-		try {
-			const { message, subtype, compactMetadata } = JSON.parse(line) as {
+	return {
+		line(line, entry) {
+			const picked = /Set model to `([^`]+)`/.exec(line);
+			if (picked) switched = picked[1];
+			if (!line.includes('"usage"') && !line.includes('"compact_boundary"'))
+				return;
+			const parsed = entry();
+			// Not JSON, or `null`: the destructuring below used to throw on it.
+			if (parsed == null) return;
+			const { message, subtype, compactMetadata } = parsed as {
 				message?: { id?: string; model?: string; usage?: Usage };
 				subtype?: string;
 				compactMetadata?: { postTokens?: number };
 			};
 			if (subtype === "compact_boundary") {
 				compacted = compactMetadata?.postTokens ?? 0;
-				continue;
+				return;
 			}
 			if (message?.id && message.usage && message.model !== "<synthetic>") {
 				compacted = undefined;
@@ -84,8 +99,19 @@ export function transcriptUsage(jsonl: string): SessionUsage | null {
 					model: message.model ?? "",
 					usage: message.usage,
 				});
-		} catch {}
-	}
+		},
+		result(tail) {
+			const picked = tail ? /Set model to `([^`]+)`/.exec(tail) : null;
+			return totalUsage(byMessage, compacted, picked?.[1] ?? switched);
+		},
+	};
+}
+
+function totalUsage(
+	byMessage: Map<string, { model: string; usage: Usage }>,
+	compacted: number | undefined,
+	switched: string | undefined,
+): SessionUsage | null {
 	if (!byMessage.size) return null;
 	let tokens = 0;
 	let usd: number | null = 0;
