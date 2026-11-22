@@ -1705,9 +1705,38 @@ function Tasks() {
 			if (paneId) location.hash = `#/s/${paneId}`;
 		},
 	});
+	const utils = phone.useUtils();
 	const [open, setOpen] = useState<string | null>(null);
 	const [adding, setAdding] = useState(false);
-	const rows = (board.data?.backlog ?? []) as PhoneTask[];
+	// Done with Undo, as a session card's: the row goes at once, Odin is told once the toast is gone.
+	const [hidden, setHidden] = useState<string[]>([]);
+	const unhide = (id: string) =>
+		setHidden((ids) => ids.filter((other) => other !== id));
+	const markDone = (task: PhoneTask) => {
+		setHidden((ids) => [...ids, task.id]);
+		const timer = setTimeout(() => {
+			utils.client.drop.mutate({ id: task.id }).then(
+				() => board.refetch().then(() => unhide(task.id)),
+				(error: unknown) => {
+					unhide(task.id);
+					toast.error(error instanceof Error ? error.message : String(error));
+				},
+			);
+		}, UNDO_MS);
+		toast.success(`Done - ${task.title.slice(0, 60)}`, {
+			duration: UNDO_MS,
+			action: {
+				label: "Undo",
+				onClick: () => {
+					clearTimeout(timer);
+					unhide(task.id);
+				},
+			},
+		});
+	};
+	const rows = ((board.data?.backlog ?? []) as PhoneTask[]).filter(
+		(task) => !hidden.includes(task.id),
+	);
 	const now = Date.now();
 	return (
 		<div className="min-h-dvh pb-24">
@@ -1721,7 +1750,7 @@ function Tasks() {
 				</a>
 				<h1 className="mt-1 text-2xl font-bold">Tasks</h1>
 				<div className="text-[13px] text-muted-foreground">
-					Not started yet. Tap one for its notes.
+					Not started yet. Tap one for its notes, ✓ to mark it done.
 				</div>
 			</header>
 			<ErrorLine error={board.error ?? start.error} />
@@ -1779,6 +1808,14 @@ function Tasks() {
 												)}
 											</div>
 										)}
+									</button>
+									<button
+										type="button"
+										aria-label="Done"
+										onClick={() => markDone(task)}
+										className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-success"
+									>
+										<LuCheck className="size-5" />
 									</button>
 									<button
 										type="button"

@@ -450,6 +450,33 @@ export const hostPhoneRouter = t.router({
 		return { via: { host: hostName() } };
 	}),
 
+	/**
+	 * Done on a task here with the Mac away: off this backlog now, and the
+	 * Mac marks it done when it wakes (inbox.ts).
+	 */
+	drop: t.procedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			if (!readAway())
+				throw new TRPCError({
+					code: "PRECONDITION_FAILED",
+					message:
+						"Your Mac is away and Tasks with the Mac closed is off. Open Odin on your Mac to mark it done.",
+				});
+			const task = awayBacklog(Date.now(), await hostRows()).find(
+				(row) => row.id === input.id,
+			);
+			if (!task)
+				throw new TRPCError({ code: "NOT_FOUND", message: "No such task." });
+			markDone({
+				key: task.id,
+				sessionId: "",
+				title: task.title,
+				at: Date.now(),
+			});
+			return { via: { host: hostName() } };
+		}),
+
 	/** The laptop writes briefs; with it away, there is none. */
 	brief: t.procedure.input(paneInput).query(() => null),
 	/**
