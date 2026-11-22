@@ -18,6 +18,7 @@ import { useTabsStore } from "renderer/stores/tabs/store";
 import { useTodayOverview } from "renderer/stores/today-overview";
 import { type AllItem, livePanesOn, urgencyOf } from "../all/all-items";
 import { TaskDetails } from "../all/TaskDetails";
+import { TaskSidePanel } from "../all/TaskSidePanel";
 import { dayAfter, useTaskMeta } from "../all/task-meta";
 import { useAllItems } from "../all/use-all-items";
 import { useStartAllItem } from "../all/use-start-item";
@@ -239,6 +240,10 @@ export function TodayOverview({
 	// The task whose summary is open beside the page, like Tasks' side panel.
 	const [shown, setShown] = useState<string | null>(null);
 	const shownTask = tasks.find((task) => task.id === shown) ?? null;
+	// The task its session was started from opens in Tasks' own side panel,
+	// with a link to the session; a session started from nothing keeps
+	// Today's summary.
+	const shownRow = shownTask?.items.find((item) => item.row)?.row ?? null;
 	// A session opens in the board's drawer: the summary makes room for it,
 	// and comes back when the drawer closes.
 	const [backTo, setBackTo] = useState<string | null>(null);
@@ -452,7 +457,24 @@ export function TodayOverview({
 					</label>
 				</div>
 			</div>
-			{shownTask && (
+			{shownTask && shownRow && (
+				<TaskSidePanel
+					key={shownRow.key}
+					item={shownRow}
+					onGoTo={openSession}
+					onClose={() => setShown(null)}
+					top={
+						<div className="mb-3">
+							<TaskItems
+								task={shownTask}
+								onOpen={openSession}
+								onSent={() => advance(shownTask.id)}
+							/>
+						</div>
+					}
+				/>
+			)}
+			{shownTask && !shownRow && (
 				<TodayTaskPanel
 					task={shownTask}
 					now={now}
