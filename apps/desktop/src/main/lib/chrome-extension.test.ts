@@ -9,7 +9,7 @@ test("the extension asks this Odin's port and only localhost", () => {
 	expect(files["background.js"]).toContain("const DEFAULT_PORT = 51999;");
 	expect(files["popup.js"]).toContain("/sessions/for-url?url=");
 	// A session still working turns the badge green and says so in the list.
-	expect(files["background.js"]).toContain("live ? \"#16a34a\"");
+	expect(files["background.js"]).toContain('live ? "#16a34a"');
 	expect(files["popup.js"]).toContain("Working now");
 	// Both scripts are valid JavaScript.
 	for (const name of ["background.js", "popup.js"])
