@@ -240,7 +240,13 @@ async function forwardOdin(client: Client): Promise<void> {
 	bind();
 }
 
-/** Longest one mirror pass may take before it is given up. */
+/**
+ * Longest one mirror pass may go without a byte before it is given up. Not a
+ * cap on the whole pass: a long transcript read again from the start (the
+ * copy here was missing or longer than the host's) took more than 30s over a
+ * slow connection, every pass was given up and started over, and the chat
+ * showed no new messages - and read a message Claude took as Not delivered.
+ */
 const PASS_MS = 30_000;
 
 /**
@@ -250,9 +256,12 @@ const PASS_MS = 30_000;
  */
 function mirrorTranscript(
 	client: Client,
-	sftp: SFTPWrapper,
+	first: SFTPWrapper,
 	spec: RemoteSessionSpec,
 ): () => void {
+	let sftp = first;
+	// Set by each pass: a chunk read pushes its time limit back.
+	let progress = () => {};
 	// Claude files a conversation under its start folder's name; the chat view
 	// looks it up by that name, so the copy goes in the same-named folder here.
 	let local = "";
@@ -276,9 +285,21 @@ function mirrorTranscript(
 			basename(dirname(remote)),
 			`${spec.pane}.jsonl`,
 		);
-		const size = await new Promise<number>((resolve) =>
-			sftp.stat(remote as string, (err, st) => resolve(err ? 0 : st.size)),
+		const size = await new Promise<number | null>((resolve) =>
+			sftp.stat(remote as string, (err, st) =>
+				// 2 is SFTP's "no such file"; any other failure is the channel.
+				resolve(
+					err ? ((err as { code?: number }).code === 2 ? 0 : null) : st.size,
+				),
+			),
 		);
+		// The SFTP channel closed while the terminal's stayed up: every stat
+		// failed, read as an empty file, and the copy here stopped growing for
+		// good. Open a new channel on the same connection for the next pass.
+		if (size === null) {
+			sftp = await sftpOf(client);
+			return;
+		}
 		const have = await stat(local).then(
 			(st) => st.size,
 			() => -1,
@@ -291,7 +312,10 @@ function mirrorTranscript(
 		await new Promise<void>((resolve) => {
 			const stream = sftp
 				.createReadStream(remote as string, { start, end: size - 1 })
-				.on("data", (chunk: Buffer) => chunks.push(chunk))
+				.on("data", (chunk: Buffer) => {
+					chunks.push(chunk);
+					progress();
+				})
 				.on("error", () => resolve())
 				.on("close", () => resolve());
 			reading = stream;
@@ -312,13 +336,18 @@ function mirrorTranscript(
 		Promise.race([
 			tick(mine),
 			new Promise<void>((resolve) => {
-				timer = setTimeout(() => {
+				const giveUp = () => {
 					pass++;
 					reading?.destroy();
 					reading = null;
 					resolve();
-				}, PASS_MS);
-				timer.unref();
+				};
+				progress = () => {
+					clearTimeout(timer);
+					timer = setTimeout(giveUp, PASS_MS);
+					timer.unref();
+				};
+				progress();
 			}),
 		])
 			.catch(() => {})
