@@ -316,10 +316,11 @@ const ON_HOST = new Set([
 	"repos",
 	"screens",
 	// A task the Mac left there or the host fetched, a new one typed on the
-	// phone, and Done on a session there (Tasks with the Mac closed).
+	// phone, and Done on a session or task there (Tasks with the Mac closed).
 	"start",
 	"add",
 	"done",
+	"drop",
 	// Kept on the host and put on the Mac's board when it is back.
 	"star",
 ]);

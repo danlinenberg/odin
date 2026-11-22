@@ -940,6 +940,15 @@ export const phoneRouter = t.router({
 		.input(paneInput)
 		.mutation(({ input }) => board("done", { paneId: input.paneId })),
 
+	/** A backlog task's Done, as the desktop row's: off Tasks, back from All tasks' Done list. */
+	drop: t.procedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			const answer = await board("drop", { ids: input.id });
+			if (!answer.startsWith("Dropped"))
+				throw new TRPCError({ code: "NOT_FOUND", message: answer });
+		}),
+
 	/** Remind me: off the board now, back on `day` (YYYY-MM-DD), as the board's bell. */
 	remind: t.procedure
 		.input(paneInput.extend({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
