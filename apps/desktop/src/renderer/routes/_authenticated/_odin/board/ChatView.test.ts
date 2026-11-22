@@ -13,6 +13,7 @@ import {
 	bangCommandNotes,
 	bangCommands,
 	bashCommandOf,
+	cantReadSessionFolder,
 	commandItem,
 	commandLabel,
 	currentTurn,
@@ -1511,5 +1512,26 @@ describe("sitsInBox", () => {
 
 	test("no box on screen", () => {
 		expect(sitsInBox("Connecting to i-0abc...", "hi")).toBe(false);
+	});
+});
+
+describe("cantReadSessionFolder", () => {
+	test("matches Claude Code's startup error for a folder macOS blocks", () => {
+		expect(
+			cantReadSessionFolder(
+				"Can't read the current directory (EPERM). Start Claude Code from a different directory.",
+			),
+		).toBe(true);
+		expect(
+			cantReadSessionFolder("Can't read the current directory (EACCES)."),
+		).toBe(true);
+	});
+	test("ignores other output", () => {
+		expect(cantReadSessionFolder("Not logged in · Please run /login")).toBe(
+			false,
+		);
+		expect(cantReadSessionFolder("rm: EPERM: operation not permitted")).toBe(
+			false,
+		);
 	});
 });
