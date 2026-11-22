@@ -199,7 +199,7 @@ The sidebar shows: Connections, Sessions, Remote, Storage, Backlog & Night Agent
 - **ClickUp**: a personal API token (pk_…); sessions can read the ClickUp tasks they get, and Done on a ClickUp task closes it there.
 - **Airtable**: Sign in with Airtable (read-only; on Airtable's page you pick the bases Odin may read). Then list the views to read on the Airtable tab: every record in them is a row in the Airtable feed. A build with no Airtable app first asks for its Client ID, Secret and Redirect URL.
 - **Determ**: an API token (Determ → Settings → Account Settings, on plans with API access) and one feed link per line (app.determ.com/…/feed/q/…). The last week of mentions in those feeds are rows in the Determ feed.
-- **Calendar**: Sign in with Google (read-only, the primary calendar). Outlook and iCloud connect by their secret iCal address instead ("Outlook or iCloud? Paste a secret iCal address"). A build with no Google app shows the iCal form first.
+- **Calendar**: Sign in with Google (read-only, the primary calendar). Any calendar, Google included, can connect by its secret iCal address instead ("No Google sign-in? Paste your calendar's secret iCal address instead"), with no Google sign-in screen; the form lists where Google Calendar keeps that address. A build with no Google app shows the iCal form first.
 - **Google Drive**: Sign in with Google (read-only file names, owners and links, never their contents). Its own sign-in, separate from the Calendar's, so either one connects or disconnects alone. Fills the Drive feed.
 
 ## Sessions settings (Settings → Sessions)
