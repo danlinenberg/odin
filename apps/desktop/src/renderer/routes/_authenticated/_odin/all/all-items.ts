@@ -108,14 +108,27 @@ export function paneWorksOn(
 	pane: {
 		id?: string;
 		odinPageId?: string;
+		odinSource?: string;
 		odinTaskTitle?: string;
 		odinBrief?: string;
 	},
 	item: AllItem,
 ): boolean {
+	if (pane.id != null && item.paneIds?.includes(pane.id)) return true;
+	if (item.launch.pageId != null && pane.odinPageId === item.launch.pageId)
+		return true;
+	// A session started on another message of the same source belongs to that
+	// message, even when both say the same thing (a bot posting the same text
+	// twice). Title and brief only link sessions that carry no id of this source.
+	const source = (s?: string) => (s === "slack" ? "reactions" : s);
+	if (
+		item.launch.pageId != null &&
+		pane.odinPageId != null &&
+		pane.odinSource != null &&
+		source(pane.odinSource) === source(item.launch.source)
+	)
+		return false;
 	return (
-		(pane.id != null && !!item.paneIds?.includes(pane.id)) ||
-		(item.launch.pageId != null && pane.odinPageId === item.launch.pageId) ||
 		pane.odinTaskTitle === item.launch.title ||
 		pane.odinBrief === item.launch.brief
 	);

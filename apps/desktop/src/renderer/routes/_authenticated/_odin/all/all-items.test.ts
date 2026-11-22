@@ -516,3 +516,39 @@ test("a task's session to-dos: sessions with to-dos, newest first, finished ones
 	).toEqual(["pane-3000-c", "pane-1000-a"]);
 	expect(todoPanesOn([older], task, {})).toEqual([]);
 });
+
+test("two Slack messages with the same text: each row only gets its own session", () => {
+	const msg = (id: string, day: number) => ({
+		id,
+		title: "Build passed",
+		text: "Build passed",
+		status: "Not started",
+		permalink: `https://slack/${id}`,
+		channelName: "#ci",
+		authorName: "ci-bot",
+		postedAt: iso(day),
+	});
+	const rows = allItems({
+		tasks: [],
+		slack: [msg("a", 1), msg("b", 2)],
+		jira: [],
+		pulls: [],
+		notion: [],
+	});
+	const a = rows.find((row) => row.key === "slack:a");
+	const b = rows.find((row) => row.key === "slack:b");
+	if (!a || !b) throw new Error("no rows");
+	const pane = {
+		id: "pane-1000-a",
+		odinPageId: "a",
+		odinSource: "reactions",
+		odinTaskTitle: "Build passed",
+		odinBrief: "Build passed",
+	};
+	expect(paneWorksOn(pane, a)).toBe(true);
+	expect(paneWorksOn(pane, b)).toBe(false);
+	// A session from the message's Notion mirror still links by its brief.
+	expect(
+		paneWorksOn({ ...pane, odinPageId: "n1", odinSource: "notion" }, b),
+	).toBe(true);
+});
