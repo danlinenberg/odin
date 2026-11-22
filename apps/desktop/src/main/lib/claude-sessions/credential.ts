@@ -8,6 +8,8 @@
  * a remote host.
  */
 
+import { feedLines, type LineReader } from "./lines";
+
 export type Credential = "plan" | "key";
 
 export interface SessionCredential {
@@ -20,23 +22,34 @@ export interface SessionCredential {
 const OAUTH_BETA = "oauth-2025-04-20";
 
 export function transcriptCredential(jsonl: string): SessionCredential | null {
+	const reader = credentialReader();
+	feedLines(jsonl, reader);
+	return reader.result();
+}
+
+/** transcriptCredential, a line at a time - see LineReader. */
+export function credentialReader(): LineReader & {
+	result(): SessionCredential | null;
+} {
 	let now: Credential | null = null;
 	let since: string | null = null;
-	for (const line of jsonl.split("\n")) {
-		if (!line.includes('"api-request"')) continue;
-		try {
-			const { type, params, timestamp } = JSON.parse(line) as {
+	return {
+		line(line, entry) {
+			if (!line.includes('"api-request"')) return;
+			const parsed = entry();
+			if (parsed == null) return;
+			const { type, params, timestamp } = parsed as {
 				type?: string;
 				params?: { betas?: unknown };
 				timestamp?: string;
 			};
-			if (type !== "api-request" || !Array.isArray(params?.betas)) continue;
+			if (type !== "api-request" || !Array.isArray(params?.betas)) return;
 			const credential: Credential = params.betas.includes(OAUTH_BETA)
 				? "plan"
 				: "key";
 			if (credential !== now) since = now ? (timestamp ?? null) : null;
 			now = credential;
-		} catch {}
-	}
-	return now ? { now, since } : null;
+		},
+		result: () => (now ? { now, since } : null),
+	};
 }

@@ -16,8 +16,9 @@ import {
 	idsInUrl,
 	urlQuery,
 } from "./asset-ids";
-import { type SessionCredential, transcriptCredential } from "./credential";
-import { type SessionUsage, transcriptUsage } from "./usage";
+import { credentialReader, type SessionCredential } from "./credential";
+import { feedLine, feedLines, type LineReader } from "./lines";
+import { type SessionUsage, usageReader } from "./usage";
 
 /**
  * Search over Claude Code's own conversation transcripts.
@@ -280,6 +281,18 @@ type TranscriptDigest = {
 };
 
 function digestTranscript(jsonl: string): TranscriptDigest {
+	const reader = digestReader();
+	feedLines(jsonl, reader);
+	return reader.result();
+}
+
+/**
+ * digestTranscript, a line at a time - see LineReader. Without `turnsToo` it
+ * keeps only the title, prompt and cwd, not every turn's text a search needs.
+ */
+function digestReader(
+	turnsToo = true,
+): LineReader & { result(): TranscriptDigest } {
 	let aiTitle: string | null = null;
 	let cardTitle: string | null = null;
 	let prompt: string | null = null;
@@ -289,60 +302,60 @@ function digestTranscript(jsonl: string): TranscriptDigest {
 	const seen = new Set<string>();
 	const turns: TranscriptDigest["turns"] = [];
 	const ids = new Set<string>();
-
-	for (const line of jsonl.split("\n")) {
-		if (!line) continue;
-		let entry: Record<string, unknown>;
-		try {
-			entry = JSON.parse(line) as Record<string, unknown>;
-		} catch {
-			continue; // truncated tail or a control record we don't care about
-		}
-		if (
-			!aiTitle &&
-			entry.type === "ai-title" &&
-			typeof entry.aiTitle === "string"
-		) {
-			aiTitle = entry.aiTitle;
-		}
-		if (entry.type !== "user" && entry.type !== "assistant") continue;
-		if (entry.isSidechain) continue; // subagent turn, not the conversation
-		// Where it started - or, for a session moved here from the remote host
-		// (Run here), the first folder on this computer: its copy is filed
-		// under that folder, and its opening rows still name the host's. Resume
-		// ran `claude --resume` in the host's folder here and exited 1.
-		if (typeof entry.cwd === "string" && !cwdHere && !seen.has(entry.cwd)) {
-			seen.add(entry.cwd);
-			const here = ranHere(entry.cwd);
-			if (!cwd || here) {
-				cwd = entry.cwd;
-				cwdHere = here;
+	return {
+		line(line, parse) {
+			if (!line) return;
+			const entry = parse() as Record<string, unknown> | undefined;
+			// A truncated tail or a control record we don't care about.
+			if (entry === undefined) return;
+			if (
+				!aiTitle &&
+				entry.type === "ai-title" &&
+				typeof entry.aiTitle === "string"
+			) {
+				aiTitle = entry.aiTitle;
 			}
-		}
-		const role = entry.type as "user" | "assistant";
-		const message = entry.message as { content?: unknown } | undefined;
-		if (role === "assistant" && Array.isArray(message?.content))
-			for (const block of message.content)
-				if (block?.type === "tool_use") idsInToolInput(block.input, ids);
-		const text = messageText(message?.content).trim();
-		if (!text) continue;
-		// Only what you typed and what Claude said - injected context is neither,
-		// and it's identical in every session, so it can't tell them apart.
-		if (role === "user" && !isTypedByUser(entry, text)) continue;
-		turns.push({ role, text });
-		idsInText(text, ids);
-		if (role === "user" && !prompt) {
-			// Before cleanPrompt, which strips the marker off the stored prompt.
-			fromOdin = ODIN_LAUNCH_MARKER.test(text);
-			// buildPrompt's first line is the card's title - `Task: <title>` or
-			// `/<skill> <title>` - which is what the board showed, and what a
-			// person remembers the session by.
-			cardTitle =
-				/^(?:Task:|\/[\w:-]+)[ \t]+(.+)/.exec(text)?.[1]?.trim() || null;
-			prompt = cleanPrompt(text).slice(0, 600) || null;
-		}
-	}
-	return { aiTitle, cardTitle, prompt, fromOdin, cwd, turns, ids };
+			if (entry.type !== "user" && entry.type !== "assistant") return;
+			if (entry.isSidechain) return; // subagent turn, not the conversation
+			// Where it started - or, for a session moved here from the remote host
+			// (Run here), the first folder on this computer: its copy is filed
+			// under that folder, and its opening rows still name the host's. Resume
+			// ran `claude --resume` in the host's folder here and exited 1.
+			if (typeof entry.cwd === "string" && !cwdHere && !seen.has(entry.cwd)) {
+				seen.add(entry.cwd);
+				const here = ranHere(entry.cwd);
+				if (!cwd || here) {
+					cwd = entry.cwd;
+					cwdHere = here;
+				}
+			}
+			const role = entry.type as "user" | "assistant";
+			const message = entry.message as { content?: unknown } | undefined;
+			if (turnsToo && role === "assistant" && Array.isArray(message?.content))
+				for (const block of message.content)
+					if (block?.type === "tool_use") idsInToolInput(block.input, ids);
+			const text = messageText(message?.content).trim();
+			if (!text) return;
+			// Only what you typed and what Claude said - injected context is neither,
+			// and it's identical in every session, so it can't tell them apart.
+			if (role === "user" && !isTypedByUser(entry, text)) return;
+			if (turnsToo) {
+				turns.push({ role, text });
+				idsInText(text, ids);
+			}
+			if (role === "user" && !prompt) {
+				// Before cleanPrompt, which strips the marker off the stored prompt.
+				fromOdin = ODIN_LAUNCH_MARKER.test(text);
+				// buildPrompt's first line is the card's title - `Task: <title>` or
+				// `/<skill> <title>` - which is what the board showed, and what a
+				// person remembers the session by.
+				cardTitle =
+					/^(?:Task:|\/[\w:-]+)[ \t]+(.+)/.exec(text)?.[1]?.trim() || null;
+				prompt = cleanPrompt(text).slice(0, 600) || null;
+			}
+		},
+		result: () => ({ aiTitle, cardTitle, prompt, fromOdin, cwd, turns, ids }),
+	};
 }
 
 function scoreDigest(
@@ -757,128 +770,146 @@ export function parseTranscript(
 	withImages = false,
 	withShells = false,
 ): TranscriptMessage[] {
+	const reader = messagesReader(maxChars, withImages, withShells);
+	feedLines(jsonl, reader);
+	// Keep the tail: the end of a conversation is what you resume into.
+	return reader.messages.slice(-maxMessages);
+}
+
+/**
+ * parseTranscript, a line at a time - see LineReader. `messages` only grows,
+ * so a caller may take the new ones off its front between lines, except with
+ * `withShells`: a shell's output folds into the message before it.
+ */
+function messagesReader(
+	maxChars: number,
+	withImages: boolean,
+	withShells: boolean,
+): LineReader & { messages: TranscriptMessage[] } {
 	const messages: TranscriptMessage[] = [];
 	const prCreates = new Set<string>();
 	// Artifact publishes by tool_use id: the label and summary the brief shows.
 	const publishes = new Map<string, { title: string; description: string }>();
-	for (const line of jsonl.split("\n")) {
-		if (!line) continue;
-		let entry: Record<string, unknown>;
-		try {
-			entry = JSON.parse(line) as Record<string, unknown>;
-		} catch {
-			continue;
-		}
-		// A message sent while Claude works waits as an attachment, and is
-		// the user's turn all the same.
-		// A background agent's notice queues the same way: only a human's counts.
-		const queued = entry.attachment as
-			| { type?: string; prompt?: unknown; origin?: { kind?: string } }
-			| undefined;
-		if (entry.type === "attachment" && queued?.type === "queued_command") {
-			const human = !queued.origin?.kind || queued.origin.kind === "human";
-			const text = spokenText(messageText(queued.prompt).trim());
-			const images =
-				withImages && Array.isArray(queued.prompt)
-					? base64Images(queued.prompt)
-					: [];
-			if (text && human && !entry.isSidechain)
-				messages.push({
-					...(images.length ? { images } : {}),
-					role: "user",
-					text,
-					at: typeof entry.timestamp === "string" ? entry.timestamp : null,
-				});
-			continue;
-		}
-		if (entry.type !== "user" && entry.type !== "assistant") continue;
-		if (entry.isSidechain) continue;
-		const message = entry.message as { content?: unknown } | undefined;
-		// A PR the session opened is its output even when the reply only says
-		// "#232": lift the url `gh pr create` printed into Claude's side of the
-		// conversation, where the brief looks for PRs.
-		if (Array.isArray(message?.content)) {
-			for (const block of message.content) {
-				if (
-					block?.type === "tool_use" &&
-					block.name === "Bash" &&
-					opensPr(String(block.input?.command ?? ""))
-				)
-					prCreates.add(block.id);
-				else if (
-					block?.type === "tool_use" &&
-					block.name === "Artifact" &&
-					(block.input?.action ?? "publish") === "publish" &&
-					!block.input?.asset
-				)
-					publishes.set(block.id, {
-						title: String(
-							block.input?.title ??
-								basename(String(block.input?.file_path ?? "Artifact"), ".html"),
-						),
-						description: String(block.input?.description ?? ""),
+	return {
+		messages,
+		line(line, parse) {
+			if (!line) return;
+			const entry = parse() as Record<string, unknown> | undefined;
+			if (entry === undefined) return;
+			// A message sent while Claude works waits as an attachment, and is
+			// the user's turn all the same.
+			// A background agent's notice queues the same way: only a human's counts.
+			const queued = entry.attachment as
+				| { type?: string; prompt?: unknown; origin?: { kind?: string } }
+				| undefined;
+			if (entry.type === "attachment" && queued?.type === "queued_command") {
+				const human = !queued.origin?.kind || queued.origin.kind === "human";
+				const text = spokenText(messageText(queued.prompt).trim());
+				const images =
+					withImages && Array.isArray(queued.prompt)
+						? base64Images(queued.prompt)
+						: [];
+				if (text && human && !entry.isSidechain)
+					messages.push({
+						...(images.length ? { images } : {}),
+						role: "user",
+						text,
+						at: typeof entry.timestamp === "string" ? entry.timestamp : null,
 					});
-				else if (
-					block?.type === "tool_result" &&
-					publishes.has(block.tool_use_id)
-				) {
-					// "Published <file> at <url>" - the reply often never repeats the
-					// link, and the brief only reads Claude's side for it.
-					const url = messageText(block.content).match(ARTIFACT_URL)?.[0];
-					const publish = publishes.get(block.tool_use_id);
-					if (url && publish)
-						messages.push({
-							role: "assistant",
-							// A table row: the brief's hover reads the cells after the
-							// link as what it is.
-							text: `| [${publish.title}](${url}) | ${publish.description} |`,
-							at: typeof entry.timestamp === "string" ? entry.timestamp : null,
+				return;
+			}
+			if (entry.type !== "user" && entry.type !== "assistant") return;
+			if (entry.isSidechain) return;
+			const message = entry.message as { content?: unknown } | undefined;
+			// A PR the session opened is its output even when the reply only says
+			// "#232": lift the url `gh pr create` printed into Claude's side of the
+			// conversation, where the brief looks for PRs.
+			if (Array.isArray(message?.content)) {
+				for (const block of message.content) {
+					if (
+						block?.type === "tool_use" &&
+						block.name === "Bash" &&
+						opensPr(String(block.input?.command ?? ""))
+					)
+						prCreates.add(block.id);
+					else if (
+						block?.type === "tool_use" &&
+						block.name === "Artifact" &&
+						(block.input?.action ?? "publish") === "publish" &&
+						!block.input?.asset
+					)
+						publishes.set(block.id, {
+							title: String(
+								block.input?.title ??
+									basename(
+										String(block.input?.file_path ?? "Artifact"),
+										".html",
+									),
+							),
+							description: String(block.input?.description ?? ""),
 						});
-				} else if (
-					block?.type === "tool_result" &&
-					prCreates.has(block.tool_use_id)
-				) {
-					const urls = messageText(block.content).match(PR_URL);
-					if (urls)
-						messages.push({
-							role: "assistant",
-							text: urls.join("\n"),
-							at: typeof entry.timestamp === "string" ? entry.timestamp : null,
-							opened: true,
-						});
+					else if (
+						block?.type === "tool_result" &&
+						publishes.has(block.tool_use_id)
+					) {
+						// "Published <file> at <url>" - the reply often never repeats the
+						// link, and the brief only reads Claude's side for it.
+						const url = messageText(block.content).match(ARTIFACT_URL)?.[0];
+						const publish = publishes.get(block.tool_use_id);
+						if (url && publish)
+							messages.push({
+								role: "assistant",
+								// A table row: the brief's hover reads the cells after the
+								// link as what it is.
+								text: `| [${publish.title}](${url}) | ${publish.description} |`,
+								at:
+									typeof entry.timestamp === "string" ? entry.timestamp : null,
+							});
+					} else if (
+						block?.type === "tool_result" &&
+						prCreates.has(block.tool_use_id)
+					) {
+						const urls = messageText(block.content).match(PR_URL);
+						if (urls)
+							messages.push({
+								role: "assistant",
+								text: urls.join("\n"),
+								at:
+									typeof entry.timestamp === "string" ? entry.timestamp : null,
+								opened: true,
+							});
+					}
 				}
 			}
-		}
-		const raw = messageText(message?.content).trim();
-		if (!raw) continue;
-		const shell =
-			withShells && entry.type === "user" && !entry.isMeta
-				? parseShell(raw)
-				: null;
-		if (shell) {
-			pushShell(
-				messages,
-				shell,
-				typeof entry.timestamp === "string" ? entry.timestamp : null,
-			);
-			continue;
-		}
-		if (entry.type === "user" && !isTypedByUser(entry, raw)) continue;
-		const text = entry.type === "user" ? spokenText(raw) : raw;
-		if (!text) continue;
-		const images =
-			withImages && entry.type === "user" && Array.isArray(message?.content)
-				? base64Images(message.content)
-				: [];
-		messages.push({
-			...(images.length ? { images } : {}),
-			role: entry.type as "user" | "assistant",
-			text: clip(text, maxChars),
-			at: typeof entry.timestamp === "string" ? entry.timestamp : null,
-		});
-	}
-	// Keep the tail: the end of a conversation is what you resume into.
-	return messages.slice(-maxMessages);
+			const raw = messageText(message?.content).trim();
+			if (!raw) return;
+			const shell =
+				withShells && entry.type === "user" && !entry.isMeta
+					? parseShell(raw)
+					: null;
+			if (shell) {
+				pushShell(
+					messages,
+					shell,
+					typeof entry.timestamp === "string" ? entry.timestamp : null,
+				);
+				return;
+			}
+			if (entry.type === "user" && !isTypedByUser(entry, raw)) return;
+			const text = entry.type === "user" ? spokenText(raw) : raw;
+			if (!text) return;
+			const images =
+				withImages && entry.type === "user" && Array.isArray(message?.content)
+					? base64Images(message.content)
+					: [];
+			messages.push({
+				...(images.length ? { images } : {}),
+				role: entry.type as "user" | "assistant",
+				text: clip(text, maxChars),
+				at: typeof entry.timestamp === "string" ? entry.timestamp : null,
+			});
+		},
+	};
 }
 
 const ANY_URL = /https:\/\/[^\s)>\]"'`|]+/g;
@@ -896,15 +927,18 @@ export function transcriptLinks(jsonl: string): TranscriptMessage[] {
 		jsonl,
 		Number.POSITIVE_INFINITY,
 		Number.POSITIVE_INFINITY,
-	).flatMap((message) => {
-		const lines = message.text
-			.split("\n")
-			.flatMap((line) =>
-				line.length > 600 ? (line.match(ANY_URL) ?? []) : [line],
-			)
-			.filter((line) => line.includes("https://"));
-		return lines.length ? [{ ...message, text: lines.join("\n") }] : [];
-	});
+	).flatMap((message) => linkOf(message) ?? []);
+}
+
+/** A message cut down to its lines that quote a URL; null when none does. */
+function linkOf(message: TranscriptMessage): TranscriptMessage | null {
+	const lines = message.text
+		.split("\n")
+		.flatMap((line) =>
+			line.length > 600 ? (line.match(ANY_URL) ?? []) : [line],
+		)
+		.filter((line) => line.includes("https://"));
+	return lines.length ? { ...message, text: lines.join("\n") } : null;
 }
 
 /** Reject anything that isn't a bare directory / file name from the renderer. */
@@ -1035,24 +1069,277 @@ export async function transcriptOf(
 
 type ParsedTranscript = Awaited<ReturnType<typeof readTranscript>>;
 
+/** What readTranscript keeps of the conversation: its tail, each clipped. */
+const TAIL_MESSAGES = 500;
+const MESSAGE_CHARS = 6000;
+/** How much of a transcript one read takes in at a time. */
+const READ_CHUNK = 8 * 1024 * 1024;
 /**
- * The last parse of each transcript, kept while its file's size and mtime
- * stay the same. The board polls every session's transcript once a minute,
- * and one parse of a 10MB file blocks the main process for 60-160ms: a
- * parked session's file never changes, so its poll is now a stat. Bounded,
- * least recently read dropped first.
+ * Bytes at the start and just before the read point, compared on each read
+ * to spot a rewritten file (Claude Code only appends to a transcript).
  */
-const parsedTranscripts = new Map<
-	string,
-	{
-		size: number;
-		mtimeMs: number;
-		result: ParsedTranscript;
-		/** Where its last turn ran, so `local` is checked again on every hit. */
-		lastRan: string | null;
+const HEAD_BYTES = 4096;
+const SEAM_BYTES = 64;
+
+/**
+ * A transcript read so far: how far, and what each reader made of the lines
+ * up to there - never the file's text. A live session's file grows every
+ * turn and the board polls it each minute, so a poll reads only the bytes
+ * written since its last one. Reparsing the whole file each time took 1.7s
+ * of the main process and ~1GB for a 300MB transcript.
+ */
+type TranscriptState = {
+	ino: number;
+	mtimeMs: number;
+	/** Bytes read, an unfinished last line included. */
+	size: number;
+	/** The file's first HEAD_BYTES and the SEAM_BYTES before `size`, as read. */
+	head: Buffer;
+	seam: Buffer;
+	/** A last line not finished yet: the next read completes it. */
+	tail: Buffer;
+	/**
+	 * The file itself. Usually <cwd's slug>/<id>.jsonl, but a remote
+	 * session's copy sits under the host's paths, so the chat view reads
+	 * this rather than rebuilding it from cwd.
+	 */
+	path: string;
+	readers: LineReader[];
+	digest: ReturnType<typeof digestReader>;
+	tailIn: ReturnType<typeof messagesReader>;
+	linksIn: ReturnType<typeof messagesReader>;
+	loop: ReturnType<typeof loopReader>;
+	rules: ReturnType<typeof ruleFiringsReader>;
+	usage: ReturnType<typeof usageReader>;
+	credential: ReturnType<typeof credentialReader>;
+	drafts: ReturnType<typeof slackDraftsReader>;
+	pending: ReturnType<typeof pendingPromptReader>;
+	messages: TranscriptMessage[];
+	links: TranscriptMessage[];
+	linkChars: number;
+	/** Where its last turn ran, so `local` is checked again on every read. */
+	lastRan: string | null;
+	result: Omit<ParsedTranscript, "local" | "loop"> | null;
+};
+
+function freshState(
+	ino: number,
+	path: string,
+	withImages: boolean,
+): TranscriptState {
+	const state: TranscriptState = {
+		ino,
+		mtimeMs: 0,
+		size: 0,
+		head: Buffer.alloc(0),
+		seam: Buffer.alloc(0),
+		tail: Buffer.alloc(0),
+		path,
+		readers: [],
+		digest: digestReader(false),
+		tailIn: messagesReader(MESSAGE_CHARS, withImages, false),
+		// Unclipped and without images, as transcriptLinks reads them.
+		linksIn: messagesReader(Number.POSITIVE_INFINITY, false, false),
+		loop: loopReader(),
+		rules: ruleFiringsReader(),
+		usage: usageReader(),
+		credential: credentialReader(),
+		drafts: slackDraftsReader(),
+		pending: pendingPromptReader(),
+		messages: [],
+		links: [],
+		linkChars: 0,
+		lastRan: null,
+		result: null,
+	};
+	const lastRan: LineReader = {
+		// lastCwd, forwards.
+		line(_line, parse) {
+			const cwd = (parse() as { cwd?: unknown } | null | undefined)?.cwd;
+			if (typeof cwd === "string" && cwd) state.lastRan = cwd;
+		},
+	};
+	state.readers = [
+		state.digest,
+		state.tailIn,
+		state.linksIn,
+		lastRan,
+		state.loop,
+		state.rules,
+		state.usage,
+		state.credential,
+		state.drafts,
+		state.pending,
+	];
+	return state;
+}
+
+/** Feed whole lines to every reader, and move the messages they made out. */
+function feedState(state: TranscriptState, text: string): void {
+	for (const line of text.split("\n")) feedLine(line, state.readers);
+	for (const message of state.tailIn.messages.splice(0))
+		state.messages.push(message);
+	if (state.messages.length > 2 * TAIL_MESSAGES)
+		state.messages.splice(0, state.messages.length - TAIL_MESSAGES);
+	for (const message of state.linksIn.messages.splice(0)) {
+		const link = linkOf(message);
+		if (!link) continue;
+		state.links.push(link);
+		state.linkChars += link.text.length;
 	}
->();
+}
+
+/** Read what was written since `state` was, line by line, in chunks. */
+async function readOn(
+	file: Awaited<ReturnType<typeof open>>,
+	state: TranscriptState,
+	size: number,
+): Promise<void> {
+	while (state.size < size) {
+		const chunk = Buffer.allocUnsafe(Math.min(READ_CHUNK, size - state.size));
+		const { bytesRead } = await file.read(chunk, 0, chunk.length, state.size);
+		if (!bytesRead) break;
+		state.size += bytesRead;
+		const bytes = state.tail.length
+			? Buffer.concat([state.tail, chunk.subarray(0, bytesRead)])
+			: chunk.subarray(0, bytesRead);
+		// A newline byte never sits inside a multi-byte character.
+		const end = bytes.lastIndexOf(0x0a);
+		state.tail = Buffer.from(bytes.subarray(end + 1));
+		if (end >= 0) feedState(state, bytes.toString("utf8", 0, end));
+	}
+	// A last line written without its newline yet counts once it's whole JSON,
+	// as a read of the whole file counts it.
+	if (state.tail.length) {
+		const line = state.tail.toString("utf8");
+		try {
+			JSON.parse(line);
+			state.tail = Buffer.alloc(0);
+			feedState(state, line);
+		} catch {}
+	}
+	const from = Math.max(0, state.size - SEAM_BYTES);
+	state.seam = Buffer.alloc(state.size - from);
+	await file.read(state.seam, 0, state.seam.length, from);
+	if (state.head.length < HEAD_BYTES) {
+		state.head = Buffer.alloc(Math.min(HEAD_BYTES, state.size));
+		await file.read(state.head, 0, state.head.length, 0);
+	}
+}
+
+/** `state` brought up to the file on disk, or read afresh when it was rewritten. */
+async function readState(
+	path: string,
+	withImages: boolean,
+	state: TranscriptState | undefined,
+): Promise<TranscriptState> {
+	const file = await open(path, "r");
+	try {
+		const { ino, size, mtimeMs } = await file.stat();
+		if (
+			state &&
+			state.ino === ino &&
+			state.size === size &&
+			state.mtimeMs === mtimeMs
+		)
+			return state;
+		let kept = Boolean(
+			state &&
+				state.ino === ino &&
+				size >= state.size &&
+				mtimeMs >= state.mtimeMs,
+		);
+		if (state && kept) {
+			const head = Buffer.alloc(state.head.length);
+			await file.read(head, 0, head.length, 0);
+			const seam = Buffer.alloc(state.seam.length);
+			await file.read(seam, 0, seam.length, state.size - seam.length);
+			kept = head.equals(state.head) && seam.equals(state.seam);
+		}
+		const next =
+			state && kept
+				? state
+				: freshState(ino, await realpath(path).catch(() => path), withImages);
+		await readOn(file, next, size);
+		next.mtimeMs = mtimeMs;
+		next.result = null;
+		return next;
+	} finally {
+		await file.close();
+	}
+}
+
+function resultOf(
+	state: TranscriptState,
+): Omit<ParsedTranscript, "local" | "loop"> {
+	const { cwd, aiTitle, prompt } = state.digest.result();
+	const tail = state.tail.length ? state.tail.toString("utf8") : undefined;
+	return {
+		path: state.path,
+		messages: state.messages.slice(-TAIL_MESSAGES),
+		links: state.links.slice(),
+		cwd,
+		title: aiTitle,
+		prompt,
+		rules: state.rules.result(),
+		usage: state.usage.result(tail),
+		credential: state.credential.result(),
+		slackDrafts: draftPlaces(state.drafts.calls),
+		openPrompt: state.pending.result() !== null,
+	};
+}
+
+/** Characters a kept read holds in its messages and links, roughly its size. */
+function heldChars(state: TranscriptState): number {
+	let chars = state.linkChars;
+	for (const message of state.messages) {
+		chars += message.text.length;
+		for (const image of message.images ?? []) chars += image.length;
+	}
+	return chars;
+}
+
+/**
+ * The reads kept, least recently used first: a parked session's poll is a
+ * stat, a live one's reads only its new lines. Bounded by count and by the
+ * text they hold, so a few huge sessions can't keep hundreds of MB.
+ */
+const parsedTranscripts = new Map<string, TranscriptState>();
 const PARSED_TRANSCRIPTS_MAX = 64;
+const PARSED_TRANSCRIPTS_CHARS = 32_000_000;
+/** The read under way per file: two polls at once mustn't feed one state twice. */
+const transcriptReads = new Map<string, Promise<TranscriptState>>();
+
+async function keptState(
+	key: string,
+	path: string,
+	withImages: boolean,
+): Promise<TranscriptState> {
+	const kept = parsedTranscripts.get(key);
+	let state: TranscriptState;
+	try {
+		state = await readState(path, withImages, kept);
+	} catch (error) {
+		parsedTranscripts.delete(key);
+		throw error;
+	}
+	// Re-insert so the map's order stays least-recently-used first.
+	parsedTranscripts.delete(key);
+	parsedTranscripts.set(key, state);
+	let chars = 0;
+	for (const each of parsedTranscripts.values()) chars += heldChars(each);
+	for (const [oldest, each] of parsedTranscripts) {
+		if (
+			oldest === key ||
+			(parsedTranscripts.size <= PARSED_TRANSCRIPTS_MAX &&
+				chars <= PARSED_TRANSCRIPTS_CHARS)
+		)
+			break;
+		chars -= heldChars(each);
+		parsedTranscripts.delete(oldest);
+	}
+	return state;
+}
 
 export async function readTranscript({
 	project,
@@ -1103,58 +1390,32 @@ export async function readTranscript({
 	const dir = project ?? (await projectOf(sessionId, root));
 	if (!dir) throw new Error("No transcript on this machine for that session");
 	const file = join(root, dir, `${sessionId}.jsonl`);
-	const { size, mtimeMs } = await stat(file);
 	const key = `${file}\0${withImages}`;
-	const hit = parsedTranscripts.get(key);
-	if (hit && hit.size === size && hit.mtimeMs === mtimeMs) {
-		// Re-insert so the map's order stays least-recently-used first.
-		parsedTranscripts.delete(key);
-		parsedTranscripts.set(key, hit);
-		return {
-			...hit.result,
-			local: ranHere(hit.result.cwd) || ranHere(hit.lastRan),
-		};
+	const before = transcriptReads.get(key);
+	const read = (async () => {
+		await before?.catch(() => {});
+		return keptState(key, file, withImages);
+	})();
+	transcriptReads.set(key, read);
+	let state: TranscriptState;
+	try {
+		state = await read;
+	} finally {
+		if (transcriptReads.get(key) === read) transcriptReads.delete(key);
 	}
-	const jsonl = await readFile(file, "utf-8");
-	const { cwd, aiTitle, prompt } = summarizeTranscript(jsonl);
-	const lastRan = lastCwd(jsonl);
-	const result = {
-		/**
-		 * The file itself. Usually <cwd's slug>/<id>.jsonl, but a remote
-		 * session's copy sits under the host's paths, so the chat view reads
-		 * this rather than rebuilding it from cwd.
-		 */
-		path: await realpath(file).catch(() => file),
-		messages: parseTranscript(jsonl, 500, 6000, withImages),
-		links: transcriptLinks(jsonl),
-		cwd,
+	state.result ??= resultOf(state);
+	const { cwd } = state.result;
+	return {
+		...state.result,
+		loop: state.loop.result(Date.now()),
 		// Where it started, or where its last turn ran: a session moved here
 		// with Run on this computer keeps the host's cwd on its opening rows,
 		// and judged by those alone, Resume sent it back to the host, where
 		// Claude picked up the host's copy without anything it had done here
 		// since. The start still counts, so a session that ended in a folder
 		// since deleted (a temp dir) isn't read as the host's.
-		local: ranHere(cwd) || ranHere(lastRan),
-		title: aiTitle,
-		prompt,
-		loop: activeLoop(jsonl),
-		rules: ruleFirings(jsonl),
-		usage: transcriptUsage(jsonl),
-		credential: transcriptCredential(jsonl),
-		slackDrafts: slackDrafts(jsonl),
-		openPrompt: pendingPrompt(jsonl) !== null,
+		local: ranHere(cwd) || ranHere(state.lastRan),
 	};
-	parsedTranscripts.set(key, {
-		size,
-		mtimeMs,
-		result,
-		lastRan,
-	});
-	if (parsedTranscripts.size > PARSED_TRANSCRIPTS_MAX) {
-		const oldest = parsedTranscripts.keys().next().value;
-		if (oldest !== undefined) parsedTranscripts.delete(oldest);
-	}
-	return result;
 }
 
 /**
@@ -1172,9 +1433,13 @@ export function ranHere(cwd: string | null): boolean {
  * Those are the places you wait on an answer once you send the draft.
  */
 export function slackDrafts(jsonl: string): string[] {
+	return draftPlaces(slackDraftCalls(jsonl));
+}
+
+function draftPlaces(calls: SlackDraftCall[]): string[] {
 	return [
 		...new Set(
-			slackDraftCalls(jsonl).map(
+			calls.map(
 				({ channel, thread, at }) =>
 					`${channel}:${thread ?? (at / 1000).toFixed(6)}`,
 			),
@@ -1182,48 +1447,57 @@ export function slackDrafts(jsonl: string): string[] {
 	];
 }
 
-/** Each Slack draft the session wrote: where, when (ms) and what it said. */
-export function slackDraftCalls(jsonl: string): {
+type SlackDraftCall = {
 	channel: string;
 	thread: string | null;
 	at: number;
 	text: string;
-}[] {
-	const out: ReturnType<typeof slackDraftCalls> = [];
-	for (const line of jsonl.split("\n")) {
-		if (!line.includes("slack_send_message_draft")) continue;
-		let entry: {
-			isSidechain?: boolean;
-			timestamp?: string;
-			message?: { content?: unknown };
-		};
-		try {
-			entry = JSON.parse(line);
-		} catch {
-			continue;
-		}
-		const content = entry.message?.content;
-		if (entry.isSidechain || !Array.isArray(content)) continue;
-		for (const block of content) {
-			if (
-				block?.type !== "tool_use" ||
-				!String(block.name).endsWith("slack_send_message_draft")
-			)
-				continue;
-			const channel = String(block.input?.channel_id ?? "");
-			const thread = String(block.input?.thread_ts ?? "");
-			const at = Date.parse(entry.timestamp ?? "");
-			const inThread = /^\d+\.\d+$/.test(thread);
-			if (/^[A-Z0-9]+$/.test(channel) && (inThread || Number.isFinite(at)))
-				out.push({
-					channel,
-					thread: inThread ? thread : null,
-					at,
-					text: String(block.input?.message ?? ""),
-				});
-		}
-	}
-	return out;
+};
+
+/** Each Slack draft the session wrote: where, when (ms) and what it said. */
+export function slackDraftCalls(jsonl: string): SlackDraftCall[] {
+	const reader = slackDraftsReader();
+	feedLines(jsonl, reader);
+	return reader.calls;
+}
+
+/** slackDraftCalls, a line at a time - see LineReader. */
+function slackDraftsReader(): LineReader & { calls: SlackDraftCall[] } {
+	const calls: SlackDraftCall[] = [];
+	return {
+		calls,
+		line(line, parse) {
+			if (!line.includes("slack_send_message_draft")) return;
+			const entry = parse() as
+				| {
+						isSidechain?: boolean;
+						timestamp?: string;
+						message?: { content?: unknown };
+				  }
+				| undefined;
+			if (entry === undefined) return;
+			const content = entry.message?.content;
+			if (entry.isSidechain || !Array.isArray(content)) return;
+			for (const block of content) {
+				if (
+					block?.type !== "tool_use" ||
+					!String(block.name).endsWith("slack_send_message_draft")
+				)
+					continue;
+				const channel = String(block.input?.channel_id ?? "");
+				const thread = String(block.input?.thread_ts ?? "");
+				const at = Date.parse(entry.timestamp ?? "");
+				const inThread = /^\d+\.\d+$/.test(thread);
+				if (/^[A-Z0-9]+$/.test(channel) && (inThread || Number.isFinite(at)))
+					calls.push({
+						channel,
+						thread: inThread ? thread : null,
+						at,
+						text: String(block.input?.message ?? ""),
+					});
+			}
+		},
+	};
 }
 
 /** A question or plan Claude waits on: a menu only its terminal draws. */
@@ -1239,43 +1513,51 @@ export type PendingPrompt = {
  * chat reads it (asking() in ChatView).
  */
 export function pendingPrompt(jsonl: string): PendingPrompt | null {
+	const reader = pendingPromptReader();
+	feedLines(jsonl, reader);
+	return reader.result();
+}
+
+/** pendingPrompt, a line at a time - see LineReader. */
+function pendingPromptReader(): LineReader & {
+	result(): PendingPrompt | null;
+} {
 	let last: PendingPrompt | { id: string; name: string } | null = null;
 	const answered = new Set<string>();
-	for (const line of jsonl.split("\n")) {
-		if (!line.includes("tool_")) continue;
-		let entry: {
-			isSidechain?: boolean;
-			message?: { content?: unknown };
-		};
-		try {
-			entry = JSON.parse(line);
-		} catch {
-			continue;
-		}
-		if (entry.isSidechain || !Array.isArray(entry.message?.content)) continue;
-		for (const block of entry.message.content as {
-			type?: string;
-			id?: string;
-			name?: string;
-			input?: unknown;
-			tool_use_id?: string;
-		}[]) {
-			if (block?.type === "tool_use" && block.id && block.name)
-				last =
-					(block.name === "AskUserQuestion" || block.name === "ExitPlanMode") &&
-					block.input &&
-					typeof block.input === "object"
-						? {
-								id: block.id,
-								name: block.name,
-								input: block.input as Record<string, unknown>,
-							}
-						: { id: block.id, name: block.name };
-			else if (block?.type === "tool_result" && block.tool_use_id)
-				answered.add(block.tool_use_id);
-		}
-	}
-	return last && "input" in last && !answered.has(last.id) ? last : null;
+	return {
+		line(line, parse) {
+			if (!line.includes("tool_")) return;
+			const entry = parse() as
+				| { isSidechain?: boolean; message?: { content?: unknown } }
+				| undefined;
+			if (entry === undefined) return;
+			if (entry.isSidechain || !Array.isArray(entry.message?.content)) return;
+			for (const block of entry.message.content as {
+				type?: string;
+				id?: string;
+				name?: string;
+				input?: unknown;
+				tool_use_id?: string;
+			}[]) {
+				if (block?.type === "tool_use" && block.id && block.name)
+					last =
+						(block.name === "AskUserQuestion" ||
+							block.name === "ExitPlanMode") &&
+						block.input &&
+						typeof block.input === "object"
+							? {
+									id: block.id,
+									name: block.name,
+									input: block.input as Record<string, unknown>,
+								}
+							: { id: block.id, name: block.name };
+				else if (block?.type === "tool_result" && block.tool_use_id)
+					answered.add(block.tool_use_id);
+			}
+		},
+		result: () =>
+			last && "input" in last && !answered.has(last.id) ? last : null,
+	};
 }
 
 /** One tool call of the turn under way, in words. */
@@ -1528,63 +1810,84 @@ function coversPr(rule: string, pr: string): boolean {
  * latest PR so far - a later `git push` prints only the branch.
  */
 export function ruleFirings(jsonl: string): RuleFiring[] {
-	const commands = new Map<string, string>();
-	const outputs = new Map<string, string>();
+	const reader = ruleFiringsReader();
+	feedLines(jsonl, reader);
+	return reader.result();
+}
+
+/**
+ * ruleFirings, a line at a time - see LineReader. It keeps only what the
+ * answer reads: which Bash calls change a PR, and the PR urls in outputs.
+ */
+function ruleFiringsReader(): LineReader & { result(): RuleFiring[] } {
+	const prActions = new Set<string>();
+	const outputPrs = new Map<string, string[]>();
 	const fired: { rules: string[]; toolUseId: string }[] = [];
-	for (const line of jsonl.split("\n")) {
-		if (
-			!line.includes('"tool_use') &&
-			!line.includes(PR_RULES_HEADER.slice(0, 40))
-		)
-			continue;
-		let entry: {
-			isSidechain?: boolean;
-			message?: { content?: unknown };
-			attachment?: { type?: string; content?: unknown; toolUseID?: string };
-		};
-		try {
-			entry = JSON.parse(line);
-		} catch {
-			continue;
-		}
-		if (entry.isSidechain) continue;
-		const hook = entry.attachment;
-		if (hook?.type === "hook_additional_context" && hook.toolUseID) {
-			const text = ([] as unknown[]).concat(hook.content).join("\n");
-			if (!text.includes(PR_RULES_HEADER)) continue;
-			const rules = text
-				.split(PR_RULES_HEADER)[1]
-				.split("\n")
-				.filter((l) => l.startsWith("- "))
-				.map((l) => l.slice(2).trim());
-			fired.push({ rules, toolUseId: hook.toolUseID });
-			continue;
-		}
-		const content = entry.message?.content;
-		if (!Array.isArray(content)) continue;
-		for (const block of content) {
-			if (block?.type === "tool_use" && block.name === "Bash")
-				commands.set(block.id, String(block.input?.command ?? ""));
-			else if (block?.type === "tool_result")
-				outputs.set(block.tool_use_id, messageText(block.content));
-		}
-	}
-	const byRule = new Map<string, string[]>();
-	let lastPr: string | null = null;
-	for (const { rules, toolUseId } of fired) {
-		if (!PR_ACTION.test(commands.get(toolUseId) ?? "")) continue;
-		const prs = (outputs.get(toolUseId) ?? "").match(PR_URL) ?? [];
-		if (prs.length) lastPr = prs[prs.length - 1] ?? null;
-		const on = prs.length ? prs : lastPr ? [lastPr] : [];
-		if (!on.length) continue;
-		for (const rule of rules) {
-			const list = byRule.get(rule) ?? [];
-			for (const pr of on)
-				if (coversPr(rule, pr) && !list.includes(pr)) list.push(pr);
-			if (list.length) byRule.set(rule, list);
-		}
-	}
-	return [...byRule].map(([rule, on]) => ({ rule, on }));
+	return {
+		line(line, parse) {
+			if (
+				!line.includes('"tool_use') &&
+				!line.includes(PR_RULES_HEADER.slice(0, 40))
+			)
+				return;
+			const entry = parse() as
+				| {
+						isSidechain?: boolean;
+						message?: { content?: unknown };
+						attachment?: {
+							type?: string;
+							content?: unknown;
+							toolUseID?: string;
+						};
+				  }
+				| undefined;
+			if (entry === undefined) return;
+			if (entry.isSidechain) return;
+			const hook = entry.attachment;
+			if (hook?.type === "hook_additional_context" && hook.toolUseID) {
+				const text = ([] as unknown[]).concat(hook.content).join("\n");
+				if (!text.includes(PR_RULES_HEADER)) return;
+				const rules = text
+					.split(PR_RULES_HEADER)[1]
+					.split("\n")
+					.filter((l) => l.startsWith("- "))
+					.map((l) => l.slice(2).trim());
+				fired.push({ rules, toolUseId: hook.toolUseID });
+				return;
+			}
+			const content = entry.message?.content;
+			if (!Array.isArray(content)) return;
+			for (const block of content) {
+				if (block?.type === "tool_use" && block.name === "Bash") {
+					if (PR_ACTION.test(String(block.input?.command ?? "")))
+						prActions.add(block.id);
+					else prActions.delete(block.id);
+				} else if (block?.type === "tool_result") {
+					const prs = messageText(block.content).match(PR_URL);
+					if (prs) outputPrs.set(block.tool_use_id, prs);
+					else outputPrs.delete(block.tool_use_id);
+				}
+			}
+		},
+		result() {
+			const byRule = new Map<string, string[]>();
+			let lastPr: string | null = null;
+			for (const { rules, toolUseId } of fired) {
+				if (!prActions.has(toolUseId)) continue;
+				const prs = outputPrs.get(toolUseId) ?? [];
+				if (prs.length) lastPr = prs[prs.length - 1] ?? null;
+				const on = prs.length ? prs : lastPr ? [lastPr] : [];
+				if (!on.length) continue;
+				for (const rule of rules) {
+					const list = byRule.get(rule) ?? [];
+					for (const pr of on)
+						if (coversPr(rule, pr) && !list.includes(pr)) list.push(pr);
+					if (list.length) byRule.set(rule, list);
+				}
+			}
+			return [...byRule].map(([rule, on]) => ({ rule, on }));
+		},
+	};
 }
 
 export interface ActiveLoop {
@@ -1611,45 +1914,70 @@ export function activeLoop(
 	jsonl: string,
 	now: number = Date.now(),
 ): ActiveLoop | null {
-	const crons: ActiveLoop[] = [];
+	const reader = loopReader();
+	feedLines(jsonl, reader);
+	return reader.result(now);
+}
+
+/**
+ * activeLoop, a line at a time - see LineReader. Whether a cron has expired
+ * depends on the time asked, so it keeps the schedule calls in order and
+ * replays them against `now`.
+ */
+function loopReader(): LineReader & { result(now: number): ActiveLoop | null } {
+	const cronCalls: (
+		| { at: number; recurring: boolean; loop: ActiveLoop }
+		| "delete"
+	)[] = [];
 	let wakeup: { at: number; loop: ActiveLoop } | null = null;
-	for (const line of jsonl.split("\n")) {
-		if (!line.includes('"tool_use"')) continue;
-		let entry: { timestamp?: unknown; message?: { content?: unknown } };
-		try {
-			entry = JSON.parse(line);
-		} catch {
-			continue;
-		}
-		const at = Date.parse(String(entry.timestamp));
-		const content = entry.message?.content;
-		if (!Array.isArray(content) || Number.isNaN(at)) continue;
-		for (const block of content) {
-			if (block?.type !== "tool_use") continue;
-			const input = (block.input ?? {}) as Record<string, unknown>;
-			const prompt = typeof input.prompt === "string" ? input.prompt : null;
-			if (block.name === "CronCreate") {
-				if (input.recurring === false || now - at > CRON_LIFETIME_MS) continue;
-				crons.push({ kind: "cron", schedule: String(input.cron), prompt });
-			} else if (block.name === "CronDelete") {
-				crons.shift();
-			} else if (block.name === "ScheduleWakeup") {
-				const fireAt = at + Number(input.delaySeconds ?? 0) * 1000;
-				wakeup = input.stop
-					? null
-					: {
-							at: fireAt,
-							loop: {
-								kind: "wakeup",
-								schedule: new Date(fireAt).toISOString(),
-								prompt,
-							},
-						};
+	return {
+		line(line, parse) {
+			if (!line.includes('"tool_use"')) return;
+			const entry = parse() as
+				| { timestamp?: unknown; message?: { content?: unknown } }
+				| undefined;
+			if (entry === undefined) return;
+			const at = Date.parse(String(entry.timestamp));
+			const content = entry.message?.content;
+			if (!Array.isArray(content) || Number.isNaN(at)) return;
+			for (const block of content) {
+				if (block?.type !== "tool_use") continue;
+				const input = (block.input ?? {}) as Record<string, unknown>;
+				const prompt = typeof input.prompt === "string" ? input.prompt : null;
+				if (block.name === "CronCreate") {
+					cronCalls.push({
+						at,
+						recurring: input.recurring !== false,
+						loop: { kind: "cron", schedule: String(input.cron), prompt },
+					});
+				} else if (block.name === "CronDelete") {
+					cronCalls.push("delete");
+				} else if (block.name === "ScheduleWakeup") {
+					const fireAt = at + Number(input.delaySeconds ?? 0) * 1000;
+					wakeup = input.stop
+						? null
+						: {
+								at: fireAt,
+								loop: {
+									kind: "wakeup",
+									schedule: new Date(fireAt).toISOString(),
+									prompt,
+								},
+							};
+				}
 			}
-		}
-	}
-	if (crons.length) return crons[crons.length - 1] as ActiveLoop;
-	return wakeup && now < wakeup.at + WAKEUP_GRACE_MS ? wakeup.loop : null;
+		},
+		result(now) {
+			const crons: ActiveLoop[] = [];
+			for (const call of cronCalls) {
+				if (call === "delete") crons.shift();
+				else if (call.recurring && now - call.at <= CRON_LIFETIME_MS)
+					crons.push(call.loop);
+			}
+			if (crons.length) return crons[crons.length - 1] as ActiveLoop;
+			return wakeup && now < wakeup.at + WAKEUP_GRACE_MS ? wakeup.loop : null;
+		},
+	};
 }
 
 const loopCache = new Map<
