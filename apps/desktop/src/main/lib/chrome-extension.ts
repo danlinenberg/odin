@@ -26,7 +26,7 @@ export function chromeExtensionFiles(
 	const manifest = {
 		manifest_version: 3,
 		name: "Odin",
-		version: "1.0.1",
+		version: "1.0.2",
 		description:
 			"Shows the Odin sessions that worked on the page you have open.",
 		permissions: ["tabs", "storage"],
@@ -45,12 +45,26 @@ async function sessionsFor(url) {
 	if (!res.ok) throw new Error("Odin answered " + res.status);
 	return (await res.json()).sessions;
 }
+// Written to in the last few minutes: the session is still working.
+function isLive(session) {
+	return Date.now() - session.updatedAt < 5 * 60000;
+}
 `;
 	const background = `${shared}
 async function badge(tabId, url) {
 	try {
 		const sessions = await sessionsFor(url);
+		const live = sessions.filter(isLive).length;
 		await chrome.action.setBadgeText({ tabId, text: sessions.length ? String(sessions.length) : "" });
+		// Green while a session is working on this page, purple once they're all done.
+		await chrome.action.setBadgeBackgroundColor({ tabId, color: live ? "#16a34a" : "#6d5dfc" });
+		await chrome.action.setTitle({
+			tabId,
+			title: !sessions.length
+				? "Odin sessions"
+				: sessions.length + " Odin session" + (sessions.length > 1 ? "s" : "") +
+					" on this page" + (live ? ", " + live + " working now" : ""),
+		});
 	} catch {
 		await chrome.action.setBadgeText({ tabId, text: "" });
 	}
@@ -62,7 +76,6 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
 	const tab = await chrome.tabs.get(tabId);
 	badge(tabId, tab.url);
 });
-chrome.action.setBadgeBackgroundColor({ color: "#6d5dfc" });
 `;
 	const popupHtml = `<!doctype html>
 <html><head><meta charset="utf-8"><style>
@@ -71,6 +84,7 @@ h1 { font-size: 13px; margin: 0 0 8px; }
 a { display: block; padding: 6px 8px; border-radius: 6px; color: inherit; text-decoration: none; }
 a:hover { background: #f0eefe; }
 .when { color: #777; font-size: 11px; }
+.live { color: #16a34a; font-weight: 600; }
 .empty { color: #777; }
 input { width: 70px; }
 </style></head><body>
@@ -99,7 +113,8 @@ async function show() {
 			link.textContent = session.title;
 			const when = document.createElement("div");
 			when.className = "when";
-			when.textContent = ago(session.updatedAt);
+			when.textContent = isLive(session) ? "Working now" : ago(session.updatedAt);
+			if (isLive(session)) when.className = "when live";
 			link.append(when);
 			// The Odin that listed it opens it (a dev build has no odin:// link).
 			link.onclick = async () => {
