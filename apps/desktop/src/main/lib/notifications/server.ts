@@ -323,6 +323,10 @@ app.get("/sessions/for-url", async (req, res) => {
 	if (typeof url !== "string" || !/^https?:\/\//.test(url)) {
 		return res.status(400).send("Need url: the page's http(s) address.\n");
 	}
+	// No ids in the URL (a home page, a search) means nothing to match, and
+	// the keyword fallback would list every session that mentioned a link.
+	const { idsInUrl } = await import("../claude-sessions/asset-ids");
+	if (idsInUrl(url).length === 0) return res.json({ sessions: [] });
 	const { historySearch } = await import(
 		"lib/trpc/routers/terminal/history-search"
 	);
