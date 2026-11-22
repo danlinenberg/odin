@@ -48,6 +48,7 @@ describe("idsInToolInput", () => {
 				nodeId: "2781:25404",
 				campaign_id: 45,
 				limit: 50,
+				line_number: 12,
 				width: 1400,
 				note: `see ${DESIGN}`,
 			},
@@ -58,7 +59,51 @@ describe("idsInToolInput", () => {
 		expect(ids.has("45")).toBe(true);
 		expect(ids.has("50")).toBe(false);
 		expect(ids.has("1400")).toBe(false);
+		expect(ids.has("12")).toBe(false);
 	});
+});
+
+describe("every connector's pages", () => {
+	const NOTION_ID = "1a2b3c4d5e6f40718293a4b5c6d7e8f9";
+	const cases: [string, string, Record<string, unknown>][] = [
+		[
+			"chat thread",
+			"https://acme.slack.example.com/archives/C0123ABC/p1795000436449329",
+			{ channel_id: "C0123ABC", message_ts: "1795000436.449329" },
+		],
+		[
+			"issue",
+			"https://acme.atlassian.example.com/browse/ENG-123",
+			{ issueIdOrKey: "ENG-123" },
+		],
+		[
+			"tracker issue with a title slug",
+			"https://tracker.example.com/acme/issue/ENG-123/fix-the-login",
+			{ id: "ENG-123" },
+		],
+		[
+			"docs page",
+			`https://www.notion.example.com/acme/Launch-Plan-${NOTION_ID}`,
+			{ id: "1a2b3c4d-5e6f-4071-8293-a4b5c6d7e8f9" },
+		],
+		[
+			"shared document",
+			"https://docs.example.com/document/d/1aBc-dEfGhIjKlMn0pQrStUvWxYz_123456789AbCd/edit",
+			{ documentId: "1aBc-dEfGhIjKlMn0pQrStUvWxYz_123456789AbCd" },
+		],
+		[
+			"pull request",
+			"https://code.example.com/acme/app/pull/2043",
+			{ owner: "acme", repo: "app", pull_number: 2043 },
+		],
+	];
+	for (const [name, url, input] of cases)
+		test(`a ${name} matches the call that named it`, () => {
+			const ids = new Set<string>();
+			idsInToolInput(input, ids);
+			const urlIds = idsInUrl(url);
+			expect(urlIds.some((id) => ids.has(id))).toBe(true);
+		});
 });
 
 test("urlQuery only takes a lone URL", () => {

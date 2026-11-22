@@ -12,3 +12,14 @@ test("the extension asks this Odin's port and only localhost", () => {
 	for (const name of ["background.js", "popup.js"])
 		expect(() => new Function(files[name] as string)).not.toThrow();
 });
+
+test("the store build names its icon; the folder build has none to load", () => {
+	const store = JSON.parse(
+		chromeExtensionFiles(51741, { store: true })["manifest.json"] as string,
+	);
+	expect(store.icons).toEqual({ "128": "icon128.png" });
+	const folder = JSON.parse(
+		chromeExtensionFiles(51741)["manifest.json"] as string,
+	);
+	expect(folder.icons).toBeUndefined();
+});

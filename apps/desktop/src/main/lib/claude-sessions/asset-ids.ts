@@ -8,32 +8,47 @@
  */
 
 /** A key that names an id: `id`, `ids`, `campaign_id`, `file_key`, `nodeId`,
- *  `fileKey`, `ID` - not `width` or `provider`. */
-const ID_KEY = /(?:^|[_-])(?:ids?|key)$|[a-z](?:Ids?|Key)$|ID$/;
+ *  `fileKey`, `issueIdOrKey`, a chat message's `message_ts`, `pull_number`,
+ *  `ID` - not `width`, `provider` or `line_number`. */
+const ID_KEY =
+	/(?:^|[_-])(?:ids?|key|ts)$|[a-z](?:Ids?|Key|Ts)$|ID$|(?:pull|issue|pr)_?[Nn]umber$/;
 
 const URL_IN_TEXT = /https?:\/\/[^\s"'<>`)\]]+/g;
 
 /** Most ids a session keeps: enough for a long session, bounded per digest. */
 const MAX_IDS = 5000;
 
-/** `2781:25404` (a frame id as an API takes it) and `2781-25404` (as a URL
- *  shows it) are the same frame. */
-function normalize(value: string): string {
-	return value.trim().replace(/:/g, "-");
-}
-
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
+ * One spelling per id, whichever side wrote it:
+ * - `2781:25404` (a frame id as an API takes it) is `2781-25404` (as a URL
+ *   shows it);
+ * - a UUID with dashes (a docs API) is the same 32 hex a page URL ends with;
+ * - a chat message's `1795000436.449329` is the URL's `p1795000436449329`.
+ */
+function normalize(value: string): string {
+	const id = value.trim();
+	if (UUID.test(id)) return id.replace(/-/g, "").toLowerCase();
+	if (/^[0-9a-f]{32}$/i.test(id)) return id.toLowerCase();
+	if (/^\d{10}\.\d{6}$/.test(id)) return id.replace(".", "");
+	if (/^p\d{16}$/.test(id)) return id.slice(1);
+	return id.replace(/:/g, "-");
+}
+
+/**
  * Looks like an id rather than a word, a page name or a count: a number of two
- * digits or more, two numbers joined (`2781-25404`), a UUID, or a 6-64 char
- * token mixing letters and digits that isn't a hyphenated slug
- * (`Brand-2026-Launch`).
+ * digits or more, two numbers joined (`2781-25404`), a UUID, an issue key
+ * (`ENG-123`), a long document id (25+ chars), or a 6-64 char token mixing
+ * letters and digits that isn't a hyphenated slug (`Brand-2026-Launch`).
  */
 export function isIdLike(value: string): boolean {
 	if (/^\d{2,20}$/.test(value)) return true;
 	if (/^\d+-\d+$/.test(value)) return true;
 	if (UUID.test(value)) return true;
+	if (/^[A-Z][A-Z0-9]+-\d+$/.test(value)) return true;
+	// A document id (`1aBc-dEf...`, 44 chars) may put a dash beside letters.
+	if (/^[A-Za-z0-9_-]{25,64}$/.test(value) && /\d/.test(value)) return true;
 	return (
 		/^[A-Za-z0-9_-]{6,64}$/.test(value) &&
 		/\d/.test(value) &&
@@ -63,7 +78,12 @@ export function idsInUrl(raw: string): string[] {
 		const id = normalize(decoded);
 		if (isIdLike(id) && !ids.includes(id)) ids.push(id);
 	};
-	for (const segment of url.pathname.split("/")) if (segment) add(segment);
+	for (const segment of url.pathname.split("/")) {
+		if (!segment) continue;
+		// A page whose id ends a title slug: `Launch-Plan-1a2b...` (32 hex).
+		const tail = /(?:^|-)([0-9a-f]{32})$/i.exec(segment);
+		add(tail ? (tail[1] as string) : segment);
+	}
 	for (const [, value] of url.searchParams) add(value);
 	return ids;
 }

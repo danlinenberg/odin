@@ -16,7 +16,13 @@ import { getNotificationsPort } from "./notifications/listen";
  */
 export const CHROME_EXTENSION_DIR = join(ODIN_HOME_DIR, "chrome-extension");
 
-export function chromeExtensionFiles(port: number): Record<string, string> {
+/** The store build's icon: Odin's own, rendered at 128px from the master. */
+export const STORE_ICON = "icon128.png";
+
+export function chromeExtensionFiles(
+	port: number,
+	{ store = false } = {},
+): Record<string, string> {
 	const manifest = {
 		manifest_version: 3,
 		name: "Odin",
@@ -27,6 +33,7 @@ export function chromeExtensionFiles(port: number): Record<string, string> {
 		host_permissions: ["http://127.0.0.1/*"],
 		background: { service_worker: "background.js" },
 		action: { default_popup: "popup.html", default_title: "Odin sessions" },
+		...(store && { icons: { "128": STORE_ICON } }),
 	};
 	const shared = `const DEFAULT_PORT = ${port};
 async function sessionsFor(url) {
