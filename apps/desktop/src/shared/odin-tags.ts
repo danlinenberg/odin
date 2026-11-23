@@ -31,6 +31,13 @@ export const TAG_VOCABULARY = [
 	"infra",
 ] as const;
 
+/**
+ * Marks a session the Queue reaction started through Settings > Remote >
+ * Auto-start, beside "auto-started": its Auto-started pill wears the Queue
+ * emoji, not the launch one. Not in TAG_VOCABULARY, so no card shows it.
+ */
+export const QUEUE_STARTED_TAG = "queue-started";
+
 /** The full board set - what the tag menu offers. */
 export const BOARD_TAGS: string[] = [...TAG_VOCABULARY];
 

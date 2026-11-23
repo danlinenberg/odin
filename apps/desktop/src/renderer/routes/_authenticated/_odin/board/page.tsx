@@ -136,6 +136,7 @@ import {
 	boardTags,
 	CUSTOM_TAGS_KEY,
 	normalizeTag,
+	QUEUE_STARTED_TAG,
 	readCustomTags,
 } from "shared/odin-tags";
 import { isQueuedResume } from "shared/queued-resume";
@@ -3347,12 +3348,13 @@ const selfDroppedReplies = new Set<string>();
 const autoDoneRuns = new Set<string>();
 
 function DevBoardPage() {
-	// The Auto-started pill wears whichever emoji you set to auto-start.
+	// The Auto-started pill wears the reaction that started the session: your
+	// launch reaction, or your Queue reaction when Remote auto-start did it.
+	const reactions = useOdinFeeds().reactions.data;
 	const launchEmoji = (
-		<SlackEmoji
-			name={useOdinFeeds().reactions.data?.launchReaction ?? "robot_face"}
-		/>
+		<SlackEmoji name={reactions?.launchReaction ?? "robot_face"} />
 	);
+	const queueEmoji = <SlackEmoji name={reactions?.reaction ?? "eyes"} />;
 	const tabs = useTabsStore((state) => state.tabs);
 	const panes = useTabsStore((state) => state.panes);
 	// No workspace picker - one workspace in practice, and it listed confusing
@@ -8491,7 +8493,11 @@ function DevBoardPage() {
 														since={statusSinceRef.current.get(card.pane.id)?.at}
 														focusedAt={focusedAt}
 														customTags={customTags}
-														launchEmoji={launchEmoji}
+														launchEmoji={
+															card.pane.odinTags?.includes(QUEUE_STARTED_TAG)
+																? queueEmoji
+																: launchEmoji
+														}
 														isAgent={agentPaneIds.has(card.pane.id)}
 														hostState={hostStateOf(card.pane.id)}
 														resuming={
