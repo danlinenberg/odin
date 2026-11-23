@@ -1,7 +1,7 @@
 import { boardColumn } from "./board-column";
 import { type BoardSection, boardSection } from "./board-section";
 import { profileOf } from "./odin-profile";
-import { boardTags } from "./odin-tags";
+import { boardTags, QUEUE_STARTED_TAG } from "./odin-tags";
 import type { Pane, PaneStatus } from "./tabs-types";
 
 /**
@@ -56,7 +56,11 @@ export function activeSessions(
 	 * The board's hand-added tags, which it shows beside the stock ones, and
 	 * the emoji its Auto-started pill wears.
 	 */
-	board: { customTags?: readonly string[]; launchEmoji?: string } = {},
+	board: {
+		customTags?: readonly string[];
+		launchEmoji?: string;
+		queueEmoji?: string;
+	} = {},
 ): ActiveSession[] {
 	return Object.values(panes)
 		.filter(
@@ -88,8 +92,12 @@ export function activeSessions(
 			starred: !!pane.odinStarred,
 			statusAt: pane.odinStatusAt ?? null,
 			night: !!pane.odinTags?.includes("off-hours"),
-			...(board.launchEmoji && pane.odinTags?.includes("auto-started")
-				? { launchEmoji: board.launchEmoji }
+			...(pane.odinTags?.includes("auto-started")
+				? {
+						launchEmoji: pane.odinTags.includes(QUEUE_STARTED_TAG)
+							? board.queueEmoji
+							: board.launchEmoji,
+					}
 				: {}),
 		}))
 		.sort(

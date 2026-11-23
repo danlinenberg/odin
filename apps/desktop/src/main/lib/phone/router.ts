@@ -45,7 +45,7 @@ import { withDismissalNote } from "shared/dismissed-match";
 import { getImageMimeType } from "shared/file-types";
 import { interruptClaude } from "shared/interrupt-claude";
 import { odinScreenStatus } from "shared/odin-screen-status";
-import { boardTags } from "shared/odin-tags";
+import { boardTags, QUEUE_STARTED_TAG } from "shared/odin-tags";
 import type { PaneStatus } from "shared/tabs-types";
 import stripAnsi from "strip-ansi";
 import superjson from "superjson";
@@ -435,7 +435,9 @@ export const phoneRouter = t.router({
 				connected,
 				tags: boardTags(pane.odinTags, boardLook().customTags),
 				launchEmoji: pane.odinTags?.includes("auto-started")
-					? boardLook().launchEmoji
+					? pane.odinTags.includes(QUEUE_STARTED_TAG)
+						? boardLook().queueEmoji
+						: boardLook().launchEmoji
 					: undefined,
 				repo:
 					(pane.cwd ?? pane.initialCwd)?.split("/").filter(Boolean).pop() ??

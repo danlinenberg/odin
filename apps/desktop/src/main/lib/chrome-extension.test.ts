@@ -13,6 +13,9 @@ test("the extension asks this Odin's port, and every site only when asked", () =
 	// A session still working turns the badge green and says so in the list.
 	expect(files["background.js"]).toContain('live ? "#16a34a"');
 	expect(files["popup.js"]).toContain("Working now");
+	// The popup opens on the badge's last answer for the page, not a new search.
+	expect(files["popup.js"]).toContain("cachedSessionsFor(tab.url)");
+	expect(files["background.js"]).toContain("chrome.storage.session.set");
 	// ...and draws the banner on the page.
 	expect(files["background.js"]).toContain("chrome.scripting.executeScript");
 	// Both scripts are valid JavaScript.

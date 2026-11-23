@@ -9,6 +9,7 @@ import { BUTTON, PILL } from "../components/pill";
 import { Highlight, TranscriptView } from "../components/TranscriptView";
 import { useOdinProfile } from "../hooks/useOdinProfile";
 import { usePaneMeta } from "../hooks/usePaneMeta";
+import { usePendingFocus } from "../hooks/usePendingFocus";
 import { useResumeSession } from "../hooks/useResumeSession";
 import { boardConversationIds } from "./live-sessions";
 import { provenanceLabel } from "./provenance";
@@ -144,15 +145,39 @@ function SessionsPage() {
 	const askers = pages[0]?.askers ?? [];
 	const oldest = rows.at(-1)?.updatedAt;
 
+	// A pick still on the board (the Chrome extension lists live sessions
+	// too) is its card, which History never lists: go to the card instead.
+	useEffect(() => {
+		if (!handoff.open) return;
+		const paneId = Object.keys(panes).find(
+			(id) =>
+				!panes[id]?.completed &&
+				(panes[id]?.claudeSessionId ?? sessionIdByPane[id]) === handoff.open,
+		);
+		if (!paneId) return;
+		usePendingFocus.getState().focus(paneId);
+		void navigate({ to: "/board", replace: true });
+	}, [handoff.open, panes, sessionIdByPane, navigate]);
+
 	// Search all's pick: open it once this query's results are in, then drop
 	// the handoff from the URL so the next pick of the same row opens it again.
 	useEffect(() => {
-		if (!handoff.open || query !== (handoff.q ?? "").trim()) return;
+		if (!handoff.open || boardSessionIds.has(handoff.open)) return;
+		if (query !== (handoff.q ?? "").trim()) return;
 		if (isFetching || !data) return;
 		const row = rows.find((candidate) => candidate.sessionId === handoff.open);
 		if (row) setOpenRow(row);
 		void navigate({ to: "/sessions", search: {}, replace: true });
-	}, [handoff.open, handoff.q, query, isFetching, data, rows, navigate]);
+	}, [
+		handoff.open,
+		handoff.q,
+		query,
+		isFetching,
+		data,
+		rows,
+		navigate,
+		boardSessionIds,
+	]);
 
 	// The next page loads once the list's last row scrolls into view.
 	const sentinelRef = useRef<HTMLDivElement>(null);

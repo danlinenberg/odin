@@ -11,6 +11,7 @@ import { readOdinConfig } from "lib/trpc/routers/odin-config";
 import {
 	LAUNCH_REACTION,
 	normalizeReaction,
+	QUEUE_REACTION,
 } from "lib/trpc/routers/slack/reactions";
 import { focusMainWindow, quitApp } from "main/index";
 import { appState } from "main/lib/app-state";
@@ -140,14 +141,22 @@ const SECTIONS: { column: PaneStatus; label: string }[] = [
 
 /**
  * What the board shows that lives outside the panes: the tags you added by
- * hand, and the emoji the Auto-started pill wears (your launch reaction).
+ * hand, and the emojis the Auto-started pill wears (your launch reaction, or
+ * your Queue reaction on a session Remote auto-start started).
  */
-export function boardLook(): { customTags?: string[]; launchEmoji: string } {
+export function boardLook(): {
+	customTags?: string[];
+	launchEmoji: string;
+	queueEmoji: string;
+} {
 	const config = readOdinConfig();
 	return {
 		customTags: config.customTags,
 		launchEmoji: emojify(
 			`:${normalizeReaction(config.slackLaunchReaction ?? LAUNCH_REACTION)}:`,
+		),
+		queueEmoji: emojify(
+			`:${normalizeReaction(config.slackReaction ?? QUEUE_REACTION)}:`,
 		),
 	};
 }
