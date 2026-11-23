@@ -723,10 +723,28 @@ export function linkContext(
  * superseded. "ACTION ITEMS: none" and a turn without the section give [].
  */
 export function actionItems(messages: BriefMessage[]): string[] {
-	const last = messages.findLast((m) => m.role === "assistant")?.text ?? "";
+	const last = withActionItemsHeading(
+		messages.findLast((m) => m.role === "assistant")?.text ?? "",
+	);
 	const at = last.toUpperCase().lastIndexOf("ACTION ITEMS");
 	if (at < 0) return [];
 	return actionItemLines(last.slice(at + "ACTION ITEMS".length));
+}
+
+/**
+ * A reply that ends on a choice ("Decision for you: ... [A | B | C]") but has
+ * no ACTION ITEMS line: Claude still asked you something, so its last
+ * paragraph is read as the one item. Anything else comes back unchanged.
+ */
+export function withActionItemsHeading(text: string): string {
+	if (/^[#>*_\s]*ACTION ITEMS\b/im.test(text)) return text;
+	const trimmed = text.trimEnd();
+	const at = trimmed.search(/\n\s*\n(?![\s\S]*\n\s*\n)/);
+	const last = trimmed.slice(at < 0 ? 0 : at).trim();
+	if (last.includes("```") || !/\[[^[\]]*\|[^[\]]*\]\W*$/.test(last))
+		return text;
+	const item = last.replace(/^[-*\d.)\s]+/, "").replace(/\s*\n\s*/g, " ");
+	return `${trimmed.slice(0, at < 0 ? 0 : at)}\n\nACTION ITEMS\n1. ${item}`;
 }
 
 /** An ACTION ITEMS entry: its text, and the fenced code blocks written under it. */
