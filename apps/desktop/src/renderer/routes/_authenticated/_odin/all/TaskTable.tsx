@@ -115,7 +115,7 @@ export const COL = {
 	person:
 		"flex w-[132px] shrink-0 items-center overflow-hidden @max-[1050px]:hidden",
 	place: "block w-[112px] shrink-0 truncate @max-[1380px]:hidden",
-	date: "flex w-[52px] shrink-0 items-center tabular-nums text-muted-foreground @max-[860px]:hidden",
+	date: "flex w-[96px] shrink-0 items-center overflow-hidden tabular-nums text-muted-foreground @max-[860px]:hidden",
 	acts: "flex w-[154px] shrink-0 items-center justify-end gap-0.5",
 	start: "flex w-[104px] shrink-0 justify-end",
 	done: "flex w-[72px] shrink-0",
