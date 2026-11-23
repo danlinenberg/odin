@@ -29,7 +29,6 @@ import { useReplyJump } from "renderer/stores/reply-jump";
 import { PILL } from "../components/pill";
 import {
 	type BriefLink,
-	type BriefMessage,
 	type BriefTodo,
 	usePaneMeta,
 } from "../hooks/usePaneMeta";
@@ -37,6 +36,7 @@ import {
 	actionItems,
 	artifactLinks,
 	askedPullRequests,
+	type BriefMessage,
 	byRepo,
 	claimOpened,
 	credentialFacts,
