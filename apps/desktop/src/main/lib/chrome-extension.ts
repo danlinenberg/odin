@@ -26,7 +26,7 @@ export function chromeExtensionFiles(
 	const manifest = {
 		manifest_version: 3,
 		name: "Odin",
-		version: "1.0.4",
+		version: "1.0.5",
 		description:
 			"Shows the Odin sessions that worked on the page you have open.",
 		permissions: ["tabs", "storage", "scripting"],
@@ -47,7 +47,15 @@ async function sessionsFor(url) {
 		"http://127.0.0.1:" + port + "/sessions/for-url?url=" + encodeURIComponent(url),
 	);
 	if (!res.ok) throw new Error("Odin answered " + res.status);
-	return (await res.json()).sessions;
+	const { sessions } = await res.json();
+	// Kept for the popup, so it opens on the last answer instead of searching again.
+	await chrome.storage.session.set({ ["for " + url]: sessions });
+	return sessions;
+}
+// What the last search for this page found, or undefined if none ran yet.
+async function cachedSessionsFor(url) {
+	const key = "for " + url;
+	return (await chrome.storage.session.get(key))[key];
 }
 // The Odin that listed it opens it (a dev build has no odin:// link).
 async function openSession(id, url) {
@@ -147,8 +155,10 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
 <html><head><meta charset="utf-8"><style>
 body { font: 13px system-ui, sans-serif; width: 320px; margin: 0; padding: 12px; color: #1a1a1a; }
 h1 { font-size: 13px; margin: 0 0 8px; }
-a { display: block; padding: 6px 8px; border-radius: 6px; color: inherit; text-decoration: none; }
-a:hover { background: #f0eefe; }
+a { display: flex; align-items: center; gap: 8px; padding: 8px 10px; margin-bottom: 6px; border: 1px solid #ddd; border-radius: 8px; color: inherit; text-decoration: none; cursor: pointer; }
+a:hover { background: #f0eefe; border-color: #6d5dfc; }
+a .text { flex: 1; min-width: 0; }
+a .go { color: #6d5dfc; font-weight: 600; font-size: 12px; white-space: nowrap; }
 .when { color: #777; font-size: 11px; }
 .live { color: #16a34a; font-weight: 600; }
 .empty { color: #777; }
@@ -168,28 +178,41 @@ function ago(ms) {
 	const hours = Math.round(minutes / 60);
 	return hours < 48 ? hours + "h ago" : Math.round(hours / 24) + "d ago";
 }
+function render(list, tab, sessions) {
+	list.textContent = sessions.length ? "" : "No session worked on this page.";
+	for (const session of sessions) {
+		const link = document.createElement("a");
+		link.href = "#";
+		link.title = "Open this session in Odin";
+		const text = document.createElement("div");
+		text.className = "text";
+		text.textContent = session.title;
+		const when = document.createElement("div");
+		when.className = "when";
+		when.textContent = isLive(session) ? "Working now" : ago(session.updatedAt);
+		if (isLive(session)) when.className = "when live";
+		text.append(when);
+		const go = document.createElement("span");
+		go.className = "go";
+		go.textContent = "Open \u203a";
+		link.append(text, go);
+		link.onclick = async () => {
+			await openSession(session.sessionId, tab.url);
+			window.close();
+		};
+		list.append(link);
+	}
+}
 async function show() {
 	const list = document.getElementById("list");
 	const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+	// The badge already searched this page: show that now, then refresh it.
+	const cached = tab && (await cachedSessionsFor(tab.url));
+	if (cached) render(list, tab, cached);
 	try {
-		const sessions = await sessionsFor(tab && tab.url);
-		list.textContent = sessions.length ? "" : "No session worked on this page.";
-		for (const session of sessions) {
-			const link = document.createElement("a");
-			link.href = "#";
-			link.textContent = session.title;
-			const when = document.createElement("div");
-			when.className = "when";
-			when.textContent = isLive(session) ? "Working now" : ago(session.updatedAt);
-			if (isLive(session)) when.className = "when live";
-			link.append(when);
-			link.onclick = async () => {
-				await openSession(session.sessionId, tab.url);
-				window.close();
-			};
-			list.append(link);
-		}
+		render(list, tab, await sessionsFor(tab && tab.url));
 	} catch {
+		if (cached) return;
 		const { port } = await chrome.storage.local.get({ port: DEFAULT_PORT });
 		list.textContent = "Odin isn't answering on port " + port + ". Is it open?";
 		document.getElementById("port").value = port;
