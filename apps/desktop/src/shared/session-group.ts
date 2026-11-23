@@ -2,7 +2,9 @@
  * Session groups, like tab groups in a browser: a named, coloured set of
  * sessions you put together from a card's right-click menu. One session in a
  * group can be its leader; with "Note the others" on, each time the leader's
- * turn ends Odin types a short note into the other members.
+ * turn ends Odin types a short note into the other members. The other way,
+ * each member's finished turn is noted to the leader (resumed when closed),
+ * except a turn that only answered the leader's own note.
  *
  * A group lives on its members' panes and nowhere else (`Pane.odinGroup`), so
  * it persists with the session state like the star and priority do, and goes
@@ -204,6 +206,9 @@ export function leaderNoteTargets(
 		.map(([paneId]) => paneId);
 }
 
+/** How every leader note starts, so a member's answer to one can be told apart. */
+const LEADER_NOTE_START = "[Odin] The leader of your session group";
+
 /**
  * The note typed into a member when the leader's turn ends: which session,
  * and where its transcript is so the member can read the latest reply itself
@@ -221,5 +226,71 @@ export function leaderNote({
 	const where = sessionId
 		? ` Its transcript is ~/.claude/projects/*/${sessionId}.jsonl: read its last reply.`
 		: "";
-	return `[Odin] The leader of your session group "${group}", "${leaderTitle}", just finished a turn.${where} If it changes what you are doing, update your work to match; if not, carry on.`;
+	return `${LEADER_NOTE_START} "${group}", "${leaderTitle}", just finished a turn.${where} If it changes what you are doing, update your work to match; if not, carry on.`;
+}
+
+/**
+ * The leader a member reports to when its own turn ends: its group's leader,
+ * whenever the group has one. Undefined for the leader itself, a session in
+ * no group, or a group without a leader.
+ */
+export function memberNoteTarget(
+	panes: Record<string, Grouped>,
+	memberPaneId: string,
+): string | undefined {
+	const group = panes[memberPaneId]?.odinGroup;
+	if (!group || group.leader) return undefined;
+	return Object.entries(panes).find(
+		([paneId, pane]) =>
+			paneId !== memberPaneId &&
+			pane.odinGroup?.name === group.name &&
+			pane.odinGroup.leader,
+	)?.[0];
+}
+
+/**
+ * The member's turn answered nothing but the leader's own note: the latest
+ * thing said to it is that note. Reporting such a turn back would start the
+ * leader again and bounce between them, so it is not reported.
+ */
+export function answeredLeaderNote(
+	messages: { role: string; text: string }[],
+): boolean {
+	const asked = messages.findLast((message) => message.role === "user");
+	return !!asked?.text.trimStart().startsWith(LEADER_NOTE_START);
+}
+
+const GIST_CHARS = 400;
+
+/** A reply in a few lines: its own TL;DR line when it has one, else its start. */
+export function replyGist(reply: string): string {
+	const tldr = reply.match(/^[\s*_#>-]*TL;?DR[*_]*\s*[:-]?[*_]*\s*(.+)$/im);
+	const text = (tldr?.[1] ?? reply).replace(/\s+/g, " ").trim();
+	return text.length > GIST_CHARS
+		? `${text.slice(0, GIST_CHARS).trimEnd()}…`
+		: text;
+}
+
+/**
+ * The note typed into the leader when a member's turn ends: which session,
+ * what its last reply said in short, and where its transcript is to read it
+ * whole (when both run on the same machine).
+ */
+export function memberNote({
+	group,
+	memberTitle,
+	reply,
+	sessionId,
+}: {
+	group: string;
+	memberTitle: string;
+	reply?: string;
+	sessionId?: string;
+}): string {
+	const gist = reply ? replyGist(reply) : "";
+	const said = gist ? ` Its last reply, in short: "${gist}"` : "";
+	const where = sessionId
+		? ` Its transcript is ~/.claude/projects/*/${sessionId}.jsonl.`
+		: "";
+	return `[Odin] "${memberTitle}", a session in the group "${group}" you lead, just finished a turn.${said}${where} If it needs a next step from you, take it; if not, carry on.`;
 }
