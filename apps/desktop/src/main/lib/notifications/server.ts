@@ -201,17 +201,23 @@ export function replyToOdinAction(id: string, text: string): void {
  * state, so the request goes to it and the response waits for its reply.
  * Changes the board, so browsers are refused like /shell/run.
  */
+const ODIN_ACTIONS =
+	"Need action: guide, tasks, start, add, schedule, sessions, night, settings, setting, state, set, run, open, done, api, call, service or worktree.\n";
+
+// A GET used to 404, and a session read that as "Odin has no such API".
+app.get("/odin", (_req, res) => {
+	res.send(
+		`POST it: curl -sf http://127.0.0.1:$ODIN_PORT/odin --data-urlencode action=guide\n${ODIN_ACTIONS}`,
+	);
+});
+
 app.post("/odin", express.urlencoded({ extended: false }), async (req, res) => {
 	if (req.headers.origin) {
 		return res.status(403).send("Not from a browser.\n");
 	}
 	const { action, ...rest } = req.body ?? {};
 	if (typeof action !== "string" || !action) {
-		return res
-			.status(400)
-			.send(
-				"Need action: guide, tasks, start, add, schedule, sessions, night, settings, setting, state, set, run, open, done, api, call, service or worktree.\n",
-			);
+		return res.status(400).send(ODIN_ACTIONS);
 	}
 	// Main's own operations answer here; the board's state is the renderer's.
 	if (action === "api") return res.send(`${listProcedures(rest.q ?? "")}\n`);
