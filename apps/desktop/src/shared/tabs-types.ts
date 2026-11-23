@@ -179,6 +179,8 @@ export interface Pane {
 	odinLocalWhy?: string;
 	/** Starred from the card's ★ button or right-click menu: pinned to the top section. */
 	odinStarred?: boolean;
+	/** "Keep awake" from the card's right-click menu: idle close never closes it. */
+	odinKeepAwake?: boolean;
 	/** High, Medium or Low from the card's right-click menu: sorts the card inside its section. */
 	odinPriority?: SessionPriority;
 	/** The session group it sits in, from the card's right-click menu: a named, coloured set of sessions, optionally with a leader. */
