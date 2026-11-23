@@ -211,17 +211,21 @@ export function notionPage(messages: BriefMessage[]): NotionPageLink | null {
 const ARTIFACT_URL = /https:\/\/claude\.ai\/(?:code\/)?artifact\/[\w-]+/g;
 
 /**
- * The artifact this session published - its deliverable when that's a page
- * rather than a diff or a doc. Newest wins: a session republishes the same url
- * as it iterates, and a second artifact supersedes the first far more often
- * than it sits beside it. Claude's turns only, like pullRequests: one you
- * pasted in is input.
+ * The artifacts this session published - its deliverables when they're pages
+ * rather than a diff or a doc. Newest first, each once: a session republishes
+ * the same url as it iterates, and a session often publishes several pages (a
+ * dashboard, then a list of questions). Claude's turns only, like
+ * pullRequests: one you pasted in is input.
  */
-export function artifactLink(messages: BriefMessage[]): string | null {
-	let found: string | null = null;
+export function artifactLinks(messages: BriefMessage[]): string[] {
+	const found: string[] = [];
 	for (const message of messages.filter((m) => m.role === "assistant"))
-		for (const url of message.text.match(ARTIFACT_URL) ?? []) found = url;
-	return found;
+		for (const url of message.text.match(ARTIFACT_URL) ?? []) {
+			const seen = found.indexOf(url);
+			if (seen !== -1) found.splice(seen, 1);
+			found.push(url);
+		}
+	return found.reverse();
 }
 
 export interface JiraIssueLink {

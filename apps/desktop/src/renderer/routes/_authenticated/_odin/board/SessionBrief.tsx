@@ -34,8 +34,9 @@ import {
 } from "../hooks/usePaneMeta";
 import {
 	actionItems,
-	artifactLink,
+	artifactLinks,
 	askedPullRequests,
+	type BriefMessage,
 	byRepo,
 	claimOpened,
 	credentialFacts,
@@ -670,7 +671,22 @@ function PrMenu({
 
 /** "Slack thread" or "Slack threads", counting the found one and yours. */
 function plural(label: string, found: unknown, mine: unknown[]): string {
-	return (found ? 1 : 0) + mine.length > 1 ? `${label}s` : label;
+	const count = Array.isArray(found) ? found.length : found ? 1 : 0;
+	return count + mine.length > 1 ? `${label}s` : label;
+}
+
+/**
+ * One artifact is just "Open artifact"; with several, each row needs a name -
+ * the label the session gave it, else the start of the sentence it sat in.
+ */
+function artifactName(
+	said: BriefMessage[],
+	url: string,
+	count: number,
+): string {
+	if (count < 2) return "Open artifact";
+	const context = linkContext(said, url);
+	return context?.title ?? context?.summary ?? "Open artifact";
 }
 
 /**
@@ -829,7 +845,7 @@ export function SessionBrief({
 	const foundThread = linkSource ? slackThread(linkSource) : null;
 	const foundPage = linkSource ? notionPage(linkSource) : null;
 	const foundIssue = linkSource ? jiraIssue(linkSource) : null;
-	const foundArtifact = linkSource ? artifactLink(linkSource) : null;
+	const foundArtifacts = linkSource ? artifactLinks(linkSource) : [];
 	const foundEmail = emailLink(launch, linkSource ?? []);
 	// Only rules that actually fired, and on which PR - not every rule the
 	// launch prompt listed. `rules` is missing until main restarts onto it.
@@ -840,8 +856,7 @@ export function SessionBrief({
 	const thread = foundThread && !isHidden(foundThread) ? foundThread : null;
 	const page = foundPage && !isHidden(foundPage.url) ? foundPage : null;
 	const issue = foundIssue && !isHidden(foundIssue.url) ? foundIssue : null;
-	const artifact =
-		foundArtifact && !isHidden(foundArtifact) ? foundArtifact : null;
+	const artifacts = foundArtifacts.filter((url) => !isHidden(url));
 	const email = foundEmail && !isHidden(foundEmail) ? foundEmail : null;
 	// An <a> in the renderer would navigate the app window; PRs open in a browser.
 
@@ -870,7 +885,7 @@ export function SessionBrief({
 			foundIssue?.url,
 			foundThread,
 			foundPage?.url,
-			foundArtifact,
+			...foundArtifacts,
 			foundEmail,
 			...allPrs.map((pr) => pr.url),
 		].filter(Boolean),
@@ -962,7 +977,7 @@ export function SessionBrief({
 			url: foundPage.url,
 			label: foundPage.title ?? "Notion page",
 		},
-		foundArtifact && { url: foundArtifact, label: "Artifact" },
+		...foundArtifacts.map((url) => ({ url, label: "Artifact" })),
 		foundEmail && { url: foundEmail, label: "Email" },
 		...allAdded.map((link) => ({
 			url: link.url,
@@ -1259,23 +1274,26 @@ export function SessionBrief({
 					</div>
 				</Section>
 			)}
-			{(artifact || mine("artifact").length > 0) && (
-				<Section label={plural("Artifact", artifact, mine("artifact"))} divided>
+			{(artifacts.length > 0 || mine("artifact").length > 0) && (
+				<Section
+					label={plural("Artifact", artifacts, mine("artifact"))}
+					divided
+				>
 					<div className="flex flex-col gap-1">
-						{artifact && (
-							<div className="group flex items-center gap-1.5">
-								<Hover text={hoverFor(artifact)}>
+						{artifacts.map((url) => (
+							<div key={url} className="group flex items-center gap-1.5">
+								<Hover text={hoverFor(url)}>
 									<button
 										type="button"
-										onClick={() => openUrl(artifact)}
+										onClick={() => openUrl(url)}
 										className="block min-w-0 flex-1 truncate text-left text-[12px] text-link hover:underline"
 									>
-										Open artifact ↗
+										{artifactName(said, url, artifacts.length)} ↗
 									</button>
 								</Hover>
-								<HideButton onClick={() => hide(artifact)} />
+								<HideButton onClick={() => hide(url)} />
 							</div>
-						)}
+						))}
 						{mine("artifact").map(myLink)}
 					</div>
 				</Section>
