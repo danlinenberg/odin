@@ -51,6 +51,10 @@ export interface PullRequestStatus {
 	headSha?: string | null;
 	/** When the newest failed check finished (ISO), null while none has. */
 	failedAt?: string | null;
+	/** The base branch's commit as GitHub has it: a new one can change a conflict. */
+	baseSha?: string | null;
+	/** The PR's branch: a session that pushed to it is working on the PR. */
+	headRef?: string | null;
 }
 
 /** Injectable so the retry below is testable without a GitHub account. */
@@ -162,6 +166,8 @@ interface PrJson {
 	title?: string;
 	body?: string;
 	headRefOid?: string;
+	baseRefOid?: string;
+	headRefName?: string;
 }
 
 function status(stdout: string): PullRequestStatus | null {
@@ -195,6 +201,8 @@ function statusOf(pr: PrJson): PullRequestStatus | null {
 		summary: firstParagraph(pr.body ?? ""),
 		headSha: pr.headRefOid || null,
 		failedAt: null,
+		baseSha: pr.baseRefOid || null,
+		headRef: pr.headRefName || null,
 	};
 	for (const entry of latestRuns(pr.statusCheckRollup ?? [])) {
 		const name = entry.name ?? entry.context ?? "check";
@@ -352,8 +360,8 @@ interface RestPull {
 	title?: string;
 	body?: string | null;
 	user?: { login?: string } | null;
-	head?: { sha?: string };
-	base?: { ref?: string };
+	head?: { sha?: string; ref?: string };
+	base?: { ref?: string; sha?: string };
 	mergeable_state?: string;
 }
 
@@ -412,6 +420,8 @@ async function restPullRequest(
 		title: pull.title,
 		body: pull.body ?? "",
 		headRefOid: pull.head?.sha,
+		baseRefOid: pull.base?.sha,
+		headRefName: pull.head?.ref,
 	});
 }
 
@@ -427,7 +437,7 @@ export async function pullRequestState(
 				"view",
 				url,
 				"--json",
-				"state,isDraft,reviewDecision,latestReviews,statusCheckRollup,mergeable,mergeStateStatus,baseRefName,author,title,body,headRefOid",
+				"state,isDraft,reviewDecision,latestReviews,statusCheckRollup,mergeable,mergeStateStatus,baseRefName,author,title,body,headRefOid,baseRefOid,headRefName",
 			],
 			status,
 			exec,

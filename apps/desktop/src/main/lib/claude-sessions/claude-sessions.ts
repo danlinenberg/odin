@@ -676,6 +676,8 @@ export interface TranscriptMessage {
 	at: string | null;
 	/** PR urls `gh pr create` printed: this session opened them. */
 	opened?: true;
+	/** Branches this session pushed from the turn this message belongs to. */
+	pushed?: string[];
 	/** Pasted images as data URLs, only when asked for (`withImages`). */
 	images?: string[];
 	/** A `!` command and its output, only when asked for (`withShells`). */
@@ -843,6 +845,16 @@ function messagesReader(
 			// conversation, where the brief looks for PRs.
 			if (Array.isArray(message?.content)) {
 				for (const block of message.content) {
+					// A push to a PR's branch makes that PR this session's work too,
+					// even one it didn't open. Kept on the latest message so the
+					// conversation itself doesn't change.
+					const branches =
+						block?.type === "tool_use" && block.name === "Bash"
+							? pushedBranches(String(block.input?.command ?? ""))
+							: [];
+					const last = messages[messages.length - 1];
+					if (branches.length && last)
+						last.pushed = [...new Set([...(last.pushed ?? []), ...branches])];
 					if (
 						block?.type === "tool_use" &&
 						block.name === "Bash" &&
@@ -1816,6 +1828,41 @@ export function opensPr(command: string): boolean {
 			return true;
 	}
 	return false;
+}
+
+/**
+ * The branches a shell command pushes: `git push origin fix/x`,
+ * `git push -u origin HEAD:fix/x`, `git -c a=b push <url> x:x`. The remote
+ * side of each refspec, without `refs/heads/`. A bare `git push` names none.
+ */
+export function pushedBranches(command: string): string[] {
+	const found: string[] = [];
+	for (const part of command.split(/&&|\|\||[;|\n]/)) {
+		const words = part.trim().split(/\s+/);
+		const git = words.findIndex((w) => w === "git" || w.endsWith("/git"));
+		if (git < 0) continue;
+		const push = words.indexOf("push", git + 1);
+		if (push < 0) continue;
+		// Options before `push` (`-c key=value`, `-C dir`) take a value.
+		const before = words.slice(git + 1, push);
+		if (
+			before.some(
+				(w, i) => !w.startsWith("-") && !/^-[cC]$/.test(before[i - 1] ?? ""),
+			)
+		)
+			continue;
+		const args = words
+			.slice(push + 1)
+			.filter((w) => !w.startsWith("-") && !/^[0-9]*[<>]/.test(w));
+		for (const spec of args.slice(1)) {
+			const dst = (spec.split(":").pop() ?? "")
+				.replace(/^\+/, "")
+				.replace(/^refs\/heads\//, "")
+				.replace(/^["']|["']$/g, "");
+			if (dst && dst !== "HEAD" && /^[\w./-]+$/.test(dst)) found.push(dst);
+		}
+	}
+	return found;
 }
 
 /** A rule line's repo pin, as `ruleLine` writes it. */

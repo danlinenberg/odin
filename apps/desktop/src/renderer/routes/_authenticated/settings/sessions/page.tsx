@@ -4,6 +4,7 @@ import { toast } from "@odin/ui/sonner";
 import { Switch } from "@odin/ui/switch";
 import { createFileRoute } from "@tanstack/react-router";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useCiWake } from "renderer/routes/_authenticated/_odin/board/ci-wake";
 import { useGsdLimits } from "renderer/stores/gsd-limits";
 import { useGsdModeEnabled } from "renderer/stores/gsd-mode-enabled";
 import { useIdleClose } from "renderer/stores/idle-close";
@@ -95,6 +96,7 @@ function SessionsSettingsPage() {
 				<TodayOverviewRow />
 				<IdleCompactRow />
 				<IdleCloseRow />
+				<FixConflictsRow />
 			</SettingsSection>
 
 			{gsdEnabled && (
@@ -370,6 +372,25 @@ function AutoRenameRow() {
 				checked={autoRename ?? ODIN_AUTO_RENAME_SESSIONS_DEFAULT}
 				onCheckedChange={(enabled) => setAutoRename.mutate({ enabled })}
 				disabled={isLoading || setAutoRename.isPending}
+			/>
+		</SettingRow>
+	);
+}
+
+/** The board sends a session the merge-conflict prompt by itself. */
+function FixConflictsRow() {
+	const enabled = useCiWake((s) => s.fixConflicts !== false);
+	const setFixConflicts = useCiWake((s) => s.setFixConflicts);
+	return (
+		<SettingRow
+			label="Fix merge conflicts automatically"
+			htmlFor="fix-conflicts"
+			description="When one of a session's open PRs conflicts with its base, Odin asks the session to merge the base in, resolve and push, as Fix merge conflicts does. Once per new conflict; after 3 tries on the same PR the card goes to Needs you with Conflicts still open."
+		>
+			<Switch
+				id="fix-conflicts"
+				checked={enabled}
+				onCheckedChange={setFixConflicts}
 			/>
 		</SettingRow>
 	);

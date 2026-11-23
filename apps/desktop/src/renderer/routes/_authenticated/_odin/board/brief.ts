@@ -11,6 +11,8 @@ export interface BriefMessage {
 	at: string | null;
 	/** PR urls `gh pr create` printed: this session opened them. */
 	opened?: boolean;
+	/** Branches the session pushed in this turn. */
+	pushed?: string[];
 }
 
 export interface SessionBrief {
@@ -901,24 +903,30 @@ export type PrStates = Record<
 		mine?: boolean | null;
 		conflicting?: boolean;
 		base?: string | null;
+		headRef?: string | null;
 	} | null
 >;
 
 /**
- * A PR this session opened is yours, whoever GitHub says wrote it: an agent
- * that opens it with a bot's token (a shared GitHub key) makes the author the
- * bot, and the brief dropped it as a teammate's PR.
+ * A PR this session opened or pushed to is yours, whoever GitHub says wrote
+ * it: an agent that opens it with a bot's token (a shared GitHub key) makes
+ * the author the bot, and a PR another session opened, or one from an account
+ * gh isn't signed in to here, read as a teammate's. Then CI and conflicts on
+ * it never woke the session that was working on it.
  */
 export function claimOpened<T extends PrStates | undefined>(
 	messages: BriefMessage[],
 	states: T,
 ): T {
 	if (!states) return states;
-	const opened = pullRequests(messages.filter((m) => m.opened));
+	const opened = new Set(
+		pullRequests(messages.filter((m) => m.opened)).map((pr) => pr.url),
+	);
+	const pushed = new Set(messages.flatMap((m) => m.pushed ?? []));
 	const claimed = { ...states } as PrStates;
-	for (const { url } of opened) {
-		const pr = claimed[url];
-		if (pr) claimed[url] = { ...pr, mine: true };
+	for (const [url, pr] of Object.entries(claimed)) {
+		if (pr && (opened.has(url) || (!!pr.headRef && pushed.has(pr.headRef))))
+			claimed[url] = { ...pr, mine: true };
 	}
 	return claimed as T;
 }

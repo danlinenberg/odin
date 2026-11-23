@@ -295,8 +295,13 @@ import { catchUpSuggestion } from "./catch-up";
 import {
 	ciWakeMessage,
 	ciWakePlan,
+	conflictWakeMessage,
+	conflictWakePlan,
+	conflictWoke,
 	gaveUpPanes,
+	isMergeColumn,
 	useCiWake,
+	wakesColumn,
 	woke,
 } from "./ci-wake";
 import { DiffView } from "./DiffView";
@@ -2817,6 +2822,8 @@ interface BoardCardTileProps {
 	/** CI stayed red through every fix Odin asked for. */
 	ciGaveUp: boolean;
 	conflicts: string | undefined;
+	/** The PR still conflicts after every merge Odin asked for. */
+	conflictsGaveUp: boolean;
 	duplicate: BoardCard | undefined;
 	since: number | undefined;
 	focusedAt: number;
@@ -3015,6 +3022,7 @@ const BoardCardTile = memo(
 		ciChecks,
 		ciGaveUp,
 		conflicts,
+		conflictsGaveUp,
 		duplicate,
 		since,
 		focusedAt,
@@ -3200,8 +3208,19 @@ const BoardCardTile = memo(
 								</span>
 							)}
 							{!!conflicts && (
-								<span title={conflicts} className="font-medium text-attention">
-									Merge conflicts
+								<span
+									title={
+										conflictsGaveUp
+											? `${conflicts}\nStill there after Odin asked the session to merge - your turn`
+											: conflicts
+									}
+									className={
+										conflictsGaveUp
+											? "font-medium text-danger"
+											: "font-medium text-attention"
+									}
+								>
+									{conflictsGaveUp ? "Conflicts still open" : "Merge conflicts"}
 								</span>
 							)}
 							<NotionPill card={card} live={card.status === "working"} />
@@ -3942,7 +3961,10 @@ function DevBoardPage() {
 	const [briefUrgency, setBriefUrgency] = useState<
 		Record<string, { urgency: BriefUrgency; replyAt: string }>
 	>({});
-	const mergeCandidates = Object.values(panes).flatMap((pane) => {
+	// Every card the CI and conflict wakes watch: these plus Working and Idle
+	// ones (wakesColumn). The board's own checks below take only Needs you and
+	// Done, as mergeCandidates.
+	const wakeCandidates = Object.values(panes).flatMap((pane) => {
 		const sessionId = pane.claudeSessionId ?? sessionIdByPane[pane.id];
 		if (
 			!sessionId ||
@@ -3959,7 +3981,7 @@ function DevBoardPage() {
 			loopingPaneIds.has(pane.id),
 			pane.odinClosedIn,
 		);
-		return column === "permission" || column === "review"
+		return wakesColumn(column, pane.odinParked ?? false)
 			? [
 					{
 						paneId: pane.id,
@@ -3971,8 +3993,8 @@ function DevBoardPage() {
 				]
 			: [];
 	});
-	const mergeTranscripts = electronTrpc.useQueries((t) =>
-		mergeCandidates.map(({ sessionId, live }) =>
+	const wakeTranscripts = electronTrpc.useQueries((t) =>
+		wakeCandidates.map(({ sessionId, live }) =>
 			t.terminal.readClaudeTranscript(
 				{ sessionId },
 				{
@@ -3984,6 +4006,29 @@ function DevBoardPage() {
 			),
 		),
 	);
+	const wakeStateQueries = electronTrpc.useQueries((t) =>
+		wakeCandidates.map(({ brief, column }, i) => {
+			const messages = wakeTranscripts[i]?.data?.messages ?? [];
+			const reviewed = reviewedPullRequest(brief, messages);
+			const urls = mergeCheckUrls(messages);
+			if (reviewed && !urls.includes(reviewed.url)) urls.push(reviewed.url);
+			return t.terminal.pullRequestStates(
+				{ urls },
+				{
+					enabled: urls.length > 0,
+					retry: false,
+					staleTime: 30_000,
+					// Working and Idle cards only feed the wakes: every 5 minutes is enough.
+					refetchInterval: isMergeColumn(column) ? 60_000 : 300_000,
+					notifyOnChangeProps: QUIET_POLL,
+				},
+			);
+		}),
+	);
+	const isMerge = (i: number) => isMergeColumn(wakeCandidates[i]?.column);
+	const mergeCandidates = wakeCandidates.filter((_, i) => isMerge(i));
+	const mergeTranscripts = wakeTranscripts.filter((_, i) => isMerge(i));
+	const mergeStateQueries = wakeStateQueries.filter((_, i) => isMerge(i));
 	// Sessions whose newest reply opens "DROPPED: <why>" - see the effect by
 	// endCard, which drops their feed rows.
 	const selfDrops = mergeCandidates.flatMap(({ paneId, sessionId }, i) => {
@@ -3994,24 +4039,6 @@ function DevBoardPage() {
 			: [];
 	});
 	const selfDropKey = selfDrops.map((drop) => drop.reply).join(",");
-	const mergeStateQueries = electronTrpc.useQueries((t) =>
-		mergeCandidates.map(({ brief }, i) => {
-			const messages = mergeTranscripts[i]?.data?.messages ?? [];
-			const reviewed = reviewedPullRequest(brief, messages);
-			const urls = mergeCheckUrls(messages);
-			if (reviewed && !urls.includes(reviewed.url)) urls.push(reviewed.url);
-			return t.terminal.pullRequestStates(
-				{ urls },
-				{
-					enabled: urls.length > 0,
-					retry: false,
-					staleTime: 30_000,
-					refetchInterval: 60_000,
-					notifyOnChangeProps: QUIET_POLL,
-				},
-			);
-		}),
-	);
 	// Needs you cards only, unless `anyColumn`: Done ones are here for CI.
 	const candidateKey = (
 		test: (
@@ -4218,6 +4245,16 @@ function DevBoardPage() {
 	);
 	// CI stayed red through the fixes Odin asked for: it's yours now.
 	const ciGaveUpKey = useCiWake((s) => gaveUpPanes(s.byPane).sort().join(","));
+	// The same for conflicts that stayed through Odin's merge prompts.
+	const conflictsGaveUpKey = useCiWake((s) =>
+		s.fixConflicts !== false
+			? gaveUpPanes(s.conflictsByPane).sort().join(",")
+			: "",
+	);
+	const conflictsGaveUpPaneIds = useMemo(
+		() => new Set(conflictsGaveUpKey ? conflictsGaveUpKey.split(",") : []),
+		[conflictsGaveUpKey],
+	);
 	const ciGaveUpPaneIds = useMemo(
 		() => new Set(ciGaveUpKey ? ciGaveUpKey.split(",") : []),
 		[ciGaveUpKey],
@@ -4227,14 +4264,21 @@ function DevBoardPage() {
 			(column === "permission" || column === "review") &&
 			ciChecksByPane.has(paneId)
 				? "working"
-				: column === "review" && ciGaveUpPaneIds.has(paneId)
+				: column === "review" &&
+						(ciGaveUpPaneIds.has(paneId) || conflictsGaveUpPaneIds.has(paneId))
 					? "permission"
 					: column === "permission" && mergeReadyPaneIds.has(paneId)
 						? "review"
 						: column === "review" && briefAsksPaneIds.has(paneId)
 							? "permission"
 							: column,
-		[mergeReadyPaneIds, ciChecksByPane, briefAsksPaneIds, ciGaveUpPaneIds],
+		[
+			mergeReadyPaneIds,
+			ciChecksByPane,
+			briefAsksPaneIds,
+			ciGaveUpPaneIds,
+			conflictsGaveUpPaneIds,
+		],
 	);
 	// A reload paints cards before the daemon poll, transcripts and PR states
 	// answer, so they hop columns for a second. Hold a spinner until those
@@ -6498,23 +6542,36 @@ function DevBoardPage() {
 		// Before the first answers land the panes and PR states are half
 		// there: a pruned record would wake a session again for an old run.
 		if (ciWakingRef.current || !isBoardSettled || !firstAnswersIn) return;
-		const { since, byPane, set, prune } = useCiWake.getState();
+		const {
+			since,
+			byPane,
+			conflictsByPane,
+			fixConflicts,
+			set,
+			setConflicts,
+			prune,
+		} = useCiWake.getState();
 		prune(new Set(Object.keys(panes)));
-		for (const [i, { paneId }] of mergeCandidates.entries()) {
-			const messages = mergeTranscripts[i]?.data?.messages;
-			const data = mergeStateQueries[i]?.data;
+		for (const [i, { paneId }] of wakeCandidates.entries()) {
+			const messages = wakeTranscripts[i]?.data?.messages;
+			const data = wakeStateQueries[i]?.data;
 			if (!messages || !data) continue;
-			const { next, wakes } = ciWakePlan(
-				byPane[paneId],
-				claimOpened(messages, data),
-				since,
-			);
+			const states = claimOpened(messages, data);
+			const { next, wakes } = ciWakePlan(byPane[paneId], states, since);
 			set(paneId, next);
-			const wake = wakes[0];
+			// Conflicts the same way, when Settings > Sessions has it on. Red CI
+			// goes first: a merge would only start a new run.
+			const conflicts =
+				fixConflicts !== false
+					? conflictWakePlan(conflictsByPane?.[paneId], states)
+					: { next: {}, wakes: [] };
+			setConflicts(paneId, conflicts.next);
+			const ciWake = wakes[0];
+			const conflictWake = ciWake ? undefined : conflicts.wakes[0];
 			const card = [...cardsByStatus.values()]
 				.flat()
 				.find((c) => c.pane.id === paneId);
-			if (!wake || !card || card.pane.odinQueued) continue;
+			if ((!ciWake && !conflictWake) || !card || card.pane.odinQueued) continue;
 			if (resumingPaneIds.includes(paneId) || startingPaneIds.includes(paneId))
 				continue;
 			const live = agentPaneIds.has(paneId);
@@ -6532,11 +6589,19 @@ function DevBoardPage() {
 			}
 			ciWakingRef.current = true;
 			try {
-				const checks = await utils.client.terminal.failedChecks
-					.query({ url: wake.url })
-					.catch(() => []);
-				const message = ciWakeMessage(wake, checks);
-				console.warn(`[board] CI red on ${wake.url}, waking ${paneId}`);
+				const message = ciWake
+					? ciWakeMessage(
+							ciWake,
+							await utils.client.terminal.failedChecks
+								.query({ url: ciWake.url })
+								.catch(() => []),
+						)
+					: conflictWake
+						? conflictWakeMessage(conflictWake)
+						: "";
+				console.warn(
+					`[board] ${ciWake ? "CI red" : "Merge conflicts"} on ${(ciWake ?? conflictWake)?.url}, waking ${paneId}`,
+				);
 				if (live)
 					await typeIntoClaude(
 						utils.client.terminal.write.mutate,
@@ -6544,8 +6609,13 @@ function DevBoardPage() {
 						message,
 					);
 				else await resumeCardRef.current(card, true, message);
-				const records = useCiWake.getState().byPane[paneId] ?? {};
-				set(paneId, woke(records, wake));
+				const state = useCiWake.getState();
+				if (ciWake) set(paneId, woke(state.byPane[paneId] ?? {}, ciWake));
+				else if (conflictWake)
+					setConflicts(
+						paneId,
+						conflictWoke(state.conflictsByPane?.[paneId] ?? {}, conflictWake),
+					);
 			} finally {
 				ciWakingRef.current = false;
 			}
@@ -8535,6 +8605,7 @@ function DevBoardPage() {
 							ciChecks={ciChecksByPane.get(card.pane.id)?.join(", ")}
 							ciGaveUp={ciGaveUpPaneIds.has(card.pane.id)}
 							conflicts={conflictsByPane.get(card.pane.id)}
+							conflictsGaveUp={conflictsGaveUpPaneIds.has(card.pane.id)}
 							duplicate={duplicateOf.get(card.pane.id)}
 							since={statusSinceRef.current.get(card.pane.id)?.at}
 							focusedAt={focusedAt}
