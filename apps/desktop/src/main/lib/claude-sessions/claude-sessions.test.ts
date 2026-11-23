@@ -3,6 +3,7 @@ import {
 	copyFileSync,
 	mkdirSync,
 	mkdtempSync,
+	readFileSync,
 	utimesSync,
 	writeFileSync,
 } from "node:fs";
@@ -12,6 +13,7 @@ import { PR_RULES_HEADER } from "shared/odin-rules";
 import {
 	activeLoop,
 	clip,
+	firstPrompt,
 	opensPr,
 	parseTranscript,
 	pendingPrompt,
@@ -316,6 +318,42 @@ describe("summarizeTranscript", () => {
 });
 
 describe("searchSessions", () => {
+	test("a session started with a skill lists, found by its prompt", async () => {
+		const root = fixtureRoot();
+		const id = "cccc1111-2222-3333-4444-555566667777";
+		writeFileSync(
+			join(root, "-Users-dan-dev-private-odin", `${id}.jsonl`),
+			[
+				// Claude Code files `/skill <task>` as its command wrapper, with no
+				// promptSource, then the skill body as meta.
+				JSON.stringify({
+					type: "user",
+					cwd: "/home/me/repos",
+					message: {
+						role: "user",
+						content:
+							"<command-message>ship-release</command-message>\n<command-name>/ship-release</command-name>\n<command-args>cut the release\n\nWork in the current workspace.</command-args>",
+					},
+				}),
+				injected("Base directory for this skill: /home/me/.claude/skills/x"),
+				assistant("Bumped to 1.1.6 on release/1.1.6."),
+				JSON.stringify({ type: "ai-title", aiTitle: "Ship the release" }),
+			].join("\n"),
+		);
+		for (const query of ["", "1.1.6", "cut the release"]) {
+			const { sessions } = await searchSessions({ root, query });
+			expect(sessions.map((s) => s.sessionId)).toContain(id);
+		}
+		expect(
+			firstPrompt(
+				readFileSync(
+					join(root, "-Users-dan-dev-private-odin", `${id}.jsonl`),
+					"utf-8",
+				),
+			),
+		).toBeTruthy();
+	});
+
 	test("a transcript that changed is read again, not answered from the last search", async () => {
 		const root = fixtureRoot();
 		const file = join(
