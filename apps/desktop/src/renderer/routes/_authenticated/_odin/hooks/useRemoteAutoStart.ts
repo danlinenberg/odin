@@ -1,8 +1,9 @@
 import { toast } from "@odin/ui/sonner";
 import { useEffect, useRef } from "react";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
+import { useTabsStore } from "renderer/stores/tabs/store";
 import { AUTO_START_SOURCES } from "shared/auto-start";
-import type { AllItem } from "../all/all-items";
+import { type AllItem, livePanesOn } from "../all/all-items";
 import { useNextInLineQueue } from "../board/NextInLine";
 
 /** How often the waiting rows are handed to the main process. */
@@ -57,8 +58,11 @@ export function useRemoteAutoStart(): void {
 			}
 		};
 		const startOne = async (item: AllItem) => {
-			const { start, livePaneFor, duplicateFor } = latest.current;
-			if (livePaneFor(item)) return;
+			const { start, duplicateFor } = latest.current;
+			// The live board, not the last render's: a Huginn or session
+			// action=start may have put this task's card up a moment ago.
+			const panes = Object.values(useTabsStore.getState().panes);
+			if (livePanesOn(panes, item).length) return;
 			if (duplicateFor(item)) return;
 			// The Slack launch reaction starts its rows too: one claim for both.
 			if (item.source === "Slack") {
