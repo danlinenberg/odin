@@ -5493,6 +5493,11 @@ function DevBoardPage() {
 		setIsShellOpen(false); // the shell belongs to the session you came from
 		setDrawerCard(card);
 	};
+	// The drawer's pane right now, for async work that opens a drawer when it
+	// ends: a slow Restart opens its session only if you are still where you
+	// were when it began, not after you moved on to another session.
+	const shownPaneRef = useRef<string | null>(null);
+	shownPaneRef.current = drawerCard?.pane.id ?? null;
 
 	// A reload (⌘R, a renderer full reload) lands you back in the session you
 	// had open, not on the board. sessionStorage: this window only, and gone
@@ -5700,7 +5705,11 @@ function DevBoardPage() {
 		auto: boolean | "bulk" | "phone" = false,
 		prompt?: string,
 		restart = false,
+		shown = shownPaneRef.current,
 	) => {
+		const openIfStillShown = () => {
+			if (shownPaneRef.current === shown) openDrawer(card);
+		};
 		if (
 			resumingPaneIds.includes(card.pane.id) ||
 			startingPaneIds.includes(card.pane.id)
@@ -5721,7 +5730,7 @@ function DevBoardPage() {
 					if (!(await moveQueuedToMac(utils.client, card.pane)))
 						throw new Error("This one can only start on the remote host");
 				} else await startQueuedPane(utils.client, card.pane);
-				if (!auto) openDrawer(card);
+				if (!auto) openIfStillShown();
 				void utils.terminal.listDaemonSessions.invalidate();
 			} catch (error) {
 				toast.error(error instanceof Error ? error.message : String(error));
@@ -5748,7 +5757,7 @@ function DevBoardPage() {
 			? `'${prompt.replaceAll("'", "'\\''")}'`
 			: "Continue";
 		if (!restart && agentPaneIds.has(card.pane.id) && !shellOnScreen) {
-			if (!auto) openDrawer(card);
+			if (!auto) openIfStillShown();
 			// On the host its Claude is already running: Continue costs the host
 			// nothing new, and a queued local `claude --resume` would run here.
 			const blocker = card.pane.odinRemote
@@ -6008,7 +6017,7 @@ function DevBoardPage() {
 		// You resumed it to work in it - bring it up. The drawer swaps its
 		// read-only history for the live terminal once the PTY is back, and that
 		// terminal takes the keyboard. Auto-resume never steals the screen.
-		if (!auto) openDrawer(card);
+		if (!auto) openIfStillShown();
 		// Only a Resume that goes back to work waits on the gate. One reopening
 		// at an idle prompt takes no working slot and holds no checkout - queuing
 		// it parked you behind every task in line, looking at the board. A bulk
@@ -6163,6 +6172,7 @@ function DevBoardPage() {
 	 * where it is now. The way out for a session stuck on the host.
 	 */
 	const runHere = async (card: BoardCard, prompt?: string) => {
+		const shown = shownPaneRef.current;
 		const sessionId =
 			card.pane.claudeSessionId ??
 			usePaneMeta.getState().sessionIdByPane[card.pane.id];
@@ -6208,6 +6218,7 @@ function DevBoardPage() {
 				false,
 				withHeld(prompt ? `${note}\n\n${prompt}` : note, held),
 				true,
+				shown,
 			);
 			for (const message of held) message.sent();
 			if (!offline)
@@ -6225,6 +6236,7 @@ function DevBoardPage() {
 	 * The pane's connect sends the conversation, which the host lacks.
 	 */
 	const runOnHost = async (card: BoardCard) => {
+		const shown = shownPaneRef.current;
 		const host = hostConfig?.host;
 		const sessionId =
 			card.pane.claudeSessionId ??
@@ -6253,7 +6265,7 @@ function DevBoardPage() {
 				panes: { ...state.panes, [card.pane.id]: pane },
 			}));
 			toast.dismiss(loading);
-			await resumeCard({ ...card, pane }, false, note, true);
+			await resumeCard({ ...card, pane }, false, note, true, shown);
 			if (warning) toast.warning(warning);
 		} catch (error) {
 			// The copy of a shared checkout's work stays on origin only for the host to take.
@@ -6272,6 +6284,7 @@ function DevBoardPage() {
 	 * first, as Run here does, then goes on to `to` and resumes there.
 	 */
 	const moveToHost = async (card: BoardCard, to: string) => {
+		const shown = shownPaneRef.current;
 		const sessionId =
 			card.pane.claudeSessionId ??
 			usePaneMeta.getState().sessionIdByPane[card.pane.id];
@@ -6307,7 +6320,13 @@ function DevBoardPage() {
 			}));
 			toast.dismiss(loading);
 			held = endMove(card.pane.id);
-			await resumeCard({ ...card, pane }, false, withHeld(note, held), true);
+			await resumeCard(
+				{ ...card, pane },
+				false,
+				withHeld(note, held),
+				true,
+				shown,
+			);
 			for (const message of held) message.sent();
 			toast.success(`Moved to ${to}`);
 			if (warning) toast.warning(warning);
