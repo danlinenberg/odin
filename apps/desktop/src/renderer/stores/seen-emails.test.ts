@@ -19,7 +19,9 @@ test("an opened (now read) mail stays until Done or a month passes", () => {
 	);
 	// Next poll: "a" was opened in Gmail, so the unread feed no longer has it.
 	expect(
-		withSeenEmails([mail("b", "2026-01-01")], seen, "me@example.com").map((e) => e.id),
+		withSeenEmails([mail("b", "2026-01-01")], seen, "me@example.com").map(
+			(e) => e.id,
+		),
 	).toEqual(["a", "b"]);
 	expect(rememberEmails(seen, [], 31 * 86_400_000)).toEqual({});
 });
