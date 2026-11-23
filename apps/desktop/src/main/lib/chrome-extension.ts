@@ -26,11 +26,13 @@ export function chromeExtensionFiles(
 	const manifest = {
 		manifest_version: 3,
 		name: "Odin",
-		version: "1.0.2",
+		version: "1.0.3",
 		description:
 			"Shows the Odin sessions that worked on the page you have open.",
-		permissions: ["tabs", "storage"],
-		host_permissions: ["http://127.0.0.1/*"],
+		permissions: ["tabs", "storage", "scripting"],
+		// Every site, so the banner can be drawn on whichever page a session is
+		// working on. Pages without one get nothing injected.
+		host_permissions: ["<all_urls>"],
 		background: { service_worker: "background.js" },
 		action: { default_popup: "popup.html", default_title: "Odin sessions" },
 		...(store && { icons: { "128": STORE_ICON } }),
@@ -44,6 +46,14 @@ async function sessionsFor(url) {
 	);
 	if (!res.ok) throw new Error("Odin answered " + res.status);
 	return (await res.json()).sessions;
+}
+// The Odin that listed it opens it (a dev build has no odin:// link).
+async function openSession(id, url) {
+	const { port } = await chrome.storage.local.get({ port: DEFAULT_PORT });
+	await fetch("http://127.0.0.1:" + port + "/sessions/open", {
+		method: "POST",
+		body: new URLSearchParams({ id, url }),
+	});
 }
 // Written to in the last few minutes: the session is still working.
 function isLive(session) {
@@ -65,10 +75,64 @@ async function badge(tabId, url) {
 				: sessions.length + " Odin session" + (sessions.length > 1 ? "s" : "") +
 					" on this page" + (live ? ", " + live + " working now" : ""),
 		});
+		await banner(tabId, url, live);
 	} catch {
 		await chrome.action.setBadgeText({ tabId, text: "" });
 	}
 }
+// The tabs showing a banner now, and the pages whose banner was closed.
+const bannered = new Set();
+const dismissed = new Set();
+async function banner(tabId, url, live) {
+	const text = live && !dismissed.has(tabId + " " + url)
+		? "Odin: " + live + " session" + (live > 1 ? "s" : "") + " working on this page"
+		: "";
+	if (!text && !bannered.has(tabId)) return;
+	try {
+		await chrome.scripting.executeScript({ target: { tabId }, func: drawBanner, args: [text] });
+		if (text) bannered.add(tabId);
+		else bannered.delete(tabId);
+	} catch {
+		// a page Chrome doesn't let extensions draw on (the Web Store, chrome://)
+	}
+}
+// Runs in the page: a pill in the bottom-right corner, in a shadow root so the
+// page's styles can't touch it. Empty text takes it down.
+function drawBanner(text) {
+	let host = document.getElementById("odin-session-banner");
+	if (!text) return host && host.remove();
+	if (!host) {
+		host = document.createElement("div");
+		host.id = "odin-session-banner";
+		host.attachShadow({ mode: "open" }).innerHTML = \`<style>
+div { position: fixed; right: 16px; bottom: 16px; z-index: 2147483647; display: flex; align-items: center; gap: 2px;
+	font: 600 12px system-ui, sans-serif; background: #16a34a; color: #fff; border-radius: 999px; box-shadow: 0 2px 8px #0003; }
+button { all: unset; cursor: pointer; padding: 7px 12px; }
+.x { padding: 7px 10px 7px 4px; opacity: .8; }
+.x:hover { opacity: 1; }
+</style><div><button class="open"></button><button class="x" title="Hide">\u00d7</button></div>\`;
+		host.shadowRoot.querySelector(".open").onclick = () => chrome.runtime.sendMessage({ odin: "open" });
+		host.shadowRoot.querySelector(".x").onclick = () => {
+			host.remove();
+			chrome.runtime.sendMessage({ odin: "dismiss" });
+		};
+		document.documentElement.append(host);
+	}
+	host.shadowRoot.querySelector(".open").textContent = "\u25cf " + text;
+}
+// The banner's buttons: open the session working on the page, or hide it here.
+chrome.runtime.onMessage.addListener(async (message, sender) => {
+	const tab = sender.tab;
+	if (!tab) return;
+	if (message.odin === "dismiss") {
+		dismissed.add(tab.id + " " + tab.url);
+		bannered.delete(tab.id);
+	}
+	if (message.odin === "open") {
+		const [session] = (await sessionsFor(tab.url)).filter(isLive);
+		if (session) await openSession(session.sessionId, tab.url);
+	}
+});
 chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
 	if (change.url || change.status === "complete") badge(tabId, tab.url);
 });
@@ -116,13 +180,8 @@ async function show() {
 			when.textContent = isLive(session) ? "Working now" : ago(session.updatedAt);
 			if (isLive(session)) when.className = "when live";
 			link.append(when);
-			// The Odin that listed it opens it (a dev build has no odin:// link).
 			link.onclick = async () => {
-				const { port } = await chrome.storage.local.get({ port: DEFAULT_PORT });
-				await fetch("http://127.0.0.1:" + port + "/sessions/open", {
-					method: "POST",
-					body: new URLSearchParams({ id: session.sessionId, url: tab.url }),
-				});
+				await openSession(session.sessionId, tab.url);
 				window.close();
 			};
 			list.append(link);
