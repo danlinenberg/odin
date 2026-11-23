@@ -91,3 +91,19 @@ it("pairs two sessions on one Sentry issue", () => {
 	]);
 	expect(Object.fromEntries(found)).toEqual({ channel: "dm", dm: "channel" });
 });
+
+it("never pairs two sessions of one group, still pairs one outside it", () => {
+	const group = { name: "Open tickets", color: "blue" as const };
+	const found = duplicateSessions([
+		pane({
+			id: "lead",
+			odinTaskTitle: "Work every open ticket",
+			odinBrief: "ACME-1 ACME-2",
+			odinGroup: { ...group, leader: true },
+		}),
+		pane({ id: "one", odinTaskTitle: "ACME-1: fix it", odinGroup: group }),
+		pane({ id: "other", odinTaskTitle: "ACME-2 again" }),
+	]);
+	expect(found.has("one")).toBe(false);
+	expect(found.get("other")).toBe("lead");
+});

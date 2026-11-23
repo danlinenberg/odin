@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
 	answeredLeaderNote,
 	groupName,
+	keepGroupsTogether,
 	leaderNote,
 	leaderNoteTargets,
 	listGroups,
@@ -14,6 +15,7 @@ import {
 	withGroupColor,
 	withGroupNotify,
 	withLeader,
+	withStartedBy,
 } from "./session-group";
 
 type P = { id: string; odinGroup?: SessionGroup };
@@ -168,5 +170,88 @@ describe("session groups", () => {
 		expect(
 			memberNote({ group: "R", memberTitle: "T", reply: "x".repeat(900) }),
 		).toContain(`${"x".repeat(400)}…`);
+	});
+});
+
+describe("a session that starts sessions", () => {
+	type T = P & { odinTaskTitle?: string };
+	const board = (): Record<string, T> => ({
+		lead: { id: "lead", odinTaskTitle: "Work every open ticket" },
+		a: { id: "a" },
+		b: { id: "b" },
+	});
+
+	it("leads a new group named after it, with each session it starts", () => {
+		let next = withStartedBy(board(), "lead", "a");
+		next = withStartedBy(next, "lead", "b");
+		expect(next.lead.odinGroup).toMatchObject({
+			name: "Work every open ticket",
+			leader: true,
+		});
+		expect(next.a.odinGroup?.name).toBe("Work every open ticket");
+		expect(next.b.odinGroup?.name).toBe("Work every open ticket");
+		expect(next.a.odinGroup?.leader).toBeUndefined();
+		expect(listGroups(next)).toHaveLength(1);
+	});
+
+	it("adds to the group it is a member of, without taking the lead", () => {
+		let start = withStartedBy(board(), "lead", "a");
+		start = withStartedBy(start, "a", "b");
+		expect(start.b.odinGroup?.name).toBe("Work every open ticket");
+		expect(start.a.odinGroup?.leader).toBeUndefined();
+		expect(start.lead.odinGroup?.leader).toBe(true);
+	});
+
+	it("never takes another group's name", () => {
+		const taken = withGroup(board(), "b", "Work every open ticket");
+		const next = withStartedBy(taken, "lead", "a");
+		expect(next.lead.odinGroup?.name).toBe("Work every open ticket 2");
+		expect(next.b.odinGroup?.leader).toBeUndefined();
+	});
+});
+
+describe("keepGroupsTogether", () => {
+	const rank = (status: string) =>
+		["permission", "review", "working", "idle"].indexOf(status);
+	const card = (
+		id: string,
+		status: string,
+		group?: string,
+		leader = false,
+	) => ({
+		pane: {
+			id,
+			...(group
+				? { odinGroup: { name: group, color: "blue" as const, leader } }
+				: {}),
+		},
+		status,
+	});
+
+	it("puts a group where its most urgent member is, leader first", () => {
+		const out = keepGroupsTogether(
+			[
+				card("x", "working"),
+				card("m1", "working", "G"),
+				card("lead", "working", "G", true),
+				card("y", "review"),
+				card("m2", "permission", "G"),
+			],
+			rank,
+		);
+		expect(out.map((c) => [c.pane.id, c.place, c.status])).toEqual([
+			["x", "working", "working"],
+			["y", "review", "review"],
+			["lead", "permission", "working"],
+			["m1", "permission", "working"],
+			["m2", "permission", "permission"],
+		]);
+	});
+
+	it("leaves a board with no groups as it was", () => {
+		const cards = [card("a", "idle"), card("b", "working")];
+		expect(keepGroupsTogether(cards, rank)).toEqual(
+			cards.map((c) => ({ ...c, place: c.status })),
+		);
 	});
 });
