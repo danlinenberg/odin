@@ -320,6 +320,8 @@ export const createWorkRouter = () => {
 			hasJira: hasJiraOAuth(),
 			hasGithub: githubToken() !== null,
 			hasGmail: gmailCredentials() !== null,
+			/** This profile's Gmail address - which remembered mail is its own. */
+			gmailAddress: gmailCredentials()?.address ?? null,
 			hasClickup: !!readOdinConfig().clickupToken,
 			hasAirtable: hasAirtableOAuth(),
 			hasDeterm: !!readOdinConfig().determToken,
