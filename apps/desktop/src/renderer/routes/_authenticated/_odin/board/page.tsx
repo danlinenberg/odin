@@ -295,7 +295,9 @@ import {
 	conflictWakePlan,
 	conflictWoke,
 	gaveUpPanes,
+	isMergeColumn,
 	useCiWake,
+	wakesColumn,
 	woke,
 } from "./ci-wake";
 import { DiffView } from "./DiffView";
@@ -3892,7 +3894,10 @@ function DevBoardPage() {
 	const [briefUrgency, setBriefUrgency] = useState<
 		Record<string, { urgency: BriefUrgency; replyAt: string }>
 	>({});
-	const mergeCandidates = Object.values(panes).flatMap((pane) => {
+	// Every card the CI and conflict wakes watch: these plus Working and Idle
+	// ones (wakesColumn). The board's own checks below take only Needs you and
+	// Done, as mergeCandidates.
+	const wakeCandidates = Object.values(panes).flatMap((pane) => {
 		const sessionId = pane.claudeSessionId ?? sessionIdByPane[pane.id];
 		if (
 			!sessionId ||
@@ -3909,7 +3914,7 @@ function DevBoardPage() {
 			loopingPaneIds.has(pane.id),
 			pane.odinClosedIn,
 		);
-		return column === "permission" || column === "review"
+		return wakesColumn(column, pane.odinParked ?? false)
 			? [
 					{
 						paneId: pane.id,
@@ -3921,8 +3926,8 @@ function DevBoardPage() {
 				]
 			: [];
 	});
-	const mergeTranscripts = electronTrpc.useQueries((t) =>
-		mergeCandidates.map(({ sessionId, live }) =>
+	const wakeTranscripts = electronTrpc.useQueries((t) =>
+		wakeCandidates.map(({ sessionId, live }) =>
 			t.terminal.readClaudeTranscript(
 				{ sessionId },
 				{
@@ -3934,6 +3939,29 @@ function DevBoardPage() {
 			),
 		),
 	);
+	const wakeStateQueries = electronTrpc.useQueries((t) =>
+		wakeCandidates.map(({ brief, column }, i) => {
+			const messages = wakeTranscripts[i]?.data?.messages ?? [];
+			const reviewed = reviewedPullRequest(brief, messages);
+			const urls = mergeCheckUrls(messages);
+			if (reviewed && !urls.includes(reviewed.url)) urls.push(reviewed.url);
+			return t.terminal.pullRequestStates(
+				{ urls },
+				{
+					enabled: urls.length > 0,
+					retry: false,
+					staleTime: 30_000,
+					// ponytail: Working and Idle cards only feed the wakes, so 5 min is plenty.
+					refetchInterval: isMergeColumn(column) ? 60_000 : 300_000,
+					notifyOnChangeProps: QUIET_POLL,
+				},
+			);
+		}),
+	);
+	const isMerge = (i: number) => isMergeColumn(wakeCandidates[i]?.column);
+	const mergeCandidates = wakeCandidates.filter((_, i) => isMerge(i));
+	const mergeTranscripts = wakeTranscripts.filter((_, i) => isMerge(i));
+	const mergeStateQueries = wakeStateQueries.filter((_, i) => isMerge(i));
 	// Sessions whose newest reply opens "DROPPED: <why>" - see the effect by
 	// endCard, which drops their feed rows.
 	const selfDrops = mergeCandidates.flatMap(({ paneId, sessionId }, i) => {
@@ -3944,24 +3972,6 @@ function DevBoardPage() {
 			: [];
 	});
 	const selfDropKey = selfDrops.map((drop) => drop.reply).join(",");
-	const mergeStateQueries = electronTrpc.useQueries((t) =>
-		mergeCandidates.map(({ brief }, i) => {
-			const messages = mergeTranscripts[i]?.data?.messages ?? [];
-			const reviewed = reviewedPullRequest(brief, messages);
-			const urls = mergeCheckUrls(messages);
-			if (reviewed && !urls.includes(reviewed.url)) urls.push(reviewed.url);
-			return t.terminal.pullRequestStates(
-				{ urls },
-				{
-					enabled: urls.length > 0,
-					retry: false,
-					staleTime: 30_000,
-					refetchInterval: 60_000,
-					notifyOnChangeProps: QUIET_POLL,
-				},
-			);
-		}),
-	);
 	// Needs you cards only, unless `anyColumn`: Done ones are here for CI.
 	const candidateKey = (
 		test: (
@@ -6431,9 +6441,9 @@ function DevBoardPage() {
 			prune,
 		} = useCiWake.getState();
 		prune(new Set(Object.keys(panes)));
-		for (const [i, { paneId }] of mergeCandidates.entries()) {
-			const messages = mergeTranscripts[i]?.data?.messages;
-			const data = mergeStateQueries[i]?.data;
+		for (const [i, { paneId }] of wakeCandidates.entries()) {
+			const messages = wakeTranscripts[i]?.data?.messages;
+			const data = wakeStateQueries[i]?.data;
 			if (!messages || !data) continue;
 			const states = claimOpened(messages, data);
 			const { next, wakes } = ciWakePlan(byPane[paneId], states, since);

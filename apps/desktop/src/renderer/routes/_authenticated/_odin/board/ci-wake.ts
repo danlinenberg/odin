@@ -282,3 +282,22 @@ export function conflictWoke(
 export function conflictWakeMessage(wake: ConflictWake): string {
 	return fixConflictsMessage(wake.url, wake.base);
 }
+
+/** Needs you or Done: the columns the board's merge-ready checks read. */
+export function isMergeColumn(column: string | undefined): boolean {
+	return column === "permission" || column === "review";
+}
+
+/**
+ * The columns the CI and conflict wakes watch. Besides Needs you and Done:
+ * Working, whose message waits until Claude sits idle at its prompt, and Idle,
+ * where a `/loop` session between ticks and a session that died after its
+ * turn sit. Not a card you dragged to Idle yourself.
+ */
+export function wakesColumn(column: string, parked: boolean): boolean {
+	return (
+		isMergeColumn(column) ||
+		column === "working" ||
+		(column === "idle" && !parked)
+	);
+}

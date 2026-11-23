@@ -12,6 +12,7 @@ import {
 	conflictWakePlan,
 	conflictWoke,
 	gaveUpPanes,
+	wakesColumn,
 	woke,
 } from "./ci-wake";
 
@@ -156,4 +157,10 @@ test("a PR that stops conflicting ends the streak; a teammate's or a closed one 
 		conflictWakePlan(undefined, conflicting("a", "m1", { state: "MERGED" }))
 			.wakes,
 	).toEqual([]);
+});
+
+test("the wakes watch Working and Idle cards too, not one you parked", () => {
+	for (const column of ["permission", "review", "working", "idle"])
+		expect(wakesColumn(column, false)).toBe(true);
+	expect(wakesColumn("idle", true)).toBe(false);
 });
