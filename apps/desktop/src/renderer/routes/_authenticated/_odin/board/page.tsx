@@ -4015,7 +4015,7 @@ function DevBoardPage() {
 					enabled: urls.length > 0,
 					retry: false,
 					staleTime: 30_000,
-					// ponytail: Working and Idle cards only feed the wakes, so 5 min is plenty.
+					// Working and Idle cards only feed the wakes: every 5 minutes is enough.
 					refetchInterval: isMergeColumn(column) ? 60_000 : 300_000,
 					notifyOnChangeProps: QUIET_POLL,
 				},
