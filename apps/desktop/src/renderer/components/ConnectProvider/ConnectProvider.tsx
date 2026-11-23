@@ -637,7 +637,10 @@ function CalendarConnect({ onDone }: { onDone: () => void }) {
 		return (
 			<div className="space-y-2">
 				<OAuthConnect provider="calendar" onDone={onDone} />
-				{toggle("ical", "Outlook or iCloud? Paste a secret iCal address")}
+				{toggle(
+					"ical",
+					"No Google sign-in? Paste your calendar's secret iCal address instead",
+				)}
 				{other === "ical" && <ICalConnect onDone={onDone} />}
 			</div>
 		);
@@ -684,10 +687,19 @@ function ICalConnect({ onDone }: { onDone: () => void }) {
 			>
 				1. Copy your secret iCal address ↗
 			</button>
+			<ol className="list-decimal space-y-0.5 pl-4 text-xs text-muted-foreground">
+				<li>
+					In Google Calendar's settings, click your calendar under Settings for
+					my calendars.
+				</li>
+				<li>
+					Scroll to Integrate calendar and copy Secret address in iCal format.
+				</li>
+				<li>Paste it below. It works like a password: keep it private.</li>
+			</ol>
 			<p className="text-xs text-muted-foreground">
-				Google Calendar: your calendar under Settings for my calendars →
-				Integrate calendar → Secret address in iCal format. Outlook and iCloud
-				share links work too.
+				No secret address there? Your Google Workspace admin turned it off.
+				Outlook and iCloud share links work too.
 			</p>
 			<Input
 				type="password"

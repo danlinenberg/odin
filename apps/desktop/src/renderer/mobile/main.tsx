@@ -1304,15 +1304,19 @@ function Session({ paneId }: { paneId: string }) {
 	};
 	const bottom = useRef<HTMLDivElement>(null);
 	const scroller = useRef<HTMLElement>(null);
-	// Follow new messages only while you're at the bottom; reading further up,
-	// the ↓ button brings you back.
+	// Follow new messages only while you're at the bottom; scroll up even a
+	// little and it stops until you're back at the bottom or tap ↓.
 	const [atBottom, setAtBottom] = useState(true);
 	const following = useRef(true);
+	// A finger on the chat: the 1.5s refresh must not pull it back down.
+	const touching = useRef(false);
+	const lastTop = useRef(0);
 	// Pinned to the bottom unless you scrolled up: after every refresh, and
 	// when an image finishes loading and pushes the rest down.
 	const stick = () => {
 		const el = scroller.current;
-		if (following.current && el) el.scrollTop = el.scrollHeight;
+		if (following.current && !touching.current && el)
+			el.scrollTop = el.scrollHeight;
 	};
 	// Every render: no deps on purpose.
 	useEffect(stick);
@@ -1433,11 +1437,25 @@ function Session({ paneId }: { paneId: string }) {
 				ref={scroller}
 				onLoadCapture={stick}
 				className="relative flex-1 overflow-y-auto px-2.5 py-2"
+				onTouchStart={() => {
+					touching.current = true;
+				}}
+				onTouchEnd={() => {
+					touching.current = false;
+				}}
+				onTouchCancel={() => {
+					touching.current = false;
+				}}
 				onScroll={(event) => {
 					const el = event.currentTarget;
-					const near = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-					following.current = near;
-					setAtBottom(near);
+					const left = el.scrollHeight - el.scrollTop - el.clientHeight;
+					const up = el.scrollTop < lastTop.current;
+					lastTop.current = el.scrollTop;
+					// Any move up stops following, even a few pixels from the
+					// bottom: only reaching the bottom again starts it.
+					if (left < 4) following.current = true;
+					else if (up) following.current = false;
+					setAtBottom(following.current);
 				}}
 			>
 				<ErrorLine error={session.error ?? startQueued.error} />

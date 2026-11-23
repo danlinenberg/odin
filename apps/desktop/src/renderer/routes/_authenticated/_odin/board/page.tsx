@@ -294,10 +294,10 @@ import { DiffView } from "./DiffView";
 import { drawerEscAction, escStaysWithTarget } from "./drawer-esc";
 import { drawerViewSwitch } from "./drawer-view-switch";
 import { HostScreenView } from "./HostScreenView";
-
 import { deliverOnHost } from "./host-delivery";
 import { hostStartDelay } from "./host-start-gap";
 import { onIdleArrival, restoreAfterCompact } from "./idle-compact";
+import { MCP_SIGNED_IN_RETRY, mcpRestartKey } from "./mcp-sign-in-restart";
 import { menuTop } from "./menu-fit";
 import {
 	endMove,
@@ -6718,6 +6718,62 @@ function DevBoardPage() {
 		}
 	}, [cardsByStatus, agentPaneIds]);
 
+	// A Claude Code connector (MCP server) that lost its sign-in mid-turn stays
+	// broken until the session starts again, since a session loads connector
+	// sign-ins at start. When such a turn ends, restart the session once and
+	// retry: on the host, after sending it this computer's fresh sign-ins.
+	const mcpRestartedRef = useRef(new Set<string>());
+	const mcpSeenRef = useRef(new Set<string>());
+	useEffect(() => {
+		const ended = [...cardsByStatus.values()]
+			.flat()
+			.filter(
+				(c) =>
+					(c.pane.status === "review" || c.pane.status === "failed") &&
+					!c.pane.odinQueued &&
+					agentPaneIds.has(c.pane.id),
+			);
+		const endedIds = new Set(ended.map((c) => c.pane.id));
+		// A session that went back to work is checked again when it next ends.
+		for (const id of mcpSeenRef.current)
+			if (!endedIds.has(id)) mcpSeenRef.current.delete(id);
+		for (const card of ended) {
+			if (mcpSeenRef.current.has(card.pane.id)) continue;
+			mcpSeenRef.current.add(card.pane.id);
+			const sessionId =
+				card.pane.claudeSessionId ??
+				usePaneMeta.getState().sessionIdByPane[card.pane.id];
+			if (!sessionId) continue;
+			void (async () => {
+				try {
+					const transcript =
+						await electronTrpcClient.terminal.readClaudeTranscript.query({
+							sessionId,
+						});
+					const key = mcpRestartKey(
+						card.pane.id,
+						transcript.mcpSignedOut,
+						transcript.messages,
+					);
+					if (!key || mcpRestartedRef.current.has(key)) return;
+					mcpRestartedRef.current.add(key);
+					const servers =
+						transcript.mcpSignedOut?.servers.join(", ") || "A connector";
+					toast.info(`${servers} lost its sign-in - restarting the session`, {
+						description: taskName(card),
+					});
+					if (card.pane.odinRemote)
+						await electronTrpcClient.remoteHost.refreshTokens
+							.mutate()
+							.catch(() => {});
+					await resumeCardRef.current(card, true, MCP_SIGNED_IN_RETRY, true);
+				} catch {
+					// No transcript to read: leave that session as it is.
+				}
+			})();
+		}
+	}, [cardsByStatus, agentPaneIds]);
+
 	// A Claude sign-in is shared by every session on its side (the host, or
 	// this computer), so once one succeeds, the sessions there whose last reply
 	// is "Not logged in" restart and retry, without a click each.
@@ -7238,6 +7294,10 @@ function DevBoardPage() {
 	const todayExperiment = useTodayOverview((s) => s.experiment);
 	const [todayShown, setTodayOpen] = useState(false);
 	const todayOpen = todayExperiment && todayShown;
+	// The drawer's list of the other sessions, with 2 or more in flight. Not
+	// beside Today: the page is the list there.
+	const showSwitchList =
+		!todayOpen && switchCards.length + idleSwitchCards.length > 1;
 	const todayCards: TodayCard[] = [...cardsByStatus.values()]
 		.flat()
 		.map((card) => {
@@ -8373,7 +8433,7 @@ function DevBoardPage() {
 							{/* The other sessions in flight, one click away - no Minimize
 								    and hunt for the card on the board. Hidden on a narrow
 								    drawer, where the chat needs the room. */}
-							{switchCards.length + idleSwitchCards.length > 1 && (
+							{showSwitchList && (
 								<>
 									<nav
 										aria-label="Sessions"

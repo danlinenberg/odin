@@ -1458,6 +1458,12 @@ export const createRemoteHostRouter = () =>
 			}),
 		/** A fresh token from `claude setup-token`, replacing the saved one. */
 		renewClaudeToken: publicProcedure.mutation(() => ensureClaudeToken(true)),
+		/**
+		 * Sends the hosts fresh copies of this computer's sign-ins now, rather
+		 * than at the next half-hour push: a host session whose connector lost
+		 * its sign-in restarts on them.
+		 */
+		refreshTokens: publicProcedure.mutation(() => refreshHostTokens()),
 		/** A Claude sign-in for the host waiting on you (Windows): the page Odin opened and whether Claude asks for its code; null when none. */
 		claudeSignIn: publicProcedure.query(() => claudeSignInPrompt()),
 		/** The code the Claude sign-in page showed, typed at Claude's prompt. */
