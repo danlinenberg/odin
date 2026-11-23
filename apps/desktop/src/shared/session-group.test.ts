@@ -1,9 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import {
+	answeredLeaderNote,
 	groupName,
 	leaderNote,
 	leaderNoteTargets,
 	listGroups,
+	memberNote,
+	memberNoteTarget,
 	nextGroupColor,
 	type SessionGroup,
 	turnEnded,
@@ -124,5 +127,46 @@ describe("session groups", () => {
 		expect(leaderNote({ group: "R", leaderTitle: "T" })).not.toContain(
 			"transcript",
 		);
+	});
+
+	it("a member's finished turn goes to the leader, never a turn that only answered the leader", () => {
+		let state = withGroup(panes("lead", "a", "b", "solo"), "lead", "Release");
+		state = withGroup(state, "a", "Release");
+		state = withGroup(state, "b", "Release");
+		expect(memberNoteTarget(state, "a")).toBeUndefined();
+		state = withLeader(state, "lead", true);
+		expect(memberNoteTarget(state, "a")).toBe("lead");
+		expect(memberNoteTarget(state, "lead")).toBeUndefined();
+		expect(memberNoteTarget(state, "solo")).toBeUndefined();
+
+		const fromLeader = leaderNote({ group: "Release", leaderTitle: "Plan" });
+		expect(
+			answeredLeaderNote([
+				{ role: "user", text: "Fix the build" },
+				{ role: "user", text: fromLeader },
+				{ role: "assistant", text: "Noted, nothing changes here." },
+			]),
+		).toBe(true);
+		expect(
+			answeredLeaderNote([
+				{ role: "user", text: fromLeader },
+				{ role: "user", text: "Now fix the build" },
+				{ role: "assistant", text: "Fixed." },
+			]),
+		).toBe(false);
+
+		const note = memberNote({
+			group: "Release",
+			memberTitle: "Fix the build",
+			reply: "Long story.\n\n**TL;DR:** the build is green again.\n\nMore.",
+			sessionId: "abc",
+		});
+		expect(note).toContain('"Fix the build"');
+		expect(note).toContain('"the build is green again."');
+		expect(note).toContain("abc.jsonl");
+		expect(answeredLeaderNote([{ role: "user", text: note }])).toBe(false);
+		expect(
+			memberNote({ group: "R", memberTitle: "T", reply: "x".repeat(900) }),
+		).toContain(`${"x".repeat(400)}…`);
 	});
 });

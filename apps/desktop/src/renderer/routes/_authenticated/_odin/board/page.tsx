@@ -141,6 +141,7 @@ import {
 import { isQueuedResume } from "shared/queued-resume";
 import { remoteCardsToReconnect, tmuxSession } from "shared/remote-reconnect";
 import {
+	answeredLeaderNote,
 	GROUP_COLORS,
 	GROUP_HEX,
 	type GroupColor,
@@ -149,6 +150,8 @@ import {
 	leaderNote,
 	leaderNoteTargets,
 	listGroups,
+	memberNote,
+	memberNoteTarget,
 	type SessionGroup,
 	turnEnded,
 	withGroup,
@@ -2036,7 +2039,7 @@ function GroupSection({
 								))}
 							</fieldset>
 							<label
-								title="The group's leader: one session that the others follow"
+								title="The group's leader: one session that the others follow, and that hears from each of them when its turn ends"
 								className="mt-1.5 flex cursor-pointer items-center gap-2 px-1.5 py-0.5 text-[12px] text-muted-foreground hover:text-foreground"
 							>
 								<input
@@ -6487,10 +6490,80 @@ function DevBoardPage() {
 			}
 		})().catch((error) => console.warn("[board] group note failed:", error));
 	};
+	// A member's turn ended: its group's leader gets a note with what the
+	// member's last reply said. A closed leader is resumed with the note as its
+	// opening message; a live one gets it typed once it is at its prompt (a
+	// minute at most). A member turn that only answered the leader's own note
+	// is not reported, so the two never bounce notes back and forth. Notes go
+	// one at a time, so two members finishing together don't race one resume.
+	const noteLeaderChainRef = useRef<Promise<void>>(Promise.resolve());
+	const noteLeaderRef = useRef<(memberId: string, leaderId: string) => void>(
+		() => undefined,
+	);
+	noteLeaderRef.current = (memberId, leaderId) => {
+		const member = panes[memberId];
+		const group = member?.odinGroup;
+		if (!member || !group) return;
+		const sessionId =
+			member.claudeSessionId ??
+			usePaneMeta.getState().sessionIdByPane[memberId];
+		const memberTitle =
+			member.odinTaskTitle ??
+			titleByPane[memberId] ??
+			member.userTitle ??
+			member.name;
+		const sameMachine = panes[leaderId]?.odinRemote === member.odinRemote;
+		noteLeaderChainRef.current = noteLeaderChainRef.current
+			.then(async () => {
+				const messages = sessionId
+					? ((
+							await utils.client.terminal.readClaudeTranscript
+								.query({ sessionId })
+								.catch(() => null)
+						)?.messages ?? [])
+					: [];
+				if (answeredLeaderNote(messages)) return;
+				const note = memberNote({
+					group: group.name,
+					memberTitle,
+					reply: latestReply(messages)?.text,
+					sessionId: sameMachine ? sessionId : undefined,
+				});
+				if (!agentPaneIdsRef.current.has(leaderId)) {
+					const card = [...cardsRef.current.values()]
+						.flat()
+						.find((each) => each.pane.id === leaderId);
+					if (card) await resumeCardRef.current(card, true, note);
+					return;
+				}
+				for (let waited = 0; waited < 60_000; waited += 2_000) {
+					const text = await utils.client.terminal.readScreen
+						.query({ paneId: leaderId })
+						.then((result) => result.text)
+						.catch(() => null);
+					const status = text ? odinScreenStatus(text) : undefined;
+					if (
+						text &&
+						(status === "review" || status === "working") &&
+						inputBoxEmpty(text)
+					) {
+						await typeIntoClaude(
+							utils.client.terminal.write.mutate,
+							leaderId,
+							note,
+						);
+						return;
+					}
+					await new Promise((done) => setTimeout(done, 2_000));
+				}
+				console.warn(`[board] leader ${leaderId} never free for a note`);
+			})
+			.catch((error) => console.warn("[board] leader note failed:", error));
+	};
 	useEffect(() => {
 		const seen = leaderStatusRef.current;
 		for (const [paneId, pane] of Object.entries(panes)) {
-			if (!pane.odinGroup?.leader) {
+			if (!pane.odinGroup) {
 				seen.delete(paneId);
 				continue;
 			}
@@ -6499,6 +6572,8 @@ function DevBoardPage() {
 			if (!turnEnded(previous, pane.status)) continue;
 			const targets = leaderNoteTargets(panes, paneId);
 			if (targets.length > 0) noteGroupRef.current(paneId, targets);
+			const leaderId = memberNoteTarget(panes, paneId);
+			if (leaderId) noteLeaderRef.current(paneId, leaderId);
 		}
 	}, [panes]);
 	// A reply from the phone to a session Claude has exited resumes it, as
