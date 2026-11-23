@@ -5644,6 +5644,10 @@ function DevBoardPage() {
 		const cards = [...cardsByStatus.values()].flat();
 		if (cards.length === 0) return;
 		restoredDrawerRef.current = true;
+		// Go to session (or a launch) sent you here for a session: that one
+		// opens, not the one you had open last. Its effect above runs first in
+		// the same commit and would otherwise lose to this one.
+		if (pendingPaneId) return;
 		let paneId: string | null = null;
 		try {
 			paneId = sessionStorage.getItem(OPEN_DRAWER_KEY);
