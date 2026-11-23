@@ -62,6 +62,7 @@ import {
 	withoutMediaPaths,
 	yourQueued,
 } from "./ChatView";
+import { unrecordedSteps } from "./screen-steps";
 
 describe("ChatView transcript", () => {
 	test("files the transcript under the cwd with non-alphanumerics as dashes", () => {
@@ -1208,7 +1209,7 @@ describe("currentTurn - the turn the Working row shows", () => {
 		const turn = currentTurn(items, true);
 		expect(turn.id).toBe("u2");
 		expect(turn.start).toBe(Date.parse("2026-10-10T10:05:00Z"));
-		expect(turn.prompt).toBe("second");
+		expect(turn.prompt).toBe("first\nsecond");
 		expect(turn.items.map((item) => item.id)).toEqual(["t2", "t3"]);
 		expect(turn.tools.map((item) => item.id)).toEqual(["t2", "t3"]);
 		expect(turn.tokens).toBe(150);
@@ -1223,8 +1224,36 @@ describe("currentTurn - the turn the Working row shows", () => {
 		expect(turn.id).not.toBe("u2");
 	});
 
-	test("a message still on its way keeps the last one as the prompt on screen", () => {
-		expect(currentTurn(items, false).prompt).toBe("second");
+	test("a message still on its way keeps the landed ones as the prompt on screen", () => {
+		expect(currentTurn(items, false).prompt).toBe("first\nsecond");
+	});
+
+	test("an earlier prompt's tail left on screen is no step of Claude's", () => {
+		const launch = `Fix the login bug.\n\n${"End an item with (you only) when you cannot do it yourself even once I say so - no access, or the rules forbid it. ".repeat(3)}`;
+		const turnItems = applyLines(
+			[],
+			[
+				{
+					type: "user",
+					uuid: "u1",
+					timestamp: "2026-10-10T10:00:00Z",
+					message: { content: launch },
+				},
+				{
+					type: "user",
+					uuid: "u2",
+					timestamp: "2026-10-10T10:05:00Z",
+					message: { content: "install it" },
+				},
+			],
+		);
+		// Rows as the screen wraps them, the head scrolled off.
+		const row = {
+			kind: "text" as const,
+			text: "once I say so - no access, or the rules forbid it. End an item with (you only)\nwhen you cannot do it yourself",
+		};
+		const turn = currentTurn(turnItems, true);
+		expect(unrecordedSteps([row], turn.onScreen, turn.prompt)).toEqual([]);
 	});
 
 	test("a message still on its way keeps the last turn's rows as the ones on screen", () => {

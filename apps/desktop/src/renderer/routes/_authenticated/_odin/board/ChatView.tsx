@@ -1372,14 +1372,20 @@ export function currentTurn(items: Item[], landed: boolean) {
 	const index = landed ? last : items.length;
 	const user: Item | undefined = items[index];
 	const rest = items.slice(index + 1);
-	// Until a message lands, the screen still shows the one before it.
-	const shown: Item | undefined = items[last];
 	return {
 		/** The message's row id: what "Hide the steps" is remembered by. */
 		id: user?.id ?? "",
 		start: user?.kind === "user" ? user.at : undefined,
-		/** What you sent: the rows of it still on screen are not steps. */
-		prompt: shown?.kind === "user" ? shown.text : "",
+		/**
+		 * What you sent, every message of it: the rows of it still on screen
+		 * are not steps. Not the last message alone - a reconnect redraws the
+		 * screen, and the tail of an earlier long prompt (a launch prompt's
+		 * rules) showed in the chat as Claude's text.
+		 */
+		prompt: items
+			.slice(0, last + 1)
+			.flatMap((item) => (item.kind === "user" ? [item.text] : []))
+			.join("\n"),
 		/** Everything Claude wrote and ran since. */
 		items: rest,
 		/**
