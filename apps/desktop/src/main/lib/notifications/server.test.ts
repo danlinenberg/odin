@@ -274,6 +274,22 @@ describe("notifications/server", () => {
 				server.close();
 			}
 		});
+
+		// A session that tried GET read the 404 as "Odin can't do that".
+		it("answers a GET with how to call it", async () => {
+			const server = notificationsApp.listen(0, "127.0.0.1");
+			await new Promise((resolve) => server.once("listening", resolve));
+			try {
+				const { port } = server.address() as AddressInfo;
+				const response = await fetch(`http://127.0.0.1:${port}/odin`);
+				expect(response.status).toBe(200);
+				const text = await response.text();
+				expect(text).toContain("action=guide");
+				expect(text).toContain("start");
+			} finally {
+				server.close();
+			}
+		});
 	});
 	// A page with no ids in its URL has nothing to match, not every session
 	// that ever mentioned a link.
