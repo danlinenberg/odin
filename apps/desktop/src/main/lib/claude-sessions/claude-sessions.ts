@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { open, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
+import { launchRequest } from "renderer/routes/_authenticated/_odin/board/launch-request";
 import {
 	parseShell,
 	type Shell,
@@ -931,9 +932,18 @@ export function transcriptLinks(jsonl: string): TranscriptMessage[] {
 	).flatMap((message) => linkOf(message) ?? []);
 }
 
-/** A message cut down to its lines that quote a URL; null when none does. */
+/**
+ * A message cut down to its lines that quote a URL; null when none does. A
+ * launch prompt counts only the request you typed: the rules and the voice
+ * samples Odin adds after it quote links of their own, and the brief showed
+ * them as the task's thread and ticket.
+ */
 function linkOf(message: TranscriptMessage): TranscriptMessage | null {
-	const lines = message.text
+	const text =
+		message.role === "user"
+			? (launchRequest(message.text) ?? message.text)
+			: message.text;
+	const lines = text
 		.split("\n")
 		.flatMap((line) =>
 			line.length > 600 ? (line.match(ANY_URL) ?? []) : [line],

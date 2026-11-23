@@ -733,6 +733,26 @@ describe("parseTranscript / readTranscript", () => {
 		]);
 	});
 
+	test("links in the rules and voice samples Odin adds to a launch prompt are not the task's", () => {
+		const opening = [
+			"Task: find the thread",
+			"Standing rules - follow each one whenever its situation comes up during this session, without being asked:\n- rule",
+			"My real messages:\n- see (https://acme.atlassian.net/browse/SHIP-9)\n- https://acme.slack.com/archives/C0123/p1",
+		].join("\n\n");
+		const jsonl = [
+			user(opening),
+			assistant("Found https://acme.slack.com/archives/C0456/p2"),
+		].join("\n");
+
+		expect(transcriptLinks(jsonl)).toEqual([
+			{
+				role: "assistant",
+				text: "Found https://acme.slack.com/archives/C0456/p2",
+				at: null,
+			},
+		]);
+	});
+
 	test("finds a session by id alone - a pane knows the id, not the directory", async () => {
 		const transcript = await readTranscript({
 			sessionId: "aaaa1111-2222-3333-4444-555566667777",
