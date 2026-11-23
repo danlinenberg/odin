@@ -11,6 +11,8 @@ test("the extension asks this Odin's port and only localhost", () => {
 	// A session still working turns the badge green and says so in the list.
 	expect(files["background.js"]).toContain('live ? "#16a34a"');
 	expect(files["popup.js"]).toContain("Working now");
+	// ...and draws the banner on the page.
+	expect(files["background.js"]).toContain("chrome.scripting.executeScript");
 	// Both scripts are valid JavaScript.
 	for (const name of ["background.js", "popup.js"])
 		expect(() => new Function(files[name] as string)).not.toThrow();
