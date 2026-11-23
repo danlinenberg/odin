@@ -59,6 +59,7 @@ import { phoneNights } from "../night-agent/night-log";
 import { addSchedule } from "./crow-schedule";
 import { readSettings, writeSetting } from "./crow-settings";
 import { readState, runAction, writeState } from "./crow-state";
+import { launchUnstarted } from "./launch-unstarted";
 import { endSession, useDone } from "./useDone";
 import { useOdinProfile } from "./useOdinProfile";
 import { taskPrompt, useMyTasks, useOdinTasks } from "./useOdinTasks";
@@ -898,31 +899,23 @@ function runOdinAction(
 		// A task that already has an open session (Remote auto-start may have
 		// started it a moment ago) gets no second one: Start another session
 		// on the board is how you ask for that.
-		const open = Object.values(useTabsStore.getState().panes).filter(
-			(pane) => !pane.completed,
-		);
+		// Read live each time: Auto-start may start one of these mid-loop.
 		const running = (task: (typeof tasks)[number]) =>
-			open.some(
+			Object.values(useTabsStore.getState().panes).some(
 				(pane) =>
-					pane.id === task.paneId ||
-					!!task.paneIds?.includes(pane.id) ||
-					pane.odinTaskTitle === task.title ||
-					pane.odinBrief === taskPrompt(task),
+					!pane.completed &&
+					(pane.id === task.paneId ||
+						!!task.paneIds?.includes(pane.id) ||
+						pane.odinTaskTitle === task.title ||
+						pane.odinBrief === taskPrompt(task)),
 			);
 		const todo = tasks.filter((task) => !running(task));
 		const skipped = tasks.filter(running);
 		// Not awaited: a launch can sit behind the machine's capacity gate.
-		void (async () => {
-			for (const task of todo)
-				await launchTask(
-					task,
-					deps,
-					undefined,
-					undefined,
-					undefined,
-					args.from,
-				);
-		})();
+		// from: the session that asked joins the group and leads it.
+		void launchUnstarted(todo, running, (task) =>
+			launchTask(task, deps, undefined, undefined, undefined, args.from),
+		);
 		return [
 			todo.length
 				? `Starting ${todo.length} on the board: ${todo.map((task) => task.title).join("; ")}`
