@@ -30,7 +30,8 @@ Description:
 > The toolbar icon counts those sessions. Click it to list them, with each
 > session's title and when it last ran, and pick one to open it in Odin's
 > Session History. While a session is still working on the page, a small green
-> banner in its corner says so; click it to open that session.
+> banner in its corner says so (turn it on from the popup); click it to open
+> that session.
 >
 > It needs the Odin desktop app running on the same computer. It talks only to
 > Odin on 127.0.0.1 and sends nothing anywhere else.
@@ -45,8 +46,9 @@ and the toolbar badge. Take them in Chrome with the extension loaded.
 | Single purpose | Show which of your Odin sessions worked on the page you have open. |
 | `tabs` | Reads the open tab's URL so the badge can count that page's sessions as you switch tabs and pages. |
 | `storage` | Keeps the port of your Odin app when it isn't the default one. |
-| `scripting` | Draws a small banner in the corner of a page while one of your Odin sessions is working on it. Nothing is injected into any other page. |
-| Host permission `<all_urls>` | Asks the Odin app on your own computer (127.0.0.1) which sessions match the page, and draws the banner on whichever site that page is on. It reads nothing from the page and contacts nothing else. |
+| `scripting` | Draws a small banner in the corner of a page while one of your Odin sessions is working on it, only after you turn the banner on in the popup. Nothing is injected into any other page. |
+| Host permission `http://127.0.0.1/*` | Asks the Odin app on your own computer which sessions match the page. Nothing else is contacted. |
+| Optional host permission `<all_urls>` | Requested only when you click "Show a banner on pages a session is working on" in the popup, so the banner can be drawn on whichever site a session is working on. It reads nothing from the page and contacts nothing else. |
 | Remote code | No. Every script is in the package. |
 | Data collected | Web history (the open tab's URL), sent only to the Odin app on the same computer, never off it. |
 | Certifications | Not sold, not used for anything but the single purpose, not used for creditworthiness. |
