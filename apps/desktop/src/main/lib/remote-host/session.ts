@@ -56,6 +56,12 @@ export interface RemoteSessionSpec {
 	 * a PR command.
 	 */
 	rules?: RuleHooks | null;
+	/**
+	 * The SessionStart hook's answer: the host note the launch prompt carries
+	 * (hostNote). The host's SessionStart hook prints it on a resume, /clear
+	 * and a compaction, so the rules outlive the first prompt.
+	 */
+	startNote?: string | null;
 	/** End the session's tmux session first, so Claude starts over (Restart). */
 	fresh?: boolean;
 	/**
@@ -530,6 +536,19 @@ const notify = (matcher?: string) => ({
 
 export const hostSettings = JSON.stringify({
 	hooks: {
+		// The launch prompt has the host note; a resume, /clear or compaction
+		// gets it again here (the laptop's shell-rule.sh needs ODIN_HOME_DIR).
+		SessionStart: [
+			{
+				hooks: [
+					{
+						type: "command",
+						command:
+							'[ -s "$ODIN_RULES_START" ] && ! grep -qE \'"source" *: *"startup"\' && cat "$ODIN_RULES_START"; exit 0',
+					},
+				],
+			},
+		],
 		UserPromptSubmit: [
 			notify(),
 			{
@@ -783,9 +802,19 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		"unset ODIN_FALLBACK_API_KEY ODIN_PLAN_LIMITED_UNTIL",
 		'export ODIN_RUN_PID=$$; [ -n "$fallback" ] && export ODIN_HAS_FALLBACK_KEY=1',
 		// The rules for the host's hooks; a launch without one clears the old file.
-		`export ODIN_RULES="$HOME/.odin/rules-"${sh(spec.pane)}.json ODIN_RULES_TURN="$HOME/.odin/rules-"${sh(spec.pane)}-turn.json`,
+		`export ODIN_RULES="$HOME/.odin/rules-"${sh(spec.pane)}.json ODIN_RULES_TURN="$HOME/.odin/rules-"${sh(spec.pane)}-turn.json ODIN_RULES_START="$HOME/.odin/rules-"${sh(spec.pane)}-start.json`,
 		ruleFile("ODIN_RULES", spec.rules?.pr),
 		ruleFile("ODIN_RULES_TURN", spec.rules?.turn),
+		ruleFile(
+			"ODIN_RULES_START",
+			spec.startNote &&
+				JSON.stringify({
+					hookSpecificOutput: {
+						hookEventName: "SessionStart",
+						additionalContext: spec.startNote.trim(),
+					},
+				}),
+		),
 		`rm -f ${idleMarker(spec.pane)}`,
 		'[ -n "$TMUX_PANE" ] && command -v pgrep >/dev/null && ' +
 			idleWatcher(spec.pane),

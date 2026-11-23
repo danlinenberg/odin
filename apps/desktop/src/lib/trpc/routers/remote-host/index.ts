@@ -343,23 +343,25 @@ async function buildSessionSpec(
 		: { prompt: null, files: [] };
 	// The chat view shows the prompt's screenshots from their files here.
 	await rememberHostFiles(host.user, files);
+	const note = hostNote({
+		user: host.user,
+		name: host.name || host.instanceId,
+		repoName,
+		pane: rest.pane,
+		known: repoName ? [] : await knownRepos(),
+		voiceGuide: voiceText(await readVoice()),
+	});
 	return {
 		...host,
 		...rest,
 		rules: ruleHooks(hostRules, repoPath ?? ""),
+		// A resume, /clear or compaction gets it from the SessionStart hook.
+		startNote: note,
 		// A resumed conversation already has the host note.
 		prompt:
 			prompt === null || /--resume\b/.test(rest.claudeArgs)
 				? prompt
-				: prompt +
-					hostNote({
-						user: host.user,
-						name: host.name || host.instanceId,
-						repoName,
-						pane: rest.pane,
-						known: repoName ? [] : await knownRepos(),
-						voiceGuide: voiceText(await readVoice()),
-					}),
+				: prompt + note,
 		files: existsSync(getNotifyScriptPath())
 			? [...files, { local: getNotifyScriptPath(), remote: HOST_NOTIFY_HOOK }]
 			: files,
