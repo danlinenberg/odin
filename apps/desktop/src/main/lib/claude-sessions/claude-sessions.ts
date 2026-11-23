@@ -18,6 +18,7 @@ import {
 } from "./asset-ids";
 import { credentialReader, type SessionCredential } from "./credential";
 import { feedLine, feedLines, type LineReader } from "./lines";
+import { type McpSignedOut, mcpSignedOutReader } from "./mcp-sign-in";
 import { type SessionUsage, usageReader } from "./usage";
 
 /**
@@ -1112,6 +1113,7 @@ type TranscriptState = {
 	rules: ReturnType<typeof ruleFiringsReader>;
 	usage: ReturnType<typeof usageReader>;
 	credential: ReturnType<typeof credentialReader>;
+	mcp: ReturnType<typeof mcpSignedOutReader>;
 	drafts: ReturnType<typeof slackDraftsReader>;
 	pending: ReturnType<typeof pendingPromptReader>;
 	messages: TranscriptMessage[];
@@ -1144,6 +1146,7 @@ function freshState(
 		rules: ruleFiringsReader(),
 		usage: usageReader(),
 		credential: credentialReader(),
+		mcp: mcpSignedOutReader(),
 		drafts: slackDraftsReader(),
 		pending: pendingPromptReader(),
 		messages: [],
@@ -1168,6 +1171,7 @@ function freshState(
 		state.rules,
 		state.usage,
 		state.credential,
+		state.mcp,
 		state.drafts,
 		state.pending,
 	];
@@ -1284,6 +1288,7 @@ function resultOf(
 		rules: state.rules.result(),
 		usage: state.usage.result(tail),
 		credential: state.credential.result(),
+		mcpSignedOut: state.mcp.result(),
 		slackDrafts: draftPlaces(state.drafts.calls),
 		openPrompt: state.pending.result() !== null,
 	};
@@ -1376,6 +1381,8 @@ export async function readTranscript({
 	usage: SessionUsage | null;
 	/** The Claude plan or an API key, per the latest request; null before it. */
 	credential: SessionCredential | null;
+	/** The latest connector that lost its sign-in - see `mcp-sign-in`. */
+	mcpSignedOut: McpSignedOut | null;
 	/** Where the session left Slack drafts - see `slackDrafts`. */
 	slackDrafts: string[];
 	/**
