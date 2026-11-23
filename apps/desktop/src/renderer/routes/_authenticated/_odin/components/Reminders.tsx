@@ -391,7 +391,7 @@ export function DueChip({
 	return (
 		// Positioned, so the picker opens under the chip rather than at the
 		// corner of whatever card or row happens to be the nearest ancestor.
-		<span className="relative inline-flex items-center gap-1">
+		<span className="relative inline-flex min-w-0 max-w-full items-center gap-1">
 			<input
 				ref={input}
 				type="date"
