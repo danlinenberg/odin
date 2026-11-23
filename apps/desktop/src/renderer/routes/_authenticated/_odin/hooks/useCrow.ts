@@ -37,6 +37,12 @@ import {
 	spacesForCursorForward,
 } from "shared/odin-screen-status";
 import { CROW_TAG } from "shared/odin-tags";
+import {
+	ledByLine,
+	memberNoteTarget,
+	withGroup,
+	withLeadGroup,
+} from "shared/session-group";
 import stripAnsi from "strip-ansi";
 import { create } from "zustand";
 import { type AllItem, rowFinishedWith } from "../all/all-items";
@@ -624,7 +630,10 @@ async function launchTask(
 	onHost?: boolean,
 	/** Why it failed, for a caller that answers someone not looking at the toast. */
 	onFailed?: (error: string) => void,
+	/** The session that asked for it (`from=`): the new one joins its group. */
+	from?: string,
 ): Promise<string | null> {
+	const lead = from ? leadGroup(from) : undefined;
 	const ensured = await deps.ensureWorkspace(null, { askForFolder: false });
 	if (!ensured.ok) {
 		toast.error(ensured.error);
@@ -640,7 +649,14 @@ async function launchTask(
 		skill: task.skill,
 		repoPath: task.repo,
 		onHost,
-		onCreated: onCreated && ((created) => onCreated(created.paneId)),
+		...(lead && { guidelines: ledByLine(lead.title, lead.group) }),
+		onCreated: (created) => {
+			if (lead)
+				useTabsStore.setState((state) => ({
+					panes: withGroup(state.panes, created.paneId, lead.group),
+				}));
+			onCreated?.(created.paneId);
+		},
 	});
 	if (!result.ok) {
 		toast.error(`${task.title}: ${result.error}`);
@@ -649,6 +665,29 @@ async function launchTask(
 	}
 	deps.setPane(task.id, result.paneId);
 	return result.paneId;
+}
+
+/**
+ * The open session `paneId` puts what it starts with: in its group (made now
+ * when it has none, led by it), and that group's leader's title for the new
+ * sessions' prompts. Undefined for a pane that isn't an open session.
+ */
+function leadGroup(
+	paneId: string,
+): { group: string; title: string } | undefined {
+	const starter = useTabsStore.getState().panes[paneId];
+	if (!starter || starter.completed) return undefined;
+	useTabsStore.setState((state) => ({
+		panes: withLeadGroup(state.panes, paneId),
+	}));
+	const panes = useTabsStore.getState().panes;
+	const group = panes[paneId]?.odinGroup?.name;
+	if (!group) return undefined;
+	const leader = panes[memberNoteTarget(panes, paneId) ?? paneId];
+	return {
+		group,
+		title: leader?.userTitle ?? leader?.odinTaskTitle ?? leader?.name ?? group,
+	};
 }
 
 /**
@@ -782,7 +821,7 @@ function runOdinAction(
 		const onHost = args.host ? args.host === "true" : undefined;
 		if (args.open === "true") return openedPane(task, deps, onHost);
 		// Not awaited: a launch can sit behind the machine's capacity gate.
-		void launchTask(task, deps, undefined, onHost);
+		void launchTask(task, deps, undefined, onHost, undefined, args.from);
 		return `Added "${title}"${lined} and started it on the board.`;
 	}
 	if (action === "schedule") return addSchedule(args, deps.add);
@@ -873,7 +912,10 @@ function runOdinAction(
 		const todo = tasks.filter((task) => !running(task));
 		const skipped = tasks.filter(running);
 		// Not awaited: a launch can sit behind the machine's capacity gate.
-		void launchUnstarted(todo, running, (task) => launchTask(task, deps));
+		// from: the session that asked joins the group and leads it.
+		void launchUnstarted(todo, running, (task) =>
+			launchTask(task, deps, undefined, undefined, undefined, args.from),
+		);
 		return [
 			todo.length
 				? `Starting ${todo.length} on the board: ${todo.map((task) => task.title).join("; ")}`

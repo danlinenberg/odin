@@ -294,3 +294,103 @@ export function memberNote({
 		: "";
 	return `[Odin] "${memberTitle}", a session in the group "${group}" you lead, just finished a turn.${said}${where} If it needs a next step from you, take it; if not, carry on.`;
 }
+
+/** A free group name for a session's own group: its title, or the title and a number. */
+function freeGroupName(panes: Record<string, Grouped>, title: string): string {
+	const base = groupName(title) || "Group";
+	const taken = new Set(listGroups(panes).map((group) => group.name));
+	for (let n = 1; ; n++) {
+		const name = n === 1 ? base : `${base.slice(0, MAX_NAME - 3)} ${n}`;
+		if (!taken.has(name)) return name;
+	}
+}
+
+/**
+ * A session about to start others: it gets a group to put them in. Its own
+ * group when it has one, else a new group named after it. A group with no
+ * leader yet takes it as its leader; in a group led by someone else it stays
+ * a member, and what it starts joins that group.
+ */
+export function withLeadGroup<T extends Grouped & { odinTaskTitle?: string }>(
+	panes: Record<string, T>,
+	starterPaneId: string,
+): Record<string, T> {
+	const starter = panes[starterPaneId];
+	if (!starter) return panes;
+	let next = panes;
+	let name = starter.odinGroup?.name;
+	if (!name) {
+		name = freeGroupName(panes, starter.odinTaskTitle ?? "");
+		next = withGroup(next, starterPaneId, name);
+	}
+	return listGroups(next).find((group) => group.name === name)?.leaderPaneId
+		? next
+		: withLeader(next, starterPaneId, true);
+}
+
+/** A session started another one (a `/odin` start with `from=`): both in one group. */
+export function withStartedBy<T extends Grouped & { odinTaskTitle?: string }>(
+	panes: Record<string, T>,
+	starterPaneId: string,
+	childPaneId: string,
+): Record<string, T> {
+	if (!panes[childPaneId] || starterPaneId === childPaneId) return panes;
+	const next = withLeadGroup(panes, starterPaneId);
+	return withGroup(next, childPaneId, next[starterPaneId]?.odinGroup?.name);
+}
+
+/** The line a started session's prompt gets: who leads its group, and how it reports. */
+export function ledByLine(leaderTitle: string, group: string): string {
+	return `The Odin session "${leaderTitle}" started this session and leads its session group "${group}". Report to it: when your turn ends, Odin types your last reply into that session for you. To reach it sooner, use SendMessage to it if your agent list shows it.`;
+}
+
+/**
+ * Board cards with each group kept together: a group's cards sit where its
+ * most urgent member is (lowest `rank` of their statuses), the leader first,
+ * then the other members in their order. `place` is the status a card sits
+ * under; its own `status` is left as it is, so the card still says what it
+ * is doing. Ungrouped cards keep their place; a group takes the place of its
+ * first card in that status.
+ */
+export function keepGroupsTogether<
+	C extends { pane: { id: string; odinGroup?: SessionGroup }; status: S },
+	S extends string,
+>(cards: C[], rank: (status: S) => number): (C & { place: S })[] {
+	const groups = new Map<string, C[]>();
+	for (const card of cards) {
+		const name = card.pane.odinGroup?.name;
+		if (name) groups.set(name, [...(groups.get(name) ?? []), card]);
+	}
+	const target = new Map<string, S>();
+	for (const [name, members] of groups)
+		target.set(
+			name,
+			members.reduce((a, b) => (rank(b.status) < rank(a.status) ? b : a))
+				.status,
+		);
+	// Where each group lands: its first card already in its target status.
+	const firstAt = new Map<string, number>();
+	cards.forEach((card, index) => {
+		const name = card.pane.odinGroup?.name;
+		if (name && !firstAt.has(name) && card.status === target.get(name))
+			firstAt.set(name, index);
+	});
+	const out: (C & { place: S })[] = [];
+	cards.forEach((card, index) => {
+		const name = card.pane.odinGroup?.name;
+		if (!name) {
+			out.push({ ...card, place: card.status });
+			return;
+		}
+		if (firstAt.get(name) !== index) return;
+		const members = groups.get(name) ?? [];
+		const place = target.get(name) ?? card.status;
+		out.push(
+			...[
+				...members.filter((member) => member.pane.odinGroup?.leader),
+				...members.filter((member) => !member.pane.odinGroup?.leader),
+			].map((member) => ({ ...member, place })),
+		);
+	});
+	return out;
+}

@@ -108,6 +108,12 @@ describe("duplicateOf", () => {
 		expect(duplicateOf(other, [live])).toBeNull();
 		// A finished session no longer counts.
 		expect(liveRows([{ ...channel, completed: true }], 1)).toEqual([]);
+		// A grouped session's brief names its siblings' work on purpose.
+		const [grouped] = liveRows(
+			[{ ...channel, odinGroup: { name: "G", color: "blue" } }],
+			1,
+		);
+		expect(duplicateOf(dm, [grouped])).toBeNull();
 	});
 
 	it("a session on my own task makes the ticket it names a duplicate", () => {

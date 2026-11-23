@@ -108,7 +108,10 @@ export function liveRows(panes: Pane[], now: number): LedgerRow[] {
 						externalId: pane.odinPageId ?? pane.id,
 						title: pane.odinTaskTitle ?? pane.name,
 						startedAt: now,
-						text: pane.odinBrief,
+						// A grouped session's brief names its siblings' tickets on
+						// purpose (a leader lists every part it hands out), so only
+						// its title says what it works on.
+						text: pane.odinGroup ? undefined : pane.odinBrief,
 					},
 				]
 			: [],
