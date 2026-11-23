@@ -1,11 +1,13 @@
 import { expect, test } from "bun:test";
 import { chromeExtensionFiles } from "./chrome-extension";
 
-test("the extension asks this Odin's port and can draw on any page", () => {
+test("the extension asks this Odin's port, and every site only when asked", () => {
 	const files = chromeExtensionFiles(51999);
 	const manifest = JSON.parse(files["manifest.json"] as string);
 	expect(manifest.manifest_version).toBe(3);
-	expect(manifest.host_permissions).toEqual(["<all_urls>"]);
+	expect(manifest.host_permissions).toEqual(["http://127.0.0.1/*"]);
+	expect(manifest.optional_host_permissions).toEqual(["<all_urls>"]);
+	expect(files["popup.js"]).toContain("chrome.permissions.request");
 	expect(files["background.js"]).toContain("const DEFAULT_PORT = 51999;");
 	expect(files["popup.js"]).toContain("/sessions/for-url?url=");
 	// A session still working turns the badge green and says so in the list.

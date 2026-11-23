@@ -26,13 +26,15 @@ export function chromeExtensionFiles(
 	const manifest = {
 		manifest_version: 3,
 		name: "Odin",
-		version: "1.0.3",
+		version: "1.0.4",
 		description:
 			"Shows the Odin sessions that worked on the page you have open.",
 		permissions: ["tabs", "storage", "scripting"],
-		// Every site, so the banner can be drawn on whichever page a session is
-		// working on. Pages without one get nothing injected.
-		host_permissions: ["<all_urls>"],
+		host_permissions: ["http://127.0.0.1/*"],
+		// Every site, only once you ask for the banner in the popup, so it can be
+		// drawn on whichever page a session is working on. Pages without one get
+		// nothing injected.
+		optional_host_permissions: ["<all_urls>"],
 		background: { service_worker: "background.js" },
 		action: { default_popup: "popup.html", default_title: "Odin sessions" },
 		...(store && { icons: { "128": STORE_ICON } }),
@@ -154,6 +156,7 @@ input { width: 70px; }
 </style></head><body>
 <h1>Odin sessions on this page</h1>
 <div id="list" class="empty">Looking...</div>
+<p id="banner-row" hidden><button id="banner">Show a banner on pages a session is working on</button></p>
 <p class="empty" id="port-row" hidden>Odin port <input id="port" type="number"> <button id="save">Save</button></p>
 <script src="popup.js"></script>
 </body></html>
@@ -193,6 +196,15 @@ async function show() {
 		document.getElementById("port-row").hidden = false;
 	}
 }
+// Drawing on pages needs access to them, which Chrome asks for on this click.
+const SITES = { origins: ["<all_urls>"] };
+chrome.permissions.contains(SITES).then((granted) => {
+	document.getElementById("banner-row").hidden = granted;
+});
+document.getElementById("banner").onclick = async () => {
+	if (await chrome.permissions.request(SITES))
+		document.getElementById("banner-row").hidden = true;
+};
 document.getElementById("save").onclick = async () => {
 	await chrome.storage.local.set({ port: Number(document.getElementById("port").value) });
 	show();
