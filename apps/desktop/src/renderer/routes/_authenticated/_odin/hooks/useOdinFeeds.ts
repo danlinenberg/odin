@@ -61,9 +61,13 @@ export function useOdinFeeds() {
 	const emailData = useMemo(
 		() =>
 			emailQuery.data && {
-				emails: withSeenEmails(emailQuery.data.emails, seenEmails),
+				emails: withSeenEmails(
+					emailQuery.data.emails,
+					seenEmails,
+					workConfig?.gmailAddress ?? null,
+				),
 			},
-		[emailQuery.data, seenEmails],
+		[emailQuery.data, seenEmails, workConfig?.gmailAddress],
 	);
 	// A Proxy, not a spread: spreading reads every field, isFetching included,
 	// and so re-rendered every caller of this hook on each mail fetch.

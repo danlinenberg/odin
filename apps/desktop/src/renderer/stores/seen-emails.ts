@@ -40,14 +40,28 @@ export function rememberEmails(
 	return next;
 }
 
-/** The live feed, plus what it showed before and has since dropped, newest first. */
+/** The Gmail account a mail's link opens in: mail.google.com/mail/u/<account>/. */
+const mailAccount = (url: string) =>
+	/\/mail\/u\/([^/]+)\//.exec(url)?.[1]?.toLowerCase() ?? null;
+
+/**
+ * The live feed, plus what it showed before and has since dropped, newest
+ * first. The store is one per machine, so a remembered mail only comes back
+ * in the account it came from - not in another profile's Gmail.
+ */
 export function withSeenEmails(
 	live: EmailRow[],
 	seen: Record<string, SeenEmail>,
+	account: string | null,
 ): EmailRow[] {
 	const ids = new Set(live.map((email) => email.id));
 	const gone = Object.values(seen)
-		.filter((email) => !ids.has(email.id))
+		.filter(
+			(email) =>
+				!ids.has(email.id) &&
+				!!account &&
+				mailAccount(email.url) === account.toLowerCase(),
+		)
 		// A remembered mail keeps the verdict it had then - re-check calendar mail
 		// so one remembered before the rule (or before triage answered) stays out.
 		.map(({ seenAt: _, ...email }) =>
