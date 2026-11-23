@@ -17,6 +17,7 @@ import {
 	opensPr,
 	parseTranscript,
 	pendingPrompt,
+	pushedBranches,
 	queryTerms,
 	ranHere,
 	readTranscript,
@@ -1687,4 +1688,58 @@ describe("turnSteps - what Claude ran since your last message", () => {
 	test("no message of yours in the log: no turn", () => {
 		expect(turnSteps(call("a", "Read", { file_path: "/x" }))).toBeNull();
 	});
+});
+
+test("pushedBranches reads the branch each git push sends to", () => {
+	expect(
+		pushedBranches("git push -q origin HEAD:fix/retry 2>&1 | tail -2"),
+	).toEqual(["fix/retry"]);
+	expect(
+		pushedBranches("git add a && git commit -m x && git push -u origin feat/x"),
+	).toEqual(["feat/x"]);
+	expect(
+		pushedBranches(
+			"git -c credential.helper= push https://github.com/a/b.git feat/y:feat/y",
+		),
+	).toEqual(["feat/y"]);
+	expect(
+		pushedBranches("git push --force-with-lease origin +refs/heads/z"),
+	).toEqual(["z"]);
+	expect(pushedBranches("git push")).toEqual([]);
+	expect(pushedBranches("git log --grep push")).toEqual([]);
+});
+
+test("a push is kept on the transcript's latest message", () => {
+	const jsonl = [
+		JSON.stringify({
+			type: "assistant",
+			message: { content: [{ type: "text", text: "Merging the base in." }] },
+			timestamp: "2026-10-21T10:00:00Z",
+		}),
+		JSON.stringify({
+			type: "assistant",
+			message: {
+				content: [
+					{
+						type: "tool_use",
+						id: "t1",
+						name: "Bash",
+						input: {
+							command:
+								"git merge origin/main && git push -q origin HEAD:fix/retry",
+						},
+					},
+				],
+			},
+			timestamp: "2026-10-21T10:01:00Z",
+		}),
+	].join("\n");
+	expect(parseTranscript(jsonl)).toEqual([
+		{
+			role: "assistant",
+			text: "Merging the base in.",
+			at: "2026-10-21T10:00:00Z",
+			pushed: ["fix/retry"],
+		},
+	]);
 });

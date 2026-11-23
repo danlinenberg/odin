@@ -1,9 +1,16 @@
 import { expect, test } from "bun:test";
+import { fixConflictsMessage } from "./brief";
 import {
 	CI_RETRIES,
 	type CiWake,
+	CONFLICT_RETRIES,
+	type ConflictsByPr,
+	type ConflictWake,
 	ciWakeMessage,
 	ciWakePlan,
+	conflictWakeMessage,
+	conflictWakePlan,
+	conflictWoke,
 	gaveUpPanes,
 	woke,
 } from "./ci-wake";
@@ -79,4 +86,74 @@ test("the message names the checks and carries the log", () => {
 	expect(text).toContain("CI failed on PR #7");
 	expect(text).toContain("expected 1, received 2");
 	expect(text).toContain(`red run 2 of ${CI_RETRIES}`);
+});
+
+test("the CI message says not to patch a check the base branch also fails", () => {
+	const text = ciWakeMessage(
+		{ url: URL, sha: "a", failed: ["test"], run: 1 },
+		[],
+	);
+	expect(text).toContain("whether the base branch fails the same check");
+	expect(text).toContain("don't patch around it here");
+	expect(text).toContain("update this branch once that fix is merged");
+	expect(text).toContain("say so in one line");
+});
+
+const conflicting = (head: string, base = "m1", extra = {}) => ({
+	[URL]: {
+		state: "OPEN",
+		conflicting: true,
+		headSha: head,
+		baseSha: base,
+		base: "main",
+		...extra,
+	},
+});
+
+test("a conflicting PR sends the brief's conflict prompt once per head + base pair", () => {
+	const first = conflictWakePlan(undefined, conflicting("a"));
+	expect(first.wakes).toEqual([
+		{ url: URL, pair: "a:m1", base: "main", try: 1 },
+	]);
+	const wake = first.wakes[0] as ConflictWake;
+	expect(conflictWakeMessage(wake)).toBe(fixConflictsMessage(URL, "main"));
+	const records = conflictWoke(first.next, wake);
+	expect(conflictWakePlan(records, conflicting("a")).wakes).toEqual([]);
+	// Not taken yet (the session was busy): tried again next poll.
+	expect(conflictWakePlan(first.next, conflicting("a")).wakes).toHaveLength(1);
+	// The base moved: a new pair, a second try.
+	expect(conflictWakePlan(records, conflicting("a", "m2")).wakes).toEqual([
+		{ url: URL, pair: "a:m2", base: "main", try: 2 },
+	]);
+});
+
+test("after 3 tries on the same PR the card waits for you", () => {
+	let records: ConflictsByPr = {};
+	for (const head of ["a", "b", "c"]) {
+		const plan = conflictWakePlan(records, conflicting(head));
+		records = conflictWoke(plan.next, plan.wakes[0] as ConflictWake);
+	}
+	const fourth = conflictWakePlan(records, conflicting("d"));
+	expect(CONFLICT_RETRIES).toBe(3);
+	expect(fourth.wakes).toEqual([]);
+	expect(fourth.next[URL]?.gaveUp).toBe(true);
+	expect(gaveUpPanes({ p1: fourth.next })).toEqual(["p1"]);
+	// It stays given up until the conflict is gone.
+	expect(conflictWakePlan(fourth.next, conflicting("e")).wakes).toEqual([]);
+});
+
+test("a PR that stops conflicting ends the streak; a teammate's or a closed one never wakes", () => {
+	const plan = conflictWakePlan(undefined, conflicting("a"));
+	const records = conflictWoke(plan.next, plan.wakes[0] as ConflictWake);
+	expect(
+		conflictWakePlan(records, conflicting("b", "m1", { conflicting: false }))
+			.next,
+	).toEqual({});
+	expect(
+		conflictWakePlan(undefined, conflicting("a", "m1", { mine: false })).wakes,
+	).toEqual([]);
+	expect(
+		conflictWakePlan(undefined, conflicting("a", "m1", { state: "MERGED" }))
+			.wakes,
+	).toEqual([]);
 });

@@ -791,6 +791,25 @@ describe("claimOpened", () => {
 		expect(states[a]?.mine).toBe(true);
 		expect(states[b]?.mine).toBe(false);
 	});
+	it("makes a PR yours when the session pushed to its branch, though another session opened it", () => {
+		const states = claimOpened(
+			[
+				{ role: "user", text: `${a} test failed`, at: null },
+				{
+					role: "assistant",
+					text: `Merged the base into ${a} and ${b} is a teammate's.`,
+					at: null,
+					pushed: ["fix/retry"],
+				},
+			],
+			{
+				[a]: { state: "OPEN", mine: false, headRef: "fix/retry" },
+				[b]: { state: "OPEN", mine: false, headRef: "feat/other" },
+			} as PrStates,
+		);
+		expect(states[a]?.mine).toBe(true);
+		expect(states[b]?.mine).toBe(false);
+	});
 });
 
 describe("mergeReady", () => {

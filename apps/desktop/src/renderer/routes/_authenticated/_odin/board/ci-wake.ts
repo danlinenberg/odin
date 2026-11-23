@@ -1,6 +1,7 @@
 import type { FailedCheck } from "lib/trpc/routers/terminal/ci-failures";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { fixConflictsMessage } from "./brief";
 
 /**
  * CI turned red on a session's PR after the agent stopped: Odin sends the
@@ -115,6 +116,7 @@ export function ciWakeMessage(wake: CiWake, checks: FailedCheck[]): string {
 				: `${check.name}: no log to show${check.link ? `, see ${check.link}` : ""}.`,
 		),
 		`Find the cause, fix it, push to the same branch, and watch CI again. This is red run ${wake.run} of ${CI_RETRIES} in a row that Odin sends you; after that it hands the PR back to the user.`,
+		"First check whether the base branch fails the same check. If it does, this PR didn't break it: don't patch around it here. Look for a fix already on the base branch or an open PR for it, and update this branch once that fix is merged. If there is none, say so in one line.",
 	];
 	return parts.join("\n\n");
 }
@@ -127,37 +129,156 @@ export const useCiWake = create<{
 	/** When this feature first ran on this computer (ms). */
 	since: number;
 	byPane: Record<string, CiRedByPr>;
+	/** Merge-conflict wakes, per session, per PR - see conflictWakePlan. */
+	conflictsByPane: Record<string, ConflictsByPr>;
+	/** Settings > Sessions: send the conflict prompt by itself. */
+	fixConflicts: boolean;
 	set: (paneId: string, records: CiRedByPr) => void;
+	setConflicts: (paneId: string, records: ConflictsByPr) => void;
+	setFixConflicts: (on: boolean) => void;
 	prune: (paneIds: ReadonlySet<string>) => void;
 }>()(
 	persist(
 		(set) => ({
 			since: Date.now(),
 			byPane: {},
+			conflictsByPane: {},
+			fixConflicts: true,
 			set: (paneId, records) =>
-				set((s) => {
-					const rest = { ...s.byPane };
-					if (Object.keys(records).length) rest[paneId] = records;
-					else delete rest[paneId];
-					return { byPane: rest };
-				}),
+				set((s) => ({ byPane: withRecords(s.byPane, paneId, records) })),
+			setConflicts: (paneId, records) =>
+				set((s) => ({
+					conflictsByPane: withRecords(s.conflictsByPane, paneId, records),
+				})),
+			setFixConflicts: (fixConflicts) => set({ fixConflicts }),
 			prune: (paneIds) =>
 				set((s) => {
-					const kept = Object.fromEntries(
-						Object.entries(s.byPane).filter(([id]) => paneIds.has(id)),
-					);
-					return Object.keys(kept).length === Object.keys(s.byPane).length
+					const byPane = only(s.byPane, paneIds);
+					const conflictsByPane = only(s.conflictsByPane ?? {}, paneIds);
+					return byPane === s.byPane && conflictsByPane === s.conflictsByPane
 						? s
-						: { byPane: kept };
+						: { byPane, conflictsByPane };
 				}),
 		}),
 		{ name: "odin-ci-wake" },
 	),
 );
 
-/** Sessions whose CI stayed red past the cap. */
-export function gaveUpPanes(byPane: Record<string, CiRedByPr>): string[] {
-	return Object.entries(byPane)
+function withRecords<R>(
+	all: Record<string, Record<string, R>> | undefined,
+	paneId: string,
+	records: Record<string, R>,
+): Record<string, Record<string, R>> {
+	const rest = { ...all };
+	if (Object.keys(records).length) rest[paneId] = records;
+	else delete rest[paneId];
+	return rest;
+}
+
+/** The same object when nothing goes, so the store doesn't change. */
+function only<R>(
+	all: Record<string, R>,
+	paneIds: ReadonlySet<string>,
+): Record<string, R> {
+	const kept = Object.fromEntries(
+		Object.entries(all).filter(([id]) => paneIds.has(id)),
+	);
+	return Object.keys(kept).length === Object.keys(all).length ? all : kept;
+}
+
+/** Sessions whose CI stayed red, or whose conflicts stayed, past the cap. */
+export function gaveUpPanes(
+	byPane: Record<string, Record<string, { gaveUp?: boolean }>> | undefined,
+): string[] {
+	return Object.entries(byPane ?? {})
 		.filter(([, records]) => Object.values(records).some((r) => r.gaveUp))
 		.map(([id]) => id);
+}
+
+/**
+ * A session's open PR turned conflicting with its base: Odin sends it the
+ * same prompt the brief's Fix merge conflicts sends, once per PR head + base
+ * head pair - a new pair means the last merge didn't take, or the base moved
+ * again. After `CONFLICT_RETRIES` tries in a row on one PR the card goes to
+ * Needs you instead ("Conflicts still open").
+ */
+export const CONFLICT_RETRIES = 3;
+
+export interface Conflicted {
+	/** `<head sha>:<base sha>` the session was last sent the prompt for. */
+	pair: string;
+	/** Tries in a row on this PR. */
+	tries: number;
+	gaveUp?: boolean;
+}
+
+export type ConflictsByPr = Record<string, Conflicted>;
+
+export interface ConflictPr {
+	state: string;
+	mine?: boolean | null;
+	conflicting?: boolean;
+	headSha?: string | null;
+	baseSha?: string | null;
+	base?: string | null;
+}
+
+export interface ConflictWake {
+	url: string;
+	pair: string;
+	base: string | null;
+	try: number;
+}
+
+/**
+ * The session's conflict records after this poll, and the PRs to send the
+ * prompt for. Only its open PRs count; one that stops conflicting ends the
+ * streak. Like ciWakePlan, a wake is recorded by `conflictWoke` once the
+ * message is in, so a session that can't take it now gets it next poll.
+ */
+export function conflictWakePlan(
+	before: ConflictsByPr | undefined,
+	states: Record<string, ConflictPr | null | undefined>,
+): { next: ConflictsByPr; wakes: ConflictWake[] } {
+	const next: ConflictsByPr = {};
+	const wakes: ConflictWake[] = [];
+	for (const [url, pr] of Object.entries(states)) {
+		const seen = before?.[url];
+		if (!pr) {
+			// Unreadable this poll: keep what we knew.
+			if (seen) next[url] = seen;
+			continue;
+		}
+		if (pr.state !== "OPEN" || pr.mine === false || !pr.conflicting) continue;
+		if (!pr.headSha) {
+			if (seen) next[url] = seen;
+			continue;
+		}
+		const pair = `${pr.headSha}:${pr.baseSha ?? ""}`;
+		if (seen?.pair === pair || seen?.gaveUp) {
+			next[url] = seen;
+			continue;
+		}
+		const triesSoFar = seen?.tries ?? 0;
+		if (triesSoFar >= CONFLICT_RETRIES) {
+			next[url] = { pair, tries: triesSoFar, gaveUp: true };
+			continue;
+		}
+		if (seen) next[url] = seen;
+		wakes.push({ url, pair, base: pr.base ?? null, try: triesSoFar + 1 });
+	}
+	return { next, wakes };
+}
+
+/** A conflict the session was sent the prompt for. */
+export function conflictWoke(
+	records: ConflictsByPr,
+	wake: ConflictWake,
+): ConflictsByPr {
+	return { ...records, [wake.url]: { pair: wake.pair, tries: wake.try } };
+}
+
+/** The brief's Fix merge conflicts prompt, word for word. */
+export function conflictWakeMessage(wake: ConflictWake): string {
+	return fixConflictsMessage(wake.url, wake.base);
 }
