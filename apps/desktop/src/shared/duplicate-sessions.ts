@@ -75,6 +75,10 @@ export function duplicateSessions(panes: Pane[]): Map<string, string> {
 		const a = facts[i];
 		for (let j = i + 1; j < facts.length; j++) {
 			const b = facts[j];
+			// One group's sessions share tickets and words on purpose: the
+			// leader started them on its own parts of one job.
+			if (a.pane.odinGroup && a.pane.odinGroup.name === b.pane.odinGroup?.name)
+				continue;
 			const same =
 				(!!a.pane.odinPageId && a.pane.odinPageId === b.pane.odinPageId) ||
 				sharesAny(a.tickets, b.tickets) ||

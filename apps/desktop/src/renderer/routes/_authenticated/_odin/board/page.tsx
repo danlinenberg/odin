@@ -148,6 +148,7 @@ import {
 	type GroupColor,
 	type GroupSummary,
 	groupName,
+	keepGroupsTogether,
 	leaderNote,
 	leaderNoteTargets,
 	listGroups,
@@ -408,7 +409,13 @@ interface BoardCard {
 	/** The workspace's own checkout - where a card with no pane cwd runs. */
 	repoPath: string;
 	status: PaneStatus;
+	/** The status it is shown under: its group's, when that differs from its own. */
+	place?: PaneStatus;
 }
+
+/** Which status a group sits under: its most urgent member's. */
+const GROUP_PLACE: PaneStatus[] = ["permission", "review", "working", "idle"];
+const groupPlace = (status: PaneStatus) => GROUP_PLACE.indexOf(status);
 
 /**
  * What the mounted terminal is showing right now, as plain text. The board's
@@ -1916,12 +1923,23 @@ function GroupMark({
 	const title = `Group: ${group.name}${group.leader ? " (leader)" : ""} - right-click to change`;
 	if (short)
 		return (
-			<span
-				data-group={group.name}
-				title={title}
-				className="mr-1.5 inline-block size-2 rounded-full align-[1px]"
-				style={{ background: hex }}
-			/>
+			<>
+				<span
+					data-group={group.name}
+					title={title}
+					className="mr-1.5 inline-block size-2 rounded-full align-[1px]"
+					style={{ background: hex }}
+				/>
+				{group.leader && (
+					<span
+						title={title}
+						className="mr-1 text-[10px]"
+						style={{ color: hex }}
+					>
+						♛
+					</span>
+				)}
+			</>
 		);
 	return (
 		<span
@@ -1933,9 +1951,35 @@ function GroupMark({
 				background: `color-mix(in oklab, ${hex} 18%, transparent)`,
 			}}
 		>
-			{group.leader && "♛ "}
+			{group.leader && "♛ Leader · "}
 			{group.name}
 		</span>
+	);
+}
+
+/**
+ * On a group member: the session that leads it, by title. A click opens the
+ * leader. Nothing for the leader itself or a group with no leader.
+ */
+function LedBy({ paneId, actions }: { paneId: string; actions: CardActions }) {
+	const leaderId = useTabsStore((state) =>
+		memberNoteTarget(state.panes, paneId),
+	);
+	if (!leaderId) return null;
+	const title = actions.paneTitle(leaderId);
+	return (
+		<button
+			type="button"
+			data-led-by={leaderId}
+			title={`Led by "${title}" - open it`}
+			onClick={(event) => {
+				event.stopPropagation();
+				actions.openPane(leaderId);
+			}}
+			className="mt-0.5 block max-w-full truncate text-left text-[10.5px] font-medium text-muted-foreground hover:text-foreground hover:underline"
+		>
+			♛ Led by {title}
+		</button>
 	);
 }
 
@@ -2757,6 +2801,10 @@ interface CardActions {
 	resumeCard: (card: BoardCard) => Promise<void>;
 	cardTitle: (card: BoardCard) => string;
 	tickRow: (paneId: string, shift: boolean) => void;
+	/** Opens a session's drawer by its pane, as clicking its card does. */
+	openPane: (paneId: string) => void;
+	/** A session's card title by its pane. */
+	paneTitle: (paneId: string) => string;
 }
 
 interface BoardCardTileProps {
@@ -2796,6 +2844,7 @@ interface BoardCardTileProps {
 const sameCard = (a: BoardCard, b: BoardCard) =>
 	a.pane === b.pane &&
 	a.status === b.status &&
+	a.place === b.place &&
 	a.tabId === b.tabId &&
 	a.tabName === b.tabName &&
 	a.workspaceId === b.workspaceId &&
@@ -2950,6 +2999,7 @@ const SwitchRow = memo(function SwitchRow({
 							{title}
 						</span>
 					</span>
+					<LedBy paneId={card.pane.id} actions={actions} />
 					<WatchRowLine paneId={card.pane.id} status={status} />
 				</span>
 			)}
@@ -3057,6 +3107,20 @@ const BoardCardTile = memo(
 								<RemoteMark paneId={card.pane.id} />
 								<HostMark paneId={card.pane.id} state={hostState} />
 								{title}
+								{card.place && card.place !== card.status && (
+									// Shown with its group, under another status: say its own.
+									<span
+										data-own-status={card.status}
+										className="ml-1.5 inline-flex items-center gap-1 align-[1px] text-[10px] font-medium text-muted-foreground"
+									>
+										<span
+											className="size-1.5 rounded-full"
+											style={{ background: PANE_STATUS[card.status].dot }}
+										/>
+										{PANE_STATUS[card.status].label}
+									</span>
+								)}
+								<LedBy paneId={card.pane.id} actions={actions} />
 							</div>
 							<button
 								type="button"
@@ -5186,6 +5250,21 @@ function DevBoardPage() {
 		isProfileLoading,
 		customTags,
 	]);
+	// What the columns show: each group kept together under its most urgent
+	// member's status, leader first. Only the view: everything that acts on a
+	// column (Idle close, compaction, the sweeps) reads cardsByStatus.
+	const shownByStatus = useMemo(() => {
+		const all = COLUMNS.flatMap(
+			(column) => cardsByStatus.get(column.status) ?? [],
+		);
+		if (!all.some((card) => card.pane.odinGroup)) return cardsByStatus;
+		const map = new Map<PaneStatus, BoardCard[]>(
+			COLUMNS.map((column) => [column.status, []]),
+		);
+		for (const card of keepGroupsTogether(all, groupPlace))
+			map.get(card.place)?.push(card);
+		return map;
+	}, [cardsByStatus]);
 	// The phone's board files each card where this board does.
 	useEffect(() => {
 		useCardFlags.setState({ column: columnOf });
@@ -5284,7 +5363,7 @@ function DevBoardPage() {
 	// The time sorts read when a session entered its state, not its newest
 	// hook: hooks fire on every tool call, and sorting on them had the Working
 	// rows trade places every few seconds. A row moves when its state changes.
-	const switchCards = (["permission", "review", "working"] as const)
+	const sortedSwitchCards = (["permission", "review", "working"] as const)
 		.flatMap((status) => cardsByStatus.get(status) ?? [])
 		.toSorted(
 			sessionOrder(
@@ -5294,11 +5373,25 @@ function DevBoardPage() {
 				(card) => sortViewedAt[card.pane.id] ?? 0,
 			),
 		);
+	// A group in flight brings its Idle members along, so it stays together.
+	const inFlightGroups = new Set(
+		sortedSwitchCards.flatMap((card) => card.pane.odinGroup?.name ?? []),
+	);
+	const isWithGroup = (card: BoardCard) =>
+		inFlightGroups.has(card.pane.odinGroup?.name ?? "");
+	// Each group together, leader first, under its most urgent member's status.
+	const switchCards = keepGroupsTogether(
+		[
+			...sortedSwitchCards,
+			...(cardsByStatus.get("idle") ?? []).filter(isWithGroup),
+		],
+		groupPlace,
+	);
 	// Idle sits under the list, folded until opened; remembered per machine.
 	// Not in switchCards: the next/prev keys reach it only while it's open.
-	const idleSwitchCards = (cardsByStatus.get("idle") ?? []).toSorted(
-		(a, b) => statusAt(b) - statusAt(a),
-	);
+	const idleSwitchCards = (cardsByStatus.get("idle") ?? [])
+		.filter((card) => !isWithGroup(card))
+		.toSorted((a, b) => statusAt(b) - statusAt(a));
 	const [isIdleSwitchOpen, setIsIdleSwitchOpen] = useState(() => {
 		try {
 			return localStorage.getItem("odin:drawer-sessions-idle") === "1";
@@ -5553,6 +5646,8 @@ function DevBoardPage() {
 	 * mounted (same paneId, nothing re-runs), so disposing its xterm pulls the
 	 * canvas out from under it and the drawer goes blank until reopened.
 	 */
+	const cardOfPane = (paneId: string) =>
+		[...cardsByStatus.values()].flat().find((card) => card.pane.id === paneId);
 	const openDrawer = (card: BoardCard) => {
 		if (
 			card.pane.type === "terminal" &&
@@ -7781,6 +7876,8 @@ function DevBoardPage() {
 		resumeCard: async (card) => cardActionsRef.current?.resumeCard(card),
 		cardTitle: (card) => cardActionsRef.current?.cardTitle(card) ?? "",
 		tickRow: (paneId, shift) => cardActionsRef.current?.tickRow(paneId, shift),
+		openPane: (paneId) => cardActionsRef.current?.openPane(paneId),
+		paneTitle: (paneId) => cardActionsRef.current?.paneTitle(paneId) ?? "",
 	}));
 	const remindMe = (card: BoardCard, day: string) => {
 		const sessionId =
@@ -7822,6 +7919,16 @@ function DevBoardPage() {
 		},
 		cardTitle,
 		tickRow,
+		openPane: (paneId) => {
+			const card = cardOfPane(paneId);
+			if (card) openDrawer(card);
+		},
+		paneTitle: (paneId) => {
+			const card = cardOfPane(paneId);
+			return card
+				? cardTitle(card)
+				: (panes[paneId]?.odinTaskTitle ?? panes[paneId]?.name ?? "");
+		},
 	};
 
 	// The drawer's title row: name, chips, status, star and the Diff, Shell
@@ -8439,9 +8546,16 @@ function DevBoardPage() {
 				)}
 			>
 				{COLUMNS.map((column) => {
-					const cards = cardsByStatus.get(column.status) ?? [];
+					const cards = shownByStatus.get(column.status) ?? [];
+					// Groups first, each a block under its name; the rest in sections.
+					const groupBlocks = [
+						...Map.groupBy(
+							cards.filter((card) => card.pane.odinGroup),
+							(card) => card.pane.odinGroup?.name ?? "",
+						),
+					];
 					const sections = bySection(
-						cards,
+						cards.filter((card) => !card.pane.odinGroup),
 						(card) =>
 							(column.status === "review" || column.status === "permission") &&
 							justDoneLeft(
@@ -8462,6 +8576,41 @@ function DevBoardPage() {
 						sections[0]?.[0] === "queued" ||
 						sections[0]?.[0] === "waiting";
 					const isDropTarget = column.status === "idle";
+					const tile = (card: BoardCard) => (
+						<BoardCardTile
+							key={card.pane.id}
+							card={card}
+							actions={cardActions}
+							title={cardTitle(card)}
+							hoverText={cardText(card)}
+							contact={cardContact(card)}
+							dropped={droppedPaneIds.has(card.pane.id)}
+							merged={reviewMergedPaneIds.has(card.pane.id)}
+							ciChecks={ciChecksByPane.get(card.pane.id)?.join(", ")}
+							ciGaveUp={ciGaveUpPaneIds.has(card.pane.id)}
+							conflicts={conflictsByPane.get(card.pane.id)}
+							conflictsGaveUp={conflictsGaveUpPaneIds.has(card.pane.id)}
+							duplicate={duplicateOf.get(card.pane.id)}
+							since={statusSinceRef.current.get(card.pane.id)?.at}
+							focusedAt={focusedAt}
+							customTags={customTags}
+							launchEmoji={
+								card.pane.odinTags?.includes(QUEUE_STARTED_TAG)
+									? queueEmoji
+									: launchEmoji
+							}
+							isAgent={agentPaneIds.has(card.pane.id)}
+							hostState={hostStateOf(card.pane.id)}
+							resuming={
+								resumingPaneIds.includes(card.pane.id) ||
+								startingPaneIds.includes(card.pane.id)
+							}
+							starting={startingPaneIds.includes(card.pane.id)}
+							shellPane={shellPaneOf(card)}
+							shellAlive={alivePaneIds.has(shellPaneOf(card)?.id ?? "")}
+							hasDaemon={!!daemonSessions}
+						/>
+					);
 					return (
 						// biome-ignore lint/a11y/noStaticElementInteractions: drop zone - drag is the mouse-only shortcut for parking a card in Idle
 						<div
@@ -8532,62 +8681,46 @@ function DevBoardPage() {
 										Nothing here
 									</div>
 								) : (
-									sections.map(([section, group]) => {
-										const Icon = SECTION_ICON[section];
-										return (
-											<Fragment key={section}>
-												{labelled && (
-													<div className="flex items-center gap-1.5 px-1 pt-1 text-[10px] font-semibold uppercase tracking-[.5px] text-muted-foreground">
-														<Icon className="size-3" aria-hidden />
-														{SECTION_LABEL[section]}
-														<span className="opacity-70">{group.length}</span>
+									<>
+										{groupBlocks.map(([name, members]) => {
+											const color = members[0]?.pane.odinGroup?.color;
+											const hex = color ? GROUP_HEX[color] : undefined;
+											return (
+												<div
+													key={`group:${name}`}
+													data-group-block={name}
+													className="flex flex-col gap-2 rounded-lg border-l-2 pl-1.5"
+													style={{ borderColor: hex }}
+												>
+													<div
+														className="flex items-center gap-1.5 px-1 pt-1 text-[10px] font-semibold uppercase tracking-[.5px]"
+														style={{ color: hex }}
+													>
+														<span className="truncate">{name}</span>
+														<span className="opacity-70">{members.length}</span>
 														<span className="ml-1 h-px flex-1 bg-accent" />
 													</div>
-												)}
-												{group.map((card) => (
-													<BoardCardTile
-														key={card.pane.id}
-														card={card}
-														actions={cardActions}
-														title={cardTitle(card)}
-														hoverText={cardText(card)}
-														contact={cardContact(card)}
-														dropped={droppedPaneIds.has(card.pane.id)}
-														merged={reviewMergedPaneIds.has(card.pane.id)}
-														ciChecks={ciChecksByPane
-															.get(card.pane.id)
-															?.join(", ")}
-														ciGaveUp={ciGaveUpPaneIds.has(card.pane.id)}
-														conflicts={conflictsByPane.get(card.pane.id)}
-														conflictsGaveUp={conflictsGaveUpPaneIds.has(
-															card.pane.id,
-														)}
-														duplicate={duplicateOf.get(card.pane.id)}
-														since={statusSinceRef.current.get(card.pane.id)?.at}
-														focusedAt={focusedAt}
-														customTags={customTags}
-														launchEmoji={
-															card.pane.odinTags?.includes(QUEUE_STARTED_TAG)
-																? queueEmoji
-																: launchEmoji
-														}
-														isAgent={agentPaneIds.has(card.pane.id)}
-														hostState={hostStateOf(card.pane.id)}
-														resuming={
-															resumingPaneIds.includes(card.pane.id) ||
-															startingPaneIds.includes(card.pane.id)
-														}
-														starting={startingPaneIds.includes(card.pane.id)}
-														shellPane={shellPaneOf(card)}
-														shellAlive={alivePaneIds.has(
-															shellPaneOf(card)?.id ?? "",
-														)}
-														hasDaemon={!!daemonSessions}
-													/>
-												))}
-											</Fragment>
-										);
-									})
+													{members.map(tile)}
+												</div>
+											);
+										})}
+										{sections.map(([section, group]) => {
+											const Icon = SECTION_ICON[section];
+											return (
+												<Fragment key={section}>
+													{labelled && (
+														<div className="flex items-center gap-1.5 px-1 pt-1 text-[10px] font-semibold uppercase tracking-[.5px] text-muted-foreground">
+															<Icon className="size-3" aria-hidden />
+															{SECTION_LABEL[section]}
+															<span className="opacity-70">{group.length}</span>
+															<span className="ml-1 h-px flex-1 bg-accent" />
+														</div>
+													)}
+													{group.map(tile)}
+												</Fragment>
+											);
+										})}
+									</>
 								)}
 							</div>
 						</div>
@@ -8854,14 +8987,14 @@ function DevBoardPage() {
 										{switchCards.map((card, index) => (
 											<Fragment key={card.pane.id}>
 												{isSwitchGrouped &&
-													card.status !== switchCards[index - 1]?.status &&
+													card.place !== switchCards[index - 1]?.place &&
 													(isSwitchListMin ? (
 														index > 0 && (
 															<div className="mx-2 my-1 border-t border-border" />
 														)
 													) : (
 														<div className="mt-2 mb-0.5 px-3 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
-															{PANE_STATUS[card.status].label}
+															{PANE_STATUS[card.place].label}
 														</div>
 													))}
 												{switchRow(card)}
