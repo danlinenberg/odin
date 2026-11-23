@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
 	actionItems,
-	artifactLink,
+	artifactLinks,
 	askedPullRequests,
 	type BriefMessage,
 	byRepo,
@@ -588,23 +588,27 @@ describe("nextCronFire", () => {
 	});
 });
 
-describe("artifactLink", () => {
+describe("artifactLinks", () => {
 	const say = (role: "user" | "assistant", text: string): BriefMessage => ({
 		role,
 		text,
 		at: null,
 	});
-	it("returns the newest artifact the agent published, not one you pasted", () => {
+	it("lists the agent's artifacts newest first, each once, not one you pasted", () => {
 		expect(
-			artifactLink([
+			artifactLinks([
 				say("user", "update https://claude.ai/artifact/pasted"),
 				say("assistant", "Published: https://claude.ai/code/artifact/abc-1."),
 				say("assistant", "[Report](https://claude.ai/artifact/def2)"),
+				say("assistant", "Updated https://claude.ai/code/artifact/abc-1 again"),
 			]),
-		).toBe("https://claude.ai/artifact/def2");
-		expect(artifactLink([say("user", "https://claude.ai/artifact/x")])).toBe(
-			null,
-		);
+		).toEqual([
+			"https://claude.ai/code/artifact/abc-1",
+			"https://claude.ai/artifact/def2",
+		]);
+		expect(
+			artifactLinks([say("user", "https://claude.ai/artifact/x")]),
+		).toEqual([]);
 		expect(linkKind("https://claude.ai/artifact/x")).toBe("artifact");
 		expect(linkLabel("https://claude.ai/code/artifact/x")).toBe("Artifact");
 	});
