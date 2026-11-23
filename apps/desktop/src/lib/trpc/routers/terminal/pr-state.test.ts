@@ -46,6 +46,8 @@ describe("pullRequestState", () => {
 			summary: null,
 			headSha: null,
 			failedAt: null,
+			baseSha: null,
+			headRef: null,
 		});
 	});
 
@@ -139,6 +141,8 @@ describe("pullRequestState", () => {
 			summary: null,
 			headSha: null,
 			failedAt: null,
+			baseSha: null,
+			headRef: null,
 		});
 	});
 
