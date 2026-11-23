@@ -22,6 +22,7 @@ import {
 	transcriptLinks,
 } from "./claude-sessions";
 import { transcriptCredential } from "./credential";
+import { transcriptMcpSignedOut } from "./mcp-sign-in";
 import { transcriptUsage } from "./usage";
 
 const CWD = `${homedir()}/dev/app`;
@@ -151,6 +152,7 @@ function fullRead(jsonl: string, path: string) {
 		rules: ruleFirings(jsonl),
 		usage: transcriptUsage(jsonl),
 		credential: transcriptCredential(jsonl),
+		mcpSignedOut: transcriptMcpSignedOut(jsonl),
 		slackDrafts: slackDrafts(jsonl),
 		openPrompt: pendingPrompt(jsonl) !== null,
 	};
