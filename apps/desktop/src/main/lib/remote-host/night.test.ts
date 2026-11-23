@@ -58,7 +58,7 @@ function marked(reactions: unknown, now: number): unknown {
 			[
 				"-I",
 				"-c",
-				"import json, sys; sys.path.insert(0, sys.argv[1]); import night_runner as r; r.service = lambda path: {\"ok\": True, \"user_id\": \"U0123\"} if path == \"auth.test\" else json.loads(sys.argv[2]); print(json.dumps(r.marked(float(sys.argv[3]))))",
+				'import json, sys; sys.path.insert(0, sys.argv[1]); import night_runner as r; r.service = lambda path: {"ok": True, "user_id": "U0123"} if path == "auth.test" else json.loads(sys.argv[2]); print(json.dumps(r.marked(float(sys.argv[3]))))',
 				dir,
 				JSON.stringify(reactions),
 				String(now),
