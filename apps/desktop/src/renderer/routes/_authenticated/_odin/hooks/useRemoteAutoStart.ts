@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { AUTO_START_SOURCES } from "shared/auto-start";
+import { QUEUE_STARTED_TAG } from "shared/odin-tags";
 import { type AllItem, livePanesOn } from "../all/all-items";
 import { useNextInLineQueue } from "../board/NextInLine";
 
@@ -75,8 +76,12 @@ export function useRemoteAutoStart(): void {
 				guidelines: "",
 				images: [],
 				onHost: true,
-				// A Slack reaction is the ask, as with the launch reaction.
-				...(item.source === "Slack" ? { tags: ["auto-started"] } : {}),
+				// A Slack reaction is the ask, as with the launch reaction. The
+				// launch reaction's own auto-launch reaches its rows first, so a
+				// row started here is taken as a Queue-reaction one.
+				...(item.source === "Slack"
+					? { tags: ["auto-started", QUEUE_STARTED_TAG] }
+					: {}),
 			});
 			if (result.ok)
 				toast.success(`Auto-started from ${item.source}: ${item.title}`);
