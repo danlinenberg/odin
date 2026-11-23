@@ -531,20 +531,37 @@ export const createWorkRouter = () => {
 					);
 					const request = await jiraRequestContext();
 					if (!request || keys.length === 0) return {};
+					const headers = {
+						Authorization: request.authorization,
+						Accept: "application/json",
+					};
 					const jql = `key in (${keys.join(",")})`;
 					const response = await fetch(
 						`${request.base}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=100&fields=status`,
-						{
-							headers: {
-								Authorization: request.authorization,
-								Accept: "application/json",
-							},
-						},
-					);
-					if (!response.ok) return {};
-					const payload = (await response.json()) as JiraSearchResponse;
+						{ headers },
+					).catch(() => null);
+					// Jira fails the whole search when one key doesn't exist or
+					// can't be read, so then each ticket is read on its own and
+					// only the bad one goes without a chip.
+					const issues: NonNullable<JiraSearchResponse["issues"]> = response?.ok
+						? (((await response.json()) as JiraSearchResponse).issues ?? [])
+						: (
+								await Promise.all(
+									keys.map(async (key) => {
+										const one = await fetch(
+											`${request.base}/rest/api/3/issue/${key}?fields=status`,
+											{ headers },
+										).catch(() => null);
+										return one?.ok
+											? ((await one.json()) as NonNullable<
+													JiraSearchResponse["issues"]
+												>[number])
+											: null;
+									}),
+								)
+							).filter((issue) => issue !== null);
 					return Object.fromEntries(
-						(payload.issues ?? []).map((issue) => [
+						issues.map((issue) => [
 							issue.key,
 							{
 								status: issue.fields?.status?.name ?? "Unknown",
