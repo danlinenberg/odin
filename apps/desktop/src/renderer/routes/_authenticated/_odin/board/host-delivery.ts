@@ -28,6 +28,11 @@ export type HostMessage = {
 	/** It never reached Claude: the bubble says Not delivered. */
 	lost: () => void;
 	/**
+	 * Restarts the session with the message as its opening one, instead of
+	 * Not delivered. False when it won't (attachments, or it restarted lately).
+	 */
+	restart?: () => boolean;
+	/**
 	 * The message as plain keys for the stopped prompt's one-line read, when
 	 * it fits there. Claude then restarts with it, instead of restarting and
 	 * only then getting it typed. Set only where `arrived` reads the transcript.
@@ -227,6 +232,14 @@ export async function deliverOnHost(
 	if (lines.has(paneId)) message.waiting(true);
 	const first = await inLine(paneId, () => typeWhenReady(message, deps, false));
 	if (first === "took") return;
+	// The host is up but Claude didn't take it (stuck after a compaction, say):
+	// restart it with the message, as a local session does.
+	if (
+		first === "lost" &&
+		!remoteConnectLine(await read(deps)) &&
+		message.restart?.()
+	)
+		return;
 	message.lost();
 	if (first === "gone") return;
 	for (let waited = 0; waited < DROP_WATCH_MS; waited += POLL_MS) {
@@ -236,6 +249,7 @@ export async function deliverOnHost(
 			const again = await inLine(paneId, () =>
 				typeWhenReady(message, deps, true),
 			);
+			if (again === "lost" && message.restart?.()) return;
 			if (again !== "took") message.lost();
 			return;
 		}
