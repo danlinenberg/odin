@@ -245,7 +245,10 @@ import { useOdinProfile } from "../hooks/useOdinProfile";
 import { useMyTasks, useOdinTasks } from "../hooks/useOdinTasks";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
-import { usePendingFocus } from "../hooks/usePendingFocus";
+import {
+	PENDING_FOCUS_TTL_MS,
+	usePendingFocus,
+} from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
 import { type SweptRow, sessionFor } from "../review/verdicts";
 import { AgentsView, SubagentsButton, SubagentsPill } from "./AgentsView";
@@ -5563,10 +5566,15 @@ function DevBoardPage() {
 
 	// A session just launched from the Tasks view → open its drawer here.
 	const pendingPaneId = usePendingFocus((s) => s.paneId);
+	const pendingAt = usePendingFocus((s) => s.at);
 	const clearPendingFocus = usePendingFocus((s) => s.clear);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: openDrawer and crowCard are new each render; the pending pane and the cards are the trigger
 	useEffect(() => {
 		if (!pendingPaneId) return;
+		if (Date.now() - pendingAt > PENDING_FOCUS_TTL_MS) {
+			clearPendingFocus();
+			return;
+		}
 		const card =
 			[...cardsByStatus.values()]
 				.flat()
@@ -5830,10 +5838,12 @@ function DevBoardPage() {
 		auto: boolean | "bulk" | "phone" = false,
 		prompt?: string,
 		restart = false,
-		shown = shownPaneRef.current,
+		shown: string | null | false = shownPaneRef.current,
 	) => {
+		// false: never open it - a move the board made by itself must not take
+		// you away from the session you are on.
 		const openIfStillShown = () => {
-			if (shownPaneRef.current === shown) openDrawer(card);
+			if (shown !== false && shownPaneRef.current === shown) openDrawer(card);
 		};
 		if (
 			resumingPaneIds.includes(card.pane.id) ||
@@ -6092,7 +6102,9 @@ function DevBoardPage() {
 			toast.info(
 				`${card.pane.odinRemote} is not available, so this session moves to this computer`,
 			);
-			await runHere(card, prompt);
+			// The board's own Resume moves it without opening it: you stay
+			// where you are.
+			await runHere(card, prompt, !auto);
 			return;
 		}
 		// The respawn puts Claude back in this PTY - don't make the next scan
@@ -6296,8 +6308,8 @@ function DevBoardPage() {
 	 * copied from the host, its tmux session there ends, and it resumes told
 	 * where it is now. The way out for a session stuck on the host.
 	 */
-	const runHere = async (card: BoardCard, prompt?: string) => {
-		const shown = shownPaneRef.current;
+	const runHere = async (card: BoardCard, prompt?: string, open = true) => {
+		const shown = open ? shownPaneRef.current : false;
 		const sessionId =
 			card.pane.claudeSessionId ??
 			usePaneMeta.getState().sessionIdByPane[card.pane.id];
