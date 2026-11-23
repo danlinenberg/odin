@@ -12,11 +12,6 @@ import {
 } from "main/lib/calendar";
 import { calendarAccessToken, hasCalendarOAuth } from "main/lib/calendar-token";
 import {
-	driveAccessToken,
-	driveFetch,
-	hasDriveOAuth,
-} from "main/lib/drive-oauth";
-import {
 	type AirtableRecordRow,
 	adfToText,
 	airtableFetch,
@@ -25,10 +20,11 @@ import {
 	clickupDate,
 	clickupTasks,
 	type DetermMentionRow,
+	DRIVE_SHARE_SEARCH,
 	type DriveFileRow,
 	determFetch,
 	determMentions,
-	driveSharedFiles,
+	driveShareRows,
 	feedError,
 	type GithubSearchResponse,
 	type JiraIssueRow,
@@ -38,6 +34,7 @@ import {
 	pullRequests,
 } from "main/lib/feeds";
 import { githubAccessToken, githubApiFetch } from "main/lib/github-token";
+import { searchGmail } from "main/lib/gmail-imap";
 import { hasJiraOAuth, jiraRequestContext } from "main/lib/jira-token";
 import { clickupFetch } from "main/lib/read-link";
 import { z } from "zod";
@@ -327,7 +324,7 @@ export const createWorkRouter = () => {
 			hasAirtable: hasAirtableOAuth(),
 			hasDeterm: !!readOdinConfig().determToken,
 			hasCalendar: hasCalendarOAuth() || !!readOdinConfig().calendarUrl,
-			hasDrive: hasDriveOAuth(),
+			hasDrive: gmailCredentials() !== null,
 			/**
 			 * Odin's own checkout: gates self-update, and is where "Work on Odin"
 			 * sessions launch so the agent starts in the right repo instead of
@@ -777,21 +774,31 @@ export const createWorkRouter = () => {
 			},
 		),
 
-		/** Google Drive files shared with me lately (DRIVE_SHARED_DAYS). */
+		/** Google Drive files shared with me lately (DRIVE_SHARED_DAYS), from Drive's share emails in Gmail. */
 		myDriveFiles: publicProcedure.query(
 			async (): Promise<{ files: DriveFileRow[] }> => {
-				if (!hasDriveOAuth()) {
+				const credentials = gmailCredentials();
+				if (!credentials) {
 					throw new TRPCError({
 						code: "PRECONDITION_FAILED",
 						message:
-							"Google Drive isn't connected - add it in Settings → Connections.",
+							"Gmail isn't connected - Drive's share emails are how this tab finds files. Add Gmail in Settings → Connections.",
 					});
 				}
-				const token = await driveAccessToken();
-				if (!token) throw feedError("Google Drive", 401, "");
-				return {
-					files: await driveSharedFiles((path) => driveFetch(path, token)),
-				};
+				try {
+					return {
+						files: driveShareRows(
+							await searchGmail(credentials, DRIVE_SHARE_SEARCH),
+						),
+					};
+				} catch (error) {
+					const text = error instanceof Error ? error.message : String(error);
+					throw feedError(
+						"Gmail",
+						/AUTHENTICATIONFAILED|Invalid credentials/i.test(text) ? 401 : 502,
+						text,
+					);
+				}
 			},
 		),
 

@@ -239,15 +239,7 @@ export interface OdinFileConfig {
 	calendarAccessToken?: string;
 	calendarRefreshToken?: string;
 	calendarTokenExpiresAt?: number;
-	/**
-	 * Google Drive OAuth connection (drive.metadata.readonly), signed in
-	 * through the same Google app as the calendar but with tokens of its own,
-	 * so either one connects and disconnects without the other.
-	 */
-	driveAccessToken?: string;
-	driveRefreshToken?: string;
-	driveTokenExpiresAt?: number;
-	/** The Google Calendar OAuth app, like Notion's. Drive signs in through it too. */
+	/** The Google Calendar OAuth app, like Notion's. */
 	calendarClientId?: string;
 	calendarClientSecret?: string;
 	calendarRedirectUrl?: string;

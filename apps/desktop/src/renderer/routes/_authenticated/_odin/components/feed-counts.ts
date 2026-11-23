@@ -51,7 +51,7 @@ export const FEED_TABS = [
 		provider: "determ",
 		onlyConnected: true,
 	},
-	{ to: "/drive", label: "Drive", Icon: SiGoogledrive, provider: "drive" },
+	{ to: "/drive", label: "Drive", Icon: SiGoogledrive, provider: "gmail" },
 ] as const satisfies readonly {
 	to: string;
 	label: string;

@@ -24,7 +24,7 @@ export const SCREENS = [
 	{
 		to: "/settings/connections",
 		label: "Connections",
-		hint: "Profiles, Claude, Slack, GitHub, Jira, Notion, Gmail, ClickUp, Calendar, Google Drive, Airtable, Determ",
+		hint: "Profiles, Claude, Slack, GitHub, Jira, Notion, Gmail, ClickUp, Calendar, Airtable, Determ",
 		icon: LuPlug,
 	},
 	{
@@ -173,12 +173,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		section: "Accounts",
 		keywords:
 			"account connect calendar meetings google outlook ical ics secret address",
-	},
-	{
-		label: "Google Drive",
-		to: "/settings/connections",
-		section: "Accounts",
-		keywords: "account sign in connect google drive docs sheets files shared",
 	},
 	{
 		label: "Default folder",

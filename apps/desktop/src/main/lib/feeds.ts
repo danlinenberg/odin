@@ -529,67 +529,56 @@ export interface DriveFileRow {
 /** How long a share stays in the feed: after that it's history, not a to-do. */
 export const DRIVE_SHARED_DAYS = 14;
 
-/** A Drive mime type, as the word a person would use. */
-export function driveKind(mimeType: string | undefined): string {
-	const google = mimeType?.match(/^application\/vnd\.google-apps\.(\w+)/)?.[1];
-	if (google) {
-		const names: Record<string, string> = {
-			document: "Document",
-			spreadsheet: "Spreadsheet",
-			presentation: "Presentation",
-			form: "Form",
-			folder: "Folder",
-			drawing: "Drawing",
-		};
-		return names[google] ?? google;
-	}
-	if (mimeType === "application/pdf") return "PDF";
-	const top = mimeType?.split("/")[0];
-	if (top === "image") return "Image";
-	if (top === "video") return "Video";
-	return "File";
+/** Who sends Drive's "shared with you" emails, as a Gmail search. */
+export const DRIVE_SHARE_SEARCH = `from:(drive-shares-dm-noreply@google.com OR drive-shares-noreply@google.com) newer_than:${DRIVE_SHARED_DAYS}d`;
+
+/**
+ * One "X shared with you" email as a row. Subject: `Document shared with you:
+ * "Plan"`; From: `"Riley Jones (via Google Docs)" <...>`; the body carries the
+ * link. Null when there's no Drive link in it.
+ */
+export function driveShareRow(email: {
+	subject: string;
+	from: string;
+	body: string;
+	receivedAt: string | null;
+}): DriveFileRow | null {
+	const url = email.body
+		.match(/https:\/\/(?:docs|drive)\.google\.com\/[^\s<>"')\]]+/)?.[0]
+		?.replace(/[.,;]+$/, "");
+	if (!url) return null;
+	const id =
+		url.match(/\/(?:d|folders)\/([\w-]+)/)?.[1] ??
+		url.match(/[?&]id=([\w-]+)/)?.[1] ??
+		url;
+	const shared = email.subject.match(/^(.+?) shared with you:\s*"(.*)"\s*$/);
+	const sender = email.from.match(/^"?(.*?)"?\s*<[^>]*>$/)?.[1] ?? email.from;
+	return {
+		id,
+		url,
+		name: shared?.[2] || email.subject,
+		kind: shared?.[1] ?? "File",
+		sharedBy: sender.replace(/\s*\(via [^)]*\)$/, "").trim() || null,
+		sharedAt: email.receivedAt,
+		modified: null,
+	};
 }
 
-/** Files shared with me in the last DRIVE_SHARED_DAYS days, newest share first. */
-export async function driveSharedFiles(
-	call: FeedCall,
-	now = Date.now(),
-): Promise<DriveFileRow[]> {
-	const fields =
-		"files(id,name,mimeType,webViewLink,sharedWithMeTime,modifiedTime,sharingUser(displayName,emailAddress))";
-	const response = await call(
-		`files?q=${encodeURIComponent("sharedWithMe and trashed = false")}&orderBy=sharedWithMeTime%20desc&pageSize=100&fields=${encodeURIComponent(fields)}`,
-	);
-	if (!response.ok) {
-		throw feedError("Google Drive", response.status, await response.text());
+/** Newest share first, one row per file (shared twice = the later share). */
+export function driveShareRows(
+	emails: Parameters<typeof driveShareRow>[0][],
+): DriveFileRow[] {
+	const byId = new Map<string, DriveFileRow>();
+	for (const row of emails.map(driveShareRow)) {
+		if (!row) continue;
+		const seen = byId.get(row.id);
+		if (!seen || (row.sharedAt ?? "") > (seen.sharedAt ?? "")) {
+			byId.set(row.id, row);
+		}
 	}
-	const { files = [] } = (await response.json()) as {
-		files?: {
-			id: string;
-			name: string;
-			mimeType?: string;
-			webViewLink?: string;
-			sharedWithMeTime?: string;
-			modifiedTime?: string;
-			sharingUser?: { displayName?: string; emailAddress?: string };
-		}[];
-	};
-	const since = now - DRIVE_SHARED_DAYS * 24 * 60 * 60 * 1000;
-	return files
-		.filter(
-			(file) =>
-				file.sharedWithMeTime && Date.parse(file.sharedWithMeTime) >= since,
-		)
-		.map((file) => ({
-			id: file.id,
-			url: file.webViewLink ?? `https://drive.google.com/open?id=${file.id}`,
-			name: file.name,
-			kind: driveKind(file.mimeType),
-			sharedBy:
-				file.sharingUser?.displayName ?? file.sharingUser?.emailAddress ?? null,
-			sharedAt: file.sharedWithMeTime ?? null,
-			modified: file.modifiedTime ?? null,
-		}));
+	return [...byId.values()].sort((a, b) =>
+		(b.sharedAt ?? "").localeCompare(a.sharedAt ?? ""),
+	);
 }
 
 /** Every page of a Notion database, newest first (capped at 1000), and the database itself. */

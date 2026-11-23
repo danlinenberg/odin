@@ -62,7 +62,8 @@ export function connectedSites(): LinkSiteId[] {
 		calendar: config.calendarRefreshToken ?? config.calendarUrl,
 		airtable: config.airtableRefreshToken,
 		determ: config.determToken,
-		drive: config.driveRefreshToken,
+		// Drive's tab reads its share emails through Gmail.
+		drive: config.gmailAddress,
 	};
 	return (Object.keys(signedIn) as LinkSiteId[]).filter((id) => signedIn[id]);
 }
