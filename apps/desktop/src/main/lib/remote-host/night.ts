@@ -271,13 +271,16 @@ def service(path):
 
 def marked(now):
     """The Slack messages you marked :eyes: lately, as the board keys them."""
+    me = service("auth.test").get("user_id")
     got = service("reactions.list?limit=100&full=true")
-    if not got.get("ok"):
+    if not me or not got.get("ok"):
         raise RuntimeError("Slack said %s" % got.get("error"))
     out = []
     for item in got.get("items", []):
         m = item.get("message") or {}
-        if item.get("type") != "message" or not any(r.get("name") == "eyes" for r in m.get("reactions", [])):
+        # reactions.list holds every message I reacted to with any emoji: the :eyes: must be mine, not a colleague's.
+        if item.get("type") != "message" or not any(
+                r.get("name") == "eyes" and me in (r.get("users") or []) for r in m.get("reactions", [])):
             continue
         if now - float(m.get("ts") or 0) > PICK_DAYS * DAY:
             continue

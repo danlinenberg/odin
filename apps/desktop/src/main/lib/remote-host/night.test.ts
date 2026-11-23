@@ -58,7 +58,7 @@ function marked(reactions: unknown, now: number): unknown {
 			[
 				"-I",
 				"-c",
-				"import json, sys; sys.path.insert(0, sys.argv[1]); import night_runner as r; r.service = lambda path: json.loads(sys.argv[2]); print(json.dumps(r.marked(float(sys.argv[3]))))",
+				"import json, sys; sys.path.insert(0, sys.argv[1]); import night_runner as r; r.service = lambda path: {\"ok\": True, \"user_id\": \"U0123\"} if path == \"auth.test\" else json.loads(sys.argv[2]); print(json.dumps(r.marked(float(sys.argv[3]))))",
 				dir,
 				JSON.stringify(reactions),
 				String(now),
@@ -490,7 +490,7 @@ describe("the Night Agent runner across nights", () => {
 							ts: "1000.1",
 							text: `<${a}|example.com/acme/infra/pull/1>\n<${b}|example.com/acme/infra/pull/2>`,
 							permalink: "https://example.com/p",
-							reactions: [{ name: "eyes" }],
+							reactions: [{ name: "eyes", users: ["U0123"] }],
 						},
 					},
 				],
@@ -499,6 +499,30 @@ describe("the Night Agent runner across nights", () => {
 		) as { title: string; text: string }[];
 		expect(got[0].text).toBe(`<${a}> <${b}>`);
 		expect(got[0].title).toBe(`<${a}> <${b}>`.slice(0, 120));
+	});
+
+	test("a message I reacted to with something else is not marked by a colleague's :eyes:", () => {
+		const got = marked(
+			{
+				ok: true,
+				items: [
+					{
+						type: "message",
+						channel: "C0123",
+						message: {
+							ts: "1000.1",
+							text: "bugs assigned to the team",
+							reactions: [
+								{ name: "pray", users: ["U0123"] },
+								{ name: "eyes", users: ["U0456"] },
+							],
+						},
+					},
+				],
+			},
+			1001,
+		);
+		expect(got).toEqual([]);
 	});
 
 	test("with the queue done, it picks marked messages once a night, in Claude's order, and only listed ones", () => {
