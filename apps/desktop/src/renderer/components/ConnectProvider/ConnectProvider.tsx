@@ -33,8 +33,7 @@ export type Provider =
 	| "clickup"
 	| "calendar"
 	| "airtable"
-	| "determ"
-	| "drive";
+	| "determ";
 
 export const PROVIDER_NAME: Record<Provider, string> = {
 	slack: "Slack",
@@ -46,7 +45,6 @@ export const PROVIDER_NAME: Record<Provider, string> = {
 	calendar: "Calendar",
 	airtable: "Airtable",
 	determ: "Determ",
-	drive: "Google Drive",
 };
 
 type OAuthProvider = Exclude<
@@ -57,7 +55,6 @@ type OAuthProvider = Exclude<
 /** Whose account the sign-in button opens, where it isn't the provider's own. */
 const SIGN_IN_NAME: Partial<Record<OAuthProvider, string>> = {
 	calendar: "Google",
-	drive: "Google",
 };
 
 /** What the consent screen is about to ask for, in one line. */
@@ -76,8 +73,6 @@ const SCOPE_BLURB: Record<Provider, string> = {
 		"Opens Airtable in your browser, where you pick the bases Odin may read. Read-only.",
 	determ:
 		"An API token and the feeds to read - each mention from the last week is a row.",
-	drive:
-		"Opens Google in your browser. Read-only file names and owners, never their contents.",
 };
 
 export function ConnectProvider({
@@ -240,10 +235,7 @@ function OAuthAppForm({
 	provider: OAuthProvider;
 	onSaved: () => void;
 }) {
-	const name =
-		provider === "calendar" || provider === "drive"
-			? "Google"
-			: PROVIDER_NAME[provider];
+	const name = provider === "calendar" ? "Google" : PROVIDER_NAME[provider];
 	const [app, setApp] = useState({
 		clientId: "",
 		clientSecret: "",
@@ -272,10 +264,7 @@ function OAuthAppForm({
 			</p>
 			{field("clientId", "Client ID")}
 			{field("clientSecret", "Client Secret")}
-			{field(
-				"redirectUrl",
-				`https://…/${provider === "drive" ? "calendar" : provider}.html`,
-			)}
+			{field("redirectUrl", `https://…/${provider}.html`)}
 			<Button
 				size="sm"
 				disabled={

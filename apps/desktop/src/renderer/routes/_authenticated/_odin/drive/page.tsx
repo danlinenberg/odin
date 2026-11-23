@@ -47,14 +47,14 @@ function DrivePage() {
 			<div className={TABLE_LIST}>
 				{workConfig && !workConfig.hasDrive && (
 					<ConnectNotice
-						provider="drive"
-						text="Google Drive isn't connected - sign in with Google to see files shared with you."
+						provider="gmail"
+						text="This tab lists the files Google Drive emailed you about sharing. Connect Gmail to see them."
 					/>
 				)}
 				{drive.error?.data?.code === "UNAUTHORIZED" ? (
 					<ConnectNotice
-						provider="drive"
-						text="Google rejected the Drive sign-in - it was revoked or expired. Sign in again."
+						provider="gmail"
+						text="Gmail rejected the app password - connect Gmail again."
 					/>
 				) : (
 					<FeedError error={drive.error} />

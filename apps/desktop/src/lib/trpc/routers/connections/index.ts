@@ -19,14 +19,6 @@ import {
 } from "main/lib/calendar-oauth";
 import { calendarAccessToken, hasCalendarOAuth } from "main/lib/calendar-token";
 import {
-	driveAccessToken,
-	driveFetch,
-	hasDriveOAuth,
-	isDriveOAuthConfigured,
-	readDriveOAuthResult,
-	startDriveOAuth,
-} from "main/lib/drive-oauth";
-import {
 	airtableFetch,
 	airtableView,
 	determFeed,
@@ -113,7 +105,6 @@ const PROVIDERS = [
 	"calendar",
 	"airtable",
 	"determ",
-	"drive",
 ] as const;
 type Provider = (typeof PROVIDERS)[number];
 
@@ -436,26 +427,6 @@ async function probeCalendar(): Promise<ConnectionStatus> {
 	}
 }
 
-/** Signed in to Google for Drive, the account's email is the "who am I". */
-async function probeDrive(): Promise<ConnectionStatus> {
-	if (!hasDriveOAuth()) return unconfigured("drive");
-	try {
-		const token = await driveAccessToken();
-		if (!token) return failed("drive", probeError(401));
-		const res = await driveFetch("about?fields=user(emailAddress)", token);
-		if (!res.ok) return failed("drive", probeError(res.status));
-		const json = (await res.json()) as { user?: { emailAddress?: string } };
-		return {
-			provider: "drive",
-			configured: true,
-			identity: json.user?.emailAddress ?? "Google Drive",
-			error: null,
-		};
-	} catch (error) {
-		return failed("drive", message(error));
-	}
-}
-
 function unconfigured(provider: Provider): ConnectionStatus {
 	return { provider, configured: false, identity: null, error: null };
 }
@@ -502,7 +473,6 @@ const OAUTH_PROVIDERS = [
 	"notion",
 	"calendar",
 	"airtable",
-	"drive",
 ] as const;
 type OAuthProvider = (typeof OAUTH_PROVIDERS)[number];
 
@@ -520,8 +490,6 @@ function oauthConfigured(provider: OAuthProvider): boolean {
 			return isCalendarOAuthConfigured();
 		case "airtable":
 			return isAirtableOAuthConfigured();
-		case "drive":
-			return isDriveOAuthConfigured();
 	}
 }
 
@@ -539,8 +507,6 @@ function startOAuth(
 			return startCalendarOAuth();
 		case "airtable":
 			return startAirtableOAuth();
-		case "drive":
-			return startDriveOAuth();
 	}
 }
 
@@ -556,8 +522,6 @@ function readOAuthResult(provider: OAuthProvider, state: string) {
 			return readCalendarOAuthResult(state);
 		case "airtable":
 			return readAirtableOAuthResult(state);
-		case "drive":
-			return readDriveOAuthResult(state);
 	}
 }
 
@@ -597,7 +561,6 @@ export const createConnectionsRouter = () => {
 					readOdinConfig().determFeeds,
 					determWhoami,
 				),
-				probeDrive(),
 			]);
 		}),
 
@@ -700,12 +663,10 @@ export const createConnectionsRouter = () => {
 				}),
 			)
 			.mutation(({ input: { provider, ...app } }) => {
-				// Drive signs in through the calendar's Google app.
-				const key = provider === "drive" ? "calendar" : provider;
 				updateOdinConfig({
-					[`${key}ClientId`]: app.clientId,
-					[`${key}ClientSecret`]: app.clientSecret,
-					[`${key}RedirectUrl`]: app.redirectUrl,
+					[`${provider}ClientId`]: app.clientId,
+					[`${provider}ClientSecret`]: app.clientSecret,
+					[`${provider}RedirectUrl`]: app.redirectUrl,
 				});
 				return { configured: oauthConfigured(provider) };
 			}),
@@ -782,13 +743,6 @@ export const createConnectionsRouter = () => {
 						updateOdinConfig({
 							determToken: undefined,
 							determFeeds: undefined,
-						});
-						break;
-					case "drive":
-						updateOdinConfig({
-							driveAccessToken: undefined,
-							driveRefreshToken: undefined,
-							driveTokenExpiresAt: undefined,
 						});
 						break;
 					case "calendar":

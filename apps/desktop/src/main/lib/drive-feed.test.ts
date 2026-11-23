@@ -1,60 +1,83 @@
 import { describe, expect, it } from "bun:test";
-import { driveKind, driveSharedFiles } from "./feeds";
+import { driveShareRows } from "./feeds";
+import {
+	allMailbox,
+	decodeBody,
+	decodeHeader,
+	fetchSections,
+} from "./gmail-imap";
 
-const NOW = Date.parse("2026-03-20T12:00:00Z");
-
-describe("driveSharedFiles", () => {
-	it("keeps the last 14 days of shares and names the kind and sharer", async () => {
-		let asked = "";
-		const rows = await driveSharedFiles(async (path) => {
-			asked = path;
-			return Response.json({
-				files: [
-					{
-						id: "a",
-						name: "Plan",
-						mimeType: "application/vnd.google-apps.document",
-						webViewLink: "https://docs.example.com/a",
-						sharedWithMeTime: "2026-03-19T09:00:00Z",
-						sharingUser: { displayName: "Riley Jones" },
-					},
-					{
-						id: "old",
-						name: "Last year",
-						sharedWithMeTime: "2026-02-01T09:00:00Z",
-					},
-					{ id: "never", name: "No share time" },
-				],
-			});
-		}, NOW);
-		expect(asked).toContain("sharedWithMe");
-		expect(rows).toEqual([
+describe("driveShareRows", () => {
+	it("turns Drive's share emails into rows, one per file, newest first", () => {
+		const rows = driveShareRows([
 			{
-				id: "a",
-				url: "https://docs.example.com/a",
-				name: "Plan",
-				kind: "Document",
-				sharedBy: "Riley Jones",
-				sharedAt: "2026-03-19T09:00:00Z",
-				modified: null,
+				subject: 'Spreadsheet shared with you: "Budget Q3"',
+				from: '"Riley Jones (via Google Sheets)" <drive-shares-dm-noreply@google.com>',
+				body: "I've shared an item with you:\r\n\r\nBudget Q3\r\nhttps://docs.google.com/spreadsheets/d/abc123/edit?usp=sharing&ts=1\r\n",
+				receivedAt: "2026-03-18T09:00:00.000Z",
 			},
+			{
+				subject: 'Document shared with you: "Plan"',
+				from: '"Alex (via Google Docs)" <drive-shares-dm-noreply@google.com>',
+				body: "https://docs.google.com/document/d/doc9/edit",
+				receivedAt: "2026-03-19T09:00:00.000Z",
+			},
+			{
+				subject: 'Spreadsheet shared with you: "Budget Q3"',
+				from: '"Riley Jones (via Google Sheets)" <drive-shares-dm-noreply@google.com>',
+				body: "https://docs.google.com/spreadsheets/d/abc123/edit",
+				receivedAt: "2026-03-10T09:00:00.000Z",
+			},
+			{ subject: "No link", from: "x", body: "nothing here", receivedAt: null },
 		]);
-	});
-
-	it("turns a refused token into a reconnect error", async () => {
-		await expect(
-			driveSharedFiles(async () => new Response("no", { status: 401 }), NOW),
-		).rejects.toThrow(/reconnect Google Drive/);
+		expect(rows.map((row) => row.name)).toEqual(["Plan", "Budget Q3"]);
+		expect(rows[1]).toMatchObject({
+			id: "abc123",
+			kind: "Spreadsheet",
+			sharedBy: "Riley Jones",
+			sharedAt: "2026-03-18T09:00:00.000Z",
+			url: "https://docs.google.com/spreadsheets/d/abc123/edit?usp=sharing&ts=1",
+		});
 	});
 });
 
-describe("driveKind", () => {
-	it("says what a file is in a word", () => {
-		expect(driveKind("application/vnd.google-apps.spreadsheet")).toBe(
-			"Spreadsheet",
+describe("gmail-imap", () => {
+	it("decodes encoded headers and bodies", () => {
+		expect(decodeHeader("=?UTF-8?B?16nXnNeV150=?= =?UTF-8?Q?_world?=")).toBe(
+			"שלום world",
 		);
-		expect(driveKind("application/pdf")).toBe("PDF");
-		expect(driveKind("image/png")).toBe("Image");
-		expect(driveKind(undefined)).toBe("File");
+		expect(
+			decodeBody(
+				"Content-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable",
+				"https://docs.google.com/d/x?a=3D1&b=\r\n=3D2",
+			),
+		).toBe("https://docs.google.com/d/x?a=1&b=2");
+	});
+
+	it("finds All Mail by its \\All flag and splits a FETCH by section", () => {
+		expect(
+			allMailbox([
+				[{ prefix: '* LIST (\\HasNoChildren) "/" "INBOX"', literal: null }],
+				[
+					{
+						prefix: '* LIST (\\All \\HasNoChildren) "/" "[Gmail]/Alle"',
+						literal: null,
+					},
+				],
+			]),
+		).toBe("[Gmail]/Alle");
+		const found = fetchSections([
+			{
+				prefix:
+					'* 3 FETCH (UID 42 INTERNALDATE "17-Mar-2026 05:52:34 +0000" BODY[1] {5}',
+				literal: "hello",
+			},
+			{ prefix: ")", literal: null },
+		]);
+		expect(found).toEqual({
+			uid: "42",
+			internalDate: "17-Mar-2026 05:52:34 +0000",
+			sections: { "1": "hello" },
+		});
 	});
 });
