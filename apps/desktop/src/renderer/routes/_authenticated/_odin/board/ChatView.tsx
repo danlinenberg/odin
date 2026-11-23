@@ -3863,29 +3863,32 @@ export function ChatView({
 		// instead of waiting on a turn that isn't coming. Not for `onSend` or a
 		// resume, which bring a dead PTY back first, or before a transcript loaded.
 		// A remote session's reply: `deliverOnHost` says, once it's typed.
+		// Lost: quit Claude and reopen the conversation with this message as
+		// its opening one, once per pane in two minutes so a session that
+		// keeps dropping messages doesn't restart in a loop. Not with pasted
+		// attachments: the text alone would drop them. True when it restarted.
+		const autoRestart = (): boolean => {
+			const restart = onRestartRef.current;
+			if (
+				!restart ||
+				previews?.length ||
+				autoRestarted.has(paneId) ||
+				arrived(itemsRef.current, queuedRef.current, { text, seen })
+			)
+				return false;
+			autoRestarted.add(paneId);
+			setTimeout(() => autoRestarted.delete(paneId), 120_000);
+			setPending((list) => list.filter((sent) => sent.id !== id));
+			toast.info(
+				"Claude never took your message - restarting the session to resend it",
+			);
+			restart(text);
+			return true;
+		};
 		if (!onHost && !onSend && !onResumeRef.current)
 			setTimeout(() => {
 				if (itemsRef.current.length === 0) return;
-				// Lost: quit Claude and reopen the conversation with this message as
-				// its opening one, once per pane in two minutes so a session that
-				// keeps dropping messages doesn't restart in a loop. Not with pasted
-				// attachments: the text alone would drop them.
-				const restart = onRestartRef.current;
-				if (
-					restart &&
-					!previews?.length &&
-					!autoRestarted.has(paneId) &&
-					!arrived(itemsRef.current, queuedRef.current, { text, seen })
-				) {
-					autoRestarted.add(paneId);
-					setTimeout(() => autoRestarted.delete(paneId), 120_000);
-					setPending((list) => list.filter((sent) => sent.id !== id));
-					toast.info(
-						"Claude never took your message - restarting the session to resend it",
-					);
-					restart(text);
-					return;
-				}
+				if (autoRestart()) return;
 				setPending((list) =>
 					list.map((sent) =>
 						sent.id === id &&
@@ -3909,6 +3912,7 @@ export function ChatView({
 		return {
 			arrived: () =>
 				arrived(itemsRef.current, queuedRef.current, { text, seen }),
+			restart: () => itemsRef.current.length > 0 && autoRestart(),
 			waiting: (on) => {
 				if (on) waitingIds.add(id);
 				else waitingIds.delete(id);

@@ -138,6 +138,28 @@ describe("deliverOnHost", () => {
 		expect(enters).toEqual([]);
 	});
 
+	test("a message an up host's Claude never takes restarts the session instead of Not delivered", async () => {
+		const { clock, deps } = pane([[0, CLAUDE]]);
+		const log: string[] = [];
+		const { msg } = message("A", log, clock, () => false);
+		msg.restart = () => {
+			log.push("A restart");
+			return true;
+		};
+		await deliverOnHost("p-restart", msg, deps);
+		expect(log).toContain("A restart");
+		expect(log).not.toContain("A lost");
+	});
+
+	test("a message that can't restart the session still reads Not delivered", async () => {
+		const { clock, deps } = pane([[0, CLAUDE]]);
+		const log: string[] = [];
+		const { msg } = message("A", log, clock, () => false);
+		msg.restart = () => false;
+		await deliverOnHost("p-no-restart", msg, deps);
+		expect(log).toContain("A lost");
+	});
+
 	test("a ready host gets the message at once", async () => {
 		const { clock, deps } = pane([[0, CLAUDE]]);
 		const log: string[] = [];
