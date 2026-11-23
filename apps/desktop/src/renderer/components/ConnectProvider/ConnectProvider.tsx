@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { FEED_NOTICE_BOX } from "renderer/routes/_authenticated/_odin/components/FeedChrome";
 import { resetOdinFeeds } from "renderer/routes/_authenticated/_odin/hooks/useOdinProfile";
+import { parseOAuthApp } from "./parse-oauth-app";
 
 /**
  * Sign in to a provider - the one way into every Odin connection.
@@ -236,44 +237,38 @@ function OAuthAppForm({
 	onSaved: () => void;
 }) {
 	const name = provider === "calendar" ? "Google" : PROVIDER_NAME[provider];
-	const [app, setApp] = useState({
-		clientId: "",
-		clientSecret: "",
-		redirectUrl: "",
-	});
+	const [text, setText] = useState("");
+	const parsed = parseOAuthApp(provider, text);
 	const save = electronTrpc.connections.saveOAuthApp.useMutation({
 		onSuccess: onSaved,
 		onError: (error) => toast.error(error.message),
 	});
-	const field = (key: keyof typeof app, placeholder: string) => (
-		<Input
-			value={app[key]}
-			onChange={(e) => setApp({ ...app, [key]: e.target.value })}
-			placeholder={placeholder}
-			type={key === "clientSecret" ? "password" : "text"}
-			className="h-8 max-w-96 font-mono text-xs"
-		/>
-	);
 
 	return (
 		<div className="space-y-2">
 			<p className="text-xs text-muted-foreground">
-				This build has no {name} app. Paste its Client ID, Client Secret and
-				Redirect URL once on this machine (another machine has them in
-				~/.config/odin.json). Setup: docs/oauth/README.md.
+				This build has no {name} app. On a machine that has it, run{" "}
+				<code>grep -i {provider} ~/.config/odin.json</code> (or open that file)
+				and paste the lines here, once on this machine. Setup:
+				docs/oauth/README.md.
 			</p>
-			{field("clientId", "Client ID")}
-			{field("clientSecret", "Client Secret")}
-			{field("redirectUrl", `https://…/${provider}.html`)}
+			<Textarea
+				value={text}
+				onChange={(e) => setText(e.target.value)}
+				placeholder={`"${provider}ClientId": "...",\n"${provider}ClientSecret": "...",\n"${provider}RedirectUrl": "https://.../${provider}.html"`}
+				rows={3}
+				spellCheck={false}
+				className="max-w-96 font-mono text-xs"
+			/>
+			{text.trim() && parsed.missing.length > 0 && (
+				<p className="select-text cursor-text text-xs text-destructive">
+					Missing: {parsed.missing.join(", ")}
+				</p>
+			)}
 			<Button
 				size="sm"
-				disabled={
-					!app.clientId.trim() ||
-					!app.clientSecret.trim() ||
-					!app.redirectUrl.trim() ||
-					save.isPending
-				}
-				onClick={() => save.mutate({ provider, ...app })}
+				disabled={!parsed.app || save.isPending}
+				onClick={() => parsed.app && save.mutate({ provider, ...parsed.app })}
 			>
 				Save
 			</Button>
