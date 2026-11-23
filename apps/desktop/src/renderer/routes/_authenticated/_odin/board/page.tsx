@@ -43,6 +43,7 @@ import {
 	LuCircleCheck,
 	LuClock,
 	LuCode,
+	LuCoffee,
 	LuEye,
 	LuEyeOff,
 	LuFileText,
@@ -2158,6 +2159,8 @@ function TagMenu({
 	onStopWatchFor,
 	remote,
 	onRemote,
+	keepAwake,
+	onKeepAwake,
 	onSaveDoc,
 	onKeep,
 	onToggle,
@@ -2214,6 +2217,9 @@ function TagMenu({
 	/** Remote Control for this one session; unset unless Settings says "Selected sessions". */
 	remote?: boolean;
 	onRemote: () => void;
+	keepAwake?: boolean;
+	/** Set for a session on this computer: idle close skips it while on. */
+	onKeepAwake?: () => void;
 	/** Set while the agent runs - it writes the doc, so a closed session can't. */
 	onSaveDoc?: () => void;
 	/** Set when the sweep suggests dropping this session. */
@@ -2240,6 +2246,7 @@ function TagMenu({
 		!!onVsCodeOnHost ||
 		!!onRunOnHost ||
 		remote !== undefined ||
+		!!onKeepAwake ||
 		!!onSaveDoc;
 
 	useEffect(() => {
@@ -2567,6 +2574,23 @@ function TagMenu({
 						>
 							<LuRadioTower className="size-3" aria-hidden />
 							{remote ? "Turn off Remote Control" : "Turn on Remote Control"}
+						</button>
+					)}
+					{onKeepAwake && (
+						<button
+							type="button"
+							title="Never close this session for sitting idle (Settings - Sessions, Close idle sessions after)"
+							onClick={() => {
+								onKeepAwake();
+								onClose();
+							}}
+							className={cn(
+								"flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] transition-colors hover:text-primary",
+								keepAwake ? "text-primary" : "text-muted-foreground",
+							)}
+						>
+							<LuCoffee className="size-3" aria-hidden />
+							{keepAwake ? "Let it close when idle" : "Keep awake"}
 						</button>
 					)}
 					{onSaveDoc && (
@@ -4192,6 +4216,7 @@ function DevBoardPage() {
 			// Local only: a remote session holds nothing on this computer, and
 			// closing its pane only drops the connection to Claude on the host.
 			if (pane.odinRemote) return false;
+			if (pane.odinKeepAwake) return false;
 			if (!agentPaneIds.has(pane.id) || loopingPaneIds.has(pane.id))
 				return false;
 			if (pane.status === "working" || pane.odinQueued) return false;
@@ -7087,6 +7112,17 @@ function DevBoardPage() {
 	};
 	const groups = useMemo(() => listGroups(panes), [panes]);
 
+	const toggleKeepAwake = (paneId: string) =>
+		useTabsStore.setState((state) => ({
+			panes: {
+				...state.panes,
+				[paneId]: {
+					...state.panes[paneId],
+					odinKeepAwake: !state.panes[paneId]?.odinKeepAwake,
+				},
+			},
+		}));
+
 	const toggleStar = (paneId: string) =>
 		useTabsStore.setState((state) => ({
 			panes: {
@@ -8073,6 +8109,12 @@ function DevBoardPage() {
 							: undefined
 					}
 					onStar={() => toggleStar(tagMenu.paneId)}
+					keepAwake={!!panes[tagMenu.paneId]?.odinKeepAwake}
+					onKeepAwake={
+						panes[tagMenu.paneId]?.odinRemote
+							? undefined
+							: () => toggleKeepAwake(tagMenu.paneId)
+					}
 					priority={panes[tagMenu.paneId]?.odinPriority}
 					onPriority={(priority) => setPriority(tagMenu.paneId, priority)}
 					group={panes[tagMenu.paneId]?.odinGroup}

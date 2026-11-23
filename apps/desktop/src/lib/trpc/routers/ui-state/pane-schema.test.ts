@@ -31,6 +31,7 @@ describe("paneSchema", () => {
 			odinRemote: "odin-remote",
 			odinLocalWhy: "the host was unreachable",
 			odinStarred: true,
+			odinKeepAwake: true,
 			odinPriority: "high",
 			odinGroup: { name: "Release", color: "blue", leader: true, notify: true },
 			odinQueued: { command: "claude", reason: "busy" },
