@@ -1212,3 +1212,34 @@ test("the host's prune pass runs the script once per repo with worktrees, at mos
 	bash(prunePass('"$HOME"/repos'));
 	expect(ran().slice(2)).toEqual([a]);
 });
+
+test("a host session gets the host note back after a compaction, a resume or /clear", () => {
+	const run = runScript(
+		{ ...spec, pane: "abc", startNote: "\nhost rules" },
+		"/s",
+	);
+	const b64 = run.match(
+		/printf %s '([^']+)' \| base64 -d > "\$ODIN_RULES_START"/,
+	)?.[1];
+	const file = join(mkdtempSync(join(tmpdir(), "start-")), "start.json");
+	writeFileSync(file, Buffer.from(b64 ?? "", "base64"));
+	expect(JSON.parse(readFileSync(file, "utf8")).hookSpecificOutput).toEqual({
+		hookEventName: "SessionStart",
+		additionalContext: "host rules",
+	});
+	const hook = JSON.parse(hostSettings).hooks.SessionStart[0].hooks[0].command;
+	const fire = (source: string) =>
+		execFileSync("bash", ["-c", hook], {
+			input: JSON.stringify({ session_id: "abc", source }),
+			env: { PATH: process.env.PATH, ODIN_RULES_START: file },
+		}).toString();
+	// The launch prompt already carries it.
+	expect(fire("startup")).toBe("");
+	for (const source of ["compact", "resume", "clear"])
+		expect(JSON.parse(fire(source)).hookSpecificOutput.additionalContext).toBe(
+			"host rules",
+		);
+	expect(runScript({ ...spec, pane: "abc" }, "/s")).toContain(
+		'rm -f "$ODIN_RULES_START"',
+	);
+});
