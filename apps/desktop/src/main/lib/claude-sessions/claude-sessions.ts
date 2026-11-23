@@ -215,6 +215,16 @@ function cleanPrompt(text: string): string {
  */
 const ODIN_LAUNCH_MARKER = /\n\s*Work in the current workspace\./i;
 
+/**
+ * `<command-name>/x</command-name>…<command-args>a</command-args>` as `/x a`.
+ * A bare command (`/clear`) is housekeeping, not something you asked: null.
+ */
+export function slashCommand(text: string): string | null {
+	const name = /<command-name>(\/[^<]+)<\/command-name>/.exec(text)?.[1];
+	const args = /<command-args>([\s\S]*?)<\/command-args>/.exec(text)?.[1];
+	return name && args?.trim() ? `${name} ${args.trim()}` : null;
+}
+
 function oneLine(text: string): string {
 	return text.replace(/\s+/g, " ").trim();
 }
@@ -336,11 +346,16 @@ function digestReader(
 			if (turnsToo && role === "assistant" && Array.isArray(message?.content))
 				for (const block of message.content)
 					if (block?.type === "tool_use") idsInToolInput(block.input, ids);
-			const text = messageText(message?.content).trim();
-			if (!text) return;
+			const raw = messageText(message?.content).trim();
+			if (!raw) return;
+			// A session started with a skill (`/skill <task>`) opens on Claude
+			// Code's command wrapper, with no promptSource and a leading `<` that
+			// reads as injected: unwrapped, it is the launch prompt it always was.
+			const command = role === "user" ? slashCommand(raw) : null;
+			const text = command ?? raw;
 			// Only what you typed and what Claude said - injected context is neither,
 			// and it's identical in every session, so it can't tell them apart.
-			if (role === "user" && !isTypedByUser(entry, text)) return;
+			if (role === "user" && !command && !isTypedByUser(entry, text)) return;
 			if (turnsToo) {
 				turns.push({ role, text });
 				idsInText(text, ids);
@@ -2327,8 +2342,10 @@ export function firstPrompt(jsonl: string, headBytes = 300_000): string | null {
 		}
 		if (entry.type !== "user" || entry.isSidechain) continue;
 		const message = entry.message as { content?: unknown } | undefined;
-		const text = messageText(message?.content).trim();
-		if (!text || !isTypedByUser(entry, text)) continue;
+		const raw = messageText(message?.content).trim();
+		const command = slashCommand(raw);
+		const text = command ?? raw;
+		if (!text || (!command && !isTypedByUser(entry, text))) continue;
 		return titleFromPrompt(cleanPrompt(text)) || null;
 	}
 	return null;
