@@ -4,7 +4,11 @@ import {
 	gsdLimitsLine,
 	isMergeItem,
 } from "shared/gsd-policy";
-import { actionItemEntries, actionItemLines } from "./brief";
+import {
+	actionItemEntries,
+	actionItemLines,
+	withActionItemsHeading,
+} from "./brief";
 
 export { actionItemEntries } from "./brief";
 
@@ -23,6 +27,7 @@ export function splitActionItems(text: string): {
 	body: string;
 	actions: string | null;
 } {
+	text = withActionItemsHeading(text);
 	const match = text.match(/^[#>*_\s]*ACTION ITEMS\b[*_:\s]*(.*)$/im);
 	if (match?.index === undefined) return { body: text, actions: null };
 	const rest = text.slice(match.index + match[0].length);
