@@ -248,7 +248,7 @@ describe("notifications/server", () => {
 			};
 			expect(await post({}, { repo: "a/b", number: 1, files: [big] })).toEqual({
 				status: 400,
-				text: "x.svg: only png, jpg and gif images\n",
+				text: "x.svg: only png, jpg and gif images, or mp4, mov and webm videos\n",
 			});
 		});
 	});
