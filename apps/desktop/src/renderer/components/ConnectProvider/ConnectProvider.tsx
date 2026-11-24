@@ -156,6 +156,7 @@ function OAuthConnect({
 		provider,
 	});
 	const [state, setState] = useState<string | null>(null);
+	const [ownApp, setOwnApp] = useState(false);
 
 	const start = electronTrpc.connections.oauthStart.useMutation({
 		onSuccess: (data) => setState(data.state),
@@ -220,20 +221,41 @@ function OAuthConnect({
 					: `Sign in with ${signInName}`}
 			</Button>
 			<p className="text-xs text-muted-foreground">{SCOPE_BLURB[provider]}</p>
+			<button
+				type="button"
+				onClick={() => setOwnApp((open) => !open)}
+				className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+			>
+				Use my own OAuth app
+			</button>
+			{ownApp && (
+				<OAuthAppForm
+					provider={provider}
+					override
+					onSaved={() => {
+						setOwnApp(false);
+						void configured.refetch();
+					}}
+				/>
+			)}
 		</div>
 	);
 }
 
 /**
- * A build compiled without this provider's app - a fresh clone run in dev -
- * takes it here instead, once per machine. Release builds have it baked in.
+ * Point this provider at an OAuth app from ~/.config/odin.json. A build with no
+ * app baked in - a fresh clone run in dev - lands here to set one up; `override`
+ * is the same form reached from "Use my own OAuth app" on a build that does have
+ * one baked in, to run on your own app instead (the file wins over the baked one).
  */
 function OAuthAppForm({
 	provider,
 	onSaved,
+	override = false,
 }: {
 	provider: OAuthProvider;
 	onSaved: () => void;
+	override?: boolean;
 }) {
 	const name = provider === "calendar" ? "Google" : PROVIDER_NAME[provider];
 	const [app, setApp] = useState({
@@ -258,9 +280,9 @@ function OAuthAppForm({
 	return (
 		<div className="space-y-2">
 			<p className="text-xs text-muted-foreground">
-				This build has no {name} app. Paste its Client ID, Client Secret and
-				Redirect URL once on this machine (another machine has them in
-				~/.config/odin.json). Setup: docs/oauth/README.md.
+				{override
+					? `Use your own ${name} app instead of the one built into this build. Paste its Client ID, Client Secret and Redirect URL - they go in ~/.config/odin.json on this machine and win over the built-in app. Setup: docs/oauth/README.md.`
+					: `This build has no ${name} app. Paste its Client ID, Client Secret and Redirect URL once on this machine (another machine has them in ~/.config/odin.json). Setup: docs/oauth/README.md.`}
 			</p>
 			{field("clientId", "Client ID")}
 			{field("clientSecret", "Client Secret")}
