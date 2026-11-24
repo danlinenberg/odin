@@ -5679,6 +5679,11 @@ function DevBoardPage() {
 	// were when it began, not after you moved on to another session.
 	const shownPaneRef = useRef<string | null>(null);
 	shownPaneRef.current = drawerCard?.pane.id ?? null;
+	// Sessions asking Odin to change screen or profile check this first.
+	useEffect(() => {
+		usePendingFocus.getState().setShown(drawerCard?.pane.id ?? null);
+		return () => usePendingFocus.getState().setShown(null);
+	}, [drawerCard?.pane.id]);
 
 	// A reload (⌘R, a renderer full reload) lands you back in the session you
 	// had open, not on the board. sessionStorage: this window only, and gone
@@ -7407,7 +7412,8 @@ function DevBoardPage() {
 	 */
 	const markDone = (card: BoardCard, put: PutAway = toDone) => {
 		const undo = put.end(card);
-		setDrawerCard(null);
+		// Another row ending leaves the session on screen where it is.
+		setDrawerCard((open) => (open?.pane.id === card.pane.id ? null : open));
 		toast.success(put.message, undoAction(undo));
 	};
 
@@ -7930,7 +7936,7 @@ function DevBoardPage() {
 		toggleStar,
 		markDone: (card) => guardCards([card], () => markDone(card)),
 		endCard: (card) => {
-			setDrawerCard(null);
+			setDrawerCard((open) => (open?.pane.id === card.pane.id ? null : open));
 			return endCard(card);
 		},
 		remindMe,
