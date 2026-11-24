@@ -23,13 +23,16 @@ export interface AttachRequest {
 }
 
 const MAX_FILES = 10;
-/** GitHub's own limit for an image in a comment. */
+/** GitHub's limit for an image, and for a video on a free plan. */
 const MAX_BYTES = 10 * 1024 * 1024;
 const TYPES: Record<string, string> = {
 	png: "image/png",
 	jpg: "image/jpeg",
 	jpeg: "image/jpeg",
 	gif: "image/gif",
+	mp4: "video/mp4",
+	mov: "video/quicktime",
+	webm: "video/webm",
 };
 
 /** The request, checked, with each file's type; or why it can't be done. */
@@ -56,7 +59,10 @@ export function parseAttachRequest(
 		if (typeof name !== "string" || typeof data !== "string" || !data)
 			return { error: "each file needs a name and base64 data" };
 		const type = TYPES[name.split(".").at(-1)?.toLowerCase() ?? ""];
-		if (!type) return { error: `${name}: only png, jpg and gif images` };
+		if (!type)
+			return {
+				error: `${name}: only png, jpg and gif images, or mp4, mov and webm videos`,
+			};
 		if (Buffer.byteLength(data, "base64") > MAX_BYTES)
 			return { error: `${name}: over 10 MB` };
 		types.push(type);
@@ -67,11 +73,14 @@ export function parseAttachRequest(
 	};
 }
 
-/** The image links GitHub wrote, in the order they appear. */
+/**
+ * The links GitHub wrote, in the order they appear: an image as Markdown or
+ * an <img>, a video as its bare link on a line of its own (GitHub plays it).
+ */
 export function attachmentLinks(markdown: string): string[] {
 	return [
 		...markdown.matchAll(
-			/!\[[^\]]*\]\(https:\/\/github\.com\/user-attachments\/assets\/[\w-]+\)|<img [^>]*src="https:\/\/github\.com\/user-attachments\/assets\/[\w-]+"[^>]*>/g,
+			/!\[[^\]]*\]\(https:\/\/github\.com\/user-attachments\/assets\/[\w-]+\)|<img [^>]*src="https:\/\/github\.com\/user-attachments\/assets\/[\w-]+"[^>]*>|^https:\/\/github\.com\/user-attachments\/assets\/[\w-]+$/gm,
 		),
 	].map((match) => match[0]);
 }

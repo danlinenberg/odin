@@ -49,7 +49,9 @@ describe("parseAttachRequest", () => {
 		});
 		expect(
 			parseAttachRequest({ ...ok, files: [{ name: "x.svg", data: png }] }),
-		).toEqual({ error: "x.svg: only png, jpg and gif images" });
+		).toEqual({
+			error: "x.svg: only png, jpg and gif images, or mp4, mov and webm videos",
+		});
 		expect(
 			parseAttachRequest({
 				...ok,
@@ -71,16 +73,19 @@ describe("parseAttachRequest", () => {
 });
 
 describe("attachmentLinks", () => {
-	test("both forms GitHub writes, in order, and nothing else", () => {
+	test("each form GitHub writes (image Markdown, <img>, a video's own line), in order, and nothing else", () => {
 		const markdown = [
 			"Uploading...",
 			"![home](https://github.com/user-attachments/assets/1a2b-3c)",
 			'<img width="800" alt="modal" src="https://github.com/user-attachments/assets/4d5e-6f" />',
 			"![elsewhere](https://example.com/x.png)",
+			"https://github.com/user-attachments/assets/7a8b-9c",
+			"see https://github.com/user-attachments/assets/0d1e-2f inline",
 		].join("\n");
 		expect(attachmentLinks(markdown)).toEqual([
 			"![home](https://github.com/user-attachments/assets/1a2b-3c)",
 			'<img width="800" alt="modal" src="https://github.com/user-attachments/assets/4d5e-6f" />',
+			"https://github.com/user-attachments/assets/7a8b-9c",
 		]);
 	});
 });
