@@ -15,9 +15,25 @@ export const usePendingFocus = create<{
 	at: number;
 	focus: (paneId: string) => void;
 	clear: () => void;
+	/** The session whose drawer is on screen now, or null. */
+	shown: string | null;
+	setShown: (paneId: string | null) => void;
 }>((set) => ({
 	paneId: null,
 	at: 0,
 	focus: (paneId) => set({ paneId, at: Date.now() }),
 	clear: () => set({ paneId: null }),
+	shown: null,
+	setShown: (shown) => set({ shown }),
 }));
+
+/**
+ * Why a session's request to move the window (another screen, another
+ * profile) is refused, or null when it may go ahead. While a session is open
+ * nothing but you, or that session itself, takes you off it.
+ */
+export function blockedMove(from: string | undefined): string | null {
+	const { shown } = usePendingFocus.getState();
+	if (!shown || from === shown) return null;
+	return "Not done: a session is open on screen and Odin keeps it there. If the user asked for this in that session, call again from it with --data-urlencode from=$ODIN_PANE_ID.";
+}

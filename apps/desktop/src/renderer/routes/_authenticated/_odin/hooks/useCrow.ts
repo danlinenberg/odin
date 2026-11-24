@@ -65,6 +65,7 @@ import { useOdinProfile } from "./useOdinProfile";
 import { taskPrompt, useMyTasks, useOdinTasks } from "./useOdinTasks";
 import { useOdinWorkspace } from "./useOdinWorkspace";
 import { usePaneMeta } from "./usePaneMeta";
+import { blockedMove } from "./usePendingFocus";
 import { resumeSession } from "./useResumeSession";
 
 /**
@@ -828,6 +829,8 @@ function runOdinAction(
 	if (action === "profile") {
 		// The same switch as the profile menu: the window follows, feeds reload.
 		if (!args.id) return "Need id.";
+		const blocked = blockedMove(args.from);
+		if (blocked) return blocked;
 		deps.switchProfile(args.id);
 		return `Switched to profile ${args.id}.`;
 	}
@@ -1013,6 +1016,8 @@ function runOdinAction(
 			(path) => !path.includes("$"),
 		);
 		if (!args.to) return `Screens: ${screens.join(", ")}`;
+		const blocked = blockedMove(args.from);
+		if (blocked) return blocked;
 		void deps.router.navigate({ to: args.to });
 		return `Opened ${args.to}.`;
 	}
