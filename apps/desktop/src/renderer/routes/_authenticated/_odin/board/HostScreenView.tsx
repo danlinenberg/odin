@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { tuneForLink } from "renderer/lib/vnc-screen";
 import {
-	closeHostScreen,
 	type HostScreen,
+	hostScreenToWindow,
 	setHostLink,
 } from "renderer/stores/host-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
@@ -14,13 +14,17 @@ import { useTabsStore } from "renderer/stores/tabs/store";
  * `!view` block's VNC server), drawn here by noVNC through an ssh tunnel
  * main opens over the host's bridge. noVNC asks for tight encoding with JPEG,
  * far less over the link than Screen Sharing's lossless zlib.
+ * While ▣ View is off it stays connected, hidden, so the button's dot keeps
+ * saying whether the app is reachable and ▣ View shows it again at once.
  */
 export function HostScreenView({
 	paneId,
 	screen,
+	hidden = false,
 }: {
 	paneId: string;
 	screen: HostScreen;
+	hidden?: boolean;
 }) {
 	const target = useRef<HTMLDivElement>(null);
 	const [status, setStatus] = useState<string | null>(null);
@@ -40,7 +44,7 @@ export function HostScreenView({
 				port: screen.port,
 				password: screen.password,
 			})
-			.then(() => closeHostScreen())
+			.then(() => hostScreenToWindow(paneId))
 			.catch((error: Error) => setStatus(error.message))
 			.finally(() => setPopping(false));
 	};
@@ -96,7 +100,7 @@ export function HostScreenView({
 	}, [paneId, screen.port, screen.password, attempt]);
 
 	return (
-		<div className="flex min-h-0 flex-1 flex-col">
+		<div className={hidden ? "hidden" : "flex min-h-0 flex-1 flex-col"}>
 			<div className="flex h-7 shrink-0 items-center gap-2 border-b border-border px-4 text-[11px] text-muted-foreground">
 				<span className="min-w-0 flex-1 truncate">
 					{name || "The app running on the host"} - ▣ View again goes back to

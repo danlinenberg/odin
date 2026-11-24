@@ -35,6 +35,7 @@ import {
 	keepFolded,
 	LIMIT_HIT_RE,
 	lastActionsId,
+	latestView,
 	launchAttachments,
 	launchRequest,
 	leavePhase,
@@ -1562,5 +1563,20 @@ describe("cantReadSessionFolder", () => {
 		expect(cantReadSessionFolder("rm: EPERM: operation not permitted")).toBe(
 			false,
 		);
+	});
+});
+
+describe("latestView", () => {
+	test("is the last !view block and when its reply came", () => {
+		const text = (id: string, body: string, at?: number) =>
+			({ kind: "text", id, text: body, at }) as const;
+		expect(
+			latestView([
+				text("a", "```\n!view 5901 old\n```", 1),
+				text("b", "```\n!view 5902 new\n```", 2),
+				text("c", "No screen here.", 3),
+			]),
+		).toEqual({ screen: { port: 5902, password: "new" }, at: 2 });
+		expect(latestView([text("a", "```\n!git status\n```", 1)])).toBeNull();
 	});
 });
