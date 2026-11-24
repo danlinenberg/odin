@@ -48,6 +48,7 @@ import {
 	redeemTicket,
 	repoNameOf,
 	runScript,
+	SESSION_CLEANUP,
 	SKIP_FIRST_RUN,
 	secretsFile,
 	sendsConversation,
@@ -244,6 +245,39 @@ describe("remote session scripts", () => {
 			rmSync(dir, { recursive: true, force: true });
 		}
 	}, 15000);
+
+	test("a run script that ends stops what it left running in its scope, and nothing outside it", () => {
+		expect(runScript(spec, "/d")).toContain(
+			`${MEMORY_PRESSURE_WATCHER}\n${SESSION_CLEANUP}\n`,
+		);
+		const dir = mkdtempSync(join(tmpdir(), "odin-scope-"));
+		const start = () =>
+			spawnSync("/bin/sh", ["-c", "setsid sleep 60 >/dev/null 2>&1 & echo $!"])
+				.stdout.toString()
+				.trim();
+		const left = start();
+		const outside = start();
+		try {
+			writeFileSync(join(dir, "cgroup.procs"), `${left}\n`);
+			execFileSync("/bin/bash", ["-c", `${SESSION_CLEANUP}\ntrue`], {
+				env: { PATH: "/usr/bin:/bin", ODIN_CGROUP: dir },
+			});
+			expect(spawnSync("kill", ["-0", left]).status).not.toBe(0);
+			expect(spawnSync("kill", ["-0", outside]).status).toBe(0);
+		} finally {
+			spawnSync("kill", [left, outside]);
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test("outside a session scope the run script leaves every process alone", () => {
+		const out = execFileSync(
+			"/bin/bash",
+			["-c", `${SESSION_CLEANUP}\ntrap -p EXIT`],
+			{ env: { PATH: "/usr/bin:/bin" } },
+		).toString();
+		expect(out).toBe("");
+	});
 
 	test("the host's /etc/environment fills in what the session lacks, never PATH or a name it has", () => {
 		expect(runScript(spec, "/d")).toContain(

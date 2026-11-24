@@ -643,6 +643,18 @@ export const MEMORY_LIMIT_SCRIPT = [
 ].join("\n");
 
 /**
+ * Whatever a session starts in the background (a dev server, a watcher) and
+ * leaves behind stays in its scope after the run script ends, held by no one:
+ * two leftover dev servers held 15 GB and filled a host's disk in a few hours
+ * after their sessions moved on. When the run script exits, closed or with its
+ * tmux session killed, this stops every process still in its scope: TERM,
+ * then KILL a second later for what is left. Runs only inside the session's
+ * own scope (MEMORY_LIMIT_SCRIPT), never in a cgroup it shares. ODIN_CGROUP
+ * points it at another cgroup folder (tests).
+ */
+export const SESSION_CLEANUP = `cg=\${ODIN_CGROUP:-/sys/fs/cgroup$(cut -d: -f3- /proc/self/cgroup 2>/dev/null)}; if [ -n "$ODIN_CGROUP" ] || { [ -n "$ODIN_MEMORY_SCOPE" ] && [ "\${cg%.scope}" != "$cg" ]; }; then trap 'for s in TERM KILL; do l=$(grep -vx "$$" "$cg/cgroup.procs" 2>/dev/null) || break; kill -$s $l 2>/dev/null; [ $s = KILL ] || sleep 1; done' EXIT; trap 'exit 129' HUP; trap 'exit 143' TERM; fi`;
+
+/**
  * The cap alone does not save a session from itself. Near the cap, with no
  * swap, the kernel keeps evicting the session's cached files (node, its
  * node_modules) and reading them back: the session freezes at the disk's read
@@ -754,6 +766,7 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		MEMORY_LIMIT_SCRIPT,
 		hostEnvScript(),
 		MEMORY_PRESSURE_WATCHER,
+		SESSION_CLEANUP,
 		`if [ -f ${sh(secretsDir)}/env ]; then set -a; . ${sh(secretsDir)}/env; set +a; fi`,
 		`rm -rf ${sh(secretsDir)}`,
 		// Sessions starting together take turns at setup: clone, fetch and
