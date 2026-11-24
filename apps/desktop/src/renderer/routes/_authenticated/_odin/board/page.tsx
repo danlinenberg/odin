@@ -188,6 +188,7 @@ const HOST_LINK_LABEL: Record<HostLink, string> = {
 import {
 	closeHostScreen,
 	type HostLink,
+	openHostScreen,
 	useHostView,
 } from "renderer/stores/host-view";
 import { openUrl, useInAppBrowser } from "renderer/stores/in-app-browser";
@@ -3558,6 +3559,9 @@ function DevBoardPage() {
 	);
 	const isViewOpen =
 		useHostView((state) => state.open) === drawerCard?.pane.id && !!hostScreen;
+	const hostInWindow = useHostView((state) =>
+		drawerCard ? !!state.inWindow[drawerCard.pane.id] : false,
+	);
 	// drawerCard is a snapshot taken when the drawer opened, so the star reads
 	// the live pane - otherwise a click saves but the button never changes.
 	const drawerStarred = !!(
@@ -8058,7 +8062,7 @@ function DevBoardPage() {
 							setIsShellOpen(false);
 							setIsDiffOpen(false);
 							setIsAgentsOpen(false);
-							useHostView.setState({ open: drawerCard.pane.id });
+							openHostScreen(drawerCard.pane.id);
 						}}
 						className={cn(
 							"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
@@ -9081,13 +9085,16 @@ function DevBoardPage() {
 										}
 									/>
 								)}
-								{isViewOpen && hostScreen ? (
+								{hostScreen && !hostInWindow && (
 									<HostScreenView
 										key={drawerCard.pane.id}
 										paneId={drawerCard.pane.id}
 										screen={hostScreen}
+										hidden={!isViewOpen}
 									/>
-								) : isShellOpen && drawerShell ? (
+								)}
+								{isViewOpen && hostScreen ? null : isShellOpen &&
+									drawerShell ? (
 									// A shell in the same checkout, mounted like any other pane -
 									// it spawns on first mount with the session's cwd.
 									<div className="flex min-h-0 flex-1 flex-col bg-background">

@@ -61,7 +61,12 @@ import {
 import { gsdAllow } from "renderer/stores/gsd-limits";
 import { useGsdModeEnabled } from "renderer/stores/gsd-mode-enabled";
 import { type HostEvent, useHostEvents } from "renderer/stores/host-connection";
-import { showHostScreen, useHostView } from "renderer/stores/host-view";
+import {
+	FRESH_VIEW_MS,
+	type HostScreen,
+	showHostScreen,
+	useHostView,
+} from "renderer/stores/host-view";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useReplyJump } from "renderer/stores/reply-jump";
 import { useSessionView } from "renderer/stores/session-view";
@@ -591,6 +596,19 @@ export function opensTerminalScreen(text: string): boolean {
 
 /** The picker's models: New Session's, less "Default model". */
 const CHAT_MODELS = CLAUDE_MODELS.filter((option) => option.value);
+
+/** The latest `!view` block's screen and when its reply came, if any. */
+export function latestView(
+	items: Item[],
+): { screen: HostScreen; at?: number } | null {
+	for (let i = items.length - 1; i >= 0; i--) {
+		const item = items[i];
+		if (item.kind !== "text") continue;
+		const screen = bangCommands(item.text).map(viewTarget).findLast(Boolean);
+		if (screen) return { screen, at: item.at };
+	}
+	return null;
+}
 
 /**
  * The picker value for a session's model (`claude-opus-5-5`,
@@ -3761,18 +3779,17 @@ export function ChatView({
 	useEffect(() => {
 		setPending((list) => list.filter((sent) => !isEchoed(items, sent)));
 	}, [items]);
-	// The latest `!view` block gives the drawer its ▣ View button.
+	// The latest `!view` block gives the drawer its ▣ View button, and a new
+	// one in a fresh reply opens the app right away: you started it to see it.
 	useEffect(() => {
-		const view = items
-			.flatMap((item) =>
-				item.kind === "text" ? bangCommands(item.text).map(viewTarget) : [],
-			)
-			.findLast((target) => target !== null);
+		const latest = latestView(items);
+		if (!latest) return;
+		const { screen: view, at } = latest;
 		const known = useHostView.getState().byPane[paneId];
-		if (
-			view &&
-			(view.port !== known?.port || view.password !== known?.password)
-		)
+		if (view.port === known?.port && view.password === known?.password) return;
+		if (at !== undefined && Date.now() - at < FRESH_VIEW_MS)
+			showHostScreen(paneId, view);
+		else
 			useHostView.setState((state) => ({
 				byPane: { ...state.byPane, [paneId]: view },
 			}));
