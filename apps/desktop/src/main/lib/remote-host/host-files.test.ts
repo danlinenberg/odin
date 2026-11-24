@@ -1,10 +1,12 @@
 import { afterAll, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	hostFileSources,
 	hostFilesStore,
+	hostImage,
+	hostImagesStore,
 	rememberHostFiles,
 } from "./host-files";
 
@@ -72,4 +74,28 @@ test("only the newest thousand copies are kept", async () => {
 	expect(Object.keys(sources)).toHaveLength(1000);
 	expect(sources["/home/u/.odin/files/0-shot.png"]).toBeUndefined();
 	expect(sources["/home/u/.odin/files/1000-shot.png"]).toBe("/shot-1000.png");
+});
+
+test("a reply's image on the host is copied here to show, or null when it can't be", async () => {
+	hostImagesStore.dir = join(dir, "host-images");
+	const host = { host: "example.com", user: "me" } as never;
+	const copied: string[] = [];
+	const local = await hostImage(
+		"/home/me/out/shot.png",
+		host,
+		async (_, remote, to) => {
+			copied.push(remote);
+			writeFileSync(to, "png");
+		},
+	);
+	expect(copied).toEqual(["/home/me/out/shot.png"]);
+	expect(local?.startsWith(hostImagesStore.dir)).toBe(true);
+	expect(local?.endsWith(".png")).toBe(true);
+	expect(readFileSync(local as string, "utf-8")).toBe("png");
+	expect(
+		await hostImage("/home/me/gone.png", host, async () => {
+			throw new Error("No such file");
+		}),
+	).toBeNull();
+	expect(await hostImage("/home/me/shot.png", null as never)).toBeNull();
 });

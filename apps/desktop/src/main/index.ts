@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -49,7 +50,7 @@ import { ensureProjectIconsDir, getProjectIconPath } from "./lib/project-icons";
 import { startWorktreePruner } from "./lib/prune-worktrees";
 import { runQuitCleanup } from "./lib/quit-sequence";
 import { clusterMember } from "./lib/remote-host/host-by-name";
-import { hostFileSources } from "./lib/remote-host/host-files";
+import { hostFileSources, hostImage } from "./lib/remote-host/host-files";
 import { reopenVscodeBridges } from "./lib/remote-host/vscode-bridge";
 import { offerRestartOffOldSignature } from "./lib/restart-odin";
 import { initSentry } from "./lib/sentry";
@@ -466,7 +467,7 @@ if (!gotTheLock) {
 			// A copy on the remote host, as a remote session's prompt names it, is
 			// served from the file here it was copied from.
 			const resolved = path.resolve(requested);
-			const file =
+			let file =
 				url.host === "local"
 					? ((await hostFileSources())[resolved] ?? resolved)
 					: path.join(
@@ -475,6 +476,9 @@ if (!gotTheLock) {
 							"attachments",
 							path.basename(requested),
 						);
+			// Not on this computer: an image a remote session made on its host.
+			if (url.host === "local" && !existsSync(file))
+				file = (await hostImage(resolved)) ?? file;
 			return net.fetch(pathToFileURL(file).toString());
 		};
 		protocol.handle("odin-attachment", attachmentProtocolHandler);
