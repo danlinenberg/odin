@@ -30,6 +30,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import type { IconType } from "react-icons";
+// biome-ignore lint/style/noRestrictedImports: the Bootstrap cloud is Odin's remote-session icon
+import { BsCloud, BsCloudSlash } from "react-icons/bs";
 import {
 	LuBellOff,
 	LuBellPlus,
@@ -41,8 +43,6 @@ import {
 	LuChevronRight,
 	LuCircleCheck,
 	LuClock,
-	LuCloud,
-	LuCloudOff,
 	LuCode,
 	LuCoffee,
 	LuEye,
@@ -1684,18 +1684,18 @@ const HOST_MARK: Record<
 	{ Icon: IconType; ink: string; title: (host: string) => string }
 > = {
 	live: {
-		Icon: LuCloud,
+		Icon: BsCloud,
 		ink: "text-success",
 		title: (host) =>
 			`Connected to ${host}, in tmux - it keeps going with this computer shut`,
 	},
 	connecting: {
-		Icon: LuCloud,
+		Icon: BsCloud,
 		ink: "animate-pulse text-attention",
 		title: (host) => `Connecting to ${host}...`,
 	},
 	off: {
-		Icon: LuCloudOff,
+		Icon: BsCloudSlash,
 		ink: "text-danger",
 		title: (host) => `Not connected to ${host} - Resume connects again`,
 	},
@@ -2631,7 +2631,7 @@ function TagMenu({
 							}}
 							className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
 						>
-							<LuCloud className="size-3" aria-hidden />
+							<BsCloud className="size-3" aria-hidden />
 							Run on remote host
 						</button>
 					)}
