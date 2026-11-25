@@ -122,6 +122,7 @@ import {
 	pushHostTokens,
 } from "main/lib/remote-host/host-tokens";
 import { markHostUp } from "main/lib/remote-host/host-up";
+import { bringProblem } from "main/lib/remote-host/local-credentials";
 import {
 	mcpDisplayName,
 	mcpLoginEntries,
@@ -1327,6 +1328,61 @@ export const createRemoteHostRouter = () =>
 					pushHostTokens(next, (host.connectors ?? []) as HostConnector[]),
 				);
 				updateOdinConfig({ remoteHost: next });
+			}),
+		/**
+		 * The files (under home) and env var names you bring to the host, one
+		 * by one: saved, then copied to every host now, into your own home
+		 * there, mode 0600. Nothing goes by default. A host that can't be
+		 * reached gets them on the next token send (every 30 minutes).
+		 */
+		setBringCredentials: publicProcedure
+			.input(
+				z.object({
+					files: z
+						.array(z.string().trim().min(1))
+						.max(50)
+						.refine((list) => list.every((f) => !bringProblem("file", f)), {
+							message: "Only files in your home folder can go to the host",
+						}),
+					env: z
+						.array(z.string().trim().min(1))
+						.max(50)
+						.refine((list) => list.every((n) => !bringProblem("env", n)), {
+							message: "That is not an env var name Odin can bring",
+						}),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host) throw new Error("No remote host is set up.");
+				updateOdinConfig({
+					remoteHost: {
+						...host,
+						bringFiles: [...new Set(input.files)],
+						bringEnv: [...new Set(input.env)],
+					},
+				});
+				const failed: string[] = [];
+				await withAwsSignIn(host, () => {
+					failed.length = 0;
+					return Promise.all(
+						clusterHostsNow().map((each) =>
+							pushHostTokens(
+								each,
+								(each.connectors ?? []) as HostConnector[],
+							).catch((error) => {
+								// An AWS sign-in that ran out: withAwsSignIn asks for it and tries again.
+								if (isAwsSignInExpired(error)) throw error;
+								failed.push(each.name || each.instanceId);
+							}),
+						),
+					);
+				});
+				// Saved either way: the next send (every 30 minutes) tries again.
+				if (failed.length)
+					throw new Error(
+						`Saved, but ${failed.join(", ")} could not be reached. Odin tries again within 30 minutes.`,
+					);
 			}),
 		/**
 		 * A GitHub sign-in of the host's own for one account: the device flow,

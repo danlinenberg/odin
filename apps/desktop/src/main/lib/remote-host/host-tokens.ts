@@ -7,6 +7,7 @@ import {
 	resolveSlackToken,
 	updateOdinConfig,
 } from "lib/trpc/routers/odin-config";
+import { getShellEnvironment } from "lib/trpc/routers/workspaces/utils/shell-env";
 import type { Client } from "ssh2";
 import type { HostJiraPair } from "../jira-oauth";
 import { jiraRequestContext } from "../jira-token";
@@ -28,6 +29,7 @@ import {
 	hostGithubLoginFile,
 	hostServiceInstallScript,
 } from "./host-service";
+import { credentialsPayload, WRITE_CREDENTIALS_PY } from "./local-credentials";
 import {
 	hostMcpSignIns,
 	localClaudeCredentials,
@@ -212,6 +214,8 @@ const adminHint = (host: HostLogin) =>
 export async function pushHostTokens(
 	host: HostLogin & {
 		awsProfiles?: string[];
+		bringFiles?: string[];
+		bringEnv?: string[];
 		name?: string;
 		jiraHostSignIn?: boolean;
 		notionHostSignIn?: boolean;
@@ -271,6 +275,7 @@ export async function pushHostTokens(
 			"bash",
 			`${HELPERS_AS_USER}${awsConfig}\n${identity}\n${prune}\ntrue\n`,
 		);
+		await bringCredentials(host, client);
 		// The phone server there, for the phone with this computer asleep.
 		const { syncPhoneHost } = await import("./phone-host-sync");
 		await syncPhoneHost(host, client);
@@ -282,6 +287,36 @@ export async function pushHostTokens(
 		client.end();
 	}
 	return keptConnectors(tokens);
+}
+
+/**
+ * The files and env vars the user listed in Settings (local-credentials),
+ * copied into the host user's own home, mode 0600. Nothing when none were
+ * ever listed; an emptied env list removes the env file there. Names what is
+ * missing here in the log, never a value.
+ */
+export async function bringCredentials(
+	host: { bringFiles?: string[]; bringEnv?: string[]; name?: string },
+	client: Client,
+): Promise<void> {
+	if (!host.bringFiles && !host.bringEnv) return;
+	const env = host.bringEnv?.length
+		? { ...process.env, ...(await getShellEnvironment().catch(() => ({}))) }
+		: {};
+	const { payload, missing } = await credentialsPayload(
+		host.bringFiles ?? [],
+		host.bringEnv ?? [],
+		env,
+	);
+	if (missing.length)
+		console.warn(
+			`[remote-host] not on this computer, so not sent to ${host.name ?? "the host"}: ${missing.join(", ")}`,
+		);
+	await runOnHost(
+		client,
+		`python3 -c ${sh(WRITE_CREDENTIALS_PY)}`,
+		JSON.stringify(payload),
+	);
 }
 
 /**

@@ -11,6 +11,7 @@ import {
 	SLACK_DENY_RULES,
 } from "../agent-setup/slack-tools";
 import { HOST_PORT_SH } from "./host-service";
+import { LOCAL_ENV_SCRIPT } from "./local-credentials";
 
 export { tmuxSession };
 
@@ -765,6 +766,8 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 	return [
 		MEMORY_LIMIT_SCRIPT,
 		hostEnvScript(),
+		// The env vars the user brought from their computer (Settings), theirs alone.
+		LOCAL_ENV_SCRIPT,
 		MEMORY_PRESSURE_WATCHER,
 		SESSION_CLEANUP,
 		`if [ -f ${sh(secretsDir)}/env ]; then set -a; . ${sh(secretsDir)}/env; set +a; fi`,

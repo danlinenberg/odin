@@ -119,6 +119,14 @@ export interface OdinFileConfig {
 		/** AWS profile names defined on the host, signed in with its instance role (main/lib/remote-host/aws-on-host). */
 		awsProfiles?: string[];
 		/**
+		 * Files under home the user brings to the host, one by one: copied to
+		 * the same place in the host user's home, mode 0600
+		 * (main/lib/remote-host/local-credentials). Unset or empty: none.
+		 */
+		bringFiles?: string[];
+		/** Env var names the user brings: their values from this computer, for that user's host sessions only. */
+		bringEnv?: string[];
+		/**
 		 * Settings > Remote > Phone, "Tasks with the Mac closed": the top of
 		 * Next in line is kept on the host, for the phone to start there with
 		 * this computer away (main/lib/remote-host/away). Unset: off.
