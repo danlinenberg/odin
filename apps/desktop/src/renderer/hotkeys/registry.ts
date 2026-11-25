@@ -388,7 +388,7 @@ export const HOTKEYS_REGISTRY = {
 		key: { mac: "space", windows: "space", linux: "space" },
 		label: "Auto pilot: Open Session",
 		category: "Navigation",
-		description: "Open the Auto pilot card's session again beside the page",
+		description: "Open the Auto pilot card's session beside the page",
 	},
 	PILOT_SKIP: {
 		key: { mac: L("x"), windows: L("x"), linux: L("x") },
