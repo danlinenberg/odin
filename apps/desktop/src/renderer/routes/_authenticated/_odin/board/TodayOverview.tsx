@@ -1172,10 +1172,19 @@ function ComingUp({
 	const { start, isLaunching } = useStartAllItem();
 	const panes = useTabsStore((s) => s.panes);
 	const now = Date.now();
-	const due = side.due.filter((row) => !row.started);
-	const upNext = side.upNext;
-	const waiting = side.waiting;
-	if (!due.length && !upNext.length && !waiting.length) return null;
+	const hiddenToday = useTaskMeta((s) => s.hiddenToday);
+	const hideToday = useTaskMeta((s) => s.hideToday);
+	const unhideToday = useTaskMeta((s) => s.unhideToday);
+	const hidden = new Set(hiddenToday);
+	const shown = (row: { key: string }) => !hidden.has(row.key);
+	const due = side.due.filter((row) => !row.started && shown(row));
+	const upNext = side.upNext.filter(shown);
+	const waiting = side.waiting.filter(shown);
+	const hiddenCount = [...side.due, ...side.upNext, ...side.waiting].filter(
+		(row) => hidden.has(row.key),
+	).length;
+	if (!due.length && !upNext.length && !waiting.length && !hiddenCount)
+		return null;
 	const links = (
 		key: string,
 		url: string | null,
@@ -1220,6 +1229,14 @@ function ComingUp({
 						</button>
 					</>
 				)}
+				{" · "}
+				<button
+					type="button"
+					onClick={() => hideToday(key)}
+					className={cn(LINK, "text-[12.5px] text-muted-foreground")}
+				>
+					Hide
+				</button>
 			</>
 		);
 	};
@@ -1228,8 +1245,17 @@ function ComingUp({
 			aria-label="Not started yet"
 			className="border-t border-border pt-5 first:border-t-0 first:pt-0"
 		>
-			<h2 className="mb-2 text-[15px] font-semibold text-muted-foreground">
+			<h2 className="mb-2 flex items-baseline gap-3 text-[15px] font-semibold text-muted-foreground">
 				Not started yet
+				{hiddenCount > 0 && (
+					<button
+						type="button"
+						onClick={unhideToday}
+						className={cn(LINK, "text-[12.5px] font-normal")}
+					>
+						Show {hiddenCount} hidden
+					</button>
+				)}
 			</h2>
 			<ul className="flex list-disc flex-col gap-1.5 pl-5 text-[14px] leading-relaxed marker:text-muted-foreground">
 				{due.map((row) => (
