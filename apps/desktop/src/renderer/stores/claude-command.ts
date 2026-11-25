@@ -10,7 +10,7 @@ interface ClaudeCommandState {
 	model: string;
 	/** `--model` for the raven: Opus unless his panel's picker says otherwise. */
 	crowModel: string;
-	/** New Session: park the prompt on My Tasks instead of starting it. */
+	/** New Task: park the prompt on My Tasks instead of starting it. */
 	toBacklog: boolean;
 	/** New task: start a session on it right away instead of just listing it. */
 	startNow: boolean;
@@ -18,7 +18,7 @@ interface ClaudeCommandState {
 	remoteControl: RemoteControlMode;
 	/** "selected": the panes you turned it on for, newest last. */
 	remotePanes: string[];
-	/** New Session's one-click repos: the last ones started in, newest first. */
+	/** New Task's one-click repos: the last ones started in, newest first. */
 	recentRepos: string[];
 	addRecentRepo: (repo: string) => void;
 	setCommands: (commands: string[]) => void;
@@ -35,7 +35,7 @@ export type RemoteControlMode = "off" | "all" | "selected";
 
 export const RECENT_REPOS = 5;
 
-/** The New Session model picker: CLI aliases, so each tracks the latest. */
+/** The New Task model picker: CLI aliases, so each tracks the latest. */
 export const CLAUDE_MODELS = [
 	{ value: "", label: "Default model" },
 	{ value: "fable", label: "Fable" },

@@ -1,7 +1,7 @@
 import { activeProfileId } from "../odin-config";
 
 /**
- * Session History's search (searchSessions) with the names the board knew each
+ * Task History's search (searchSessions) with the names the board knew each
  * session by and the profile's own sessions only - for the board's search and
  * for a page asking which sessions worked on it (/sessions/for-url).
  */

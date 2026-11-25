@@ -27,7 +27,7 @@ export const Route = createFileRoute("/_authenticated/_odin/sessions/")({
 });
 
 /**
- * Session History - search every session Odin has launched by what was said in
+ * Task History - search every session Odin has launched by what was said in
  * it, read it, and resume it.
  *
  * The board can't do this: its cards are named by whatever was typed at launch
@@ -197,7 +197,7 @@ function SessionsPage() {
 	return (
 		<div className="flex h-full flex-col">
 			<div className="flex items-center gap-3 px-[18px] pb-2.5 pt-3.5">
-				<h1 className="text-[15px] font-semibold">Session History</h1>
+				<h1 className="text-[15px] font-semibold">Task History</h1>
 				<span className="text-xs text-muted-foreground">
 					every session Odin launched in {activeName} · search what was said,
 					read it, resume it

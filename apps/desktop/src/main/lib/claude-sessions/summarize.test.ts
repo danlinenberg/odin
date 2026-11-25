@@ -288,7 +288,7 @@ describe("writeBrief", () => {
 		const { session, root, bin, project, cachePath } = fixture();
 		await writeBrief({ sessionId: session, claudeBin: bin, root, cachePath });
 		// Only the session being summarised - the summarising run's own transcript
-		// is gone, or Session History fills with sessions nobody started.
+		// is gone, or Task History fills with sessions nobody started.
 		expect(readdirSync(project)).toEqual([`${session}.jsonl`]);
 	});
 

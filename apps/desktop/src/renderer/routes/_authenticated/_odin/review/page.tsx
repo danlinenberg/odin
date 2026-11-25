@@ -142,7 +142,7 @@ function ReviewPage() {
 	const sweepBacklog = useSweepBacklog();
 	const { remove, todos } = useMyTasks();
 	const panes = useTabsStore((state) => state.panes);
-	// Every card on the board, PTY alive or not - the test Start session uses.
+	// Every card on the board, PTY alive or not - the test Start task uses.
 	// A restart leaves cards dead but resumable, and a row one is on can't be
 	// dropped from here: closing the card is what ends it.
 	const livePanes = useMemo(

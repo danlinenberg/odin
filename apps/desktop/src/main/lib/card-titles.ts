@@ -9,7 +9,7 @@ import { ODIN_HOME_DIR } from "./app-environment";
  * task lost the name the board knew it by. Every board save records the
  * titles here; a closed card keeps its last one.
  *
- * The card's profile is kept the same way, beside it: Session History shows
+ * The card's profile is kept the same way, beside it: Task History shows
  * only the active profile's sessions, and a plain session (not launched off a
  * feed, so not in the work log) has no other record of its profile once the
  * card closes.

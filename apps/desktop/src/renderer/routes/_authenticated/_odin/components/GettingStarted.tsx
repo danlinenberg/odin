@@ -75,7 +75,7 @@ const STEP_COPY: Record<
 	session: {
 		title: "Start a session on it",
 		body: () =>
-			"Start session hands a task to an agent. Its card lands on the Dev Board.",
+			"Start task hands a task to an agent. Its card lands on the Dev Board.",
 		action: "My Tasks",
 	},
 	automation: {

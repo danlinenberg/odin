@@ -251,7 +251,7 @@ const PASS_MS = 30_000;
 
 /**
  * Claude's transcript on the host, appended into ~/.claude/projects here as
- * it grows, so the chat view, Resume and Session History read it like any
+ * it grows, so the chat view, Resume and Task History read it like any
  * local session's. Returns what stops it.
  */
 function mirrorTranscript(

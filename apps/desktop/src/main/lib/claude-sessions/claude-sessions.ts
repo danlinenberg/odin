@@ -210,7 +210,7 @@ function cleanPrompt(text: string): string {
  * The line `buildPrompt` (useLaunchTaskSession) ends every task prompt with.
  * Claude's JSONL records nothing about who started a session, so this sentence
  * in the opening prompt is the only durable mark of "Odin launched this" - and
- * Session History wants nothing else: sessions typed into a plain terminal
+ * Task History wants nothing else: sessions typed into a plain terminal
  * aren't work this app is tracking.
  */
 const ODIN_LAUNCH_MARKER = /\n\s*Work in the current workspace\./i;
@@ -2354,7 +2354,7 @@ async function tallyCheckouts(
 /**
  * What a session was about, in one line.
  *
- * `cleanPrompt` keeps the whole Slack preamble on purpose - Session History
+ * `cleanPrompt` keeps the whole Slack preamble on purpose - Task History
  * searches it - but a one-line label has room for the ask and nothing else. So
  * when Odin quoted the thread, the quote IS the title, and the framing above it
  * ("This task comes from a Slack thread: <url>") is dropped.

@@ -875,7 +875,7 @@ function AnswerItem({
 const ITEM_BUTTON =
 	"shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[11.5px] font-medium text-attention-ink hover:bg-attention/15 disabled:opacity-50";
 
-/** Go to session, Done and Snooze until tomorrow, for the task's first session. */
+/** Open on board, Done and Snooze until tomorrow, for the task's first session. */
 function TaskButtons({
 	task,
 	actions,
@@ -898,7 +898,7 @@ function TaskButtons({
 				onClick={() => actions.onOpen(paneId)}
 				className={ROW_LIVE_BUTTON}
 			>
-				Go to session →
+				Open on board →
 			</button>
 			{actions.onDone && (
 				<button
@@ -1020,7 +1020,7 @@ function MovingRow({ task, now, picked, open, onShow }: TaskProps) {
 /**
  * A task's summary beside the page: its action items to answer here, what
  * it is, why it matters, where it stands and who acts next, its sessions,
- * the task it was started from, and Go to session, Done, Snooze and Next.
+ * the task it was started from, and Open on board, Done, Snooze and Next.
  */
 function TodayTaskPanel({
 	task,
@@ -1194,7 +1194,7 @@ function ComingUp({
 						onClick={() => onOpen(paneId)}
 						className={cn(LINK, "text-[12.5px]")}
 					>
-						Go to session
+						Open on board
 					</button>
 				) : (
 					row && (

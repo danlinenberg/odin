@@ -152,7 +152,7 @@ function RowItems({
 					onSelect={() => rows.goToPane(activePaneId)}
 					className={ITEM}
 				>
-					Go to session
+					Open on board
 				</ContextMenuItem>
 			) : (
 				<ContextMenuItem
@@ -160,7 +160,7 @@ function RowItems({
 					onSelect={() => void rows.start(item)}
 					className={ITEM}
 				>
-					Start session
+					Start task
 				</ContextMenuItem>
 			)}
 			<ContextMenuItem

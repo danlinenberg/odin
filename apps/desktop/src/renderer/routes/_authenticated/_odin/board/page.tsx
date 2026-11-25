@@ -430,7 +430,7 @@ const groupPlace = (status: PaneStatus) => GROUP_PLACE.indexOf(status);
 /** The top bar's empty slot (layout.tsx) the board fills with ViewToggle. */
 const VIEW_TOGGLE_SLOT_ID = "odin-view-toggle";
 
-/** Sessions view / Board view / Today: icon-only, in the top bar's slot. */
+/** List view / Board view / Today: icon-only, in the top bar's slot. */
 function ViewToggle({
 	sessionsOpen,
 	sessionsDisabled,
@@ -460,9 +460,9 @@ function ViewToggle({
 		<div className="flex shrink-0 overflow-hidden rounded-full border border-primary/60 bg-card shadow-sm">
 			<button
 				type="button"
-				aria-label="Sessions view"
+				aria-label="List view"
 				aria-pressed={sessionsOpen}
-				title={`Sessions view - the first session in flight, with the session list beside it (${sessionsKey})`}
+				title={`List view - the first task in flight, with the task list beside it (${sessionsKey})`}
 				disabled={sessionsDisabled}
 				onClick={onSessions}
 				className={segment(sessionsOpen)}
@@ -644,7 +644,7 @@ function HistoryView({
 	// exited: a remote session that failed to connect stays "working" with no
 	// transcript, and showed "Starting session..." for good.
 	if (error && card.pane.status === "working" && !card.pane.odinExitCause)
-		return <StartingView label="Starting session…" />;
+		return <StartingView label="Starting…" />;
 	if (sessionId && !live && !error) {
 		return (
 			<div className="flex min-h-0 flex-1 flex-col">
@@ -2571,7 +2571,7 @@ function TagMenu({
 							className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
 						>
 							<LuRotateCw className="size-3" aria-hidden />
-							Restart session
+							Restart
 						</button>
 					)}
 					{onRunHere && (
@@ -4318,7 +4318,7 @@ function DevBoardPage() {
 			!!createdAt && Date.now() - Date.parse(createdAt) > RECENT_RESTART_MS
 		);
 	};
-	// Close local sessions that have sat idle past Settings → Sessions' idle timeout: an open Claude holds
+	// Close local sessions that have sat idle past Settings → Running tasks' idle timeout: an open Claude holds
 	// memory and a checkout for a conversation Resume can reopen any time. The
 	// card stays in its column (odinClosedIn) - closing it answered nothing.
 	// A session whose shell is still running something (a dev server) is in use.
@@ -5151,7 +5151,7 @@ function DevBoardPage() {
 				const alive = agentPaneIds.has(pane.id);
 				const dead = daemonSessions !== undefined && !alive;
 				// Legacy: panes the removed Kill button marked completed. They stay
-				// off the board (Session History is where you resume them) until the
+				// off the board (Task History is where you resume them) until the
 				// persisted state ages out. Nothing sets `completed` any more.
 				if (dead && pane.completed) {
 					completed.push(card);
@@ -5705,7 +5705,7 @@ function DevBoardPage() {
 		const cards = [...cardsByStatus.values()].flat();
 		if (cards.length === 0) return;
 		restoredDrawerRef.current = true;
-		// Go to session (or a launch) sent you here for a session: that one
+		// Open on board (or a launch) sent you here for a session: that one
 		// opens, not the one you had open last. Its effect above runs first in
 		// the same commit and would otherwise lose to this one.
 		if (pendingPaneId) return;
@@ -7450,7 +7450,7 @@ function DevBoardPage() {
 
 	/**
 	 * Done, undoable: the PTY dies with the pane, so undo resumes the same
-	 * conversation (`claude --resume`) into a fresh pane, like Session History.
+	 * conversation (`claude --resume`) into a fresh pane, like Task History.
 	 */
 	// Every row, not just All's queue: a started Slack row has left the queue,
 	// and missing it here left it un-Done - back as new after a Slack reconnect.
@@ -8210,14 +8210,14 @@ function DevBoardPage() {
 				<h1 className="text-[15px] font-semibold">Dev Board</h1>
 				<button
 					type="button"
-					title="Describe a task and start an agent session"
+					title="Describe a task and start it"
 					onClick={openComposerOnCurrentRepo}
 					className={cn(
 						"rounded-lg px-2.5 py-1 text-[12px] font-semibold transition-colors",
 						BUTTON.primary,
 					)}
 				>
-					+ New Session
+					+ New Task
 				</button>
 				{isLaunching && (
 					<span className="text-xs text-muted-foreground">starting…</span>
@@ -8233,7 +8233,7 @@ function DevBoardPage() {
 						setSearch("");
 						e.currentTarget.blur();
 					}}
-					placeholder={`Search sessions${searchHint}`}
+					placeholder={`Search tasks${searchHint}`}
 					className={cn(
 						"w-[220px] rounded-full border bg-card px-2.5 py-1 text-[12px] text-foreground outline-none placeholder:text-faint-foreground focus:border-primary",
 						search ? "border-primary" : "border-border",
@@ -8250,7 +8250,7 @@ function DevBoardPage() {
 					<select
 						value={boardFilter}
 						onChange={(e) => setBoardFilter(e.target.value)}
-						title="Show only starred or recently viewed sessions, or those in this group or with this tag, repo or person"
+						title="Show only starred or recently viewed tasks, or those in this group or with this tag, repo or person"
 						className={cn(
 							"max-w-[220px] cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none",
 							boardFilter
@@ -8756,7 +8756,7 @@ function DevBoardPage() {
 				{isNextOpen && <NextInLine />}
 			</div>
 
-			{/* No Completed strip and no link to one: the Session History pane in the
+			{/* No Completed strip and no link to one: the Task History pane in the
 			    sidebar already searches and resumes finished sessions. */}
 
 			{/* session drawer */}
@@ -8824,24 +8824,24 @@ function DevBoardPage() {
 												<button
 													type="button"
 													onClick={openComposerOnCurrentRepo}
-													title="New session - describe a task and start an agent session, then open it here"
+													title="New task - describe it and start it, then open it here"
 													className="ml-3 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
 												>
 													<LuPlus className="size-3" />
-													New session
+													New task
 												</button>
 											)}
 											<button
 												type="button"
 												title={
 													isSwitchListMin
-														? "Show session list"
-														: "Minimize session list"
+														? "Show task list"
+														: "Minimize task list"
 												}
 												aria-label={
 													isSwitchListMin
-														? "Show session list"
-														: "Minimize session list"
+														? "Show task list"
+														: "Minimize task list"
 												}
 												onClick={toggleSwitchList}
 												className={cn(
@@ -8865,8 +8865,8 @@ function DevBoardPage() {
 													onChange={(e) =>
 														pickSwitchSort(e.target.value as SwitchSort)
 													}
-													aria-label="Sort sessions"
-													title="Sort sessions"
+													aria-label="Sort tasks"
+													title="Sort tasks"
 													className="shrink-0 cursor-pointer rounded border border-border bg-card px-1 py-0.5 outline-none hover:text-foreground"
 												>
 													{Object.entries(
@@ -9234,7 +9234,7 @@ function DevBoardPage() {
 								) : startingPaneIds.includes(drawerCard.pane.id) ? (
 									// Its launch is still doing the slow part: no history
 									// and no PTY yet, nothing to resume.
-									<StartingView label="Starting session…" />
+									<StartingView label="Starting…" />
 								) : resumingPaneIds.includes(drawerCard.pane.id) &&
 									!panes[drawerCard.pane.id]?.odinQueued &&
 									chatView ? (
@@ -9250,7 +9250,7 @@ function DevBoardPage() {
 										label={
 											resumingPaneIds.includes(drawerCard.pane.id)
 												? panes[drawerCard.pane.id]?.odinQueued
-													? "Starting session…"
+													? "Starting…"
 													: "Resuming session…"
 												: `Waiting to start - ${panes[drawerCard.pane.id]?.odinQueued?.reason}`
 										}
@@ -9436,7 +9436,7 @@ function DevBoardPage() {
 									BUTTON.secondary,
 								)}
 							>
-								Minimize Session
+								Minimize
 							</button>
 							<button
 								type="button"
@@ -9478,7 +9478,7 @@ function DevBoardPage() {
 
 			{isComposerOpen && (
 				<OdinPromptDialog
-					heading="New Session"
+					heading="New Task"
 					placeholder="What should the agent do? (it picks the repo)"
 					draftKey="new-session"
 					repoPicker

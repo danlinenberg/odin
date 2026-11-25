@@ -5,7 +5,7 @@ import { persist } from "zustand/middleware";
  * The board's Today view. EXPERIMENT: off by default (`experiment`); Settings >
  * Advanced turns it on and adds the Today icon to the view toggle. With it on,
  * the board also switches to Today once a day, the first time it opens with
- * work on it (`enabled`; Settings → Sessions turns that off). A fixed-size
+ * work on it (`enabled`; Settings → Running tasks turns that off). A fixed-size
  * singleton: two switches and the last day it was shown.
  */
 export const useTodayOverview = create<{

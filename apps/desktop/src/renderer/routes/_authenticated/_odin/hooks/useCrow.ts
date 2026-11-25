@@ -1089,7 +1089,7 @@ function runOdinAction(
 		endSessionAndRow(panes[args.paneId], deps);
 		return `Marked ${panes[args.paneId].odinTaskTitle ?? args.paneId} done.`;
 	}
-	// The phone's Resume on a session off the board: as Session History's,
+	// The phone's Resume on a session off the board: as Task History's,
 	// a new card resuming the conversation. Answers its paneId as JSON.
 	if (action === "resume") {
 		if (!args.sessionId || !args.cwd) return "Need sessionId and cwd.";

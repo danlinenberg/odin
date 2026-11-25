@@ -61,7 +61,7 @@ function inArea(
 /**
  * Slack - every message I put the queue reaction (:eyes: by default, click it
  * in the header to change) on, straight from Slack. React in Slack, it shows
- * up here; Start session ingests the thread.
+ * up here; Start task ingests the thread.
  *
  * Rows persist locally - removing the reaction in Slack leaves the row alone,
  * and Done is Odin-only - nothing is written to Slack.

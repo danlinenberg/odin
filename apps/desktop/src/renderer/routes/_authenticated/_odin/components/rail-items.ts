@@ -76,7 +76,7 @@ export const MORE_ITEMS = [
 	{
 		to: "/sessions" as const,
 		hotkey: "ODIN_SESSIONS" as const,
-		label: "Session History",
+		label: "Task History",
 		Icon: HiOutlineClock,
 	},
 ];

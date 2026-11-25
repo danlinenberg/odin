@@ -81,7 +81,7 @@ export const usePaneMeta = create<{
 	 *  (and can jump to it) instead of offering to start a second one. */
 	paneByPage: Record<string, string>;
 	/** What you wrote on a brief whose pane is gone, keyed by its Claude
-	 *  session id - Done drops the pane, Session History resumes the
+	 *  session id - Done drops the pane, Task History resumes the
 	 *  conversation into a new one, and adoptSession hands this back. */
 	keptBySession: Record<string, KeptBrief>;
 	setContact: (paneId: string, contact: string) => void;

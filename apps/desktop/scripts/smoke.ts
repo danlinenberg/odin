@@ -344,7 +344,7 @@ async function expectHealthy() {
  * slow CI runner the menu can miss the 400ms after the click, or the press
  * lands while the last page still settles - so wait for it, and press again.
  */
-const MORE_MENU = ["Review", "Insights", "Session History"];
+const MORE_MENU = ["Review", "Insights", "Task History"];
 async function rail(label: string) {
 	if (!MORE_MENU.includes(label)) return click("button", label);
 	const item = `!!__find('[role="menuitem"]', ${JSON.stringify(label)})`;
@@ -433,7 +433,7 @@ const SCREENS: [string, string][] = [
 	["Automations", "add automation"],
 	["Insights", "who asks"],
 	["Night Agent", "after the picks"],
-	["Session History", "every session odin launched"],
+	["Task History", "every session odin launched"],
 	["Dev Board", "next in line"],
 ];
 for (const [label, line] of SCREENS) {
@@ -522,7 +522,7 @@ await step("Tasks: every feed tab opens", async () => {
 for (const [label, line] of [
 	["Tasks", "waiting on you"],
 	["Dev Board", "next in line"],
-	["Session History", "every session odin launched"],
+	["Task History", "every session odin launched"],
 ]) {
 	await step(`⌘F focuses the search box on ${label}`, async () => {
 		await rail(label);
@@ -620,7 +620,7 @@ const taskColumns = () =>
 			x(header),
 			x(title),
 			x(row.querySelector('button[aria-label^="Line it up"]')),
-			x(row.querySelector('button[aria-label="Start session"], button[aria-label="Go to session"]')),
+			x(row.querySelector('button[aria-label="Start task"], button[aria-label="Open on board"]')),
 			x(row.querySelector('button[title="Mark done"]')),
 		];
 	})()`);
@@ -667,7 +667,7 @@ await step("a new profile sees none of the first one's tasks", async () => {
 await step("starting a task asks for optional context first", async () => {
 	await rail("Tasks");
 	await waitForText(TASK);
-	await click("button", "Start session");
+	await click("button", "Start task");
 	await click("button", "+ Add context or guidelines (optional)");
 	await waitForText("leave it empty to start as is");
 	await click("button", "Cancel");
@@ -687,7 +687,7 @@ const clickOnTaskRow = (title: string) =>
 	})()`);
 
 /**
- * Where Start session and Done sit on TASK's row. Rows are separate grids, so a
+ * Where Start task and Done sit on TASK's row. Rows are separate grids, so a
  * wider or missing button on one row ("↺ Read later", no Tonight) used to push
  * its buttons out of line with every other row's.
  */
@@ -696,7 +696,7 @@ const taskRowButtons = () =>
 		let row = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(TASK)});
 		while (row && !row.querySelector('button[title="Mark done"]')) row = row.parentElement;
 		const done = row?.querySelector('button[title="Mark done"]')?.getBoundingClientRect();
-		const start = [...(row?.querySelectorAll("button") ?? [])].find((e) => /^(Start session|Go to session)/.test(e.getAttribute("aria-label") || e.textContent.trim()))?.getBoundingClientRect();
+		const start = [...(row?.querySelectorAll("button") ?? [])].find((e) => /^(Start task|Open on board)/.test(e.getAttribute("aria-label") || e.textContent.trim()))?.getBoundingClientRect();
 		return done && start ? { start: Math.round(start.right), done: Math.round(done.left) } : null;
 	})()`);
 
@@ -704,10 +704,10 @@ await step("Read later moves a task to Docs and back", async () => {
 	await rail("Tasks");
 	await waitForText(TASK);
 	const buttons = await taskRowButtons();
-	if (!buttons) throw new Error("no Start session and Done on the task's row");
+	if (!buttons) throw new Error("no Start task and Done on the task's row");
 	if (buttons.done - buttons.start > 16)
 		throw new Error(
-			`Start session isn't next to Done: ${buttons.done - buttons.start}px apart`,
+			`Start task isn't next to Done: ${buttons.done - buttons.start}px apart`,
 		);
 	if (!(await clickOnTaskRow("Mark it Read later")))
 		throw new Error("no Read later button on the task's row");
@@ -836,8 +836,8 @@ await step(
 		if (!aside) return "no panel";
 		const labels = ["Status", "Type", "Priority"].filter((l) => ![...aside.querySelectorAll("span")].some((e) => e.textContent.trim() === l));
 		if (labels.length) return "missing labels " + labels.join(", ");
-		const start = [...aside.querySelectorAll("button")].find((e) => e.textContent.trim() === "Start session");
-		return start?.title ? "" : "Start session has no hover text";
+		const start = [...aside.querySelectorAll("button")].find((e) => e.textContent.trim() === "Start task");
+		return start?.title ? "" : "Start task has no hover text";
 	})()`);
 		if (panel) throw new Error(panel);
 		await click("button", "Close details");
@@ -1010,7 +1010,7 @@ await step("Done takes a task off the list", async () => {
 // Settings is ten fixed screens; each sidebar link and the route it opens.
 const SETTINGS: [string, string][] = [
 	["Connections", "#/settings/connections"],
-	["Sessions", "#/settings/sessions"],
+	["Running tasks", "#/settings/sessions"],
 	["Personalization", "#/settings/personalization"],
 	["Remote", "#/settings/remote"],
 	["Storage", "#/settings/storage"],
@@ -1062,7 +1062,7 @@ await step("The raven opens its panel in place", async () => {
 const SESSION = `Smoke session ${Date.now()}`;
 let sessionPid = 0;
 await step(
-	"New Session puts a card on the board and gives claude the prompt",
+	"New Task puts a card on the board and gives claude the prompt",
 	async () => {
 		// Esc first, so nothing an earlier step opened is in the way.
 		await page(
@@ -1070,9 +1070,9 @@ await step(
 		);
 		await rail("Dev Board");
 		await waitForText("next in line");
-		await click("button", "Describe a task and start an agent session");
+		await click("button", "Describe a task and start it");
 		await fill('textarea[placeholder^="What should the agent do?"]', SESSION);
-		await click("button", "Start session");
+		await click("button", "Start task");
 		await waitForText(SESSION, true, 30_000);
 		// The crow keeps its own claude warm, so pick out the run that
 		// carries this session's prompt. The card is up before the launch gate
@@ -1096,7 +1096,7 @@ await step(
 );
 
 await step(
-	"New Session adds its task to Tasks, Working with Go to session and Start another",
+	"New Task adds its task to Tasks, Working with Open on board and Start another",
 	async () => {
 		await rail("Tasks");
 		await waitForText(SESSION);
@@ -1110,13 +1110,13 @@ await step(
 		if (!row) return null;
 		return {
 			working: /Working|Needs you/.test(row.textContent),
-			goTo: !!row.querySelector('button[aria-label="Go to session"]'),
+			goTo: !!row.querySelector('button[aria-label="Open on board"]'),
 			another: !!row.querySelector('button[aria-label="Start another session"]'),
 		};
 	})()`);
-		if (!row) throw new Error("no task row for the New Session session");
+		if (!row) throw new Error("no task row for the New Task session");
 		if (!row.working) throw new Error("the task's row doesn't say Working");
-		if (!row.goTo) throw new Error("the task's row has no Go to session");
+		if (!row.goTo) throw new Error("the task's row has no Open on board");
 		if (!row.another)
 			throw new Error("the task's row has no Start another session");
 		await rail("Dev Board");
@@ -1476,7 +1476,7 @@ await step(
 		const stamp = Date.now();
 		const start = async (prompt: string) => {
 			await fill('textarea[placeholder^="What should the agent do?"]', prompt);
-			await click("button", "Start session");
+			await click("button", "Start task");
 			await waitForText(prompt, true, 30_000);
 		};
 		// The list shows with two sessions in flight; a queued one isn't.
@@ -1486,7 +1486,7 @@ await step(
 			);
 			await rail("Dev Board");
 			await waitForText("next in line");
-			await click("button", "Describe a task and start an agent session");
+			await click("button", "Describe a task and start it");
 			await start(`Drawer list ${name} ${stamp}`);
 			await sleep(2000);
 			await page(
@@ -1620,12 +1620,12 @@ await macStep(
 		try {
 			await rail("Dev Board");
 			await waitForText("next in line");
-			await click("button", "Describe a task and start an agent session");
+			await click("button", "Describe a task and start it");
 			await fill(
 				'textarea[placeholder^="What should the agent do?"]',
 				`No git ${Date.now()}`,
 			);
-			await click("button", "Start session");
+			await click("button", "Start task");
 			await waitForText("macOS just opened an installer", true, 30_000);
 			await page(
 				`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,

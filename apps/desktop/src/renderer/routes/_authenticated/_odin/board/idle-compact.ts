@@ -10,7 +10,7 @@ export type CompactablePane = {
 };
 
 export type IdleArrivalInput = {
-	/** Settings → Sessions, "Compact conversations moved to Idle". */
+	/** Settings → Running tasks, "Compact conversations moved to Idle". */
 	enabled: boolean;
 	/** One of the board's own Claude sessions. */
 	isAgent: boolean;

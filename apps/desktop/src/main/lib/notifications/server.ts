@@ -350,7 +350,7 @@ app.get("/sessions/for-url", async (req, res) => {
 			sessionId: session.sessionId,
 			title: session.title,
 			updatedAt: session.updatedAt,
-			// Session History with this URL searched and the session open.
+			// Task History with this URL searched and the session open.
 			open: `${PROTOCOL_SCHEME}://sessions?${new URLSearchParams({
 				q: url,
 				open: session.sessionId,
@@ -361,7 +361,7 @@ app.get("/sessions/for-url", async (req, res) => {
 
 /**
  * Opens a session from the extension's list in the Odin that answered, with
- * Session History searched for the page. An `odin://` link would go to
+ * Task History searched for the page. An `odin://` link would go to
  * whichever Odin macOS registered for it, which is never a dev build.
  */
 app.post(

@@ -33,7 +33,7 @@ function SessionsSettingsPage() {
 	const gsdEnabled = useGsdModeEnabled((s) => s.enabled);
 	return (
 		<SettingsPage
-			title="Sessions"
+			title="Running tasks"
 			description="Where a new agent session starts, when it has to wait its turn, and what the board does with it afterwards."
 		>
 			<SettingsSection title="Where they start">
@@ -138,7 +138,7 @@ function SessionsSettingsPage() {
 
 /**
  * The checkout a session starts in when nothing else names one - the board's
- * new-task input, "Start session", anything without a repo picked. Machine-wide,
+ * new-task input, "Start task", anything without a repo picked. Machine-wide,
  * not per-profile.
  */
 function DefaultRepoRow() {
@@ -246,7 +246,7 @@ function ChromeExtensionRow() {
 	return (
 		<SettingRow
 			label="Chrome extension"
-			description="Its icon counts the sessions that worked on the page you're on, and lists them: pick one to open it in Session History. Load it in Chrome from the folder this shows (chrome://extensions, Developer mode, Load unpacked). Pasting a page's link into Session History finds the same sessions without it."
+			description="Its icon counts the sessions that worked on the page you're on, and lists them: pick one to open it in Task History. Load it in Chrome from the folder this shows (chrome://extensions, Developer mode, Load unpacked). Pasting a page's link into Task History finds the same sessions without it."
 		>
 			<Button
 				variant="outline"

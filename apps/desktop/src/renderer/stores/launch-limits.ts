@@ -7,7 +7,7 @@ interface LaunchLimitsState extends LaunchLimits {
 }
 
 /**
- * Settings → Sessions: the launch gate's CPU, memory, disk, session-count and
+ * Settings → Running tasks: the launch gate's CPU, memory, disk, session-count and
  * one-per-checkout limits.
  */
 export const useLaunchLimits = create<LaunchLimitsState>()(

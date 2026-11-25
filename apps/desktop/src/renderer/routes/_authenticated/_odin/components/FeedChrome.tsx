@@ -199,7 +199,7 @@ export function RowActions({ children }: { children: ReactNode }) {
  */
 export const ROW_PRIMARY_BUTTON = `shrink-0 rounded-[7px] px-3 py-1 text-xs font-semibold transition-colors disabled:opacity-40 ${BUTTON.secondary} hover:bg-primary hover:text-primary-foreground hover:ring-primary`;
 
-/** Start session: always violet, unlike the other row primaries. */
+/** Start task: always violet, unlike the other row primaries. */
 export const ROW_START_BUTTON = `shrink-0 rounded-[7px] px-3 py-1 text-xs font-semibold transition-[filter] disabled:opacity-40 ${BUTTON.primary}`;
 
 /** Same, for a row whose session is live - blue, the board's "working". */
@@ -233,15 +233,15 @@ export const META_DATE = "w-[48px] shrink-0 text-[11px] text-muted-foreground";
  */
 export const ROW_LINK_SLOT = "flex w-[84px] shrink-0 justify-end";
 /**
- * The primary button sits in a fixed slot too: "Go to session →" is wider
- * than "Start session", and without one it drags every column on the row
+ * The primary button sits in a fixed slot too: "Open on board →" is wider
+ * than "Start task", and without one it drags every column on the row
  * left with it.
  */
 export const ROW_PRIMARY_SLOT = "flex w-[132px] shrink-0 justify-end";
 /**
  * The Tasks page's secondary buttons get slots too, sized to their widest
  * label ("Tonight ✓", "↺ Read later"): a row without Tonight or with Read later
- * on shifted Start session and Done out of line with the rows around it.
+ * on shifted Start task and Done out of line with the rows around it.
  */
 export const ROW_SLOT_UP_NEXT = "flex w-[72px] shrink-0 justify-center";
 export const ROW_SLOT_TONIGHT = "flex w-[96px] shrink-0 justify-center";

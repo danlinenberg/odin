@@ -60,7 +60,7 @@ export const MIN_FREE_MEMORY_GB = 2;
  */
 export const MIN_FREE_DISK_GB = 10;
 
-/** What a launch waits on, as Settings → Sessions has it. */
+/** What a launch waits on, as Settings → Running tasks has it. */
 export interface LaunchLimits {
 	hostCpuPercent: number;
 	minFreeMemoryGb: number;

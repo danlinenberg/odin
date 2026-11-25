@@ -20,7 +20,7 @@ export function migrateIdleCompact(
 }
 
 /**
- * Settings → Sessions: whether the board types /compact into a session the
+ * Settings → Running tasks: whether the board types /compact into a session the
  * moment its card moves into Idle. Off by default. Renderer localStorage for
  * the same reason as idle-close: the board is the only reader.
  */

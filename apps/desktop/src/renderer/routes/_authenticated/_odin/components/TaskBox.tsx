@@ -149,7 +149,7 @@ const attachmentSrc = (path: string): string =>
 
 /**
  * One attachment under the text: a photo as its thumbnail, a video or doc by
- * name. Clicking it takes it off the task, like the New Session dialog's.
+ * name. Clicking it takes it off the task, like the New Task dialog's.
  */
 function AttachmentChip({
 	path,
@@ -249,7 +249,7 @@ export function TaskBox({
 	repos?: string[];
 	repo?: string;
 	onRepoChange?: (repo: string) => void;
-	/** One-click picks under the fields, newest first - like New Session's Recent row. */
+	/** One-click picks under the fields, newest first - like New Task's Recent row. */
 	recentRepos?: string[];
 	onChange: (text: string) => void;
 	onSubmit: () => void;
@@ -777,7 +777,7 @@ function SkillMenu({
 }
 
 /**
- * Which checkout the session starts in - the New Session dialog's search.
+ * Which checkout the session starts in - the New Task dialog's search.
  *
  * Resolved on every keystroke: exactly one hit is the pick, anything else is
  * none. Leaving the field rewrites a pick as its short `parent/name`, so the
@@ -836,7 +836,7 @@ function RepoSelect({
 						onChange(resolve(event.target.value).repo);
 					}}
 					onBlur={() => value && setQuery(repoLabel(value))}
-					// Same :autofill override as the New Session dialog - a picked option
+					// Same :autofill override as the New Task dialog - a picked option
 					// otherwise paints white-on-black over any bg-*.
 					className={cn(
 						FIELD_INPUT,
@@ -1283,13 +1283,13 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 						onClick={save}
 						disabled={!parseTask(draft).title}
 						// The name without the shortcut glyphs beside it.
-						aria-label={startNow ? "Start session" : "Add task"}
+						aria-label={startNow ? "Start task" : "Add task"}
 						className={cn(
 							"flex h-7 items-center gap-2 rounded-[7px] px-3 text-xs font-semibold disabled:cursor-default disabled:opacity-40 disabled:shadow-none",
 							BUTTON.primary,
 						)}
 					>
-						{startNow ? "Start session" : "Add task"}
+						{startNow ? "Start task" : "Add task"}
 						{submitKeys[0] !== "Unassigned" && (
 							<span className="font-medium opacity-70">
 								{submitKeys.join("")}

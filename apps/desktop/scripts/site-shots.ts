@@ -290,12 +290,12 @@ try {
 	>();
 	for (const sample of SESSIONS) {
 		await pressEscape();
-		await click("button", "Describe a task and start an agent session");
+		await click("button", "Describe a task and start it");
 		await fill(
 			'textarea[placeholder^="What should the agent do?"]',
 			sample.title,
 		);
-		await click("button", "Start session");
+		await click("button", "Start task");
 		await waitForText(sample.title.slice(0, 20), true, 30_000);
 		let pid = 0;
 		for (const end = Date.now() + 60_000; !pid; await sleep(500)) {

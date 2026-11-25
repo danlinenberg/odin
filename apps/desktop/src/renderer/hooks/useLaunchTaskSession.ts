@@ -761,7 +761,7 @@ export function useLaunchTaskSession() {
 
 			// Resume rebuilds a pane for a conversation whose original one is gone
 			// - and the board keeps a card's title, person and source on the pane,
-			// so Done'ing the card threw all of it away. Session History then
+			// so Done'ing the card threw all of it away. Task History then
 			// relaunched it under Claude's own generated title ("Ingest and
 			// execute Slack thread task"), with no person and no feed item: the
 			// ask nowhere on the card. The work ledger outlives the pane and is
@@ -833,7 +833,7 @@ export function useLaunchTaskSession() {
 			if (resumeSessionId)
 				usePaneMeta.getState().adoptSession(paneId, resumeSessionId);
 			// A row per external item I actually started an agent on, kept even
-			// after the feed drops it. Sourceless launches (New Session, my own
+			// after the feed drops it. Sourceless launches (New Task, my own
 			// tasks) aren't external work and get no row. Failing to log must
 			// never cost you the session, so this is fire-and-forget.
 			// Resuming re-records too, which re-points the ledger row at this
