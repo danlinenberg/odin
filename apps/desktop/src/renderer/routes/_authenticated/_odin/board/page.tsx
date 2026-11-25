@@ -2946,7 +2946,7 @@ const SwitchRow = memo(function SwitchRow({
 				});
 			}}
 			className={cn(
-				"flex cursor-pointer items-center gap-2 py-1.5 text-left text-xs transition-[translate,opacity] duration-[450ms]",
+				"relative flex cursor-pointer items-center gap-2 py-1.5 text-left text-xs transition-[translate,opacity] duration-[450ms]",
 				min ? "justify-center" : "px-3",
 				leaving
 					? "pointer-events-none -translate-x-6 bg-success/20 text-success-ink opacity-0"
@@ -2971,6 +2971,16 @@ const SwitchRow = memo(function SwitchRow({
 					"bg-attention/10",
 			)}
 		>
+			{card.pane.odinGroup && (
+				// The group's colour runs down the row's left edge, unbroken from
+				// one member to the next, like the board's group block.
+				<span
+					aria-hidden
+					data-group-edge={card.pane.odinGroup.name}
+					className="pointer-events-none absolute inset-y-0 left-0 w-[3px]"
+					style={{ background: GROUP_HEX[card.pane.odinGroup.color] }}
+				/>
+			)}
 			{min ? (
 				<span
 					className="size-2 shrink-0 rounded-full"
@@ -9045,22 +9055,53 @@ function DevBoardPage() {
 												</button>
 											</div>
 										)}
-										{switchCards.map((card, index) => (
-											<Fragment key={card.pane.id}>
-												{isSwitchGrouped &&
-													card.place !== switchCards[index - 1]?.place &&
-													(isSwitchListMin ? (
-														index > 0 && (
-															<div className="mx-2 my-1 border-t border-border" />
-														)
-													) : (
-														<div className="mt-2 mb-0.5 px-3 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
-															{PANE_STATUS[card.place].label}
+										{switchCards.map((card, index) => {
+											const prev = switchCards[index - 1];
+											const group = card.pane.odinGroup;
+											// A group's run of rows opens under its name in its
+											// colour, as on the board.
+											const groupStarts =
+												!!group &&
+												!isSwitchListMin &&
+												(group.name !== prev?.pane.odinGroup?.name ||
+													(isSwitchGrouped && card.place !== prev?.place));
+											return (
+												<Fragment key={card.pane.id}>
+													{isSwitchGrouped &&
+														card.place !== prev?.place &&
+														(isSwitchListMin ? (
+															index > 0 && (
+																<div className="mx-2 my-1 border-t border-border" />
+															)
+														) : (
+															<div className="mt-2 mb-0.5 px-3 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
+																{PANE_STATUS[card.place].label}
+															</div>
+														))}
+													{groupStarts && (
+														<div
+															data-group-head={group.name}
+															className="mt-1 flex items-center gap-1.5 border-l-[3px] pt-1 pr-3 pl-[9px] text-[10px] font-semibold uppercase tracking-[.5px]"
+															style={{
+																color: GROUP_HEX[group.color],
+																borderColor: GROUP_HEX[group.color],
+															}}
+														>
+															<span className="truncate">{group.name}</span>
+															<span className="opacity-70">
+																{
+																	switchCards.filter(
+																		(c) =>
+																			c.pane.odinGroup?.name === group.name,
+																	).length
+																}
+															</span>
 														</div>
-													))}
-												{switchRow(card)}
-											</Fragment>
-										))}
+													)}
+													{switchRow(card)}
+												</Fragment>
+											);
+										})}
 										{idleSwitchCards.length > 0 &&
 											(isSwitchListMin ? (
 												isIdleSwitchOpen && (
