@@ -1509,7 +1509,7 @@ await step(
 		) {
 			if (Date.now() > end) throw new Error("the drawer has no session list");
 		}
-		await click('nav[aria-label="Sessions"] button', "New session");
+		await click('nav[aria-label="Sessions"] button', "New task");
 		const third = `Drawer list third ${stamp}`;
 		await start(third);
 		const drawerTitle = () =>
