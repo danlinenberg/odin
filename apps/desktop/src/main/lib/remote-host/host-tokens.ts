@@ -275,7 +275,13 @@ export async function pushHostTokens(
 			"bash",
 			`${HELPERS_AS_USER}${awsConfig}\n${identity}\n${prune}\ntrue\n`,
 		);
-		await bringCredentials(host, client);
+		// A file that can't be written there must not stop the tokens.
+		await bringCredentials(host, client).catch((error: unknown) =>
+			console.warn(
+				`[remote-host] files and env vars for ${host.name ?? "the host"}:`,
+				error instanceof Error ? error.message : String(error),
+			),
+		);
 		// The phone server there, for the phone with this computer asleep.
 		const { syncPhoneHost } = await import("./phone-host-sync");
 		await syncPhoneHost(host, client);
