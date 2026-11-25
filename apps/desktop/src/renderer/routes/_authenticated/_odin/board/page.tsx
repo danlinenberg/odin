@@ -310,6 +310,11 @@ import {
 import { DiffView } from "./DiffView";
 import { drawerEscAction, escStaysWithTarget } from "./drawer-esc";
 import { drawerViewSwitch } from "./drawer-view-switch";
+import {
+	type DrawerView,
+	loadDrawerFractions,
+	saveDrawerFractions,
+} from "./drawer-width";
 import { HostScreenView } from "./HostScreenView";
 import { deliverOnHost } from "./host-delivery";
 import { hostStartDelay } from "./host-start-gap";
@@ -347,11 +352,6 @@ import {
 	saveSessionListWidth,
 	sessionListControls,
 } from "./session-list-width";
-import {
-	type DrawerView,
-	loadDrawerFractions,
-	saveDrawerFractions,
-} from "./drawer-width";
 import {
 	SWITCH_SORTS,
 	SWITCH_SORTS_SHORT,
