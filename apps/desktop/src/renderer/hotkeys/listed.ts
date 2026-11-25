@@ -37,6 +37,8 @@ export const LISTED_HOTKEYS: HotkeyId[] = [
 	"TODAY_NEXT",
 	"TODAY_PREV",
 	"TODAY_OPEN",
+	"PILOT_PEEK",
+	"PILOT_SKIP",
 	// Terminal
 	"FIND_IN_TERMINAL",
 	"CLEAR_TERMINAL",

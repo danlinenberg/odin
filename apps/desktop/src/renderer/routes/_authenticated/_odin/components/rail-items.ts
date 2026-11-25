@@ -1,14 +1,3 @@
-import {
-	HiOutlineBolt,
-	HiOutlineChartBar,
-	HiOutlineClipboardDocumentCheck,
-	HiOutlineClock,
-	HiOutlineCog6Tooth,
-	HiOutlineMoon,
-	HiOutlineScale,
-	HiOutlineViewColumns,
-} from "react-icons/hi2";
-
 /**
  * The rail, in order. Every feed - my own tasks, Slack, Jira, PRs, Notion,
  * is one Tasks entry: they're all things to do, so they live behind a single icon
@@ -20,25 +9,25 @@ export const RAIL_ITEMS = [
 		to: "/board" as const,
 		hotkey: "ODIN_BOARD" as const,
 		label: "Dev Board",
-		Icon: HiOutlineViewColumns,
+		Icon: LuColumns3,
 	},
 	{
 		to: "/all" as const,
 		hotkey: "ODIN_ALL" as const,
 		label: "Tasks",
-		Icon: HiOutlineClipboardDocumentCheck,
+		Icon: LuClipboardCheck,
 	},
 	// Its own entry, not a feed tab: an automation isn't waiting on you, it runs itself.
 	{
 		to: "/automations" as const,
 		hotkey: "ODIN_AUTOMATIONS" as const,
 		label: "Automations",
-		Icon: HiOutlineBolt,
+		Icon: LuZap,
 	},
 	{
 		to: "/night-agent" as const,
 		label: "Night Agent",
-		Icon: HiOutlineMoon,
+		Icon: LuMoon,
 	},
 ];
 
@@ -51,7 +40,7 @@ export const SETTINGS_ITEM = {
 	to: "/settings" as const,
 	hotkey: "OPEN_SETTINGS" as const,
 	label: "Settings",
-	Icon: HiOutlineCog6Tooth,
+	Icon: LuSettings,
 };
 
 /**
@@ -65,18 +54,29 @@ export const MORE_ITEMS = [
 		to: "/review" as const,
 		hotkey: "ODIN_REVIEW" as const,
 		label: "Review",
-		Icon: HiOutlineScale,
+		Icon: LuScale,
 	},
 	{
 		to: "/insights" as const,
 		hotkey: "ODIN_INSIGHTS" as const,
 		label: "Insights",
-		Icon: HiOutlineChartBar,
+		Icon: LuChartColumn,
 	},
 	{
 		to: "/sessions" as const,
 		hotkey: "ODIN_SESSIONS" as const,
 		label: "Session History",
-		Icon: HiOutlineClock,
+		Icon: LuClock,
 	},
 ];
+
+import {
+	LuChartColumn,
+	LuClipboardCheck,
+	LuClock,
+	LuColumns3,
+	LuMoon,
+	LuScale,
+	LuSettings,
+	LuZap,
+} from "react-icons/lu";

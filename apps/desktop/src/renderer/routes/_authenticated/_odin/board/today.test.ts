@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
 	dueLabel,
 	itemKind,
+	pilotPick,
 	plainLine,
 	rankToday,
 	shouldShowToday,
@@ -289,5 +290,19 @@ describe("todayTitle and itemKind", () => {
 		expect(itemKind("Pick one [A | B]")).toBe("Answer");
 		expect(itemKind("Merge the pull request")).toBe("Merge");
 		expect(itemKind("Test it on your phone")).toBe("Do");
+	});
+});
+
+describe("pilotPick", () => {
+	it("takes the first task you haven't answered", () => {
+		expect(pilotPick(["a", "b", "c"], new Set(["a"]), [])).toBe("b");
+	});
+	it("puts skipped tasks last, in the order skipped", () => {
+		expect(pilotPick(["a", "b", "c"], new Set(), ["b", "a"])).toBe("c");
+		expect(pilotPick(["a", "b"], new Set(), ["b", "a"])).toBe("b");
+	});
+	it("is null when nothing is left", () => {
+		expect(pilotPick(["a"], new Set(["a"]), [])).toBeNull();
+		expect(pilotPick([], new Set(), ["x"])).toBeNull();
 	});
 });

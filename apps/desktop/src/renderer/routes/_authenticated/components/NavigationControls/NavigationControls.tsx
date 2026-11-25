@@ -36,6 +36,7 @@ export function NavigationControls() {
 					<button
 						type="button"
 						onClick={() => router.history.back()}
+						aria-label="Go back"
 						disabled={!canGoBack}
 						className="no-drag flex items-center justify-center size-7 rounded-md text-muted-foreground hover:bg-fill-hover transition-colors disabled:opacity-30 disabled:pointer-events-none"
 					>
@@ -52,6 +53,7 @@ export function NavigationControls() {
 					<button
 						type="button"
 						onClick={() => router.history.forward()}
+						aria-label="Go forward"
 						disabled={!canGoForward}
 						className="no-drag flex items-center justify-center size-7 rounded-md text-muted-foreground hover:bg-fill-hover transition-colors disabled:opacity-30 disabled:pointer-events-none"
 					>

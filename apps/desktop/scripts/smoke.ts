@@ -473,6 +473,18 @@ await step("the Today view opens from the top bar and back", async () => {
 	await todayShown(true);
 	await click("button", "Board view");
 	await todayShown(false);
+	// Auto pilot: Today one task at a time, from its own top bar button.
+	await click("button", "Auto pilot");
+	for (const end = Date.now() + 15_000; ; await sleep(200)) {
+		if (
+			await page<boolean>(
+				`!!document.querySelector('[data-testid="auto-pilot"] h1')`,
+			)
+		)
+			break;
+		if (Date.now() > end) throw new Error("the Auto pilot page never appeared");
+	}
+	await click("button", "Board view");
 	// Back off, as it ships: on, the board switches to Today by itself once a
 	// day when a session lands, and the steps below click the board's cards.
 	await rail("Settings");

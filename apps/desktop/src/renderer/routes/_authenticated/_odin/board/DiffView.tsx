@@ -326,7 +326,7 @@ export function DiffView({
 						setSelected(0);
 					}}
 					title="Which diff to show"
-					className="rounded-[5px] border border-border bg-card px-1.5 py-0.5 text-[11px] normal-case tracking-normal text-soft-foreground outline-none hover:border-input"
+					className="rounded-[5px] border border-border bg-card px-1.5 py-0.5 text-[11px] normal-case tracking-normal text-soft-foreground outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring hover:border-input"
 				>
 					<option value="">Working tree</option>
 					<option value={BRANCH}>Branch commits</option>
@@ -498,12 +498,12 @@ export function DiffView({
 													{file.path.slice(slash + 1)}
 												</span>
 												{slash > 0 && (
-													<span className="block truncate text-[10.5px] text-faint-foreground">
+													<span className="block truncate text-[11px] text-faint-foreground">
 														{file.path.slice(0, slash)}
 													</span>
 												)}
 											</span>
-											<span className="shrink-0 text-[10.5px] tabular-nums">
+											<span className="shrink-0 text-[11px] tabular-nums">
 												{binary && (
 													<span className="rounded-[4px] border border-border px-1 text-muted-foreground">
 														binary
@@ -551,7 +551,7 @@ export function DiffView({
 					) : current ? (
 						<>
 							{editable && (
-								<div className="flex items-center gap-2 border-b border-border px-4 py-1 text-[11.5px]">
+								<div className="flex items-center gap-2 border-b border-border px-4 py-1 text-[12px]">
 									<span
 										className="min-w-0 truncate text-faint-foreground"
 										title={current.path}
@@ -679,9 +679,9 @@ function DraftBox({
 				}}
 				placeholder="What should the agent change here?"
 				rows={3}
-				className="w-full resize-y rounded border border-border bg-background px-2 py-1 text-[12.5px] text-soft-foreground outline-none focus:border-input"
+				className="w-full resize-y rounded border border-border bg-background px-2 py-1 text-[13px] text-soft-foreground outline-none focus:border-input"
 			/>
-			<div className="mt-1 flex justify-end gap-2 text-[11.5px]">
+			<div className="mt-1 flex justify-end gap-2 text-[12px]">
 				<button
 					type="button"
 					onClick={onCancel}
@@ -711,10 +711,10 @@ function CommentCard({
 }) {
 	return (
 		<div
-			className={`m-2 flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2 font-sans text-[12.5px] ${comment.sent ? "opacity-60" : ""}`}
+			className={`m-2 flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2 font-sans text-[13px] ${comment.sent ? "opacity-60" : ""}`}
 		>
 			<div className="min-w-0 flex-1">
-				<div className="text-[10.5px] text-faint-foreground">
+				<div className="text-[11px] text-faint-foreground">
 					{comment.location}
 					{comment.sent && (
 						<span className="ml-2 rounded-[4px] border border-border px-1 text-muted-foreground">

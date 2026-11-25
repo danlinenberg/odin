@@ -6,7 +6,7 @@ import {
 import { toast } from "@odin/ui/sonner";
 import { Switch } from "@odin/ui/switch";
 import { useState } from "react";
-import { HiChevronDown } from "react-icons/hi2";
+import { LuChevronDown } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import {
 	AUTO_START_HINTS,
@@ -55,7 +55,7 @@ export function AutoStartSection() {
 						type="button"
 						className="flex w-full items-center gap-1.5 px-4 py-3 text-left text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
 					>
-						<HiChevronDown
+						<LuChevronDown
 							className={`size-3.5 transition-transform ${open ? "" : "-rotate-90"}`}
 						/>
 						Sources ({on.size} on)

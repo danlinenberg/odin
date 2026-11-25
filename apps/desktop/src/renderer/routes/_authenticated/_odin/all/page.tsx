@@ -932,7 +932,7 @@ function FilterMenu({
 				aria-expanded={open}
 				onClick={() => setOpen(!open)}
 				className={cn(
-					"cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none",
+					"cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring",
 					active
 						? "border-primary bg-primary/15 text-foreground"
 						: "border-border bg-card text-muted-foreground hover:text-foreground",

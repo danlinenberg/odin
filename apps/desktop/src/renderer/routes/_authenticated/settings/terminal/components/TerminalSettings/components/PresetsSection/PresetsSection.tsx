@@ -6,7 +6,7 @@ import {
 import { Button } from "@odin/ui/button";
 import { Label } from "@odin/ui/label";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { HiOutlinePlus } from "react-icons/hi2";
+import { LuPlus } from "react-icons/lu";
 import { useIsDarkTheme } from "renderer/assets/app-icons/preset-icons";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { usePresets } from "renderer/react-query/presets";
@@ -493,7 +493,7 @@ export function PresetsSection({
 						className="gap-2"
 						onClick={() => handleAddRow()}
 					>
-						<HiOutlinePlus className="h-4 w-4" />
+						<LuPlus className="h-4 w-4" />
 						Add Preset
 					</Button>
 				)}
