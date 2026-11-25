@@ -234,7 +234,7 @@ export function GettingStarted({
 								<div className="min-w-0 flex-1">
 									<div
 										className={cn(
-											"text-[12.5px] font-medium",
+											"text-[13px] font-medium",
 											isDone && "text-muted-foreground line-through",
 										)}
 									>

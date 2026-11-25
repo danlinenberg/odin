@@ -304,7 +304,7 @@ export function SessionReminders() {
 							{r.resume?.brief && r.resume.brief.trim() !== r.title.trim() && (
 								<div
 									dir="auto"
-									className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-soft-foreground"
+									className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-soft-foreground"
 								>
 									{r.resume.brief.slice(0, 1500)}
 								</div>

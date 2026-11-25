@@ -446,7 +446,7 @@ const SOURCE_PRIORITIES: [string, string][] = ["High", "Medium", "Low"].map(
 
 /** The name box "+ Add status..." / "+ Add type..." opens, sized like the pill it replaces. */
 const PANEL_INPUT =
-	"w-[180px] rounded-full border border-primary bg-card px-2.5 py-1 text-[12px] text-foreground outline-none";
+	"w-[180px] rounded-full border border-primary bg-card px-2.5 py-1 text-[12px] text-foreground outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring";
 
 /**
  * Status, type, priority and Up next for any row. Priority on another
@@ -632,7 +632,7 @@ function WaitField({
 
 /** The small name over a side panel field. */
 const PANEL_LABEL =
-	"mb-0.5 select-none text-[10.5px] font-medium text-muted-foreground";
+	"mb-0.5 select-none text-[11px] font-medium text-muted-foreground";
 
 /** A side panel field with its name above it, so the dropdowns tell apart. */
 function PanelField({

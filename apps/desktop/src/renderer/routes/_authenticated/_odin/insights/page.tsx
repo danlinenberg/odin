@@ -101,10 +101,8 @@ function Stat({
 			<div className="text-[22px] font-semibold leading-none text-foreground">
 				{value}
 			</div>
-			<div className="text-[11.5px] text-muted-foreground">{label}</div>
-			{hint && (
-				<div className="text-[10.5px] text-faint-foreground">{hint}</div>
-			)}
+			<div className="text-[12px] text-muted-foreground">{label}</div>
+			{hint && <div className="text-[11px] text-faint-foreground">{hint}</div>}
 		</div>
 	);
 }
@@ -140,7 +138,7 @@ function Bar({
 					}}
 				/>
 			</div>
-			<div className="shrink-0 text-right text-[11.5px] tabular-nums text-muted-foreground">
+			<div className="shrink-0 text-right text-[12px] tabular-nums text-muted-foreground">
 				{value}
 			</div>
 		</div>
@@ -245,7 +243,7 @@ function WeekChart({
 								<Column value={week.agentHours} max={max} color={AGENT_COLOR} />
 							</div>
 						</div>
-						<div className="truncate text-[10.5px] text-faint-foreground">
+						<div className="truncate text-[11px] text-faint-foreground">
 							{DATE.format(week.start)}
 						</div>
 					</div>
@@ -327,7 +325,7 @@ function ShippedChart({
 				{points.map(({ week, x }) => (
 					<div
 						key={week.start}
-						className="absolute -translate-x-1/2 whitespace-nowrap text-[10.5px] text-faint-foreground"
+						className="absolute -translate-x-1/2 whitespace-nowrap text-[11px] text-faint-foreground"
 						style={{ left: `${x}%` }}
 					>
 						{DATE.format(week.start)}
@@ -471,7 +469,7 @@ function DeliveredChart({ delivered }: { delivered: Delivered }) {
 								)}
 							</div>
 						</div>
-						<div className="truncate text-[10.5px] text-faint-foreground">
+						<div className="truncate text-[11px] text-faint-foreground">
 							{DATE.format(week.start)}
 						</div>
 					</div>
@@ -659,7 +657,7 @@ function ParallelChart({
 								color={AGENT_COLOR}
 							/>
 						</div>
-						<div className="truncate text-[10.5px] text-faint-foreground">
+						<div className="truncate text-[11px] text-faint-foreground">
 							{DATE.format(week.start)}
 						</div>
 					</div>
@@ -744,7 +742,7 @@ function HourGrid({
 			{HOURS.map((hour, index) => (
 				<div
 					key={hour}
-					className="pt-1 text-center text-[10.5px] text-faint-foreground"
+					className="pt-1 text-center text-[11px] text-faint-foreground"
 				>
 					{index % 3 === 0 ? String(hour).padStart(2, "0") : ""}
 				</div>
@@ -975,7 +973,7 @@ function WeekView({
 							? "This week"
 							: `${DATE.format(start)} – ${DATE.format(shiftWeeks(start, 1) - DAY_MS)}`}
 					</div>
-					<div className="ml-auto text-[11.5px] tabular-nums text-muted-foreground">
+					<div className="ml-auto text-[12px] tabular-nums text-muted-foreground">
 						{week
 							? `${plural(week.sessions, "session")} · ${duration(week.yourHours)} of yours · ${plural(week.prs, "PR")}`
 							: "nothing logged"}
@@ -992,7 +990,7 @@ function WeekView({
 						>
 							<div
 								title="Your time: while its pane was open and you were active, plus the gap before each prompt you typed (up to 5 min)."
-								className="w-10 shrink-0 text-left text-[12.5px] font-semibold tabular-nums text-foreground"
+								className="w-10 shrink-0 text-left text-[13px] font-semibold tabular-nums text-foreground"
 							>
 								{duration(task.yourHours ?? 0)}
 							</div>
@@ -1003,7 +1001,7 @@ function WeekView({
 								{duration(task.hours)}
 							</div>
 							{searching && (
-								<div className="w-12 shrink-0 text-[10.5px] tabular-nums text-faint-foreground">
+								<div className="w-12 shrink-0 text-[11px] tabular-nums text-faint-foreground">
 									{DATE.format(task.startedAt)}
 								</div>
 							)}
@@ -1011,17 +1009,17 @@ function WeekView({
 							<div
 								dir="auto"
 								title={task.description ?? task.title}
-								className="min-w-0 flex-1 cursor-default truncate text-[12.5px] text-soft-foreground"
+								className="min-w-0 flex-1 cursor-default truncate text-[13px] text-soft-foreground"
 							>
 								{emojify(task.title)}
 							</div>
 							{task.person && (
-								<span className="shrink-0 text-[10.5px] text-muted-foreground">
+								<span className="shrink-0 text-[11px] text-muted-foreground">
 									{task.person}
 								</span>
 							)}
 							{task.repo && (
-								<span className="shrink-0 rounded-[4px] bg-secondary px-1.5 py-[1px] text-[10.5px] text-muted-foreground">
+								<span className="shrink-0 rounded-[4px] bg-secondary px-1.5 py-[1px] text-[11px] text-muted-foreground">
 									{task.repo}
 								</span>
 							)}
@@ -1030,7 +1028,7 @@ function WeekView({
 									type="button"
 									title={task.prs.join("\n")}
 									onClick={() => openUrl(task.prs.at(-1) as string)}
-									className="shrink-0 text-[10.5px] tabular-nums text-link hover:underline"
+									className="shrink-0 text-[11px] tabular-nums text-link hover:underline"
 								>
 									{task.prs.length === 1
 										? `#${task.prs[0]?.split("/").pop()}`
@@ -1067,7 +1065,7 @@ function ClockToggle({
 	setClock: (clock: Clock) => void;
 }) {
 	return (
-		<div className="flex rounded-[6px] border border-border bg-card p-[2px] text-[10.5px]">
+		<div className="flex rounded-[6px] border border-border bg-card p-[2px] text-[11px]">
 			{(["you", "agents"] as const).map((option) => (
 				<button
 					key={option}
@@ -1209,7 +1207,7 @@ function RepoFilter({
 			{[null, ...repos].map((name) => (
 				<div
 					key={name ?? "all"}
-					className={`flex items-center rounded-[6px] border text-[10.5px] ${
+					className={`flex items-center rounded-[6px] border text-[11px] ${
 						repo === name
 							? "border-primary bg-primary/15 text-soft-foreground"
 							: "border-border bg-card text-muted-foreground"
@@ -1241,7 +1239,7 @@ function RepoFilter({
 					type="button"
 					title="Hidden - click to show again"
 					onClick={() => toggleExcluded(name)}
-					className="rounded-[6px] border border-dashed border-border px-2 py-[2px] text-[10.5px] text-faint-foreground line-through hover:text-muted-foreground"
+					className="rounded-[6px] border border-dashed border-border px-2 py-[2px] text-[11px] text-faint-foreground line-through hover:text-muted-foreground"
 				>
 					{name}
 				</button>
@@ -1426,7 +1424,7 @@ function Workload() {
 
 function Legend({ color, label }: { color: string; label: string }) {
 	return (
-		<span className="flex items-center gap-1.5 text-[10.5px] text-muted-foreground">
+		<span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
 			<span
 				className="h-[7px] w-[7px] rounded-full"
 				style={{ background: color }}
@@ -1603,7 +1601,7 @@ function InsightsPage() {
 		<div ref={ref} className="h-full overflow-y-auto px-[18px] pb-10 pt-4">
 			{tip && (
 				<div
-					className="pointer-events-none fixed z-50 max-w-xs whitespace-pre-line rounded-md border border-border bg-card px-2 py-1 text-[11.5px] text-soft-foreground shadow-lg"
+					className="pointer-events-none fixed z-50 max-w-xs whitespace-pre-line rounded-md border border-border bg-card px-2 py-1 text-[12px] text-soft-foreground shadow-lg"
 					style={{
 						left: Math.min(tip.x + 12, window.innerWidth - 330),
 						top: tip.y + 16,

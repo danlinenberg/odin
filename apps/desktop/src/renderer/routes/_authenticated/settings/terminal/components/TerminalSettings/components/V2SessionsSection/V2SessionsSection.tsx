@@ -27,7 +27,7 @@ import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { WorkspaceClientProvider, workspaceTrpc } from "@odin/workspace-client";
 import { useState } from "react";
-import { HiChevronRight } from "react-icons/hi2";
+import { LuChevronRight } from "react-icons/lu";
 import {
 	getHostServiceHeaders,
 	getHostServiceWsToken,
@@ -215,7 +215,7 @@ function V2SessionsSectionInner() {
 							onClick={() => setShowSessionList((v) => !v)}
 							className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
 						>
-							<HiChevronRight
+							<LuChevronRight
 								className={cn(
 									"size-3 transition-transform",
 									showSessionList && "rotate-90",

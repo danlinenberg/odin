@@ -307,7 +307,7 @@ export function TodayOverview({
 								disabled={!items.length || isFetching}
 								onClick={() => setRefresh(Date.now())}
 								className={cn(
-									"ml-auto inline-flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-[11.5px] font-semibold disabled:opacity-50",
+									"ml-auto inline-flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-[12px] font-semibold disabled:opacity-50",
 									BUTTON.secondary,
 								)}
 							>
@@ -354,7 +354,7 @@ export function TodayOverview({
 									<span className="text-[17px] font-semibold text-attention-ink">
 										Waiting on you
 									</span>
-									<span className="text-[12.5px] text-muted-foreground">
+									<span className="text-[13px] text-muted-foreground">
 										in the order to do them
 									</span>
 								</h2>
@@ -405,7 +405,7 @@ export function TodayOverview({
 											<span className="text-[17px] font-semibold text-working-ink">
 												Moving without you
 											</span>
-											<span className="text-[12.5px] text-muted-foreground">
+											<span className="text-[13px] text-muted-foreground">
 												nothing to do, just so you know
 											</span>
 										</h2>
@@ -446,7 +446,7 @@ export function TodayOverview({
 					)}
 					{tasks.length === 0 && <ComingUp side={side} onOpen={openSession} />}
 
-					<label className="flex items-center gap-2 border-t border-border pt-3 text-[11.5px] text-muted-foreground">
+					<label className="flex items-center gap-2 border-t border-border pt-3 text-[12px] text-muted-foreground">
 						<input
 							type="checkbox"
 							checked={enabled}
@@ -519,7 +519,7 @@ function TaskMarks({
 	const starred = task.items.some((item) => item.starred);
 	if (!due && !high && !starred) return null;
 	return (
-		<span className="inline-flex flex-wrap items-baseline gap-1.5 text-[11.5px] font-semibold">
+		<span className="inline-flex flex-wrap items-baseline gap-1.5 text-[12px] font-semibold">
 			{due && left !== null && (
 				<span className={cn(CHIP, dueTone(left))}>{dueLabel(due, left)}</span>
 			)}
@@ -609,7 +609,7 @@ function StartHere({
 					Start here
 				</span>
 				{todo[0] && (
-					<span className={cn(CHIP, "text-[11.5px] font-semibold")}>
+					<span className={cn(CHIP, "text-[12px] font-semibold")}>
 						{itemKind(todo[0])}
 					</span>
 				)}
@@ -627,7 +627,7 @@ function StartHere({
 				<span className="font-semibold">{task.name}</span>
 				{task.about && <>: {sentence(task.about)}</>}
 			</p>
-			<div className="grid select-text cursor-text gap-x-6 gap-y-2.5 text-[13.5px] leading-relaxed @2xl:grid-cols-2">
+			<div className="grid select-text cursor-text gap-x-6 gap-y-2.5 text-[14px] leading-relaxed @2xl:grid-cols-2">
 				{task.explain && (
 					<div>
 						<p className={LABEL}>Why it matters</p>
@@ -711,7 +711,7 @@ function SessionItems({
 							: `${todayGroupLabel(item.group)} - open it beside this page`
 					}
 					onClick={() => onOpen(item.key)}
-					className={cn(LINK, "text-[12.5px]")}
+					className={cn(LINK, "text-[13px]")}
 				>
 					{item.title}
 				</button>
@@ -797,7 +797,7 @@ function AnswerItem({
 		reply(`Action item ${number} (${item}): ${said}`);
 	return (
 		<li className="flex flex-col gap-1.5 rounded-lg border border-attention/35 bg-attention/[0.07] px-3 py-2">
-			<p className="flex items-baseline gap-2 select-text cursor-text text-[13.5px] leading-snug">
+			<p className="flex items-baseline gap-2 select-text cursor-text text-[14px] leading-snug">
 				<span className="font-semibold text-attention-ink">{number}.</span>
 				<span className="min-w-0 break-words">{text}</span>
 			</p>
@@ -846,7 +846,7 @@ function AnswerItem({
 									value={answer}
 									onChange={(event) => setAnswer(event.target.value)}
 									placeholder="Your answer"
-									className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-0.5 text-[12.5px]"
+									className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-0.5 text-[13px]"
 								/>
 								<button
 									type="submit"
@@ -873,7 +873,7 @@ function AnswerItem({
 }
 
 const ITEM_BUTTON =
-	"shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[11.5px] font-medium text-attention-ink hover:bg-attention/15 disabled:opacity-50";
+	"shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[12px] font-medium text-attention-ink hover:bg-attention/15 disabled:opacity-50";
 
 /** Go to session, Done and Snooze until tomorrow, for the task's first session. */
 function TaskButtons({
@@ -964,9 +964,9 @@ function YourRow({
 				<span className="w-5 shrink-0 text-[14px] font-semibold text-attention">
 					{number}
 				</span>
-				<span className="min-w-0 flex-1 text-[14.5px] font-medium leading-snug">
+				<span className="min-w-0 flex-1 text-[15px] font-medium leading-snug">
 					{todayTitle(task, todo[0])}
-					<span className="ml-2 text-[12.5px] font-normal text-muted-foreground">
+					<span className="ml-2 text-[13px] font-normal text-muted-foreground">
 						{task.name}
 					</span>
 				</span>
@@ -999,7 +999,7 @@ function MovingRow({ task, now, picked, open, onShow }: TaskProps) {
 				title={task.about ?? "Show its summary beside the page"}
 				onClick={() => onShow(task.id)}
 				className={cn(
-					"flex w-full flex-wrap items-baseline gap-x-2 rounded-lg px-3 py-1.5 text-left text-[13.5px] text-muted-foreground hover:bg-secondary/60",
+					"flex w-full flex-wrap items-baseline gap-x-2 rounded-lg px-3 py-1.5 text-left text-[14px] text-muted-foreground hover:bg-secondary/60",
 					open && "bg-primary/10",
 					picked && "ring-2 ring-primary/60",
 				)}
@@ -1095,7 +1095,7 @@ function TodayTaskPanel({
 				{parts.map(([label, text]) => (
 					<div key={label}>
 						<p className={LABEL}>{label}</p>
-						<p className="select-text cursor-text text-[13.5px] leading-relaxed text-foreground/90">
+						<p className="select-text cursor-text text-[14px] leading-relaxed text-foreground/90">
 							{sentence(text)}
 						</p>
 					</div>
@@ -1192,7 +1192,7 @@ function ComingUp({
 					<button
 						type="button"
 						onClick={() => onOpen(paneId)}
-						className={cn(LINK, "text-[12.5px]")}
+						className={cn(LINK, "text-[13px]")}
 					>
 						Go to session
 					</button>
@@ -1202,7 +1202,7 @@ function ComingUp({
 							type="button"
 							disabled={isLaunching}
 							onClick={() => void start(row)}
-							className={cn(LINK, "text-[12.5px]")}
+							className={cn(LINK, "text-[13px]")}
 						>
 							Start
 						</button>
@@ -1214,7 +1214,7 @@ function ComingUp({
 						<button
 							type="button"
 							onClick={() => openUrl(url)}
-							className={cn(LINK, "text-[12.5px]")}
+							className={cn(LINK, "text-[13px]")}
 						>
 							Open in {source}
 						</button>

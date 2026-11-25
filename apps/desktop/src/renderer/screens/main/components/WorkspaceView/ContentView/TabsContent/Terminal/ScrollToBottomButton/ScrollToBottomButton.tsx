@@ -2,7 +2,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { cn } from "@odin/ui/utils";
 import type { Terminal } from "@xterm/xterm";
 import { useCallback, useEffect, useState } from "react";
-import { HiArrowDown } from "react-icons/hi2";
+import { LuArrowDown } from "react-icons/lu";
 import { useHotkeyDisplay } from "renderer/hotkeys";
 import { scrollToBottom } from "../utils";
 
@@ -56,9 +56,10 @@ export function ScrollToBottomButton({ terminal }: ScrollToBottomButtonProps) {
 					<button
 						type="button"
 						onClick={handleClick}
+						aria-label="Scroll to bottom"
 						className="flex size-8 items-center justify-center rounded-full border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
 					>
-						<HiArrowDown className="size-4" />
+						<LuArrowDown className="size-4" />
 					</button>
 				</TooltipTrigger>
 				<TooltipContent side="left">

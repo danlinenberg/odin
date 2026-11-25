@@ -31,7 +31,7 @@ export function DiffFileEditor({
 	const lines = text.split("\n").length;
 	return (
 		<div className="flex h-full min-h-0 flex-col">
-			<div className="flex items-center gap-2 border-b border-border px-4 py-1.5 text-[11.5px]">
+			<div className="flex items-center gap-2 border-b border-border px-4 py-1.5 text-[12px]">
 				<span className="min-w-0 truncate text-soft-foreground" title={path}>
 					✎ Editing {path}
 				</span>

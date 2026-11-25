@@ -1,8 +1,12 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import type { ISearchOptions, SearchAddon } from "@xterm/addon-search";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { HiChevronDown, HiChevronUp, HiMiniXMark } from "react-icons/hi2";
-import { PiTextAa } from "react-icons/pi";
+import {
+	LuCaseSensitive,
+	LuChevronDown,
+	LuChevronUp,
+	LuX,
+} from "react-icons/lu";
 
 interface TerminalSearchProps {
 	searchAddon: SearchAddon | null;
@@ -138,13 +142,15 @@ export function TerminalSearch({
 						<button
 							type="button"
 							onClick={toggleCaseSensitive}
+							aria-label="Match case"
+							aria-pressed={caseSensitive}
 							className={`rounded p-1 transition-colors ${
 								caseSensitive
 									? "bg-primary/20 text-foreground"
 									: "text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground"
 							}`}
 						>
-							<PiTextAa className="size-3.5" />
+							<LuCaseSensitive className="size-3.5" />
 						</button>
 					</TooltipTrigger>
 					<TooltipContent side="bottom">Match case</TooltipContent>
@@ -154,9 +160,10 @@ export function TerminalSearch({
 						<button
 							type="button"
 							onClick={() => handleSearch("previous")}
+							aria-label="Previous match"
 							className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted-foreground/20 hover:text-foreground"
 						>
-							<HiChevronUp className="size-3.5" />
+							<LuChevronUp className="size-3.5" />
 						</button>
 					</TooltipTrigger>
 					<TooltipContent side="bottom">Previous (Shift+Enter)</TooltipContent>
@@ -166,9 +173,10 @@ export function TerminalSearch({
 						<button
 							type="button"
 							onClick={() => handleSearch("next")}
+							aria-label="Next match"
 							className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted-foreground/20 hover:text-foreground"
 						>
-							<HiChevronDown className="size-3.5" />
+							<LuChevronDown className="size-3.5" />
 						</button>
 					</TooltipTrigger>
 					<TooltipContent side="bottom">Next (Enter)</TooltipContent>
@@ -178,9 +186,10 @@ export function TerminalSearch({
 						<button
 							type="button"
 							onClick={handleClose}
+							aria-label="Close search"
 							className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted-foreground/20 hover:text-foreground"
 						>
-							<HiMiniXMark className="size-3.5" />
+							<LuX className="size-3.5" />
 						</button>
 					</TooltipTrigger>
 					<TooltipContent side="bottom">Close (Esc)</TooltipContent>

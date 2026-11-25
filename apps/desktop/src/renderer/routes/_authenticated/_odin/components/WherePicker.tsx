@@ -39,7 +39,7 @@ export function WherePicker({
 			).map(([onHost, label]) => (
 				<label
 					key={label}
-					className="flex cursor-pointer items-center rounded-[5px] px-2.5 text-[11.5px] font-semibold text-muted-foreground has-checked:bg-background has-checked:text-foreground has-checked:shadow-sm has-focus-visible:outline-2 has-focus-visible:outline-primary"
+					className="flex cursor-pointer items-center rounded-[5px] px-2.5 text-[12px] font-semibold text-muted-foreground has-checked:bg-background has-checked:text-foreground has-checked:shadow-sm has-focus-visible:outline-2 has-focus-visible:outline-primary"
 				>
 					<input
 						type="radio"
