@@ -159,7 +159,6 @@ export function TodayOverview({
 	cards,
 	openPaneId,
 	pilot,
-	beside,
 	onNew,
 	onOpen,
 	onDone,
@@ -170,8 +169,6 @@ export function TodayOverview({
 	openPaneId?: string;
 	/** Auto pilot: one task at a time instead of the whole page. */
 	pilot?: boolean;
-	/** Auto pilot: width the session drawer takes on the right, while open. */
-	beside?: string;
 	/** Auto pilot: opens the New session composer. */
 	onNew?: () => void;
 } & TodayActions) {
@@ -304,7 +301,6 @@ export function TodayOverview({
 				moving={lanes.moving}
 				now={now}
 				openPaneId={openPaneId}
-				beside={beside}
 				actions={actions}
 				onNew={onNew}
 			/>
@@ -612,6 +608,7 @@ function StartHere({
 	onShow,
 	onActed,
 	onSkip,
+	slim,
 }: Omit<TaskProps, "onShow"> & {
 	actions: TodayActions;
 	onShow: (taskId: string) => void;
@@ -619,10 +616,16 @@ function StartHere({
 	onActed: () => void;
 	/** Auto pilot only: moves this task to the end of the queue. */
 	onSkip?: () => void;
+	/**
+	 * Auto pilot, with its session open beside it: the session's Brief already
+	 * shows the goal, where it stands and the session's facts, so the card
+	 * keeps only the title, what to answer and the buttons.
+	 */
+	slim?: boolean;
 }) {
 	const first = task.items[0];
 	const todo = useActionItems(first.sessionId);
-	const stands = standing(task);
+	const stands = slim ? null : standing(task);
 	return (
 		<li
 			data-today-task={task.id}
@@ -651,12 +654,17 @@ function StartHere({
 			>
 				{todayTitle(task, todo[0])}
 			</button>
-			<p className="select-text cursor-text text-[14px] leading-snug">
-				<span className="font-semibold">{task.name}</span>
-				{task.about && <>: {sentence(task.about)}</>}
-			</p>
-			<div className="grid select-text cursor-text gap-x-6 gap-y-2.5 text-[14px] leading-relaxed @2xl:grid-cols-2">
-				{task.explain && (
+			{!slim && (
+				<p className="select-text cursor-text text-[14px] leading-snug">
+					<span className="font-semibold">{task.name}</span>
+					{task.about && <>: {sentence(task.about)}</>}
+				</p>
+			)}
+			<div
+				hidden={slim || (!task.explain && !stands)}
+				className="grid select-text cursor-text gap-x-6 gap-y-2.5 text-[14px] leading-relaxed @2xl:grid-cols-2"
+			>
+				{!slim && task.explain && (
 					<div>
 						<p className={LABEL}>Why it matters</p>
 						<p className="text-foreground/90">{sentence(task.explain)}</p>
@@ -674,6 +682,7 @@ function StartHere({
 				onOpen={actions.onOpen}
 				onShow={() => onShow(task.id)}
 				onSent={onActed}
+				slim={slim}
 			/>
 			<TaskButtons
 				task={task}
@@ -694,12 +703,15 @@ function TaskItems({
 	onOpen,
 	onShow,
 	onSent,
+	slim,
 }: {
 	task: TodayTaskView<TodayItem>;
 	onOpen: (paneId: string) => void;
 	/** On the page: a session's title opens the task's summary, not the session. */
 	onShow?: () => void;
 	onSent?: () => void;
+	/** Leave out a lone session's title line: it is open beside the card. */
+	slim?: boolean;
 }) {
 	return (
 		<div className="flex flex-col gap-3">
@@ -711,6 +723,7 @@ function TaskItems({
 					onOpen={onShow ? () => onShow() : onOpen}
 					preview={!!onShow}
 					onSent={onSent}
+					bare={slim && task.items.length === 1}
 				/>
 			))}
 		</div>
@@ -724,6 +737,7 @@ function SessionItems({
 	onOpen,
 	preview,
 	onSent,
+	bare,
 }: {
 	item: TodayItem;
 	titled: boolean;
@@ -731,11 +745,17 @@ function SessionItems({
 	/** The title opens the task's summary beside the page. */
 	preview?: boolean;
 	onSent?: () => void;
+	/** Only the action items, without the session's title and facts line. */
+	bare?: boolean;
 }) {
 	const todo = useActionItems(item.sessionId);
+	if (bare && todo.length === 0) return null;
 	return (
 		<div className="flex flex-col gap-1.5">
-			<p className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[12px] text-muted-foreground">
+			<p
+				hidden={bare}
+				className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[12px] text-muted-foreground"
+			>
 				<button
 					type="button"
 					title={
@@ -1361,7 +1381,6 @@ function AutoPilot({
 	moving,
 	now,
 	openPaneId,
-	beside,
 	actions,
 	onNew,
 }: {
@@ -1369,8 +1388,6 @@ function AutoPilot({
 	moving: TodayTaskView<TodayItem>[];
 	now: number;
 	openPaneId?: string;
-	/** Width the session drawer takes on the right, while it is open. */
-	beside?: string;
 	actions: TodayActions;
 	onNew?: () => void;
 }) {
@@ -1465,7 +1482,6 @@ function AutoPilot({
 			aria-label="Auto pilot"
 			data-testid="auto-pilot"
 			className="flex min-h-0 flex-1"
-			style={{ paddingRight: beside }}
 		>
 			<nav
 				aria-label="Queue"
@@ -1578,6 +1594,7 @@ function AutoPilot({
 								onShow={() => actions.onOpen(task.items[0].key)}
 								onActed={() => acted(task.id)}
 								onSkip={() => skip(task.id)}
+								slim={task.items.some((item) => item.key === openPaneId)}
 							/>
 						</ol>
 					) : (
