@@ -8,10 +8,11 @@ import {
 	LuLoaderCircle,
 	LuMessageCircleQuestion,
 	LuPause,
+	LuPlane,
 	LuPlay,
 	LuRefreshCw,
 } from "react-icons/lu";
-import { useHotkey } from "renderer/hotkeys";
+import { useHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useTabsStore } from "renderer/stores/tabs/store";
@@ -37,6 +38,7 @@ import { phoneReply } from "./phone-resume";
 import {
 	dueLabel,
 	itemKind,
+	pilotPick,
 	rankToday,
 	type TodayEntry,
 	type TodayGroup,
@@ -155,6 +157,7 @@ const dueTone = (left: number) =>
 export function TodayOverview({
 	cards,
 	openPaneId,
+	pilot,
 	onOpen,
 	onDone,
 	onSnooze,
@@ -162,6 +165,8 @@ export function TodayOverview({
 	cards: TodayCard[];
 	/** The session open beside the page: its task is marked. */
 	openPaneId?: string;
+	/** Auto pilot: one task at a time instead of the whole page. */
+	pilot?: boolean;
 } & TodayActions) {
 	const now = Date.now();
 	const today = dayAfter(now, 0);
@@ -284,6 +289,17 @@ export function TodayOverview({
 		},
 		{ ...keys, enabled: selected >= 0 },
 	);
+
+	if (pilot)
+		return (
+			<AutoPilot
+				yours={lanes.yours}
+				moving={lanes.moving.length}
+				now={now}
+				openPaneId={openPaneId}
+				actions={actions}
+			/>
+		);
 
 	return (
 		<section
@@ -1297,3 +1313,150 @@ function ComingUp({
 		</section>
 	);
 }
+
+/** How long "Sent. Odin is on it." stays under the card. */
+const HANDOFF_MS = 2500;
+
+/**
+ * Auto pilot: Today's tasks waiting on you, one at a time, in Today's order.
+ * Answer, finish or snooze the card and the next one comes up; the session
+ * you answered keeps going on its own. Space opens the card's session beside
+ * the page, X skips the card to the end (rebindable in Settings > Keyboard).
+ */
+function AutoPilot({
+	yours,
+	moving,
+	now,
+	openPaneId,
+	actions,
+}: {
+	yours: TodayTaskView<TodayItem>[];
+	moving: number;
+	now: number;
+	openPaneId?: string;
+	actions: TodayActions;
+}) {
+	const [handled, setHandled] = useState<ReadonlySet<string>>(new Set());
+	const [skipped, setSkipped] = useState<string[]>([]);
+	const [handoff, setHandoff] = useState<string | null>(null);
+	const ids = yours.map((task) => task.id);
+	const idsKey = ids.join(" ");
+	// A task that left Waiting on you is forgotten, so it comes back as new
+	// the next time its session asks you something.
+	useEffect(() => {
+		const live = new Set(idsKey.split(" "));
+		setHandled((old) => {
+			const kept = [...old].filter((id) => live.has(id));
+			return kept.length === old.size ? old : new Set(kept);
+		});
+		setSkipped((old) => {
+			const kept = old.filter((id) => live.has(id));
+			return kept.length === old.length ? old : kept;
+		});
+	}, [idsKey]);
+	useEffect(() => {
+		if (!handoff) return;
+		const timer = setTimeout(() => setHandoff(null), HANDOFF_MS);
+		return () => clearTimeout(timer);
+	}, [handoff]);
+	const pick = pilotPick(ids, handled, skipped);
+	const task = yours.find((t) => t.id === pick) ?? null;
+	const left = ids.filter((id) => !handled.has(id)).length;
+	const acted = (id: string) => {
+		setHandled((old) => new Set(old).add(id));
+		setHandoff("Sent. Odin is on it.");
+	};
+	const skip = (id: string) => {
+		setSkipped((old) => [...old.filter((s) => s !== id), id]);
+		setHandoff("Skipped. It comes back at the end.");
+	};
+	const keys = {
+		enableOnFormTags: false,
+		enableOnContentEditable: false,
+		enabled: !!task && !openPaneId,
+	};
+	useHotkey(
+		"PILOT_PEEK",
+		() => task && actions.onOpen(task.items[0].key),
+		keys,
+	);
+	useHotkey("PILOT_SKIP", () => task && skip(task.id), keys);
+	const peekKey = useHotkeyDisplay("PILOT_PEEK").text;
+	const skipKey = useHotkeyDisplay("PILOT_SKIP").text;
+	return (
+		<section
+			aria-label="Auto pilot"
+			data-testid="auto-pilot"
+			className="min-h-0 flex-1 overflow-y-auto"
+		>
+			<div className="mx-auto flex w-full max-w-[760px] flex-col gap-4 px-6 pb-10 pt-6">
+				<header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+					<h1 className="inline-flex items-center gap-2 text-[22px] font-semibold tracking-[-.3px]">
+						<LuPlane className="size-4.5 text-primary-ink" aria-hidden />
+						Auto pilot
+					</h1>
+					<span className="text-[13px] text-muted-foreground">
+						{left} need you · {moving} moving without you
+					</span>
+				</header>
+				{ids.length > 0 && (
+					<ol aria-label="Queue" className="flex flex-wrap gap-1.5">
+						{ids.map((id) => (
+							<li
+								key={id}
+								className={cn(
+									"h-1.5 w-6 rounded-full bg-border",
+									handled.has(id) && "bg-success",
+									id === pick && "bg-primary",
+								)}
+							/>
+						))}
+					</ol>
+				)}
+				{task ? (
+					<ol>
+						<StartHere
+							key={task.id}
+							task={task}
+							now={now}
+							picked={false}
+							open={task.items.some((item) => item.key === openPaneId)}
+							actions={actions}
+							onShow={() => actions.onOpen(task.items[0].key)}
+							onActed={() => acted(task.id)}
+						/>
+					</ol>
+				) : (
+					<div className="flex flex-col gap-1 rounded-xl border border-border px-5 py-4">
+						<p className="text-[17px] font-semibold text-success-ink">
+							All clear
+						</p>
+						<p className="text-[14px] text-muted-foreground">
+							Nothing needs you right now. The next task comes up here as soon
+							as a session asks you something.
+						</p>
+					</div>
+				)}
+				<p
+					aria-live="polite"
+					className="min-h-5 text-[13px] font-medium text-success-ink"
+				>
+					{handoff}
+				</p>
+				{task && (
+					<p className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-muted-foreground">
+						<span>
+							<kbd className={KBD}>{peekKey}</kbd> open its session beside this
+						</span>
+						<span>
+							<kbd className={KBD}>{skipKey}</kbd> skip to the end
+						</span>
+					</p>
+				)}
+			</div>
+		</section>
+	);
+}
+
+const KBD =
+	"rounded border border-border border-b-2 bg-card px-1 font-mono text-[11px]";
