@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { execFileSync, spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -32,7 +32,7 @@ const git = (cwd: string, ...args: string[]) =>
 
 /** A clone with one commit and a worktree of it, as a host session leaves them. */
 function cloneWithWorktree() {
-	const tree = mkdtempSync(join(tmpdir(), "host-git-"));
+	const tree = realpathSync(mkdtempSync(join(tmpdir(), "host-git-")));
 	const clone = join(tree, "app");
 	mkdirSync(clone);
 	git(clone, "init", "-q", "-b", "main");
