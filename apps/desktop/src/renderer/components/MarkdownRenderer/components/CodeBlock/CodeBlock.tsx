@@ -19,7 +19,7 @@ import {
 } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTheme } from "renderer/stores";
-import { messageLanguage } from "shared/message-languages";
+import { draftLanguage } from "shared/message-languages";
 import { Streamdown } from "streamdown";
 import {
 	isRtlText,
@@ -146,10 +146,20 @@ export function QuoteBlock({ children }: { children?: ReactNode }) {
 			<blockquote ref={ref} className="italic">
 				{children}
 			</blockquote>
-			<TuneVoice draft={() => ref.current?.innerText.trim() ?? ""} />
+			<TuneVoice
+				draft={() => ref.current?.innerText.trim() ?? ""}
+				prose={() => proseOf(ref.current)}
+			/>
 			<CopyButton copied={isCopied} onClick={copy} className="end-0 top-0" />
 		</div>
 	);
+}
+
+/** A quote's text without its code, which innerText would keep without the backticks. */
+function proseOf(quote: HTMLElement | null): string {
+	const copy = quote?.cloneNode(true) as HTMLElement | undefined;
+	for (const code of copy?.querySelectorAll("pre, code") ?? []) code.remove();
+	return copy?.textContent ?? "";
 }
 
 function CopyButton({
@@ -210,8 +220,17 @@ export function redraftMessage(draft: string, language: string): string {
  * Once saved, Regenerate asks the session for the draft again with that change.
  * `draft` reads the draft's text when the rewrite opens.
  */
-function TuneVoice({ draft }: { draft: () => string }) {
+function TuneVoice({
+	draft,
+	prose = draft,
+}: {
+	draft: () => string;
+	prose?: () => string;
+}) {
 	const send = useContext(SendToSession);
+	// Read after render: a quote's text isn't in the DOM on its first one.
+	const [own, setOwn] = useState<string>();
+	useEffect(() => setOwn(draftLanguage(prose())));
 	// Only the languages I write in on Slack, and not the one it's already in.
 	const languages = electronTrpc.voice.languages.useQuery(undefined, {
 		enabled: !!send,
@@ -301,7 +320,7 @@ function TuneVoice({ draft }: { draft: () => string }) {
 					languages &&
 					languages.length > 1 &&
 					languages
-						.filter((language) => language !== messageLanguage(draft()))
+						.filter((language) => own && language !== own)
 						.map((language) => (
 							<button
 								key={language}
