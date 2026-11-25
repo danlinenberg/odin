@@ -122,6 +122,7 @@ describe("Done then resume", () => {
 		s.addTodo("old", "ask about retries");
 		s.addLink("old", "https://x.test/doc", "doc");
 		s.setHidden("old", "https://x.test/noise", true);
+		s.setName("old", "https://x.test/art", "proposal");
 
 		s.forgetPane("old", "sess-9");
 		expect(usePaneMeta.getState().notesByPane.old).toBeUndefined();
@@ -134,6 +135,7 @@ describe("Done then resume", () => {
 			{ url: "https://x.test/doc", name: "doc" },
 		]);
 		expect(after.hiddenByPane.new).toEqual(["https://x.test/noise"]);
+		expect(after.namesByPane.new).toEqual({ "https://x.test/art": "proposal" });
 		expect(after.keptBySession["sess-9"]).toBeUndefined();
 	});
 });
@@ -154,5 +156,17 @@ describe("reply to-dos", () => {
 			"run bun test in apps",
 		);
 		expect(replyTodoText("x".repeat(200))).toHaveLength(80);
+	});
+});
+
+describe("setName", () => {
+	it("renames a link and an empty name clears it", () => {
+		const s = usePaneMeta.getState();
+		s.setName("pn", "https://x.test/a", "  my deck ");
+		expect(usePaneMeta.getState().namesByPane.pn).toEqual({
+			"https://x.test/a": "my deck",
+		});
+		s.setName("pn", "https://x.test/a", " ");
+		expect(usePaneMeta.getState().namesByPane.pn).toBeUndefined();
 	});
 });
