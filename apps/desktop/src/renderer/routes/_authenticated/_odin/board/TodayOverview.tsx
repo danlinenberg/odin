@@ -1525,11 +1525,12 @@ function AutoPilot({
 						{queue.map((id, i) => {
 							const row = queued.find((t) => t.id === id);
 							if (!row) return null;
+							const { Icon, tone } = GROUP_MARK[row.group];
 							return (
 								<li key={id}>
 									<button
 										type="button"
-										title="Take this one now"
+										title={`${todayGroupLabel(row.group)} - take this one now`}
 										onClick={() => setChosen(id)}
 										className={cn(
 											"flex w-full items-baseline gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] leading-snug hover:bg-secondary/60",
@@ -1540,11 +1541,17 @@ function AutoPilot({
 											{i + 1}
 										</span>
 										<span className="min-w-0 flex-1 truncate">{row.name}</span>
-										{skipped.includes(id) && (
-											<span className="text-[11px] text-muted-foreground">
-												skipped
-											</span>
-										)}
+										<span
+											className={cn(
+												"inline-flex shrink-0 items-center gap-1 self-center text-[11px] font-normal",
+												skipped.includes(id) ? "text-muted-foreground" : tone,
+											)}
+										>
+											<Icon className="size-3" aria-hidden />
+											{skipped.includes(id)
+												? "skipped"
+												: todayGroupLabel(row.group).toLowerCase()}
+										</span>
 									</button>
 								</li>
 							);
