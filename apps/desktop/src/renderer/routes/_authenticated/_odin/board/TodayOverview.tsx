@@ -1379,21 +1379,43 @@ function AutoPilot({
 	// A task picked from the queue: it goes before Today's order until handled.
 	const [chosen, setChosen] = useState<string | null>(null);
 	const [handoff, setHandoff] = useState<string | null>(null);
-	const ids = yours.map((task) => task.id);
+	// Opening a session counts as seeing it, which takes it out of Waiting on
+	// you: a task stays in the queue once it was there, until you act on it,
+	// skip it, or Claude works on it again. Otherwise opening the card's
+	// session would empty the queue one card at a time.
+	const [kept, setKept] = useState<ReadonlySet<string>>(new Set());
+	const yoursKey = yours.map((task) => task.id).join(" ");
+	useEffect(() => {
+		const ids = yoursKey ? yoursKey.split(" ") : [];
+		setKept((old) =>
+			ids.every((id) => old.has(id)) ? old : new Set([...old, ...ids]),
+		);
+	}, [yoursKey]);
+	const stays = (task: TodayTaskView<TodayItem>) =>
+		kept.has(task.id) && task.group !== "running";
+	const queued = [...yours, ...moving.filter(stays)];
+	const others = moving.filter((task) => !stays(task));
+	const ids = queued.map((task) => task.id);
 	const idsKey = ids.join(" ");
-	// A task that left Waiting on you is forgotten, so it comes back as new
-	// the next time its session asks you something.
+	// A task that left the queue is forgotten, so it comes back as new the
+	// next time its session asks you something.
 	useEffect(() => {
 		const live = new Set(idsKey.split(" "));
-		setHandled((old) => {
-			const kept = [...old].filter((id) => live.has(id));
-			return kept.length === old.size ? old : new Set(kept);
+		const keep = <T,>(old: ReadonlySet<T>) => {
+			const left = [...old].filter((id) => live.has(String(id)));
+			return left.length === old.size ? old : new Set(left);
+		};
+		setHandled(keep);
+		setKept((old) => {
+			const fresh = new Set(yoursKey.split(" "));
+			const left = [...old].filter((id) => live.has(id) || fresh.has(id));
+			return left.length === old.size ? old : new Set(left);
 		});
 		setSkipped((old) => {
-			const kept = old.filter((id) => live.has(id));
-			return kept.length === old.length ? old : kept;
+			const left = old.filter((id) => live.has(id));
+			return left.length === old.length ? old : left;
 		});
-	}, [idsKey]);
+	}, [idsKey, yoursKey]);
 	useEffect(() => {
 		if (!handoff) return;
 		const timer = setTimeout(() => setHandoff(null), HANDOFF_MS);
@@ -1403,7 +1425,7 @@ function AutoPilot({
 		chosen && ids.includes(chosen) && !handled.has(chosen)
 			? chosen
 			: pilotPick(ids, handled, skipped);
-	const task = yours.find((t) => t.id === pick) ?? null;
+	const task = queued.find((t) => t.id === pick) ?? null;
 	const left = ids.filter((id) => !handled.has(id)).length;
 	// The card's session opens beside it by itself, once per card: close it
 	// and it stays closed until the next card comes up.
@@ -1450,7 +1472,7 @@ function AutoPilot({
 				className="flex w-[280px] shrink-0 flex-col gap-4 overflow-y-auto border-r border-border px-3 pb-6 pt-5"
 			>
 				<header className="flex items-center gap-2 px-2">
-					<h1 className="inline-flex items-center gap-2 text-[18px] font-semibold tracking-[-.3px]">
+					<h1 className="inline-flex items-center gap-2 whitespace-nowrap text-[18px] font-semibold tracking-[-.3px]">
 						<LuPlane className="size-4 text-primary-ink" aria-hidden />
 						Auto pilot
 					</h1>
@@ -1460,7 +1482,7 @@ function AutoPilot({
 							title="New session - describe a task and start an agent session"
 							onClick={onNew}
 							className={cn(
-								"ml-auto inline-flex items-center gap-1 rounded-[7px] px-2 py-1 text-[12px] font-semibold",
+								"ml-auto inline-flex items-center gap-1 whitespace-nowrap rounded-[7px] px-2 py-1 text-[12px] font-semibold",
 								BUTTON.secondary,
 							)}
 						>
@@ -1478,7 +1500,7 @@ function AutoPilot({
 					)}
 					<ol className="flex flex-col">
 						{queue.map((id, i) => {
-							const row = yours.find((t) => t.id === id);
+							const row = queued.find((t) => t.id === id);
 							if (!row) return null;
 							return (
 								<li key={id}>
@@ -1506,13 +1528,13 @@ function AutoPilot({
 						})}
 					</ol>
 				</div>
-				{moving.length > 0 && (
+				{others.length > 0 && (
 					<div className="flex flex-col gap-1">
 						<p className={cn(LABEL, "px-2")}>
-							Moving without you · {moving.length}
+							Moving without you · {others.length}
 						</p>
 						<ol className="flex flex-col">
-							{moving.map((row) => {
+							{others.map((row) => {
 								const { Icon, tone } = GROUP_MARK[row.group];
 								const key = row.items[0].key;
 								return (
