@@ -63,7 +63,7 @@ function TodayViewRow() {
 		<SettingRow
 			label="Today"
 			htmlFor="today-view"
-			description="Adds a Today icon beside Board view in the top bar: your open work in plain words on a page of its own, grouped by where each piece stands, with due dates."
+			description="Adds a Today icon beside Board view in the top bar: your open work in plain words on a page of its own, grouped by where each piece stands, with due dates. And an Auto pilot icon: the tasks that need you, one at a time."
 		>
 			<Switch id="today-view" checked={enabled} onCheckedChange={setEnabled} />
 		</SettingRow>

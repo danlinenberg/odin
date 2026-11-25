@@ -59,6 +59,7 @@ import {
 	LuMessageSquare,
 	LuMoon,
 	LuPause,
+	LuPlane,
 	LuPlay,
 	LuPlus,
 	LuRadioTower,
@@ -437,18 +438,23 @@ function ViewToggle({
 	sessionsDisabled,
 	sessionsKey,
 	todayOpen,
+	pilotOpen,
 	onSessions,
 	onBoard,
 	onToday,
+	onPilot,
 }: {
 	sessionsOpen: boolean;
 	sessionsDisabled?: boolean;
 	sessionsKey: string;
 	todayOpen: boolean;
+	pilotOpen: boolean;
 	onSessions: () => void;
 	onBoard: () => void;
 	/** Opens the Today view. Unset while the Today experiment is off. */
 	onToday?: () => void;
+	/** Opens Auto pilot. Unset while the Today experiment is off. */
+	onPilot?: () => void;
 }) {
 	const segment = (active: boolean) =>
 		cn(
@@ -484,12 +490,24 @@ function ViewToggle({
 				<button
 					type="button"
 					aria-label="Today view"
-					aria-pressed={!sessionsOpen && todayOpen}
+					aria-pressed={!sessionsOpen && todayOpen && !pilotOpen}
 					title="Today view - your open work in plain words: what needs you, what is running, what waits on someone, and what is due"
 					onClick={onToday}
-					className={segment(!sessionsOpen && todayOpen)}
+					className={segment(!sessionsOpen && todayOpen && !pilotOpen)}
 				>
 					<LuSun className="size-3.5" aria-hidden />
+				</button>
+			)}
+			{onPilot && (
+				<button
+					type="button"
+					aria-label="Auto pilot"
+					aria-pressed={!sessionsOpen && pilotOpen}
+					title="Auto pilot - one task that needs you at a time, the most pressing first; answer it and the next one comes up"
+					onClick={onPilot}
+					className={segment(!sessionsOpen && pilotOpen)}
+				>
+					<LuPlane className="size-3.5" aria-hidden />
 				</button>
 			)}
 		</div>
@@ -7616,8 +7634,10 @@ function DevBoardPage() {
 	// Opens by itself once a day, the first time the board has work on it.
 	// Experimental, off by default (Settings > Advanced > Today).
 	const todayExperiment = useTodayOverview((s) => s.experiment);
-	const [todayShown, setTodayOpen] = useState(false);
-	const todayOpen = todayExperiment && todayShown;
+	// Auto pilot is Today one task at a time: same sessions, same order.
+	const [todayShown, setTodayShown] = useState<"today" | "pilot" | null>(null);
+	const todayOpen = todayExperiment && !!todayShown;
+	const pilotOpen = todayOpen && todayShown === "pilot";
 	// The drawer's list of the other sessions, with 2 or more in flight. Not
 	// beside Today: the page is the list there.
 	const showSwitchList =
@@ -7666,7 +7686,7 @@ function DevBoardPage() {
 		)
 			return;
 		useTodayOverview.getState().markShown(today);
-		setTodayOpen(true);
+		setTodayShown((shown) => shown ?? "today");
 	}, [todayExperiment, todayEnabled, todayLastShown, todayCount]);
 	const cardById = (paneId: string) =>
 		[...cardsByStatus.values()].flat().find((card) => card.pane.id === paneId);
@@ -8321,18 +8341,27 @@ function DevBoardPage() {
 							sessionsDisabled={switchCards.length === 0}
 							sessionsKey={openSessionsKey}
 							todayOpen={todayOpen}
+							pilotOpen={pilotOpen}
 							onSessions={() => {
 								if (!drawerCard) openSessions();
 							}}
 							onBoard={() => {
 								setDrawerCard(null);
-								setTodayOpen(false);
+								setTodayShown(null);
 							}}
 							onToday={
 								todayExperiment
 									? () => {
 											setDrawerCard(null);
-											setTodayOpen(true);
+											setTodayShown("today");
+										}
+									: undefined
+							}
+							onPilot={
+								todayExperiment
+									? () => {
+											setDrawerCard(null);
+											setTodayShown("pilot");
 										}
 									: undefined
 							}
@@ -8548,6 +8577,7 @@ function DevBoardPage() {
 				<TodayOverview
 					cards={todayCards}
 					openPaneId={drawerCard?.pane.id}
+					pilot={pilotOpen}
 					onOpen={(paneId) => {
 						const card = cardById(paneId);
 						if (!card) return;
