@@ -348,6 +348,11 @@ import {
 	sessionListControls,
 } from "./session-list-width";
 import {
+	type DrawerView,
+	loadDrawerFractions,
+	saveDrawerFractions,
+} from "./drawer-width";
+import {
 	SWITCH_SORTS,
 	SWITCH_SORTS_SHORT,
 	type SwitchSort,
@@ -3589,8 +3594,21 @@ function DevBoardPage() {
 	// Open wide by default - a session needs room to read the terminal. Held as
 	// a fraction of the width beside the icon rail, not px: a px width measured
 	// once went stale when the window was minimized/resized, and the drawer
-	// stopped short of the rail or overran it.
-	const [drawerFraction, setDrawerFraction] = useState(1);
+	// stopped short of the rail or overran it. One width over the list, another
+	// beside Today and Auto pilot, each saved: a preview beside Today must not
+	// leave the list's drawer at half width.
+	const [drawerFractions, setDrawerFractions] = useState(() =>
+		loadDrawerFractions(localStorage),
+	);
+	// Set below, once todayOpen is known; read by the resize handlers.
+	const drawerViewRef = useRef<DrawerView>("list");
+	const setDrawerFraction = (update: (fraction: number) => number) =>
+		setDrawerFractions((fractions) => {
+			const view = drawerViewRef.current;
+			const next = { ...fractions, [view]: update(fractions[view]) };
+			saveDrawerFractions(localStorage, next);
+			return next;
+		});
 	// The brief panel: open by default, because "what did I walk into?" is the
 	// question you have every single time you open a session.
 	const [isBriefOpen, setIsBriefOpen] = useState(true);
@@ -3629,7 +3647,7 @@ function DevBoardPage() {
 		const onMove = (move: PointerEvent) => {
 			const available = window.innerWidth - RAIL_W;
 			const width = window.innerWidth - move.clientX;
-			setDrawerFraction(Math.min(Math.max(width / available, 0), 1));
+			setDrawerFraction(() => Math.min(Math.max(width / available, 0), 1));
 		};
 		const onUp = () => {
 			window.removeEventListener("pointermove", onMove);
@@ -7638,6 +7656,8 @@ function DevBoardPage() {
 	const [todayShown, setTodayShown] = useState<"today" | "pilot" | null>(null);
 	const todayOpen = todayExperiment && !!todayShown;
 	const pilotOpen = todayOpen && todayShown === "pilot";
+	drawerViewRef.current = todayOpen ? "today" : "list";
+	const drawerFraction = drawerFractions[drawerViewRef.current];
 	// The drawer's list of the other sessions, with 2 or more in flight. Not
 	// beside Today: the page is the list there.
 	const showSwitchList =
@@ -8585,9 +8605,8 @@ function DevBoardPage() {
 					onOpen={(paneId) => {
 						const card = cardById(paneId);
 						if (!card) return;
-						// Beside the list, not over it: Today stays in view and a click
-						// on another row switches the session shown.
-						setDrawerFraction((fraction) => Math.min(fraction, 0.6));
+						// Beside the list, not over it (Today's own drawer width): Today
+						// stays in view and a click on another row switches the session.
 						openDrawer(card);
 					}}
 					onDone={(paneId) => {
