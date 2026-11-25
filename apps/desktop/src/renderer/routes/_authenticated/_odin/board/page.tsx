@@ -9206,8 +9206,17 @@ function DevBoardPage() {
 												setIsShellOpen(false);
 										}}
 										onStop={() => void interruptPane(drawerCard.pane.id)}
+										// The lost-message auto-restart fires seconds after the
+										// send, often once you moved to another session: reopen
+										// this one only if it is still the one on screen.
 										onRestart={(prompt) =>
-											void resumeCard(drawerCard, false, prompt, true)
+											void resumeCard(
+												drawerCard,
+												false,
+												prompt,
+												true,
+												drawerCard.pane.id,
+											)
 										}
 										onMoveToHost={
 											drawerCard.pane.odinQueued
