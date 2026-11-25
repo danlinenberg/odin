@@ -1233,7 +1233,7 @@ function ComingUp({
 				<button
 					type="button"
 					onClick={() => hideToday(key)}
-					className={cn(LINK, "text-[12.5px] text-muted-foreground")}
+					className={cn(LINK, "text-[13px] text-muted-foreground")}
 				>
 					Hide
 				</button>
@@ -1251,7 +1251,7 @@ function ComingUp({
 					<button
 						type="button"
 						onClick={unhideToday}
-						className={cn(LINK, "text-[12.5px] font-normal")}
+						className={cn(LINK, "text-[13px] font-normal")}
 					>
 						Show {hiddenCount} hidden
 					</button>
