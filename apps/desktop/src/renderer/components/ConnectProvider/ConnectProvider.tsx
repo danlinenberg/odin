@@ -106,6 +106,7 @@ export function ConnectProvider({
 			name="Determ"
 			tokenUrl="https://app.determ.com"
 			tokenHelp="Settings → Account Settings → API token (only on plans with API access). Then paste it."
+			guideUrl="https://developers.determ.com/getting-started.html"
 			tokenPlaceholder="API token"
 			linksHelp="One feed link per line, copied from the address bar (app.determ.com/…/feed/q/…)."
 			linksPlaceholder="https://app.determ.com/…/feed/q/…"
@@ -281,8 +282,11 @@ function OAuthAppForm({
 		<div className="space-y-2">
 			<p className="text-xs text-muted-foreground">
 				{override
-					? `Use your own ${name} app instead of the one built into this build. Paste its Client ID, Client Secret and Redirect URL - they go in ~/.config/odin.json on this machine and win over the built-in app. Setup: docs/oauth/README.md.`
-					: `This build has no ${name} app. Paste its Client ID, Client Secret and Redirect URL once on this machine (another machine has them in ~/.config/odin.json). Setup: docs/oauth/README.md.`}
+					? `Use your own ${name} app instead of the one built into this build. Paste its Client ID, Client Secret and Redirect URL - they go in ~/.config/odin.json on this machine and win over the built-in app. `
+					: `This build has no ${name} app. Paste its Client ID, Client Secret and Redirect URL once on this machine (another machine has them in ~/.config/odin.json). `}
+				<GuideLink url={`${OAUTH_GUIDE}#${OAUTH_GUIDE_SECTION[provider]}`}>
+					{`How to set up the ${name} app`}
+				</GuideLink>
 			</p>
 			{field("clientId", "Client ID")}
 			{field("clientSecret", "Client Secret")}
@@ -300,6 +304,31 @@ function OAuthAppForm({
 				Save
 			</Button>
 		</div>
+	);
+}
+
+const OAUTH_GUIDE =
+	"https://github.com/danlinenberg/odin/blob/main/docs/oauth/README.md";
+/** Each provider's heading in docs/oauth/README.md, as GitHub anchors it. */
+const OAUTH_GUIDE_SECTION: Record<OAuthProvider, string> = {
+	slack: "2-create-the-slack-app",
+	jira: "jira",
+	notion: "notion",
+	calendar: "google-calendar",
+	airtable: "airtable",
+};
+
+/** An inline link out to a setup guide, opened in the browser. */
+function GuideLink({ url, children }: { url: string; children: string }) {
+	const openUrl = electronTrpc.external.openUrl.useMutation();
+	return (
+		<button
+			type="button"
+			onClick={() => openUrl.mutate(url)}
+			className="text-[#a394ff] underline-offset-2 hover:underline"
+		>
+			{children} ↗
+		</button>
 	);
 }
 
@@ -570,6 +599,7 @@ function LinkedConnect({
 	name,
 	tokenUrl,
 	tokenHelp,
+	guideUrl,
 	tokenPlaceholder,
 	linksHelp,
 	linksPlaceholder,
@@ -579,6 +609,7 @@ function LinkedConnect({
 	name: string;
 	tokenUrl: string;
 	tokenHelp: string;
+	guideUrl: string;
 	tokenPlaceholder: string;
 	linksHelp: string;
 	linksPlaceholder: string;
@@ -610,7 +641,10 @@ function LinkedConnect({
 			>
 				1. Get an API token ↗
 			</button>
-			<p className="text-xs text-muted-foreground">{tokenHelp}</p>
+			<p className="text-xs text-muted-foreground">
+				{tokenHelp}{" "}
+				<GuideLink url={guideUrl}>{`${name}'s API guide`}</GuideLink>
+			</p>
 			<Input
 				type="password"
 				placeholder={tokenPlaceholder}
