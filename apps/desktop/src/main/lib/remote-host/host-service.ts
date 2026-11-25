@@ -92,6 +92,8 @@ OWNER = pwd.getpwnam(sys.argv[1]).pw_uid
 TOKENS = sys.argv[2]
 PORT = int(sys.argv[3])
 TUNNEL = "http://127.0.0.1:" + str(PORT + 1)
+# How long a call may take on the laptop: a PR upload of several videos runs past two minutes.
+TUNNEL_TIMEOUT = float(os.environ.get("ODIN_TUNNEL_TIMEOUT") or 600)
 # The host's own GitHub sign-ins: one file per login, beside the tokens file,
 # holding the access token, the refresh token and the expiry. This service is
 # their only user, so the rotating refresh token never races another holder.
@@ -607,11 +609,14 @@ class Handler(BaseHTTPRequestHandler):
         headers["X-Odin-Tunnel"] = tokens().get("tunnel") or ""
         req = urllib.request.Request(TUNNEL + self.path, data=raw or None, method=self.command, headers=headers)
         try:
-            with urllib.request.urlopen(req, timeout=120) as res:
+            with urllib.request.urlopen(req, timeout=TUNNEL_TIMEOUT) as res:
                 return self.reply(res.status, res.read(), res.headers.get("Content-Type", "text/plain"))
         except urllib.error.HTTPError as e:
             return self.reply(e.code, e.read(), e.headers.get("Content-Type", "text/plain"))
-        except Exception:
+        except Exception as e:
+            # A slow call on a laptop that is up is not the laptop being asleep: say which.
+            if laptop_up():
+                return self.reply(504, "Odin on the laptop is up but this call failed or took over %d seconds there (%s). Retry it, or split it into smaller calls.\\n" % (TUNNEL_TIMEOUT, type(e).__name__))
             return self.reply(503, "Odin on the laptop can't be reached now - it is asleep, closed or offline. Connector calls (action=service) still work on this host.\\n")
 
     do_GET = do_POST = do_PUT = do_PATCH = do_DELETE = handle_any

@@ -175,6 +175,7 @@ beforeAll(async () => {
 				ODIN_JIRA_API: `http://127.0.0.1:${jira.port}/ex/jira/`,
 				ODIN_NOTION_TOKEN_URL: `http://127.0.0.1:${notion.port}/v1/oauth/token`,
 				ODIN_NOTION_API: `http://127.0.0.1:${notion.port}/v1/`,
+				ODIN_TUNNEL_TIMEOUT: "1",
 			},
 		},
 	);
@@ -348,6 +349,26 @@ describe.skipIf(!live)("Odin's host service", () => {
 		} finally {
 			laptop.stop(true);
 			writeFileSync(tokensFile, before);
+		}
+	});
+
+	test("a slow call on a laptop that is up says so, not that the laptop is asleep", async () => {
+		// The laptop's end of the tunnel: its health check answers, the call itself runs past the limit.
+		const laptop = Bun.serve({
+			port: PORT + 1,
+			hostname: "127.0.0.1",
+			fetch: async (req) => {
+				if (new URL(req.url).pathname === "/health") return new Response("ok");
+				await Bun.sleep(2_000);
+				return new Response("too late");
+			},
+		});
+		try {
+			const res = await post({ action: "sessions" });
+			expect(res.status).toBe(504);
+			expect(await res.text()).toContain("Odin on the laptop is up");
+		} finally {
+			laptop.stop(true);
 		}
 	});
 
