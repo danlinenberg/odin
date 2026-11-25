@@ -276,12 +276,66 @@ export function createTerminalWheelEventHandler(
  */
 export function installTerminalWheelEventHandler(xterm: XTerm): () => void {
 	const sgrTracker = createSgrMouseModeTracker(xterm);
-	xterm.attachCustomWheelEventHandler(
-		createTerminalWheelEventHandler(xterm, sgrTracker.isActive),
+	const handle = createTerminalWheelEventHandler(xterm, sgrTracker.isActive);
+	const repaint = createScrollRepaint(
+		() => xterm.clearTextureAtlas(),
+		globalThis,
 	);
+	const written = xterm.onWriteParsed(repaint.written);
+	xterm.attachCustomWheelEventHandler((event) => {
+		const passOn = handle(event);
+		if (!passOn) repaint.scrolled();
+		return passOn;
+	});
 
 	return () => {
 		sgrTracker.dispose();
+		written.dispose();
+		repaint.dispose();
 		xterm.attachCustomWheelEventHandler(() => true);
+	};
+}
+
+/** How long the screen must stay still after a scroll before the repaint. */
+export const SCROLL_REPAINT_QUIET_MS = 150;
+/** How long after the last wheel event the app's output counts as its repaint. */
+export const SCROLL_REPAINT_WINDOW_MS = 2_000;
+
+type Timers = Pick<typeof globalThis, "setTimeout" | "clearTimeout">;
+
+/**
+ * A wheel scroll in a TUI (Claude Code, under tmux on a remote host) makes it
+ * redraw only the rows that changed, and the WebGL renderer can leave cells of
+ * the old screen on the canvas: bits of earlier lines and stray letters inside
+ * words, while the buffer holds the right text. A full redraw (what switching
+ * to the Chat view and back does) clears it. So once the app's output after a
+ * scroll goes quiet, redraw the whole viewport from the buffer.
+ */
+export function createScrollRepaint(
+	redraw: () => void,
+	timers: Timers,
+	now: () => number = Date.now,
+): { scrolled: () => void; written: () => void; dispose: () => void } {
+	let lastScroll = Number.NEGATIVE_INFINITY;
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const arm = () => {
+		if (timer !== undefined) timers.clearTimeout(timer);
+		timer = timers.setTimeout(() => {
+			timer = undefined;
+			redraw();
+		}, SCROLL_REPAINT_QUIET_MS);
+	};
+	return {
+		scrolled: () => {
+			lastScroll = now();
+			arm();
+		},
+		written: () => {
+			if (now() - lastScroll <= SCROLL_REPAINT_WINDOW_MS) arm();
+		},
+		dispose: () => {
+			if (timer !== undefined) timers.clearTimeout(timer);
+			timer = undefined;
+		},
 	};
 }

@@ -310,6 +310,11 @@ import {
 import { DiffView } from "./DiffView";
 import { drawerEscAction, escStaysWithTarget } from "./drawer-esc";
 import { drawerViewSwitch } from "./drawer-view-switch";
+import {
+	type DrawerView,
+	loadDrawerFractions,
+	saveDrawerFractions,
+} from "./drawer-width";
 import { HostScreenView } from "./HostScreenView";
 import { deliverOnHost } from "./host-delivery";
 import { hostStartDelay } from "./host-start-gap";
@@ -2946,7 +2951,7 @@ const SwitchRow = memo(function SwitchRow({
 				});
 			}}
 			className={cn(
-				"flex cursor-pointer items-center gap-2 py-1.5 text-left text-xs transition-[translate,opacity] duration-[450ms]",
+				"relative flex cursor-pointer items-center gap-2 py-1.5 text-left text-xs transition-[translate,opacity] duration-[450ms]",
 				min ? "justify-center" : "px-3",
 				leaving
 					? "pointer-events-none -translate-x-6 bg-success/20 text-success-ink opacity-0"
@@ -2971,6 +2976,16 @@ const SwitchRow = memo(function SwitchRow({
 					"bg-attention/10",
 			)}
 		>
+			{card.pane.odinGroup && (
+				// The group's colour runs down the row's left edge, unbroken from
+				// one member to the next, like the board's group block.
+				<span
+					aria-hidden
+					data-group-edge={card.pane.odinGroup.name}
+					className="pointer-events-none absolute inset-y-0 left-0 w-[3px]"
+					style={{ background: GROUP_HEX[card.pane.odinGroup.color] }}
+				/>
+			)}
 			{min ? (
 				<span
 					className="size-2 shrink-0 rounded-full"
@@ -3589,9 +3604,21 @@ function DevBoardPage() {
 	// Open wide by default - a session needs room to read the terminal. Held as
 	// a fraction of the width beside the icon rail, not px: a px width measured
 	// once went stale when the window was minimized/resized, and the drawer
-	// stopped short of the rail or overran it.
-	const [drawerFraction, setDrawerFraction] = useState(1);
-	const drawerWidth = `max(${MIN_DRAWER_W}px, calc((100vw - ${RAIL_W}px) * ${drawerFraction}))`;
+	// stopped short of the rail or overran it. One width over the list, another
+	// beside Today and Auto pilot, each saved: a preview beside Today must not
+	// leave the list's drawer at half width.
+	const [drawerFractions, setDrawerFractions] = useState(() =>
+		loadDrawerFractions(localStorage),
+	);
+	// Set below, once todayOpen is known; read by the resize handlers.
+	const drawerViewRef = useRef<DrawerView>("list");
+	const setDrawerFraction = (update: (fraction: number) => number) =>
+		setDrawerFractions((fractions) => {
+			const view = drawerViewRef.current;
+			const next = { ...fractions, [view]: update(fractions[view]) };
+			saveDrawerFractions(localStorage, next);
+			return next;
+		});
 	// The brief panel: open by default, because "what did I walk into?" is the
 	// question you have every single time you open a session.
 	const [isBriefOpen, setIsBriefOpen] = useState(true);
@@ -3630,7 +3657,7 @@ function DevBoardPage() {
 		const onMove = (move: PointerEvent) => {
 			const available = window.innerWidth - RAIL_W;
 			const width = window.innerWidth - move.clientX;
-			setDrawerFraction(Math.min(Math.max(width / available, 0), 1));
+			setDrawerFraction(() => Math.min(Math.max(width / available, 0), 1));
 		};
 		const onUp = () => {
 			window.removeEventListener("pointermove", onMove);
@@ -7639,6 +7666,9 @@ function DevBoardPage() {
 	const [todayShown, setTodayShown] = useState<"today" | "pilot" | null>(null);
 	const todayOpen = todayExperiment && !!todayShown;
 	const pilotOpen = todayOpen && todayShown === "pilot";
+	drawerViewRef.current = todayOpen ? "today" : "list";
+	const drawerFraction = drawerFractions[drawerViewRef.current];
+	const drawerWidth = `max(${MIN_DRAWER_W}px, calc((100vw - ${RAIL_W}px) * ${drawerFraction}))`;
 	// The drawer's list of the other sessions, with 2 or more in flight. Not
 	// beside Today: the page is the list there.
 	const showSwitchList =
@@ -8588,9 +8618,8 @@ function DevBoardPage() {
 					onOpen={(paneId) => {
 						const card = cardById(paneId);
 						if (!card) return;
-						// Beside the list, not over it: Today stays in view and a click
-						// on another row switches the session shown.
-						setDrawerFraction((fraction) => Math.min(fraction, 0.6));
+						// Beside the list, not over it (Today's own drawer width): Today
+						// stays in view and a click on another row switches the session.
 						openDrawer(card);
 					}}
 					onDone={(paneId) => {
@@ -9048,22 +9077,53 @@ function DevBoardPage() {
 												</button>
 											</div>
 										)}
-										{switchCards.map((card, index) => (
-											<Fragment key={card.pane.id}>
-												{isSwitchGrouped &&
-													card.place !== switchCards[index - 1]?.place &&
-													(isSwitchListMin ? (
-														index > 0 && (
-															<div className="mx-2 my-1 border-t border-border" />
-														)
-													) : (
-														<div className="mt-2 mb-0.5 px-3 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
-															{PANE_STATUS[card.place].label}
+										{switchCards.map((card, index) => {
+											const prev = switchCards[index - 1];
+											const group = card.pane.odinGroup;
+											// A group's run of rows opens under its name in its
+											// colour, as on the board.
+											const groupStarts =
+												!!group &&
+												!isSwitchListMin &&
+												(group.name !== prev?.pane.odinGroup?.name ||
+													(isSwitchGrouped && card.place !== prev?.place));
+											return (
+												<Fragment key={card.pane.id}>
+													{isSwitchGrouped &&
+														card.place !== prev?.place &&
+														(isSwitchListMin ? (
+															index > 0 && (
+																<div className="mx-2 my-1 border-t border-border" />
+															)
+														) : (
+															<div className="mt-2 mb-0.5 px-3 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
+																{PANE_STATUS[card.place].label}
+															</div>
+														))}
+													{groupStarts && (
+														<div
+															data-group-head={group.name}
+															className="mt-1 flex items-center gap-1.5 border-l-[3px] pt-1 pr-3 pl-[9px] text-[10px] font-semibold uppercase tracking-[.5px]"
+															style={{
+																color: GROUP_HEX[group.color],
+																borderColor: GROUP_HEX[group.color],
+															}}
+														>
+															<span className="truncate">{group.name}</span>
+															<span className="opacity-70">
+																{
+																	switchCards.filter(
+																		(c) =>
+																			c.pane.odinGroup?.name === group.name,
+																	).length
+																}
+															</span>
 														</div>
-													))}
-												{switchRow(card)}
-											</Fragment>
-										))}
+													)}
+													{switchRow(card)}
+												</Fragment>
+											);
+										})}
 										{idleSwitchCards.length > 0 &&
 											(isSwitchListMin ? (
 												isIdleSwitchOpen && (
