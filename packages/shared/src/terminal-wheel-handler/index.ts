@@ -3,6 +3,7 @@ export {
 	buildArrowSequence,
 	buildSgrWheelReport,
 	consumeWheelLines,
+	createScrollRepaint,
 	createSgrMouseModeTracker,
 	createTerminalWheelEventHandler,
 	createWheelLineState,
