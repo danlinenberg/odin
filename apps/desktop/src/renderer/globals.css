@@ -75,7 +75,7 @@
 	   foreground and muted-foreground: soft (body copy) and faint (tags,
 	   separators, placeholders). */
 	--soft-foreground: #c9c9d3;
-	--faint-foreground: #868693; /* 4.5:1+ on background, card and muted */
+	--faint-foreground: #8c8c99; /* 4.5:1+ on every dark surface, accent included */
 	--working: #5aa9ff;
 	--attention: #f5b83d;
 	--success: #3ecf8e;
