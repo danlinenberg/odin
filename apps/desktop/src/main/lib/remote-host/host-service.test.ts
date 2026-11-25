@@ -36,13 +36,26 @@ const post = (
 
 // A GitHub token endpoint of our own: each refresh rotates the pair.
 const refreshes: string[] = [];
+const repoChecks: string[] = [];
 let issued = 0;
 const github = Bun.serve({
 	port: 0,
 	hostname: "127.0.0.1",
 	fetch: async (req) => {
+		const path = new URL(req.url).pathname;
+		// GitHub's /repos/acme/private: shown to the other account's token alone.
+		if (path.startsWith("/repos/")) {
+			repoChecks.push(path);
+			return new Response("", {
+				status:
+					path === "/repos/acme/private" &&
+					req.headers.get("authorization") === "Bearer gho_copy"
+						? 200
+						: 404,
+			});
+		}
 		// GitHub's /user: 401 for a token it revoked.
-		if (new URL(req.url).pathname === "/user")
+		if (path === "/user")
 			return new Response("", {
 				status: req.headers.get("authorization")?.includes("revoked")
 					? 401
@@ -170,6 +183,7 @@ beforeAll(async () => {
 				PATH: process.env.PATH,
 				ODIN_GITHUB_TOKEN_URL: `http://127.0.0.1:${github.port}/token`,
 				ODIN_GITHUB_USER_URL: `http://127.0.0.1:${github.port}/user`,
+				ODIN_GITHUB_REPOS_URL: `http://127.0.0.1:${github.port}/repos/`,
 				ODIN_SLACK_API: `http://127.0.0.1:${slackApi.port}/api/`,
 				ODIN_JIRA_TOKEN_URL: `http://127.0.0.1:${jira.port}/oauth/token`,
 				ODIN_JIRA_API: `http://127.0.0.1:${jira.port}/ex/jira/`,
@@ -444,6 +458,31 @@ describe.skipIf(!live)("Odin's host service", () => {
 		// An account the host doesn't have: the default one's, as a launch picks.
 		expect(await (await token("service=github&login=nobody")).text()).toBe(
 			"gho_new2",
+		);
+	});
+
+	test("an org's repo gets the account GitHub shows it to, not the session's, and the answer is remembered", async () => {
+		// The session pins dan-work, but only the other account is in the org that owns the repo.
+		const ask = "service=github&login=dan-work&owner=acme&repo=private";
+		expect(await (await token(ask)).text()).toBe("gho_copy");
+		expect(repoChecks).toEqual(["/repos/acme/private", "/repos/acme/private"]);
+		expect(await (await token(ask)).text()).toBe("gho_copy");
+		expect(repoChecks).toHaveLength(2);
+		// A repo no account sees: the session's own, as before.
+		expect(
+			await (
+				await token("service=github&login=dan-work&owner=acme&repo=gone")
+			).text(),
+		).toBe("gho_new2");
+		// An owner the host holds an account for is never asked about.
+		expect(
+			await (
+				await token("service=github&login=dan-work&owner=other&repo=x")
+			).text(),
+		).toBe("gho_copy");
+		expect(repoChecks).toHaveLength(4);
+		expect((await token("service=github&owner=acme&repo=a/b")).status).toBe(
+			400,
 		);
 	});
 

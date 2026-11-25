@@ -438,7 +438,7 @@ test("git's helper asks the service for the token of the session's account, or t
 	);
 	expect(out).toBe("username=x-access-token\npassword=gho_fresh\n");
 	expect(curl.calls()).toContain(
-		"/token?service=github&login=dan-work&owner=acme",
+		"/token?service=github&login=dan-work&owner=acme&repo=odin",
 	);
 	// GitHub refused it: the token goes back to the service, on stdin, never on the command line.
 	curl.run(
@@ -448,7 +448,7 @@ test("git's helper asks the service for the token of the session's account, or t
 	);
 	const erase = curl.calls().split("\n").slice(2).join("\n");
 	expect(erase).toContain("--data-binary @-");
-	expect(erase).toContain("login=&owner=acme");
+	expect(erase).toContain("login=&owner=acme&repo=odin");
 	expect(erase).toContain("stdin: gho_refused");
 	expect(erase).not.toContain("args: ".concat("gho_refused"));
 });
