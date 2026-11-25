@@ -8256,7 +8256,15 @@ function DevBoardPage() {
 	);
 
 	return (
-		<div className="flex h-full flex-col">
+		<div
+			className="flex h-full flex-col"
+			// In Auto pilot the session drawer sits over the right of the page with
+			// no backdrop: the header, reminders and queue all make room for it
+			// instead of running under it.
+			style={
+				pilotOpen && drawerCard ? { paddingRight: drawerWidth } : undefined
+			}
+		>
 			{hostsDown.map(({ host, sessions }) => (
 				<HostDownBanner key={host} host={host} sessions={sessions} />
 			))}
@@ -8615,7 +8623,6 @@ function DevBoardPage() {
 					cards={todayCards}
 					openPaneId={drawerCard?.pane.id}
 					pilot={pilotOpen}
-					beside={drawerCard ? drawerWidth : undefined}
 					onNew={openComposerOnCurrentRepo}
 					onOpen={(paneId) => {
 						const card = cardById(paneId);
