@@ -782,6 +782,10 @@ export function SessionBrief({
 	const hiddenUrls = usePaneMeta((s) => s.hiddenByPane[paneId]) ?? [];
 	const setHidden = usePaneMeta((s) => s.setHidden);
 	const hide = (url: string) => setHidden(paneId, url, true);
+	// Your own names for artifacts: the one guessed from the transcript is often stale.
+	const names = usePaneMeta((s) => s.namesByPane[paneId]);
+	const setName = usePaneMeta((s) => s.setName);
+	const [renaming, setRenaming] = useState<string | null>(null);
 
 	const mirrored = usePaneMeta((s) => s.sessionIdByPane[paneId]);
 	const known = claudeSessionId ?? mirrored ?? null;
@@ -1282,15 +1286,47 @@ export function SessionBrief({
 					<div className="flex flex-col gap-1">
 						{artifacts.map((url) => (
 							<div key={url} className="group flex items-center gap-1.5">
-								<Hover text={hoverFor(url)}>
-									<button
-										type="button"
-										onClick={() => openUrl(url)}
-										className="block min-w-0 flex-1 truncate text-left text-[12px] text-link hover:underline"
-									>
-										{artifactName(said, url, artifacts.length)} ↗
-									</button>
-								</Hover>
+								{renaming === url ? (
+									<input
+										// biome-ignore lint/a11y/noAutofocus: opened by the rename click
+										autoFocus
+										defaultValue={names?.[url] ?? ""}
+										placeholder={artifactName(said, url, artifacts.length)}
+										onFocus={(e) => e.currentTarget.select()}
+										onBlur={(e) => {
+											setName(paneId, url, e.currentTarget.value);
+											setRenaming(null);
+										}}
+										onKeyDown={(e) => {
+											if (e.key === "Enter") e.currentTarget.blur();
+											if (e.key === "Escape") {
+												e.currentTarget.value = names?.[url] ?? "";
+												e.currentTarget.blur();
+											}
+										}}
+										className="min-w-0 flex-1 rounded border border-border bg-transparent px-1 text-[12px] outline-none"
+									/>
+								) : (
+									<Hover text={hoverFor(url)}>
+										<button
+											type="button"
+											onClick={() => openUrl(url)}
+											className="block min-w-0 flex-1 truncate text-left text-[12px] text-link hover:underline"
+										>
+											{names?.[url] ??
+												artifactName(said, url, artifacts.length)}{" "}
+											↗
+										</button>
+									</Hover>
+								)}
+								<button
+									type="button"
+									title="Rename this link (empty brings back the found name)"
+									onClick={() => setRenaming(url)}
+									className="ml-auto shrink-0 text-[11px] text-faint-foreground opacity-0 hover:text-soft-foreground group-hover:opacity-100"
+								>
+									rename
+								</button>
 								<HideButton onClick={() => hide(url)} />
 							</div>
 						))}
