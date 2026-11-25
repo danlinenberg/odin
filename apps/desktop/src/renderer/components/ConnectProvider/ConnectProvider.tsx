@@ -183,6 +183,23 @@ function OAuthConnect({
 		}
 	}, [state, result.data, name]);
 
+	// The main process forgets a sign-in after 10 minutes, and a callback that
+	// never arrives (the browser's "Open Odin?" prompt dismissed, or another
+	// Odin build owning odin://) would otherwise leave this waiting forever.
+	useEffect(() => {
+		if (!state) return;
+		const timer = setTimeout(
+			() => {
+				toast.error(
+					`${name} never handed the sign-in back to Odin. If the browser asked to open Odin, allow it, then try again.`,
+				);
+				setState(null);
+			},
+			10 * 60 * 1000,
+		);
+		return () => clearTimeout(timer);
+	}, [state, name]);
+
 	if (configured.isLoading) return null;
 
 	// No app, no button: a dead one would fail at the exchange, after someone
