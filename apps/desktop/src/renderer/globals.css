@@ -605,14 +605,14 @@
 
 /* Reduce motion, app-wide: only a handful of animations opted out one by one
    (motion-reduce:), so spinners, pulses and slides kept moving for people who
-   asked the OS for less motion. Unlayered + !important so it beats utilities. */
+   asked the OS for less motion. Unlayered, so it beats every layered utility. */
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,
 	*::after {
-		animation-duration: 0.01ms !important;
-		animation-iteration-count: 1 !important;
-		transition-duration: 0.01ms !important;
-		scroll-behavior: auto !important;
+		animation-duration: 0.01ms;
+		animation-iteration-count: 1;
+		transition-duration: 0.01ms;
+		scroll-behavior: auto;
 	}
 }
