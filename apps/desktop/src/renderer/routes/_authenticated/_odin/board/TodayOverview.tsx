@@ -1372,9 +1372,10 @@ const HANDOFF_MS = 2500;
  * you (click one to take it now), then the sessions moving without you, and
  * New session. Middle, the task on top: answer it, finish or snooze it and the
  * next one comes up. Right, that task's session, opened by itself, so you see
- * its chat while you answer. The session you answered keeps going on its own.
- * X skips the card to the end, Space opens its session again after you
- * closed it (rebindable in Settings > Keyboard).
+ * its chat while you answer, unless another session is open there: that one
+ * stays. The card stays until you act on it or skip it. The session you
+ * answered keeps going on its own. X skips the card to the end, Space opens
+ * its session (rebindable in Settings > Keyboard).
  */
 function AutoPilot({
 	yours,
@@ -1393,7 +1394,9 @@ function AutoPilot({
 }) {
 	const [handled, setHandled] = useState<ReadonlySet<string>>(new Set());
 	const [skipped, setSkipped] = useState<string[]>([]);
-	// A task picked from the queue: it goes before Today's order until handled.
+	// The card on screen, picked from the queue or come up by itself: it stays
+	// until you act on it, skip it or it leaves the queue, so a task that jumps
+	// ahead in Today's order doesn't swap the card under you.
 	const [chosen, setChosen] = useState<string | null>(null);
 	const [handoff, setHandoff] = useState<string | null>(null);
 	// Opening a session counts as seeing it, which takes it out of Waiting on
@@ -1442,16 +1445,20 @@ function AutoPilot({
 		chosen && ids.includes(chosen) && !handled.has(chosen)
 			? chosen
 			: pilotPick(ids, handled, skipped);
+	useEffect(() => {
+		if (pick) setChosen(pick);
+	}, [pick]);
 	const task = queued.find((t) => t.id === pick) ?? null;
 	const left = ids.filter((id) => !handled.has(id)).length;
-	// The card's session opens beside it by itself, once per card: close it
-	// and it stays closed until the next card comes up.
+	// The card's session opens beside it by itself, once per card, and only
+	// when no session is open: the one you are reading never gets swapped for
+	// the next card's. Close it and it stays closed until the next card.
 	const firstKey = task?.items[0].key ?? null;
 	const openedFor = useRef<string | null>(null);
 	useEffect(() => {
 		if (!pick || !firstKey || openedFor.current === pick) return;
 		openedFor.current = pick;
-		if (openPaneId !== firstKey) actions.onOpen(firstKey);
+		if (!openPaneId) actions.onOpen(firstKey);
 	}, [pick, firstKey, openPaneId, actions]);
 	const acted = (id: string) => {
 		setHandled((old) => new Set(old).add(id));
@@ -1617,7 +1624,7 @@ function AutoPilot({
 					{task && (
 						<p className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-muted-foreground">
 							<span>
-								<kbd className={KBD}>{peekKey}</kbd> open its session again
+								<kbd className={KBD}>{peekKey}</kbd> open its session
 							</span>
 							<span>
 								<kbd className={KBD}>{skipKey}</kbd> skip to the end
