@@ -7706,6 +7706,7 @@ function DevBoardPage() {
 	const { text: openSessionsKey } = useHotkey(
 		"ODIN_OPEN_SESSIONS",
 		() => {
+			setTodayShown(null);
 			if (!drawerCard) openSessions();
 		},
 		{ enableOnFormTags: false, enableOnContentEditable: false },
@@ -8337,12 +8338,15 @@ function DevBoardPage() {
 				{viewToggleSlot &&
 					createPortal(
 						<ViewToggle
-							sessionsOpen={!!drawerCard}
+							// A session previewed beside Today is not Sessions view: Today
+							// keeps its segment, and Sessions switches over to the list.
+							sessionsOpen={!!drawerCard && !todayOpen}
 							sessionsDisabled={switchCards.length === 0}
 							sessionsKey={openSessionsKey}
 							todayOpen={todayOpen}
 							pilotOpen={pilotOpen}
 							onSessions={() => {
+								setTodayShown(null);
 								if (!drawerCard) openSessions();
 							}}
 							onBoard={() => {
