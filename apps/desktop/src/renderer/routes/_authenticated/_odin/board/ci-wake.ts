@@ -18,6 +18,10 @@ export interface CiRed {
 	sha: string;
 	/** Red runs in a row the session was woken for. */
 	wakes: number;
+	/** The base branch's head when the session was last woken. */
+	base?: string;
+	/** When the session was last woken (ms). */
+	at?: number;
 	/** Red past the cap: the card waits for you. */
 	gaveUp?: boolean;
 }
@@ -31,6 +35,7 @@ export interface CiPr {
 	failed?: string[];
 	pending?: string[];
 	headSha?: string | null;
+	baseSha?: string | null;
 	failedAt?: string | null;
 }
 
@@ -40,7 +45,18 @@ export interface CiWake {
 	failed: string[];
 	/** Which red run in a row this is, from 1. */
 	run: number;
+	base?: string;
+	/** Same red run as before, woken again because the base branch moved. */
+	baseMoved?: boolean;
 }
+
+/**
+ * A run the session was woken for stays red on the same commit - often
+ * because the base fails the same check and the session is waiting for that
+ * fix. Once the base branch moves, it is woken again to merge it in, at most
+ * this often.
+ */
+export const BASE_MOVED_GAP_MS = 60 * 60_000;
 
 /**
  * The session's PR records after this poll, and the red runs to wake it for.
@@ -54,6 +70,7 @@ export function ciWakePlan(
 	before: CiRedByPr | undefined,
 	states: Record<string, CiPr | null | undefined>,
 	since: number,
+	now = Date.now(),
 ): { next: CiRedByPr; wakes: CiWake[] } {
 	const next: CiRedByPr = {};
 	const wakes: CiWake[] = [];
@@ -72,6 +89,21 @@ export function ciWakePlan(
 		if (!pr.failed?.length) continue;
 		if (seen?.sha === pr.headSha) {
 			next[url] = seen;
+			const baseMoved =
+				seen.wakes > 0 &&
+				!!seen.base &&
+				!!pr.baseSha &&
+				seen.base !== pr.baseSha &&
+				now - (seen.at ?? 0) >= BASE_MOVED_GAP_MS;
+			if (baseMoved && seen.wakes < CI_RETRIES)
+				wakes.push({
+					url,
+					sha: pr.headSha,
+					failed: pr.failed,
+					run: seen.wakes + 1,
+					base: pr.baseSha ?? undefined,
+					baseMoved: true,
+				});
 			continue;
 		}
 		const finished = pr.failedAt ? Date.parse(pr.failedAt) : Number.NaN;
@@ -92,14 +124,22 @@ export function ciWakePlan(
 			sha: pr.headSha,
 			failed: pr.failed,
 			run: wakesSoFar + 1,
+			base: pr.baseSha ?? undefined,
 		});
 	}
 	return { next, wakes };
 }
 
 /** A red run the session was told about. */
-export function woke(records: CiRedByPr, wake: CiWake): CiRedByPr {
-	return { ...records, [wake.url]: { sha: wake.sha, wakes: wake.run } };
+export function woke(
+	records: CiRedByPr,
+	wake: CiWake,
+	now = Date.now(),
+): CiRedByPr {
+	return {
+		...records,
+		[wake.url]: { sha: wake.sha, wakes: wake.run, base: wake.base, at: now },
+	};
 }
 
 /** The message that wakes the session. */
@@ -109,6 +149,11 @@ export function ciWakeMessage(wake: CiWake, checks: FailedCheck[]): string {
 		? checks
 		: wake.failed.map((name) => ({ name, link: null, log: null }));
 	const parts = [
+		...(wake.baseMoved
+			? [
+					`CI is still red on PR #${pr} on the same commit, and the base branch has moved since. If the failure came from the base, merge the base in now and push. Otherwise fix it.`,
+				]
+			: []),
 		`CI failed on PR #${pr} (${wake.url}): ${named.map((c) => c.name).join(", ")}.`,
 		...named.map((check) =>
 			check.log

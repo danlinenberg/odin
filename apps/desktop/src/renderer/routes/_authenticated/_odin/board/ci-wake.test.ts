@@ -164,3 +164,30 @@ test("the wakes watch Working and Idle cards too, not one you parked", () => {
 		expect(wakesColumn(column, false)).toBe(true);
 	expect(wakesColumn("idle", true)).toBe(false);
 });
+
+test("a red run left on the same commit wakes again once the base moves", () => {
+	const HOUR = 60 * 60_000;
+	const t0 = Date.parse("2026-10-29T10:00:00Z");
+	const onBase = (base: string) => ({ [URL]: { ...pr("a"), baseSha: base } });
+	const first = ciWakePlan(undefined, onBase("m1"), SINCE, t0);
+	const records = woke(first.next, first.wakes[0] as CiWake, t0);
+	// Same base: nothing new.
+	expect(ciWakePlan(records, onBase("m1"), SINCE, t0 + 2 * HOUR).wakes).toEqual(
+		[],
+	);
+	// Base moved, but too soon after the last wake.
+	expect(
+		ciWakePlan(records, onBase("m2"), SINCE, t0 + 10 * 60_000).wakes,
+	).toEqual([]);
+	const later = ciWakePlan(records, onBase("m2"), SINCE, t0 + HOUR);
+	expect(later.wakes).toHaveLength(1);
+	expect(later.wakes[0]).toMatchObject({ run: 2, base: "m2", baseMoved: true });
+	expect(ciWakeMessage(later.wakes[0] as CiWake, [])).toContain(
+		"the base branch has moved since",
+	);
+	// Counts toward the cap like any other red run.
+	const capped = { [URL]: { sha: "a", wakes: CI_RETRIES, base: "m1", at: t0 } };
+	expect(ciWakePlan(capped, onBase("m9"), SINCE, t0 + 5 * HOUR).wakes).toEqual(
+		[],
+	);
+});
