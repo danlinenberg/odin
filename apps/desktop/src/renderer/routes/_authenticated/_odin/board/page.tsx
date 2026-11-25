@@ -30,7 +30,6 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import type { IconType } from "react-icons";
-import { BsCloud, BsCloudSlash } from "react-icons/bs";
 import {
 	LuBellOff,
 	LuBellPlus,
@@ -42,6 +41,8 @@ import {
 	LuChevronRight,
 	LuCircleCheck,
 	LuClock,
+	LuCloud,
+	LuCloudOff,
 	LuCode,
 	LuCoffee,
 	LuEye,
@@ -741,7 +742,7 @@ function ScrollbackView({
 			)}
 			<div
 				ref={ref}
-				className="min-h-0 flex-1 select-text cursor-text overflow-y-auto whitespace-pre-wrap break-words bg-background px-4 py-3 font-mono text-[11.5px] leading-relaxed text-soft-foreground"
+				className="min-h-0 flex-1 select-text cursor-text overflow-y-auto whitespace-pre-wrap break-words bg-background px-4 py-3 font-mono text-[12px] leading-relaxed text-soft-foreground"
 			>
 				{isLoading
 					? "loading history…"
@@ -1240,7 +1241,7 @@ function ShellPlaceMenu({
 					<span className="truncate">
 						{shownName || (here ? basename(here) : "…")}
 					</span>
-					<span className="text-[9px] opacity-70">▾</span>
+					<span className="text-[10px] opacity-70">▾</span>
 				</button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-80">
@@ -1612,7 +1613,7 @@ function CardHoverContent({
 			</div>
 			{contact && <PersonChip name={contact} />}
 			{summary && (
-				<div className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-soft-foreground">
+				<div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-soft-foreground">
 					{summary}
 				</div>
 			)}
@@ -1665,18 +1666,18 @@ const HOST_MARK: Record<
 	{ Icon: IconType; ink: string; title: (host: string) => string }
 > = {
 	live: {
-		Icon: BsCloud,
+		Icon: LuCloud,
 		ink: "text-success",
 		title: (host) =>
 			`Connected to ${host}, in tmux - it keeps going with this computer shut`,
 	},
 	connecting: {
-		Icon: BsCloud,
+		Icon: LuCloud,
 		ink: "animate-pulse text-attention",
 		title: (host) => `Connecting to ${host}...`,
 	},
 	off: {
-		Icon: BsCloudSlash,
+		Icon: LuCloudOff,
 		ink: "text-danger",
 		title: (host) => `Not connected to ${host} - Resume connects again`,
 	},
@@ -1980,7 +1981,7 @@ function LedBy({ paneId, actions }: { paneId: string; actions: CardActions }) {
 				event.stopPropagation();
 				actions.openPane(leaderId);
 			}}
-			className="mt-0.5 block max-w-full truncate text-left text-[10.5px] font-medium text-muted-foreground hover:text-foreground hover:underline"
+			className="mt-0.5 block max-w-full truncate text-left text-[11px] font-medium text-muted-foreground hover:text-foreground hover:underline"
 		>
 			♛ Led by {title}
 		</button>
@@ -2503,7 +2504,7 @@ function TagMenu({
 								}}
 								className="w-full resize-none rounded-[5px] border border-input bg-card px-1.5 py-1 text-[12px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
 							/>
-							<span className="text-[10.5px] leading-snug text-muted-foreground">
+							<span className="text-[11px] leading-snug text-muted-foreground">
 								The agent checks it with its own tools until it happens.
 							</span>
 							<button
@@ -2612,7 +2613,7 @@ function TagMenu({
 							}}
 							className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
 						>
-							<BsCloud className="size-3" aria-hidden />
+							<LuCloud className="size-3" aria-hidden />
 							Run on remote host
 						</button>
 					)}
@@ -3103,7 +3104,7 @@ const BoardCardTile = memo(
 							/>
 						)}
 						<div className="flex items-start gap-2">
-							<div className="min-w-0 flex-1 break-words text-[12.5px] font-semibold">
+							<div className="min-w-0 flex-1 break-words text-[13px] font-semibold">
 								<GroupMark group={card.pane.odinGroup} />
 								<PriorityMark priority={card.pane.odinPriority} />
 								<OverdueMark itemKey={`session:${card.pane.id}`} />
@@ -3170,7 +3171,7 @@ const BoardCardTile = memo(
 						{/* Facts are one grey text line; chips are left only for flags that ask
     something of you. A pill that renders nothing drops out, so the dots
     between the rest stay right. */}
-						<div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 text-[11.5px] text-muted-foreground [&>*+*]:before:inline-block [&>*+*]:before:mr-1.5 [&>*+*]:before:text-faint-foreground [&>*+*]:before:content-['·']">
+						<div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 text-[12px] text-muted-foreground [&>*+*]:before:inline-block [&>*+*]:before:mr-1.5 [&>*+*]:before:text-faint-foreground [&>*+*]:before:content-['·']">
 							<GsdPill paneId={card.pane.id} />
 							{(dropped || merged) && (
 								<span className="font-medium text-danger">
@@ -3242,7 +3243,7 @@ const BoardCardTile = memo(
 							{boardTags(card.pane.odinTags, customTags).some(
 								(tag) => !PILL_TAGS.includes(tag),
 							) && (
-								<span className="font-mono text-[10.5px] text-faint-foreground">
+								<span className="font-mono text-[11px] text-faint-foreground">
 									{boardTags(card.pane.odinTags, customTags)
 										.filter((tag) => !PILL_TAGS.includes(tag))
 										.map((tag) => `#${tag}`)
@@ -3304,7 +3305,7 @@ const BoardCardTile = memo(
 							<DueChip itemKey={`session:${card.pane.id}`} title={title} />
 						</div>
 						{card.status === "working" && (
-							<div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+							<div className="mt-1.5 flex items-center gap-1.5 text-[12px] text-muted-foreground">
 								<span
 									className="size-[9px] animate-spin rounded-full border"
 									style={{
@@ -3321,7 +3322,7 @@ const BoardCardTile = memo(
 							</div>
 						)}
 						{card.status === "idle" && !isAgent && resuming && (
-							<div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-working">
+							<div className="mt-1.5 flex items-center gap-1.5 text-[12px] text-working">
 								<span className="size-[9px] animate-spin rounded-full border border-working border-t-transparent" />
 								{card.pane.odinQueued || starting ? "starting…" : "resuming…"}
 							</div>
@@ -3330,7 +3331,7 @@ const BoardCardTile = memo(
 					    on you. Says what for, and lets you overrule it. */}
 						{card.pane.odinQueued && !resuming && (
 							<div className="mt-1.5 flex items-center gap-2">
-								<span className="text-[11.5px] text-attention">
+								<span className="text-[12px] text-attention">
 									⏳ {card.pane.odinQueued.reason}
 								</span>
 								{/* The host's gate is never overruled - too many sessions there
@@ -3366,19 +3367,19 @@ const BoardCardTile = memo(
 							!resuming && (
 								<div className="mt-1.5 flex items-center gap-2">
 									{card.pane.status === "failed" && (
-										<span className="text-[11.5px] text-danger">✗ failed</span>
+										<span className="text-[12px] text-danger">✗ failed</span>
 									)}
 									{/* Resume does more here than on the other
 							    cards - it puts the agent back to work
 							    instead of handing you a prompt. */}
 									{card.pane.status === "working" && (
-										<span className="text-[11.5px] text-attention">
+										<span className="text-[12px] text-attention">
 											⏸ died mid-turn
 										</span>
 									)}
 									{card.pane.status !== "working" &&
 										card.pane.odinExitCause && (
-											<span className="select-text cursor-text truncate text-[11.5px] text-danger">
+											<span className="select-text cursor-text truncate text-[12px] text-danger">
 												✗ {card.pane.odinExitCause}
 											</span>
 										)}
@@ -8252,7 +8253,7 @@ function DevBoardPage() {
 						onChange={(e) => setBoardFilter(e.target.value)}
 						title="Show only starred or recently viewed sessions, or those in this group or with this tag, repo or person"
 						className={cn(
-							"max-w-[220px] cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none",
+							"max-w-[220px] cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring",
 							boardFilter
 								? "border-primary bg-primary/15 text-foreground"
 								: "border-border bg-card text-muted-foreground hover:text-foreground",
@@ -8867,7 +8868,7 @@ function DevBoardPage() {
 													}
 													aria-label="Sort sessions"
 													title="Sort sessions"
-													className="shrink-0 cursor-pointer rounded border border-border bg-card px-1 py-0.5 outline-none hover:text-foreground"
+													className="shrink-0 cursor-pointer rounded border border-border bg-card px-1 py-0.5 outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring hover:text-foreground"
 												>
 													{Object.entries(
 														switchControls === "tight"
@@ -9164,7 +9165,7 @@ function DevBoardPage() {
 										alive={agentPaneIds.has(drawerCard.pane.id)}
 									/>
 								) : drawerCard.pane.type !== "terminal" ? (
-									<div className="flex-1 select-text cursor-text overflow-y-auto px-4 py-3 text-[12.5px] text-muted-foreground">
+									<div className="flex-1 select-text cursor-text overflow-y-auto px-4 py-3 text-[13px] text-muted-foreground">
 										{drawerCard.pane.cwd && (
 											<div>cwd: {drawerCard.pane.cwd}</div>
 										)}

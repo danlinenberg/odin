@@ -11,7 +11,7 @@ import {
 } from "@odin/ui/select";
 import { toast } from "@odin/ui/sonner";
 import { type ChangeEvent, useRef, useState } from "react";
-import { HiOutlineArrowDownTray, HiOutlineArrowUpTray } from "react-icons/hi2";
+import { LuDownload, LuUpload } from "react-icons/lu";
 import { ThemeSwatch } from "renderer/components/ThemeSwatch";
 import {
 	SYSTEM_THEME_ID,
@@ -350,7 +350,7 @@ export function ThemeSection() {
 						size="sm"
 						onClick={handleDownloadBaseTheme}
 					>
-						<HiOutlineArrowDownTray className="mr-1.5 h-4 w-4" />
+						<LuDownload className="mr-1.5 h-4 w-4" />
 						Download starter
 					</Button>
 					<Button
@@ -360,7 +360,7 @@ export function ThemeSection() {
 						onClick={() => fileInputRef.current?.click()}
 						disabled={isImporting}
 					>
-						<HiOutlineArrowUpTray className="mr-1.5 h-4 w-4" />
+						<LuUpload className="mr-1.5 h-4 w-4" />
 						{isImporting ? "Importing..." : "Import"}
 					</Button>
 				</div>

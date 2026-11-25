@@ -10,7 +10,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { HiOutlineClock, HiOutlineSparkles, HiXMark } from "react-icons/hi2";
+import { LuClock, LuSparkles, LuX } from "react-icons/lu";
 import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { usePersistedDraft } from "renderer/stores/chat-drafts";
@@ -767,7 +767,7 @@ function SkillMenu({
 					<span className="shrink-0 font-mono text-[11px] font-semibold text-foreground">
 						/{skill.name}
 					</span>
-					<span className="min-w-0 flex-1 truncate text-[10.5px] text-muted-foreground">
+					<span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
 						{skill.description}
 					</span>
 				</button>
@@ -905,7 +905,7 @@ export function BuiltinChip() {
 				PILL.brand,
 			)}
 		>
-			<HiOutlineSparkles className="size-3" />
+			<LuSparkles className="size-3" />
 			Built-in
 		</span>
 	);
@@ -977,7 +977,7 @@ export function AutomationChip({
 				paused ? "bg-card text-faint-foreground" : PILL.brand,
 			)}
 		>
-			<HiOutlineClock className="size-3" />
+			<LuClock className="size-3" />
 			{/* In words, not in cron: this row is being scanned, not edited, and
 			    "0 9 * * 1-5" is something you decode. The panel is where the
 			    expression itself is worth seeing, and the tooltip has it here. */}
@@ -1230,7 +1230,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 						onClick={onClose}
 						className="-mr-1 ml-auto rounded-[6px] p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 					>
-						<HiXMark className="size-4" />
+						<LuX className="size-4" />
 					</button>
 				</div>
 				<div ref={body} className="flex min-h-0 grow flex-col px-4">

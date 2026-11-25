@@ -173,7 +173,7 @@ function MyTodo({
 			ref={setNodeRef}
 			style={{ transform: CSS.Transform.toString(transform), transition }}
 			className={cn(
-				"group relative flex items-start gap-2 text-[12.5px] leading-relaxed",
+				"group relative flex items-start gap-2 text-[13px] leading-relaxed",
 				isDragging && "z-10 rounded bg-accent",
 			)}
 		>
@@ -297,7 +297,7 @@ function Section({
 			<div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
 				{label}
 			</div>
-			<div className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-soft-foreground">
+			<div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-soft-foreground">
 				{children}
 			</div>
 		</div>
@@ -333,7 +333,7 @@ function Inline({ text }: { text: string }) {
 				<code
 					// biome-ignore lint/suspicious/noArrayIndexKey: parts never reorder
 					key={i}
-					className="rounded bg-secondary px-1 py-px font-mono text-[11.5px] text-foreground"
+					className="rounded bg-secondary px-1 py-px font-mono text-[12px] text-foreground"
 				>
 					{part.slice(1, -1)}
 				</code>
@@ -710,20 +710,20 @@ export function HoverBrief({ sessionId }: { sessionId?: string | null }) {
 		<>
 			{written?.goal && (
 				<div className="border-t border-border pt-2">
-					<div className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+					<div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
 						Goal
 					</div>
-					<div className="break-words text-[12.5px] leading-relaxed text-soft-foreground">
+					<div className="break-words text-[13px] leading-relaxed text-soft-foreground">
 						{written.goal}
 					</div>
 				</div>
 			)}
 			{todo.length > 0 && (
 				<div className="border-t border-border pt-2">
-					<div className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-attention">
+					<div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-attention">
 						Action items
 					</div>
-					<ol className="list-decimal space-y-0.5 pl-4 text-[12.5px] leading-relaxed text-soft-foreground">
+					<ol className="list-decimal space-y-0.5 pl-4 text-[13px] leading-relaxed text-soft-foreground">
 						{todo.map((item) => (
 							<li key={item} className="break-words">
 								{item}
@@ -1219,7 +1219,7 @@ export function SessionBrief({
 					<div className="flex flex-col gap-1">
 						{byRepo(ownPrs).map(([repo, repoPrs]) => (
 							<div key={repo} className="flex flex-col gap-1">
-								<div className="mt-1 text-[10.5px] font-medium text-muted-foreground">
+								<div className="mt-1 text-[11px] font-medium text-muted-foreground">
 									{repo.split("/").pop()}
 								</div>
 								{repoPrs.map((pr) => (
@@ -1531,7 +1531,7 @@ export function SessionBrief({
 						}}
 						placeholder={`Notes to yourself - saved as you type. ${sendKeys} adds it to your to-dos.`}
 						rows={4}
-						className="resize-y rounded-[7px] border border-border bg-background px-2 py-1.5 text-[12.5px] leading-relaxed text-soft-foreground placeholder:text-faint-foreground focus:border-primary focus:outline-none"
+						className="resize-y rounded-[7px] border border-border bg-background px-2 py-1.5 text-[13px] leading-relaxed text-soft-foreground placeholder:text-faint-foreground focus:border-primary focus:outline-none"
 					/>
 					{notes.trim() && (
 						<button

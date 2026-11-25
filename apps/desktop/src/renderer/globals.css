@@ -75,7 +75,7 @@
 	   foreground and muted-foreground: soft (body copy) and faint (tags,
 	   separators, placeholders). */
 	--soft-foreground: #c9c9d3;
-	--faint-foreground: #6e6e7b;
+	--faint-foreground: #868693; /* 4.5:1+ on background, card and muted */
 	--working: #5aa9ff;
 	--attention: #f5b83d;
 	--success: #3ecf8e;
@@ -99,13 +99,15 @@
 	--card: oklch(1 0 0);
 	--card-foreground: oklch(0.145 0 0);
 	--popover: oklch(1 0 0);
+	/* Primary is the dark theme's violet, darkened to 6.5:1 under white text, so both
+	   themes share one brand colour (it was shadcn's default near-black). */
 	--popover-foreground: oklch(0.145 0 0);
-	--primary: oklch(0.205 0 0);
+	--primary: oklch(0.5 0.2 285);
 	--primary-foreground: oklch(0.985 0 0);
 	--secondary: oklch(0.97 0 0);
 	--secondary-foreground: oklch(0.205 0 0);
 	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.556 0 0);
+	--muted-foreground: oklch(0.5 0 0); /* 4.5:1+ on card/muted (0.97) */
 	--accent: oklch(0.97 0 0);
 	--accent-foreground: oklch(0.205 0 0);
 	--tertiary: oklch(0.95 0.003 40);
@@ -114,7 +116,7 @@
 	--destructive-foreground: oklch(0.985 0 0);
 	--border: oklch(0.922 0 0);
 	--input: oklch(0.922 0 0);
-	--ring: oklch(0.708 0 0);
+	--ring: oklch(0.5 0.2 285);
 	--chart-1: oklch(0.646 0.222 41.116);
 	--chart-2: oklch(0.6 0.118 184.704);
 	--chart-3: oklch(0.398 0.07 227.392);
@@ -122,12 +124,12 @@
 	--chart-5: oklch(0.769 0.188 70.08);
 	--sidebar: oklch(0.985 0 0);
 	--sidebar-foreground: oklch(0.145 0 0);
-	--sidebar-primary: oklch(0.205 0 0);
+	--sidebar-primary: oklch(0.5 0.2 285);
 	--sidebar-primary-foreground: oklch(0.985 0 0);
 	--sidebar-accent: oklch(0.97 0 0);
 	--sidebar-accent-foreground: oklch(0.205 0 0);
 	--sidebar-border: oklch(0.922 0 0);
-	--sidebar-ring: oklch(0.708 0 0);
+	--sidebar-ring: oklch(0.5 0.2 285);
 	--highlight-match: rgba(255, 211, 61, 0.35);
 	--highlight-active: rgba(255, 150, 50, 0.55);
 	--highlight: oklch(0.646 0.222 41.116);
@@ -135,7 +137,7 @@
 	--fill-hover: color-mix(in oklab, var(--foreground) 4%, transparent);
 	--fill-selected: color-mix(in oklab, var(--foreground) 6%, transparent);
 	--soft-foreground: oklch(0.32 0 0);
-	--faint-foreground: oklch(0.62 0 0);
+	--faint-foreground: oklch(0.545 0 0); /* 4.5:1+ on card/muted (0.97) */
 	--working: #2f7fe0;
 	--attention: #b7791f;
 	--success: #1f9d63;
@@ -598,5 +600,19 @@
 	}
 	60% {
 		transform: translateY(0) rotate(5deg);
+	}
+}
+
+/* Reduce motion, app-wide: only a handful of animations opted out one by one
+   (motion-reduce:), so spinners, pulses and slides kept moving for people who
+   asked the OS for less motion. Unlayered + !important so it beats utilities. */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
 	}
 }

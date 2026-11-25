@@ -12,7 +12,7 @@ import { Label } from "@odin/ui/label";
 import { toast } from "@odin/ui/sonner";
 import { Textarea } from "@odin/ui/textarea";
 import { useEffect, useMemo, useState } from "react";
-import { HiChevronDown } from "react-icons/hi2";
+import { LuChevronDown } from "react-icons/lu";
 import { AnthropicOAuthDialog } from "renderer/components/Chat/ChatInterface/components/ModelPicker/components/AnthropicOAuthDialog";
 import { OpenAIOAuthDialog } from "renderer/components/Chat/ChatInterface/components/ModelPicker/components/OpenAIOAuthDialog";
 import { useAnthropicOAuth } from "renderer/components/Chat/ChatInterface/components/ModelPicker/hooks/useAnthropicOAuth";
@@ -323,7 +323,7 @@ export function ModelsSettings({ visibleItems }: ModelsSettingsProps) {
 											type="button"
 											className="flex items-center gap-1.5 text-left text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
 										>
-											<HiChevronDown
+											<LuChevronDown
 												className={`size-3.5 transition-transform ${advancedOpen ? "" : "-rotate-90"}`}
 											/>
 											Advanced

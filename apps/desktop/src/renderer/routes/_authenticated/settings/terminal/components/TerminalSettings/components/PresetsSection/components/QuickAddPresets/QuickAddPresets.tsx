@@ -8,8 +8,13 @@ import {
 } from "@odin/ui/dropdown-menu";
 import { cn } from "@odin/ui/utils";
 import { useNavigate } from "@tanstack/react-router";
-import { HiMiniCommandLine } from "react-icons/hi2";
-import { LuCheck, LuChevronDown, LuPlus, LuSettings } from "react-icons/lu";
+import {
+	LuCheck,
+	LuChevronDown,
+	LuPlus,
+	LuSettings,
+	LuSquareTerminal,
+} from "react-icons/lu";
 import { getPresetIcon } from "renderer/assets/app-icons/preset-icons";
 
 export interface QuickAddAgentPill {
@@ -75,7 +80,7 @@ export function QuickAddPresets({
 								{icon ? (
 									<img src={icon} alt="" className="size-4 object-contain" />
 								) : (
-									<HiMiniCommandLine className="size-4 text-muted-foreground" />
+									<LuSquareTerminal className="size-4 text-muted-foreground" />
 								)}
 							</div>
 							<div className="min-w-0 flex-1">

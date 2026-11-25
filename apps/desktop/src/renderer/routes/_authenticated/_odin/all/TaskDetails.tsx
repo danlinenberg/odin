@@ -141,7 +141,7 @@ export function TaskDetails({
 				</div>
 			)}
 			{rows.length > 0 && (
-				<dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11.5px]">
+				<dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[12px]">
 					{rows.map(([label, value]) => (
 						<div key={label} className="contents">
 							<dt className="text-muted-foreground">{label}</dt>

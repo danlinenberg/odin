@@ -16,7 +16,7 @@ export function ThemeSwatch({ theme }: { theme: Theme }) {
 				style={{ backgroundColor: terminal.green }}
 			/>
 			<span
-				className="text-[9px] leading-none"
+				className="text-[10px] leading-none"
 				style={{ color: isDark ? "#fff" : "#000", opacity: 0.9 }}
 			>
 				Aa

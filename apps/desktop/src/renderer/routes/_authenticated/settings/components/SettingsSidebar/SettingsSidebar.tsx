@@ -1,8 +1,7 @@
 import { cn } from "@odin/ui/utils";
 import { Link, useMatchRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { HiArrowLeft } from "react-icons/hi2";
-import { LuSearch } from "react-icons/lu";
+import { LuArrowLeft, LuSearch } from "react-icons/lu";
 import { useFeatureFlags } from "renderer/hooks/useFeatureFlag";
 import { useSettingsOriginRoute } from "renderer/stores/settings-state";
 import { useSearchHotkey } from "../../../_odin/components/FeedChrome";
@@ -34,7 +33,7 @@ export function SettingsSidebar() {
 				to={originRoute}
 				className="flex items-center gap-2 px-2 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
 			>
-				<HiArrowLeft className="h-4 w-4" />
+				<LuArrowLeft className="h-4 w-4" />
 				<span>Back</span>
 			</Link>
 

@@ -9,17 +9,17 @@ import { cn } from "@odin/ui/utils";
 import type { WebviewTag } from "electron";
 import { useEffect, useRef, useState } from "react";
 import {
-	HiArrowDownTray,
-	HiArrowLeft,
-	HiArrowPath,
-	HiArrowRight,
-	HiArrowTopRightOnSquare,
-	HiChevronDown,
-	HiChevronUp,
-	HiLink,
-	HiViewColumns,
-	HiXMark,
-} from "react-icons/hi2";
+	LuArrowLeft,
+	LuArrowRight,
+	LuChevronDown,
+	LuChevronUp,
+	LuColumns3,
+	LuDownload,
+	LuExternalLink,
+	LuLink,
+	LuRefreshCw,
+	LuX,
+} from "react-icons/lu";
 import { useZoomFactor } from "renderer/hooks/useZoomFactor";
 import {
 	getDispatchChord,
@@ -688,7 +688,7 @@ export function InAppBrowser() {
 						className={ICON_BUTTON}
 						onClick={() => view()?.goBack()}
 					>
-						<HiArrowLeft className="size-4" />
+						<LuArrowLeft className="size-4" />
 					</button>
 					<button
 						type="button"
@@ -696,7 +696,7 @@ export function InAppBrowser() {
 						className={ICON_BUTTON}
 						onClick={() => view()?.goForward()}
 					>
-						<HiArrowRight className="size-4" />
+						<LuArrowRight className="size-4" />
 					</button>
 					<button
 						type="button"
@@ -704,7 +704,7 @@ export function InAppBrowser() {
 						className={ICON_BUTTON}
 						onClick={() => view()?.reload()}
 					>
-						<HiArrowPath className="size-4" />
+						<LuRefreshCw className="size-4" />
 					</button>
 					<OnePasswordButton className={ICON_BUTTON} webview={view} />
 					{site === "slack" && (
@@ -721,7 +721,7 @@ export function InAppBrowser() {
 								useInAppBrowser.setState({ slackSidebar: !showSlackSidebar })
 							}
 						>
-							<HiViewColumns className="size-4" />
+							<LuColumns3 className="size-4" />
 						</button>
 					)}
 					<input
@@ -774,7 +774,7 @@ export function InAppBrowser() {
 								className={ICON_BUTTON}
 								onClick={() => findNext(false)}
 							>
-								<HiChevronUp className="size-3.5" />
+								<LuChevronUp className="size-3.5" />
 							</button>
 							<button
 								type="button"
@@ -782,7 +782,7 @@ export function InAppBrowser() {
 								className={ICON_BUTTON}
 								onClick={() => findNext(true)}
 							>
-								<HiChevronDown className="size-3.5" />
+								<LuChevronDown className="size-3.5" />
 							</button>
 							<button
 								type="button"
@@ -790,7 +790,7 @@ export function InAppBrowser() {
 								className={ICON_BUTTON}
 								onClick={() => closeFind(true)}
 							>
-								<HiXMark className="size-3.5" />
+								<LuX className="size-3.5" />
 							</button>
 						</div>
 					)}
@@ -807,7 +807,7 @@ export function InAppBrowser() {
 							if (webview) copyLink(webview, copyText);
 						}}
 					>
-						<HiLink className="size-4" />
+						<LuLink className="size-4" />
 					</button>
 					<div className="flex">
 						<button
@@ -822,7 +822,7 @@ export function InAppBrowser() {
 								BUTTON.secondary,
 							)}
 						>
-							<HiArrowTopRightOnSquare className="size-3.5" />
+							<LuExternalLink className="size-3.5" />
 							Open in browser
 						</button>
 						<DropdownMenu>
@@ -835,7 +835,7 @@ export function InAppBrowser() {
 										BUTTON.secondary,
 									)}
 								>
-									<HiChevronDown className="size-3.5" />
+									<LuChevronDown className="size-3.5" />
 								</button>
 							</DropdownMenuTrigger>
 							{/* Above the panel's z-[60]. */}
@@ -847,14 +847,14 @@ export function InAppBrowser() {
 										alwaysExternal();
 									}}
 								>
-									<HiArrowTopRightOnSquare className="size-3.5" />
+									<LuExternalLink className="size-3.5" />
 									Always open links in your browser
 								</DropdownMenuItem>
 								{/* Chrome and Edge on Windows lock their cookies to themselves
 								    (app-bound encryption): the import works on macOS only. */}
 								{navigator.platform.toLowerCase().includes("mac") && (
 									<DropdownMenuItem onSelect={importSignIns}>
-										<HiArrowDownTray className="size-3.5" />
+										<LuDownload className="size-3.5" />
 										Import sign-ins from your browser
 									</DropdownMenuItem>
 								)}
@@ -867,7 +867,7 @@ export function InAppBrowser() {
 						className={ICON_BUTTON}
 						onClick={close}
 					>
-						<HiXMark className="size-4" />
+						<LuX className="size-4" />
 					</button>
 				</div>
 				<div className="relative min-h-0 flex-1">

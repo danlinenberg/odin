@@ -1,9 +1,11 @@
 import {
-	HiOutlineClipboardDocumentCheck,
-	HiOutlineDocumentText,
-	HiOutlineInbox,
-} from "react-icons/hi2";
-import { LuCalendarDays, LuGitPullRequest, LuRadar } from "react-icons/lu";
+	LuCalendarDays,
+	LuClipboardCheck,
+	LuFileText,
+	LuGitPullRequest,
+	LuInbox,
+	LuRadar,
+} from "react-icons/lu";
 import {
 	SiAirtable,
 	SiClickup,
@@ -21,9 +23,9 @@ import type { Provider } from "renderer/components/ConnectProvider/ConnectProvid
  * read as one place with sources rather than an icon each.
  */
 export const FEED_TABS = [
-	{ to: "/all", label: "All", Icon: HiOutlineInbox },
-	{ to: "/my-tasks", label: "Tasks", Icon: HiOutlineClipboardDocumentCheck },
-	{ to: "/docs", label: "Docs", Icon: HiOutlineDocumentText },
+	{ to: "/all", label: "All", Icon: LuInbox },
+	{ to: "/my-tasks", label: "Tasks", Icon: LuClipboardCheck },
+	{ to: "/docs", label: "Docs", Icon: LuFileText },
 	{ to: "/reactions", label: "Slack", Icon: SiSlack, provider: "slack" },
 	{ to: "/jira", label: "Jira", Icon: SiJira, provider: "jira" },
 	{ to: "/prs", label: "GitHub", Icon: LuGitPullRequest, provider: "github" },

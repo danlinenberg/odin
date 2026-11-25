@@ -3,7 +3,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@odin/ui/popover";
 import { toast } from "@odin/ui/sonner";
 import type { WebviewTag } from "electron";
 import { useState } from "react";
-import { HiKey } from "react-icons/hi2";
+import { LuKey } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 
 /**
@@ -175,7 +175,7 @@ export function OnePasswordButton({
 						lookUp();
 					}}
 				>
-					<HiKey className="size-4" />
+					<LuKey className="size-4" />
 				</button>
 			</PopoverTrigger>
 			<PopoverContent align="start" className="z-[70] w-72 p-2">
