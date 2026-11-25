@@ -252,7 +252,8 @@ describe("remote session scripts", () => {
 		);
 		const dir = mkdtempSync(join(tmpdir(), "odin-scope-"));
 		const start = () =>
-			spawnSync("/bin/sh", ["-c", "setsid sleep 60 >/dev/null 2>&1 & echo $!"])
+			// No setsid: macOS has none, and the sleep then never started.
+			spawnSync("/bin/sh", ["-c", "sleep 60 >/dev/null 2>&1 & echo $!"])
 				.stdout.toString()
 				.trim();
 		const left = start();
