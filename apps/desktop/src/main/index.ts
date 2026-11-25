@@ -106,8 +106,17 @@ app.setAboutPanelOptions({
 // Dev mode: register with execPath + app script so macOS launches Electron with our entry point.
 // A dev run without a workspace has the installed app's bare `odin` scheme, and macOS ignores
 // execPath: it would hand `odin://` (OAuth callbacks included) to any stock Electron.app.
+// On macOS the dev bundle is patched to "Odin Dev.app" with its own bundle ID
+// (scripts/patch-dev-protocol.ts), so it can claim the scheme by bundle ID like
+// the packaged app does. Without that claim, odin:// OAuth callbacks went to
+// whichever other bundle Launch Services picked - an update parked in stale/.
 if (process.defaultApp) {
-	if (process.argv.length >= 2 && PROTOCOL_SCHEME !== "odin") {
+	if (
+		process.platform === "darwin" &&
+		process.execPath.includes("/Odin Dev.app/")
+	) {
+		app.setAsDefaultProtocolClient(PROTOCOL_SCHEME);
+	} else if (process.argv.length >= 2 && PROTOCOL_SCHEME !== "odin") {
 		app.setAsDefaultProtocolClient(PROTOCOL_SCHEME, process.execPath, [
 			path.resolve(process.argv[1]),
 		]);
