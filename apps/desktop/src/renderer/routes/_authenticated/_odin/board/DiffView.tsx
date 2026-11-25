@@ -49,6 +49,7 @@ export function DiffView({
 	cwd,
 	claudeSessionId,
 	workspaceId,
+	host,
 }: {
 	/** The session's terminal - where the review is typed in. */
 	paneId: string;
@@ -59,6 +60,9 @@ export function DiffView({
 	 * shell noticing, so its transcript - not `cwd` - knows where the work is. */
 	claudeSessionId: string | null;
 	workspaceId: string;
+	/** The host a remote session runs on: its checkout is there, so git runs
+	 * there. Null for a session on this computer. */
+	host: string | null;
 }) {
 	/** The diff on screen: null is the checkout's uncommitted work, BRANCH
 	 * everything its branch did since it left main, else a PR's url. */
@@ -119,6 +123,7 @@ export function DiffView({
 			cwd,
 			claudeSessionId,
 			workspaceId,
+			host,
 			pr,
 			branch,
 			wholeFile,
@@ -167,7 +172,8 @@ export function DiffView({
 	const [editError, setEditError] = useState<string | null>(null);
 	const utils = electronTrpc.useUtils();
 	const saveFile = electronTrpc.repos.saveWorkingFile.useMutation();
-	const editable = canEditDiffFile(choice, data?.source, current);
+	// Edit reads and writes this computer's files; a host session's are there.
+	const editable = !host && canEditDiffFile(choice, data?.source, current);
 	const checkout = { cwd, claudeSessionId, workspaceId };
 	const closeEditor = () => {
 		setEditing(null);
@@ -275,6 +281,7 @@ export function DiffView({
 					cwd,
 					claudeSessionId,
 					workspaceId,
+					host,
 				});
 				setSince(tree);
 				try {

@@ -9284,6 +9284,7 @@ function DevBoardPage() {
 										cwd={sessionCwd(drawerCard.pane) ?? null}
 										claudeSessionId={drawerCard.pane.claudeSessionId ?? null}
 										workspaceId={drawerCard.workspaceId}
+										host={drawerCard.pane.odinRemote ?? null}
 									/>
 								) : isAgentsOpen && drawerCard.pane.type === "terminal" ? (
 									<AgentsView

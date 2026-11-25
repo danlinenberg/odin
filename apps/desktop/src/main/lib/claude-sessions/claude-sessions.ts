@@ -2210,15 +2210,19 @@ export function repoNameOf(checkout: string): string {
 export async function workingRepoOf(
 	sessionId: string,
 	root: string = projectsRoot(),
+	checkouts: CheckoutResolver = localCheckouts,
 ): Promise<string | null> {
-	const tallied = await tallyCheckouts(sessionId, root);
+	const tallied = await tallyCheckouts(sessionId, root, checkouts);
 	if (!tallied) return null;
 	// The repo is decided; hand back the checkout inside it the session used
 	// most, since that is the tree with the changes in it.
 	let best: string | null = null;
 	let bestTally: Tally = { count: 0, lastSeen: 0 };
 	for (const [checkout, tally] of tallied.perCheckout) {
-		if (ownerRepoOf(checkout) === tallied.winner && busiest(tally, bestTally)) {
+		if (
+			checkouts.ownerOf(checkout) === tallied.winner &&
+			busiest(tally, bestTally)
+		) {
 			best = checkout;
 			bestTally = tally;
 		}
@@ -2235,15 +2239,16 @@ export async function workingRepoOf(
 export async function workingWorktreeOf(
 	sessionId: string,
 	root: string = projectsRoot(),
+	checkouts: CheckoutResolver = localCheckouts,
 ): Promise<string | null> {
-	const tallied = await tallyCheckouts(sessionId, root);
+	const tallied = await tallyCheckouts(sessionId, root, checkouts);
 	if (!tallied) return null;
 	let best: string | null = null;
 	let lastSeen = 0;
 	for (const [checkout, tally] of tallied.perCheckout) {
 		if (
 			checkout !== tallied.winner &&
-			ownerRepoOf(checkout) === tallied.winner &&
+			checkouts.ownerOf(checkout) === tallied.winner &&
 			tally.lastSeen > lastSeen
 		) {
 			best = checkout;
@@ -2280,18 +2285,28 @@ function editedFilesOf(message: unknown): string[] {
 	return files;
 }
 
-/** Every checkout the transcript ran commands in or edited, and the repo that won. */
-async function tallyCheckouts(
-	sessionId: string,
-	root: string,
-): Promise<{ winner: string; perCheckout: Map<string, Tally> } | null> {
-	const found = await transcriptOf(sessionId, root);
-	if (!found) return null;
+/**
+ * How a folder maps to its checkout and a checkout to its repo. This
+ * computer's disk by default; a remote host's session passes the host's
+ * answers, since its transcript's folders are paths on the host.
+ */
+export interface CheckoutResolver {
+	/** The checkout holding `dir`, or null outside one. */
+	rootOf(dir: string): string | null;
+	/** The repo owning a checkout: itself for a clone, the clone for a worktree. */
+	ownerOf(checkout: string): string;
+}
 
-	const perCheckout = new Map<string, Tally>();
-	const checkoutOfDir = new Map<string, string | null>();
+const localCheckouts: CheckoutResolver = {
+	rootOf: repoRootOf,
+	ownerOf: ownerRepoOf,
+};
+
+/** Each transcript line's folders: its cwd first, then the folders of the files it edited. */
+function votingDirs(text: string): { dirs: string[]; index: number }[] {
+	const votes: { dirs: string[]; index: number }[] = [];
 	let index = 0;
-	for (const line of (await readFile(found.path, "utf-8")).split("\n")) {
+	for (const line of text.split("\n")) {
 		index += 1;
 		let entry: { cwd?: unknown; message?: unknown };
 		try {
@@ -2305,9 +2320,33 @@ async function tallyCheckouts(
 		// to `~/dev/dbt`) never shows up as a cwd - only its edits name it.
 		const dirs = editedFilesOf(entry.message).map(dirname);
 		if (typeof entry.cwd === "string" && entry.cwd) dirs.unshift(entry.cwd);
+		if (dirs.length) votes.push({ dirs, index });
+	}
+	return votes;
+}
 
+/** Every folder a transcript ran commands in or edited files in, each once. */
+export function transcriptDirs(text: string): string[] {
+	return [...new Set(votingDirs(text).flatMap((vote) => vote.dirs))];
+}
+
+/** Every checkout the transcript ran commands in or edited, and the repo that won. */
+async function tallyCheckouts(
+	sessionId: string,
+	root: string,
+	checkouts: CheckoutResolver = localCheckouts,
+): Promise<{ winner: string; perCheckout: Map<string, Tally> } | null> {
+	const found = await transcriptOf(sessionId, root);
+	if (!found) return null;
+
+	const perCheckout = new Map<string, Tally>();
+	const checkoutOfDir = new Map<string, string | null>();
+	for (const { dirs, index } of votingDirs(
+		await readFile(found.path, "utf-8"),
+	)) {
 		for (const dir of dirs) {
-			if (!checkoutOfDir.has(dir)) checkoutOfDir.set(dir, repoRootOf(dir));
+			if (!checkoutOfDir.has(dir))
+				checkoutOfDir.set(dir, checkouts.rootOf(dir));
 			const checkout = checkoutOfDir.get(dir);
 			if (!checkout) continue;
 
@@ -2323,7 +2362,7 @@ async function tallyCheckouts(
 
 	const perRepo = new Map<string, Tally>();
 	for (const [checkout, tally] of perCheckout) {
-		const repo = ownerRepoOf(checkout);
+		const repo = checkouts.ownerOf(checkout);
 		const running = perRepo.get(repo);
 		if (running) {
 			running.count += tally.count;

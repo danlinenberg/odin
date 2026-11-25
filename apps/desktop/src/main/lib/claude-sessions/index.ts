@@ -1,5 +1,6 @@
 export { BEAT_MS, readAttention, recordBeat } from "./attention";
 export {
+	type CheckoutResolver,
 	firstPrompt,
 	lastCwd,
 	listTranscripts,
@@ -20,6 +21,7 @@ export {
 	type TranscriptMessage,
 	tailPrompt,
 	tailTurn,
+	transcriptDirs,
 	transcriptOf,
 	transcriptTail,
 	workingRepoOf,
