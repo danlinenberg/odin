@@ -3040,6 +3040,9 @@ function DangerCountdown({ count }: { count: number }) {
 /** Replies GSD Mode already ran (`paneId:replyId`), so a remount doesn't run them twice. */
 const dangerRan = new Set<string>();
 
+/** Sessions that already saw GSD Mode's countdown: later commands run without it. */
+const gsdWarned = new Set<string>();
+
 /** Sessions GSD Mode already told what it means, since it was last turned on. */
 const gsdBriefed = new Set<string>();
 
@@ -4171,12 +4174,16 @@ export function ChatView({
 		}
 		gsdPushes.delete(paneId);
 		void (async () => {
-			// Say what's about to run before it does, with a few seconds to stop it.
+			// The first run in a session says what's about to run before it does,
+			// with a few seconds to stop it. Later runs go straight to the reviewer.
+			const warn = !gsdWarned.has(paneId);
+			gsdWarned.add(paneId);
 			const stop = () => useDangerMode.getState().toggle(paneId, false);
-			setDangerStep({
-				text: `about to run ${commands.length === 1 ? "a command" : `${commands.length} commands`} - Stop in the warning cancels it, Go runs it now`,
-				since: Date.now(),
-			});
+			if (warn)
+				setDangerStep({
+					text: `about to run ${commands.length === 1 ? "a command" : `${commands.length} commands`} - Stop in the warning cancels it, Go runs it now`,
+					since: Date.now(),
+				});
 			// A second model reads the commands while the warning counts down:
 			// what it won't let run alone waits for you, and no verdict is no run.
 			const judging = electronTrpcClient.terminal.judgeGsdCommands
@@ -4188,23 +4195,25 @@ export function ChatView({
 			let go = () => {};
 			const wait = new Promise<void>((resolve) => {
 				go = resolve;
-				setTimeout(resolve, DANGER_WARN_MS);
+				if (warn) setTimeout(resolve, DANGER_WARN_MS);
+				else resolve();
 			});
-			toast.warning(<DangerCountdown count={commands.length} />, {
-				description: (
-					<ol className="list-decimal pl-4">
-						{dangerPlan(lastText.text, (command) => !heldWhy(command)).map(
-							(line, i) => (
-								// biome-ignore lint/suspicious/noArrayIndexKey: a fixed list, two commands can read the same
-								<li key={i}>{line}</li>
-							),
-						)}
-					</ol>
-				),
-				duration: DANGER_WARN_MS,
-				cancel: { label: "Stop", onClick: stop },
-				action: { label: "Go", onClick: () => go() },
-			});
+			if (warn)
+				toast.warning(<DangerCountdown count={commands.length} />, {
+					description: (
+						<ol className="list-decimal pl-4">
+							{dangerPlan(lastText.text, (command) => !heldWhy(command)).map(
+								(line, i) => (
+									// biome-ignore lint/suspicious/noArrayIndexKey: a fixed list, two commands can read the same
+									<li key={i}>{line}</li>
+								),
+							)}
+						</ol>
+					),
+					duration: DANGER_WARN_MS,
+					cancel: { label: "Stop", onClick: stop },
+					action: { label: "Go", onClick: () => go() },
+				});
 			await wait;
 			if (!useDangerMode.getState().on[paneId]) {
 				setDangerStep(null);
