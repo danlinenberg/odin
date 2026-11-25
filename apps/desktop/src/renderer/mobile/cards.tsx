@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { IconType } from "react-icons";
+// biome-ignore lint/style/noRestrictedImports: the Bootstrap cloud is Odin's remote-session icon
+import { BsCloud, BsCloudSlash } from "react-icons/bs";
 import {
 	LuBellRing,
 	LuCheck,
 	LuChevronDown,
 	LuChevronRight,
-	LuCloud,
-	LuCloudOff,
 	LuFileText,
 	LuFolderGit2,
 	LuGitPullRequest,
@@ -286,9 +286,9 @@ export function Chips({
 			? cloud
 				? null
 				: details.connected === false
-					? { icon: LuCloudOff, label: "Remote · offline", off: true }
+					? { icon: BsCloudSlash, label: "Remote · offline", off: true }
 					: {
-							icon: LuCloud,
+							icon: BsCloud,
 							label: "Remote",
 							on: details.connected === true,
 							strong: true,
@@ -338,17 +338,17 @@ export function remoteCloud(connected: boolean | undefined): {
 } {
 	if (connected === false)
 		return {
-			icon: LuCloudOff,
+			icon: BsCloudSlash,
 			label: "Remote, offline",
 			className: "text-danger",
 		};
 	if (connected)
 		return {
-			icon: LuCloud,
+			icon: BsCloud,
 			label: "Remote, connected",
 			className: "text-success",
 		};
-	return { icon: LuCloud, label: "Remote", className: "text-foreground" };
+	return { icon: BsCloud, label: "Remote", className: "text-foreground" };
 }
 
 /** A day `days` from today as YYYY-MM-DD, local time. */
