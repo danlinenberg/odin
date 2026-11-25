@@ -1002,7 +1002,7 @@ function NewTask({ onClose }: { onClose: () => void }) {
 					value={repo}
 					onChange={(event) => setRepo(event.target.value)}
 					aria-label="Repo"
-					className="h-10 rounded-[10px] border border-input bg-secondary px-3 text-[15px] outline-none"
+					className="h-10 rounded-[10px] border border-input bg-secondary px-3 text-[15px] outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring"
 				>
 					<option value="">Default repo</option>
 					{repos.data.map((path) => (
@@ -1017,7 +1017,7 @@ function NewTask({ onClose }: { onClose: () => void }) {
 					value={(onHost ?? host.data.on) ? "host" : "local"}
 					onChange={(event) => setOnHost(event.target.value === "host")}
 					aria-label="Where Start now runs it"
-					className="h-10 rounded-[10px] border border-input bg-secondary px-3 text-[15px] outline-none"
+					className="h-10 rounded-[10px] border border-input bg-secondary px-3 text-[15px] outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring"
 				>
 					<option value="local">Start on: this Mac</option>
 					<option value="host">Start on: remote ({host.data.name})</option>

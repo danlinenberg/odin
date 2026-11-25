@@ -155,7 +155,7 @@ function NotionPage() {
 						onChange={(e) => setDatabase.mutate({ databaseId: e.target.value })}
 						title="Which Notion database to read tasks from"
 						className={cn(
-							"max-w-[260px] cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none disabled:opacity-40",
+							"max-w-[260px] cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring disabled:opacity-40",
 							databaseId
 								? "border-primary bg-primary/15 text-foreground"
 								: "border-border bg-card text-muted-foreground hover:text-foreground",

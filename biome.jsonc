@@ -121,6 +121,40 @@
 									{
 										"group": ["node:*"],
 										"message": "Renderer code must not import Node builtins."
+									},
+									{
+										"group": [
+											"react-icons/*",
+											"!react-icons/lu",
+											"!react-icons/fa",
+											"!react-icons/si"
+										],
+										"message": "One icon set: use lucide (react-icons/lu). fa and si are for brand logos only."
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"includes": ["packages/ui/src/**"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"patterns": [
+									{
+										"group": [
+											"react-icons/*",
+											"!react-icons/lu",
+											"!react-icons/fa",
+											"!react-icons/si"
+										],
+										"message": "One icon set: use lucide (react-icons/lu). fa and si are for brand logos only."
 									}
 								]
 							}

@@ -259,6 +259,11 @@ export const useTaskMeta = create<{
 	queue: string[];
 	/** Rows waiting on someone else, off Up next until their day. */
 	waiting: Record<string, Waiting>;
+	/** Rows hidden from Today's Not started yet list. Capped at KEEP. */
+	hiddenToday: string[];
+	hideToday: (key: string) => void;
+	/** Bring every hidden row back on Today. */
+	unhideToday: () => void;
 	setStatus: (key: string, status: TaskStatus | null) => void;
 	setType: (key: string, type: TaskType | null) => void;
 	/** Your notes on a row, kept in Odin only; empty clears them. */
@@ -290,6 +295,14 @@ export const useTaskMeta = create<{
 			notes: {},
 			queue: [],
 			waiting: {},
+			hiddenToday: [],
+			hideToday: (key) =>
+				set((s) =>
+					s.hiddenToday.includes(key)
+						? s
+						: { hiddenToday: [...s.hiddenToday, key].slice(-KEEP) },
+				),
+			unhideToday: () => set({ hiddenToday: [] }),
 			customStatuses: [],
 			customTypes: [],
 			setStatus: (key, status) =>

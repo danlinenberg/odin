@@ -4,7 +4,7 @@ import { toast } from "@odin/ui/sonner";
 import { Switch } from "@odin/ui/switch";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { HiMiniPlus, HiMiniXMark } from "react-icons/hi2";
+import { LuPlus, LuX } from "react-icons/lu";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { electronTrpc } from "renderer/lib/electron-trpc";
@@ -249,7 +249,7 @@ function CorrectionRows({
 						className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
 						onClick={() => onChange(notes.filter((_, i) => i !== index))}
 					>
-						<HiMiniXMark className="h-3.5 w-3.5" />
+						<LuX className="h-3.5 w-3.5" />
 					</Button>
 				</div>
 			))}
@@ -273,7 +273,7 @@ function CorrectionRows({
 					disabled={!adding.trim()}
 					onClick={add}
 				>
-					<HiMiniPlus className="h-3.5 w-3.5" />
+					<LuPlus className="h-3.5 w-3.5" />
 				</Button>
 			</div>
 		</div>

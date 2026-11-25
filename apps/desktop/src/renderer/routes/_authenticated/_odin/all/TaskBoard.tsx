@@ -226,7 +226,7 @@ function Card({
 				open ? "border-primary/60" : "border-border",
 			)}
 		>
-			<span className="line-clamp-3 text-[12.5px] text-foreground">
+			<span className="line-clamp-3 text-[13px] text-foreground">
 				{emojify(item.title)}
 			</span>
 			<span className="flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground">

@@ -10,9 +10,8 @@ import { join } from "node:path";
  */
 
 const AA = 4.5;
-// faint-foreground is for tags, separators and placeholders: WCAG's 3:1 floor
-// for incidental text and UI parts, not body copy.
-const HINT = 3;
+// faint-foreground (tags, placeholders, small meta text) is mostly 10-11px,
+// where 3:1 is too faint to read, so it is held to AA like the rest.
 const TEXT: Record<string, number> = {
 	foreground: AA,
 	"soft-foreground": AA,
@@ -22,7 +21,7 @@ const TEXT: Record<string, number> = {
 	attention: AA,
 	success: AA,
 	danger: AA,
-	"faint-foreground": HINT,
+	"faint-foreground": AA,
 };
 const SURFACES = ["background", "card", "popover", "secondary", "accent"];
 

@@ -1,6 +1,6 @@
 import { cn } from "@odin/ui/utils";
 import { Fragment, type ReactNode, useState } from "react";
-import { HiMagnifyingGlass } from "react-icons/hi2";
+import { LuSearch } from "react-icons/lu";
 
 export interface SettingsListGroup<T> {
 	id: string;
@@ -59,7 +59,7 @@ export function SettingsListSidebar<T>({
 				{showFilter && (
 					<div className="flex items-center gap-1.5">
 						<div className="relative flex-1 min-w-0">
-							<HiMagnifyingGlass className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+							<LuSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
 							<input
 								type="text"
 								aria-label={searchAriaLabel}

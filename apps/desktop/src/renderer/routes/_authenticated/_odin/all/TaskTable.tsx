@@ -83,7 +83,7 @@ function AlsoIn({ copy }: { copy: AllItem }) {
 			title={`Also in ${copy.source}: ${copy.title}${url ? " - click to open it" : ""}`}
 			disabled={!url}
 			onClick={() => url && openUrl(url)}
-			className="flex shrink-0 items-center gap-1 rounded-[4px] border border-border px-1 py-px text-[10.5px] text-muted-foreground hover:bg-secondary hover:text-foreground"
+			className="flex shrink-0 items-center gap-1 rounded-[4px] border border-border px-1 py-px text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground"
 		>
 			{Icon && <Icon className="size-3" aria-hidden />}
 			{copy.source}
@@ -166,7 +166,7 @@ export function TaskTableHeader({ date = "Updated" }: { date?: string }) {
 		<div
 			className={cn(
 				ROW_GRID,
-				"sticky top-0 z-[5] border-b border-border bg-background px-3.5 py-1.5 text-[10.5px] font-semibold uppercase tracking-[.06em] text-faint-foreground",
+				"sticky top-0 z-[5] border-b border-border bg-background px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[.06em] text-faint-foreground",
 			)}
 		>
 			<span className={COL.lead} />
@@ -452,7 +452,7 @@ export function TaskRow({
 							<div
 								dir="auto"
 								title={preview}
-								className="truncate text-[11.5px] text-muted-foreground"
+								className="truncate text-[12px] text-muted-foreground"
 							>
 								{emojify(preview.slice(0, 300))}
 							</div>

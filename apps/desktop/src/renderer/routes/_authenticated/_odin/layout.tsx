@@ -16,7 +16,7 @@ import {
 } from "@tanstack/react-router";
 import type { ClaudeUsageWindow } from "lib/trpc/routers/resource-metrics";
 import { memo, useEffect, useMemo, useState } from "react";
-import { HiOutlineEllipsisVertical } from "react-icons/hi2";
+import { LuEllipsisVertical } from "react-icons/lu";
 import { ClaudeCommandPicker } from "renderer/components/ClaudeCommandPicker";
 import { ZoomStable } from "renderer/components/ZoomStable/ZoomStable";
 import { QUEUE_POLL, useTaskQueue } from "renderer/hooks/useTaskQueue";
@@ -48,6 +48,7 @@ import { useReplyWatcher } from "./components/ReplyWatch";
 import { MORE_ITEMS, RAIL_ITEMS, SETTINGS_ITEM } from "./components/rail-items";
 import { SearchAll } from "./components/SearchAll";
 import { SessionContextDialog } from "./components/SessionContextDialog";
+import { StatusAnnouncer } from "./components/StatusAnnouncer";
 import { QuickAddTask } from "./components/TaskBox";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { useMeetingActionItemsRunner } from "./hooks/meeting-action-items";
@@ -579,7 +580,7 @@ function OdinShell() {
 							value={activeProfileId}
 							disabled={isSwitchingProfile}
 							onChange={(event) => switchProfile(event.target.value)}
-							className="cursor-pointer rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground disabled:opacity-50"
+							className="cursor-pointer rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold text-muted-foreground outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring transition-colors hover:text-foreground disabled:opacity-50"
 						>
 							{/* Names only. A native <select> is as wide as its widest
 							    option, so the other profile's counts in its label
@@ -661,7 +662,7 @@ function OdinShell() {
 												: "text-muted-foreground hover:text-foreground",
 										)}
 									>
-										<HiOutlineEllipsisVertical className="size-[17px]" />
+										<LuEllipsisVertical className="size-[17px]" />
 									</button>
 								</DropdownMenuTrigger>
 							</TooltipTrigger>
@@ -708,6 +709,7 @@ function OdinShell() {
 						newTaskKeys={newTaskKeys.text}
 					/>
 					<InAppBrowser />
+					<StatusAnnouncer />
 				</div>
 			</div>
 

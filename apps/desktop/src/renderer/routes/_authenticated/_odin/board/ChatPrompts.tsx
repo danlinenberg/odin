@@ -77,7 +77,7 @@ export function QuestionCard({
 			<div className="space-y-4">
 				{questions.map((question, qi) => (
 					<div key={`${qi}-${question.question}`}>
-						<div className="mb-2 text-[13.5px] text-foreground">
+						<div className="mb-2 text-[14px] text-foreground">
 							{question.question}
 							{question.multiSelect && (
 								<span className="ml-2 text-[11px] text-muted-foreground">
@@ -96,7 +96,7 @@ export function QuestionCard({
 										title={option.description}
 										onClick={() => pick(qi, oi)}
 										className={cn(
-											"flex w-full min-w-0 items-center gap-2 rounded-lg border px-3 py-1.5 text-left text-[12.5px] transition-[background-color,border-color,opacity,transform] duration-150 active:scale-[.99]",
+											"flex w-full min-w-0 items-center gap-2 rounded-lg border px-3 py-1.5 text-left text-[13px] transition-[background-color,border-color,opacity,transform] duration-150 active:scale-[.99]",
 											chosen
 												? "border-primary bg-primary/20 text-foreground"
 												: "border-border bg-secondary text-soft-foreground hover:bg-accent hover:text-foreground",
@@ -106,7 +106,7 @@ export function QuestionCard({
 										<span className="shrink-0 font-medium">{option.label}</span>
 										{option.description &&
 											option.description !== option.label && (
-												<span className="min-w-0 truncate text-[11.5px] text-muted-foreground">
+												<span className="min-w-0 truncate text-[12px] text-muted-foreground">
 													{option.description}
 												</span>
 											)}
@@ -135,7 +135,7 @@ export function QuestionCard({
 										: "Or type your own answer"
 								}
 								className={cn(
-									"mt-2 w-full rounded-[7px] border bg-background px-2.5 py-1.5 text-[12.5px] text-foreground outline-none focus:border-primary/60 disabled:opacity-60",
+									"mt-2 w-full rounded-[7px] border bg-background px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-primary/60 disabled:opacity-60",
 									oneLine(others[qi]) ? "border-primary" : "border-border",
 								)}
 							/>
@@ -162,7 +162,7 @@ export function QuestionCard({
 						type="button"
 						disabled={sent}
 						onClick={() => send(chatAboutKeys(questions))}
-						className="text-[11.5px] text-muted-foreground hover:text-foreground disabled:opacity-60"
+						className="text-[12px] text-muted-foreground hover:text-foreground disabled:opacity-60"
 					>
 						Chat about this
 					</button>
@@ -221,7 +221,7 @@ export function PlanCard({
 					disabled={sent}
 					onChange={(event) => setFeedback(event.target.value)}
 					placeholder="Or tell Claude what to change"
-					className="min-w-[240px] flex-1 rounded-[7px] border border-border bg-background px-2.5 py-1.5 text-[12.5px] text-foreground outline-none focus:border-primary/60"
+					className="min-w-[240px] flex-1 rounded-[7px] border border-border bg-background px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-primary/60"
 				/>
 				<button
 					type="button"
@@ -264,7 +264,7 @@ export function ScreenMenuCard({
 				The terminal is asking
 			</div>
 			{menu.title && (
-				<div className="mb-3 max-h-[240px] select-text cursor-text overflow-y-auto whitespace-pre-wrap text-[12.5px] text-soft-foreground">
+				<div className="mb-3 max-h-[240px] select-text cursor-text overflow-y-auto whitespace-pre-wrap text-[13px] text-soft-foreground">
 					{menu.title}
 				</div>
 			)}
@@ -283,7 +283,7 @@ export function ScreenMenuCard({
 							else onKeys(menuKeys(menu, index));
 						}}
 						className={cn(
-							"max-w-full rounded-lg border px-3 py-1.5 text-left text-[12.5px] font-medium disabled:opacity-60",
+							"max-w-full rounded-lg border px-3 py-1.5 text-left text-[13px] font-medium disabled:opacity-60",
 							index === menu.selected
 								? "border-primary/60 bg-primary/10 text-foreground"
 								: "border-border bg-secondary text-soft-foreground hover:bg-accent hover:text-foreground",
@@ -300,7 +300,7 @@ export function ScreenMenuCard({
 							setSent(true);
 							onKeys(["\x1b"]);
 						}}
-						className="rounded-lg px-3 py-1.5 text-[12.5px] text-muted-foreground hover:text-foreground disabled:opacity-60"
+						className="rounded-lg px-3 py-1.5 text-[13px] text-muted-foreground hover:text-foreground disabled:opacity-60"
 					>
 						{menu.escape}
 					</button>
@@ -331,7 +331,7 @@ export function ScreenAuthCard({
 			<div className="mb-2 text-[11px] font-semibold uppercase tracking-[.08em] text-attention">
 				The terminal is asking
 			</div>
-			<div className="mb-3 text-[12.5px] text-soft-foreground">
+			<div className="mb-3 text-[13px] text-soft-foreground">
 				{auth.title}: sign in, then come back here.
 			</div>
 			<div className="flex flex-wrap gap-2">
@@ -360,7 +360,7 @@ export function ScreenAuthCard({
 					type="button"
 					disabled={sent}
 					onClick={() => send(["\x1b"])}
-					className="rounded-lg px-3 py-1.5 text-[12.5px] text-muted-foreground hover:text-foreground disabled:opacity-60"
+					className="rounded-lg px-3 py-1.5 text-[13px] text-muted-foreground hover:text-foreground disabled:opacity-60"
 				>
 					Back
 				</button>
@@ -388,7 +388,7 @@ export function ScreenDialogCard({
 			<button
 				type="button"
 				onClick={onShowTerminal}
-				className="rounded-lg border border-primary/60 bg-primary/10 px-3 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-primary/15"
+				className="rounded-lg border border-primary/60 bg-primary/10 px-3 py-1.5 text-[13px] font-medium text-foreground hover:bg-primary/15"
 			>
 				Answer in Terminal View
 			</button>
@@ -415,7 +415,7 @@ export function ScreenAsideCard({
 			<button
 				type="button"
 				onClick={onClose}
-				className="rounded-lg border border-border bg-secondary px-3 py-1.5 text-[12.5px] font-medium text-soft-foreground hover:bg-accent hover:text-foreground"
+				className="rounded-lg border border-border bg-secondary px-3 py-1.5 text-[13px] font-medium text-soft-foreground hover:bg-accent hover:text-foreground"
 			>
 				Close
 			</button>

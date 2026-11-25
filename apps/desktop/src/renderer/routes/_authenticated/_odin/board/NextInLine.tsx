@@ -601,7 +601,7 @@ export function NextInLine() {
 				count={waiting.length}
 			/>
 			{picks.length > 0 && (
-				<div className="mx-2 mb-2 flex flex-wrap items-center gap-1.5 rounded-md border border-primary/40 bg-secondary px-2 py-1.5 text-[11.5px]">
+				<div className="mx-2 mb-2 flex flex-wrap items-center gap-1.5 rounded-md border border-primary/40 bg-secondary px-2 py-1.5 text-[12px]">
 					<span className="font-semibold text-foreground">
 						{picks.length} selected
 					</span>
@@ -657,7 +657,7 @@ export function NextInLine() {
 				) : (
 					<>
 						{tonight.length > 0 && (
-							<div className="flex items-center gap-1.5 px-1 pt-0.5 text-[10.5px] font-semibold uppercase tracking-[.4px] text-primary">
+							<div className="flex items-center gap-1.5 px-1 pt-0.5 text-[11px] font-semibold uppercase tracking-[.4px] text-primary">
 								<LuMoon className="size-3" aria-hidden />
 								Tonight · {tonight.length}
 								<button
@@ -696,7 +696,7 @@ export function NextInLine() {
 						{pinnedRest.length > 0 && (
 							<div
 								className={cn(
-									"px-1 text-[10.5px] font-semibold uppercase tracking-[.4px] text-attention",
+									"px-1 text-[11px] font-semibold uppercase tracking-[.4px] text-attention",
 									tonight.length
 										? "mt-1 border-t border-border pt-2"
 										: "pt-0.5",
@@ -708,7 +708,7 @@ export function NextInLine() {
 						{pinnedRest.map((item) => card(item, true))}
 						{(tonight.length > 0 || pinnedRest.length > 0) &&
 							rest.length > 0 && (
-								<div className="mt-1 border-t border-border px-1 pt-2 text-[10.5px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
+								<div className="mt-1 border-t border-border px-1 pt-2 text-[11px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
 									Everything else
 								</div>
 							)}
@@ -774,7 +774,7 @@ export function NextInLine() {
 											    keeps every card's text on the same edge. */}
 							<span
 								dir="auto"
-								className="line-clamp-2 break-words text-left text-[12.5px] font-medium leading-[1.4] text-foreground"
+								className="line-clamp-2 break-words text-left text-[13px] font-medium leading-[1.4] text-foreground"
 							>
 								{emojify(cleanTitle(item.title))}
 							</span>
@@ -950,7 +950,7 @@ function TaskHover({
 			{swept && (
 				<div
 					className={cn(
-						"rounded-md px-2 py-1.5 text-[11.5px]",
+						"rounded-md px-2 py-1.5 text-[12px]",
 						swept.verdict === "DROP"
 							? "bg-danger/15 text-danger"
 							: "bg-secondary text-soft-foreground",
@@ -999,7 +999,7 @@ function RankStatus({
 
 	if (startedAt)
 		return (
-			<div className="mx-2 mb-2 flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/8 px-2.5 py-2 text-[11.5px] text-primary">
+			<div className="mx-2 mb-2 flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/8 px-2.5 py-2 text-[12px] text-primary">
 				<LuLoaderCircle
 					className="mt-px size-3.5 shrink-0 animate-spin text-primary"
 					aria-hidden

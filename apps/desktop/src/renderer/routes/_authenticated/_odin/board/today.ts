@@ -350,3 +350,20 @@ export function shouldShowToday({
 }): boolean {
 	return enabled && count > 0 && lastShown !== today;
 }
+
+/**
+ * Auto pilot's card: the first task waiting on you that you haven't just
+ * answered. Skipped tasks come last, in the order you skipped them.
+ */
+export function pilotPick(
+	yours: readonly string[],
+	handled: ReadonlySet<string>,
+	skipped: readonly string[],
+): string | null {
+	const open = yours.filter((id) => !handled.has(id));
+	return (
+		open.find((id) => !skipped.includes(id)) ??
+		skipped.find((id) => open.includes(id)) ??
+		null
+	);
+}

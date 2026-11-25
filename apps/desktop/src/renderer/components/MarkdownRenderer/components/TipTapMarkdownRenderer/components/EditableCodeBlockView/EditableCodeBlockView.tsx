@@ -9,12 +9,12 @@ import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import { useState } from "react";
 import {
-	HiCheck,
-	HiChevronDown,
-	HiOutlineClipboard,
-	HiOutlineCodeBracket,
-	HiOutlineEye,
-} from "react-icons/hi2";
+	LuCheck,
+	LuChevronDown,
+	LuClipboard,
+	LuCode,
+	LuEye,
+} from "react-icons/lu";
 import { useCopyToClipboard } from "renderer/hooks/useCopyToClipboard";
 import {
 	FILE_VIEW_CODE_BLOCK_LANGUAGES,
@@ -90,9 +90,9 @@ export function EditableCodeBlockView({
 						className="flex items-center justify-center rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
 					>
 						{mermaidMode === "preview" ? (
-							<HiOutlineCodeBracket className="h-3.5 w-3.5" />
+							<LuCode className="h-3.5 w-3.5" />
 						) : (
-							<HiOutlineEye className="h-3.5 w-3.5" />
+							<LuEye className="h-3.5 w-3.5" />
 						)}
 					</button>
 				)}
@@ -103,7 +103,7 @@ export function EditableCodeBlockView({
 							className="flex items-center gap-1 rounded px-2 py-1 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
 						>
 							{currentLabel}
-							<HiChevronDown className="h-3 w-3" />
+							<LuChevronDown className="h-3 w-3" />
 						</button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent
@@ -133,9 +133,9 @@ export function EditableCodeBlockView({
 					className="flex items-center justify-center rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
 				>
 					{copied ? (
-						<HiCheck className="h-3.5 w-3.5 text-success" />
+						<LuCheck className="h-3.5 w-3.5 text-success" />
 					) : (
-						<HiOutlineClipboard className="h-3.5 w-3.5" />
+						<LuClipboard className="h-3.5 w-3.5" />
 					)}
 				</button>
 			</div>

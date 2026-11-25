@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { IconType } from "react-icons";
+// biome-ignore lint/style/noRestrictedImports: the Bootstrap cloud is Odin's remote-session icon
 import { BsCloud, BsCloudSlash } from "react-icons/bs";
 import {
 	LuBellRing,

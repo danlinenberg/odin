@@ -1,3 +1,4 @@
+// biome-ignore lint/style/noRestrictedImports: the Bootstrap cloud is Odin's remote-session icon
 import { BsCloud } from "react-icons/bs";
 import {
 	LuBell,

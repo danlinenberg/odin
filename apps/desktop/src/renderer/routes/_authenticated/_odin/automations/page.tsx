@@ -772,7 +772,7 @@ function RemindersPanel() {
 								{r.resume?.brief && (
 									<span
 										dir="auto"
-										className="mt-1 block cursor-text select-text truncate text-[11.5px] text-muted-foreground"
+										className="mt-1 block cursor-text select-text truncate text-[12px] text-muted-foreground"
 									>
 										{r.resume.brief.replace(/\s+/g, " ")}
 									</span>
@@ -1150,7 +1150,7 @@ function SchedulesPanel() {
 											{task.title}
 										</span>
 										{task.notes && (
-											<span className="mt-1 block truncate text-[11.5px] text-muted-foreground">
+											<span className="mt-1 block truncate text-[12px] text-muted-foreground">
 												{task.notes.replace(/\s+/g, " ")}
 											</span>
 										)}
