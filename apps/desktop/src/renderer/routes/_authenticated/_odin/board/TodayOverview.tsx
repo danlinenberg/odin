@@ -12,7 +12,7 @@ import {
 	LuPlay,
 	LuRefreshCw,
 } from "react-icons/lu";
-import { useHotkey } from "renderer/hotkeys";
+import { useHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useTabsStore } from "renderer/stores/tabs/store";
@@ -1321,7 +1321,7 @@ const HANDOFF_MS = 2500;
  * Auto pilot: Today's tasks waiting on you, one at a time, in Today's order.
  * Answer, finish or snooze the card and the next one comes up; the session
  * you answered keeps going on its own. Space opens the card's session beside
- * the page, S skips the card to the end.
+ * the page, X skips the card to the end (rebindable in Settings > Keyboard).
  */
 function AutoPilot({
 	yours,
@@ -1370,29 +1370,19 @@ function AutoPilot({
 		setSkipped((old) => [...old.filter((s) => s !== id), id]);
 		setHandoff("Skipped. It comes back at the end.");
 	};
-	useEffect(() => {
-		if (!task) return;
-		const onKey = (event: KeyboardEvent) => {
-			const el = event.target as HTMLElement | null;
-			if (
-				event.metaKey ||
-				event.ctrlKey ||
-				event.altKey ||
-				openPaneId ||
-				el?.closest("input, textarea, select, [contenteditable=true]")
-			)
-				return;
-			if (event.key === " ") {
-				event.preventDefault();
-				actions.onOpen(task.items[0].key);
-			} else if (event.key === "s" || event.key === "S") {
-				event.preventDefault();
-				skip(task.id);
-			}
-		};
-		window.addEventListener("keydown", onKey);
-		return () => window.removeEventListener("keydown", onKey);
-	});
+	const keys = {
+		enableOnFormTags: false,
+		enableOnContentEditable: false,
+		enabled: !!task && !openPaneId,
+	};
+	useHotkey(
+		"PILOT_PEEK",
+		() => task && actions.onOpen(task.items[0].key),
+		keys,
+	);
+	useHotkey("PILOT_SKIP", () => task && skip(task.id), keys);
+	const peekKey = useHotkeyDisplay("PILOT_PEEK").text;
+	const skipKey = useHotkeyDisplay("PILOT_SKIP").text;
 	return (
 		<section
 			aria-label="Auto pilot"
@@ -1456,10 +1446,10 @@ function AutoPilot({
 				{task && (
 					<p className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-muted-foreground">
 						<span>
-							<kbd className={KBD}>Space</kbd> open its session beside this
+							<kbd className={KBD}>{peekKey}</kbd> open its session beside this
 						</span>
 						<span>
-							<kbd className={KBD}>S</kbd> skip to the end
+							<kbd className={KBD}>{skipKey}</kbd> skip to the end
 						</span>
 					</p>
 				)}
