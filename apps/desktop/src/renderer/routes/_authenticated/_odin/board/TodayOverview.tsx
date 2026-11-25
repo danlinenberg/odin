@@ -602,11 +602,14 @@ function StartHere({
 	actions,
 	onShow,
 	onActed,
+	onSkip,
 }: Omit<TaskProps, "onShow"> & {
 	actions: TodayActions;
 	onShow: (taskId: string) => void;
 	/** After you answered, finished or snoozed it: the next task comes up. */
 	onActed: () => void;
+	/** Auto pilot only: moves this task to the end of the queue. */
+	onSkip?: () => void;
 }) {
 	const first = task.items[0];
 	const todo = useActionItems(first.sessionId);
@@ -663,7 +666,12 @@ function StartHere({
 				onShow={() => onShow(task.id)}
 				onSent={onActed}
 			/>
-			<TaskButtons task={task} actions={actions} onActed={onActed} />
+			<TaskButtons
+				task={task}
+				actions={actions}
+				onActed={onActed}
+				onSkip={onSkip}
+			/>
 		</li>
 	);
 }
@@ -891,16 +899,19 @@ function AnswerItem({
 const ITEM_BUTTON =
 	"shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[12px] font-medium text-attention-ink hover:bg-attention/15 disabled:opacity-50";
 
-/** Go to session, Done and Snooze until tomorrow, for the task's first session. */
+/** Go to session, Done, Snooze until tomorrow and Skip, for the task's first session. */
 function TaskButtons({
 	task,
 	actions,
 	onActed,
 	onNext,
+	onSkip,
 }: {
 	task: TodayTaskView<TodayItem>;
 	actions: TodayActions;
 	onActed: () => void;
+	/** Auto pilot only: moves the task to the end of the queue. */
+	onSkip?: () => void;
 	/** Shown in the summary panel: moves to the next task waiting on you. */
 	onNext?: () => void;
 }) {
@@ -940,6 +951,16 @@ function TaskButtons({
 					className={ghost}
 				>
 					Snooze till tomorrow
+				</button>
+			)}
+			{onSkip && (
+				<button
+					type="button"
+					title="Move it to the end of the queue"
+					onClick={onSkip}
+					className={ghost}
+				>
+					Skip for now
 				</button>
 			)}
 			{onNext && (
@@ -1424,6 +1445,7 @@ function AutoPilot({
 							actions={actions}
 							onShow={() => actions.onOpen(task.items[0].key)}
 							onActed={() => acted(task.id)}
+							onSkip={() => skip(task.id)}
 						/>
 					</ol>
 				) : (
