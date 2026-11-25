@@ -636,9 +636,12 @@ function StartHere({
 			)}
 		>
 			<div className="flex flex-wrap items-center gap-2">
-				<span className="rounded-full bg-attention px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[.08em] text-background">
-					Start here
-				</span>
+				{/* Auto pilot shows one card at a time, so the badge says nothing there. */}
+				{!onSkip && (
+					<span className="rounded-full bg-attention px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[.08em] text-background">
+						Start here
+					</span>
+				)}
 				{todo[0] && (
 					<span className={cn(CHIP, "text-[12px] font-semibold")}>
 						{itemKind(todo[0])}
