@@ -18,12 +18,12 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { BsCloud } from "react-icons/bs";
 import {
 	LuBookmark,
 	LuBookmarkCheck,
 	LuChevronRight,
 	LuCircleAlert,
+	LuCloud,
 	LuDownload,
 	LuFile,
 	LuLaptop,
@@ -980,7 +980,7 @@ const ToolRow = memo(function ToolRow({
 	const oldText = item.input.old_string;
 	const newText = item.input.new_string;
 	return (
-		<div className="text-[12.5px]">
+		<div className="text-[13px]">
 			<button
 				type="button"
 				onClick={() => setOpen((value) => !value)}
@@ -1016,7 +1016,7 @@ const ToolRow = memo(function ToolRow({
 			{open && (
 				<div className="ml-4 mt-1 select-text cursor-text space-y-2 border-l border-border pl-3">
 					{typeof oldText === "string" && typeof newText === "string" ? (
-						<pre className="max-h-[320px] overflow-auto whitespace-pre-wrap break-words font-mono text-[11.5px]">
+						<pre className="max-h-[320px] overflow-auto whitespace-pre-wrap break-words font-mono text-[12px]">
 							<div className="bg-danger/10 text-danger">
 								{oldText.replace(/^/gm, "- ")}
 							</div>
@@ -1025,7 +1025,7 @@ const ToolRow = memo(function ToolRow({
 							</div>
 						</pre>
 					) : (
-						<pre className="max-h-[240px] overflow-auto whitespace-pre-wrap break-words font-mono text-[11.5px] text-soft-foreground">
+						<pre className="max-h-[240px] overflow-auto whitespace-pre-wrap break-words font-mono text-[12px] text-soft-foreground">
 							{typeof item.input.command === "string"
 								? item.input.command
 								: JSON.stringify(item.input, null, 2)}
@@ -1034,7 +1034,7 @@ const ToolRow = memo(function ToolRow({
 					{done && item.result && (
 						<pre
 							className={cn(
-								"max-h-[320px] overflow-auto whitespace-pre-wrap break-words rounded-md bg-secondary/60 p-2 font-mono text-[11.5px]",
+								"max-h-[320px] overflow-auto whitespace-pre-wrap break-words rounded-md bg-secondary/60 p-2 font-mono text-[12px]",
 								item.isError ? "text-danger" : "text-muted-foreground",
 							)}
 						>
@@ -1330,7 +1330,7 @@ function CompactRow({ item }: { item: Extract<Item, { kind: "compact" }> }) {
 				type="button"
 				disabled={!item.summary}
 				onClick={() => setOpen((value) => !value)}
-				className="flex items-center gap-3 text-[11.5px] text-muted-foreground enabled:hover:text-foreground"
+				className="flex items-center gap-3 text-[12px] text-muted-foreground enabled:hover:text-foreground"
 			>
 				<span className="h-px flex-1 bg-border" />
 				{item.summary && (
@@ -1540,7 +1540,7 @@ function ShellCard({ shell }: { shell: Shell }) {
 	];
 	const shown = open ? lines : lines.slice(0, SHELL_LINES);
 	return (
-		<div className="mt-5 mb-1 select-text cursor-text overflow-hidden rounded-lg border border-border bg-secondary/60 font-mono text-[11.5px] first:mt-0">
+		<div className="mt-5 mb-1 select-text cursor-text overflow-hidden rounded-lg border border-border bg-secondary/60 font-mono text-[12px] first:mt-0">
 			{shell.command !== undefined && (
 				<div className="flex items-start gap-2 border-b border-border px-3 py-1.5 text-foreground last:border-b-0">
 					<LuSquareTerminal className="mt-[2px] size-3.5 shrink-0 text-pink-500" />
@@ -1635,7 +1635,7 @@ function UserBubble({
 	return (
 		<div
 			className={cn(
-				"mt-5 mb-1 ml-auto max-w-[75%] select-text cursor-text break-words rounded-2xl rounded-br-md border border-primary/30 bg-primary/15 px-4 py-2.5 text-[13.5px] leading-relaxed text-foreground shadow-sm first:mt-0",
+				"mt-5 mb-1 ml-auto max-w-[75%] select-text cursor-text break-words rounded-2xl rounded-br-md border border-primary/30 bg-primary/15 px-4 py-2.5 text-[14px] leading-relaxed text-foreground shadow-sm first:mt-0",
 				pending && !lost && "opacity-60",
 				pending && ENTER,
 				lost && "border-danger/50",
@@ -1652,7 +1652,7 @@ function UserBubble({
 					allowHtml={false}
 					className={cn(
 						COMPACT_MARKDOWN,
-						"text-[13.5px] text-foreground [&_li]:whitespace-pre-wrap [&_p]:whitespace-pre-wrap",
+						"text-[14px] text-foreground [&_li]:whitespace-pre-wrap [&_p]:whitespace-pre-wrap",
 					)}
 				/>
 			</div>
@@ -1687,7 +1687,7 @@ function UserBubble({
 			<MessageTime at={at} className="mt-1 text-right" />
 			{waitingFor && !lost && (
 				<div className="mt-1.5 flex items-center justify-end gap-1.5 text-[12px] text-muted-foreground">
-					<BsCloud className="size-3 shrink-0" />
+					<LuCloud className="size-3 shrink-0" />
 					{movingHere
 						? "Goes to Claude once the session is on this computer"
 						: `Waiting for ${waitingFor} - goes to Claude once it is back`}
@@ -2188,7 +2188,7 @@ function ReconnectStoppedRow({
 			<div className="flex min-w-0 items-start gap-2.5">
 				<LuCircleAlert className="mt-0.5 size-3.5 shrink-0 text-danger" />
 				<div className="min-w-0 select-text cursor-text">
-					<div className="text-[12.5px] font-medium text-danger [overflow-wrap:anywhere]">
+					<div className="text-[13px] font-medium text-danger [overflow-wrap:anywhere]">
 						{title}
 					</div>
 					{reason && (
@@ -3039,6 +3039,9 @@ function DangerCountdown({ count }: { count: number }) {
 
 /** Replies GSD Mode already ran (`paneId:replyId`), so a remount doesn't run them twice. */
 const dangerRan = new Set<string>();
+
+/** Sessions that already saw GSD Mode's countdown: later commands run without it. */
+const gsdWarned = new Set<string>();
 
 /** Sessions GSD Mode already told what it means, since it was last turned on. */
 const gsdBriefed = new Set<string>();
@@ -4171,12 +4174,16 @@ export function ChatView({
 		}
 		gsdPushes.delete(paneId);
 		void (async () => {
-			// Say what's about to run before it does, with a few seconds to stop it.
+			// The first run in a session says what's about to run before it does,
+			// with a few seconds to stop it. Later runs go straight to the reviewer.
+			const warn = !gsdWarned.has(paneId);
+			gsdWarned.add(paneId);
 			const stop = () => useDangerMode.getState().toggle(paneId, false);
-			setDangerStep({
-				text: `about to run ${commands.length === 1 ? "a command" : `${commands.length} commands`} - Stop in the warning cancels it, Go runs it now`,
-				since: Date.now(),
-			});
+			if (warn)
+				setDangerStep({
+					text: `about to run ${commands.length === 1 ? "a command" : `${commands.length} commands`} - Stop in the warning cancels it, Go runs it now`,
+					since: Date.now(),
+				});
 			// A second model reads the commands while the warning counts down:
 			// what it won't let run alone waits for you, and no verdict is no run.
 			const judging = electronTrpcClient.terminal.judgeGsdCommands
@@ -4188,23 +4195,25 @@ export function ChatView({
 			let go = () => {};
 			const wait = new Promise<void>((resolve) => {
 				go = resolve;
-				setTimeout(resolve, DANGER_WARN_MS);
+				if (warn) setTimeout(resolve, DANGER_WARN_MS);
+				else resolve();
 			});
-			toast.warning(<DangerCountdown count={commands.length} />, {
-				description: (
-					<ol className="list-decimal pl-4">
-						{dangerPlan(lastText.text, (command) => !heldWhy(command)).map(
-							(line, i) => (
-								// biome-ignore lint/suspicious/noArrayIndexKey: a fixed list, two commands can read the same
-								<li key={i}>{line}</li>
-							),
-						)}
-					</ol>
-				),
-				duration: DANGER_WARN_MS,
-				cancel: { label: "Stop", onClick: stop },
-				action: { label: "Go", onClick: () => go() },
-			});
+			if (warn)
+				toast.warning(<DangerCountdown count={commands.length} />, {
+					description: (
+						<ol className="list-decimal pl-4">
+							{dangerPlan(lastText.text, (command) => !heldWhy(command)).map(
+								(line, i) => (
+									// biome-ignore lint/suspicious/noArrayIndexKey: a fixed list, two commands can read the same
+									<li key={i}>{line}</li>
+								),
+							)}
+						</ol>
+					),
+					duration: DANGER_WARN_MS,
+					cancel: { label: "Stop", onClick: stop },
+					action: { label: "Go", onClick: () => go() },
+				});
 			await wait;
 			if (!useDangerMode.getState().on[paneId]) {
 				setDangerStep(null);
@@ -4663,14 +4672,14 @@ export function ChatView({
 									<button
 										type="button"
 										onClick={onShowTerminal}
-										className="px-1 text-[11.5px] text-muted-foreground hover:text-foreground"
+										className="px-1 text-[12px] text-muted-foreground hover:text-foreground"
 									>
 										Show terminal
 									</button>
 								)}
 							</ReconnectStoppedRow>
 						) : starting ? (
-							<div className="flex items-center gap-3 text-[12.5px] text-working">
+							<div className="flex items-center gap-3 text-[13px] text-working">
 								<WorkingMark />
 								<span className="select-text cursor-text">
 									{connecting ?? "Starting…"}
@@ -4686,7 +4695,7 @@ export function ChatView({
 									<button
 										type="button"
 										onClick={onShowTerminal}
-										className="text-[11.5px] text-muted-foreground hover:text-foreground"
+										className="text-[12px] text-muted-foreground hover:text-foreground"
 									>
 										Stuck? Show terminal
 									</button>
@@ -4876,7 +4885,7 @@ export function ChatView({
 										<button
 											type="button"
 											onClick={onShowTerminal}
-											className="mt-1.5 text-[11.5px] text-muted-foreground hover:text-foreground"
+											className="mt-1.5 text-[12px] text-muted-foreground hover:text-foreground"
 										>
 											Answer in Terminal View instead
 										</button>
@@ -4898,7 +4907,7 @@ export function ChatView({
 										<button
 											type="button"
 											onClick={onShowTerminal}
-											className="mt-1.5 text-[11.5px] text-muted-foreground hover:text-foreground"
+											className="mt-1.5 text-[12px] text-muted-foreground hover:text-foreground"
 										>
 											Answer in Terminal View instead
 										</button>
@@ -4955,7 +4964,7 @@ export function ChatView({
 											? onRestart(PLAN_LIMIT_OPENING)
 											: void sendKeys(["/rate-limit-options", "\r"])
 									}
-									className="h-7 rounded-lg border border-attention/35 bg-attention/[0.07] px-3 text-[12.5px] font-medium text-attention hover:bg-attention/15"
+									className="h-7 rounded-lg border border-attention/35 bg-attention/[0.07] px-3 text-[13px] font-medium text-attention hover:bg-attention/15"
 								>
 									{onRestart
 										? "Restart and continue"
@@ -4975,7 +4984,7 @@ export function ChatView({
 									<button
 										type="button"
 										onClick={onShowTerminal}
-										className="px-1 text-[11.5px] text-muted-foreground hover:text-foreground"
+										className="px-1 text-[12px] text-muted-foreground hover:text-foreground"
 									>
 										Show terminal
 									</button>
@@ -4984,7 +4993,7 @@ export function ChatView({
 						)}
 						{connecting && !starting && !stopped && (
 							// A resumed remote session: its old turns are above, the host isn't reached yet.
-							<div className="flex min-h-7 items-center gap-3 text-[12.5px] text-working">
+							<div className="flex min-h-7 items-center gap-3 text-[13px] text-working">
 								<WorkingMark />
 								<span className="select-text cursor-text">{connecting}</span>
 								{awaitsAwsSignIn(connecting) && (
@@ -5000,7 +5009,7 @@ export function ChatView({
 									<button
 										type="button"
 										onClick={onShowTerminal}
-										className="text-[11.5px] text-muted-foreground hover:text-foreground"
+										className="text-[12px] text-muted-foreground hover:text-foreground"
 									>
 										Show terminal
 									</button>
@@ -5015,13 +5024,13 @@ export function ChatView({
 								items.length <= hostEvent.items) && (
 								<div
 									className={cn(
-										"flex h-7 items-center gap-3 text-[12.5px]",
+										"flex h-7 items-center gap-3 text-[13px]",
 										hostEvent.kind === "connected"
 											? "text-success"
 											: "text-danger",
 									)}
 								>
-									<BsCloud className="size-3.5 shrink-0" />
+									<LuCloud className="size-3.5 shrink-0" />
 									<span className="select-text cursor-text">
 										{hostEvent.kind === "connected"
 											? "Connected to"
@@ -5075,7 +5084,7 @@ export function ChatView({
 											</div>
 										</div>
 									)}
-									<div className="flex min-w-0 gap-3 text-[12.5px] text-working">
+									<div className="flex min-w-0 gap-3 text-[13px] text-working">
 										<WorkingMark />
 										{compacting === null ? (
 											<div className="flex min-w-0 flex-1 flex-col">
@@ -5137,7 +5146,7 @@ export function ChatView({
 				{onShowTerminal ? (
 					<>
 						{danger && (
-							<div className="flex items-center gap-2 border-t border-destructive/40 bg-destructive/15 px-5 py-1.5 text-[11.5px] text-destructive">
+							<div className="flex items-center gap-2 border-t border-destructive/40 bg-destructive/15 px-5 py-1.5 text-[12px] text-destructive">
 								<LuZap className="size-3.5 shrink-0" />
 								<DangerStatus
 									step={dangerStep}
@@ -5187,7 +5196,7 @@ export function ChatView({
 						model={transcript?.usage?.model}
 					/>
 				) : (
-					<div className="border-t border-border px-5 py-2 text-center text-[11.5px] text-muted-foreground">
+					<div className="border-t border-border px-5 py-2 text-center text-[12px] text-muted-foreground">
 						{resuming ? "Resuming session…" : "Session ended - Resume to reply"}
 					</div>
 				)}
@@ -5775,7 +5784,7 @@ function Composer({
 				)}
 			>
 				{noFiles && (
-					<div className="absolute inset-x-0 bottom-full mb-1.5 rounded-[10px] border border-border bg-popover px-3 py-1.5 text-[11.5px] text-muted-foreground shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
+					<div className="absolute inset-x-0 bottom-full mb-1.5 rounded-[10px] border border-border bg-popover px-3 py-1.5 text-[12px] text-muted-foreground shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
 						{noFiles}
 					</div>
 				)}
@@ -5803,10 +5812,10 @@ function Composer({
 											"bg-primary/15 shadow-[inset_2px_0_0_var(--primary)]",
 									)}
 								>
-									<span className="shrink-0 font-mono text-[12.5px] font-semibold text-foreground">
+									<span className="shrink-0 font-mono text-[13px] font-semibold text-foreground">
 										{option.label}
 									</span>
-									<span className="min-w-0 flex-1 truncate text-[11.5px] text-muted-foreground">
+									<span className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">
 										{option.detail}
 									</span>
 								</button>
@@ -5828,7 +5837,7 @@ function Composer({
 				)}
 				<div className="flex gap-1.5">
 					{bash && (
-						<span className="font-mono text-[13.5px] leading-relaxed text-pink-500">
+						<span className="font-mono text-[14px] leading-relaxed text-pink-500">
 							!
 						</span>
 					)}
@@ -5935,7 +5944,7 @@ function Composer({
 						// Grows with the text up to ~10 lines, sized by CSS: measuring
 						// it in JS forced a layout of the whole conversation per key.
 						className={cn(
-							"block max-h-[220px] w-full resize-none bg-transparent text-[13.5px] leading-relaxed text-foreground outline-none [field-sizing:content] placeholder:text-faint-foreground",
+							"block max-h-[220px] w-full resize-none bg-transparent text-[14px] leading-relaxed text-foreground outline-none [field-sizing:content] placeholder:text-faint-foreground",
 							bash && "font-mono",
 						)}
 					/>
@@ -5968,7 +5977,7 @@ function Composer({
 								setPickedModel(event.target.value);
 								void send(false, `/model ${event.target.value}`);
 							}}
-							className="h-6 shrink-0 cursor-pointer rounded-md bg-foreground/10 pl-1.5 pr-1 text-[11px] text-muted-foreground outline-none [color-scheme:inherit] hover:text-foreground disabled:cursor-default disabled:opacity-60"
+							className="h-6 shrink-0 cursor-pointer rounded-md bg-foreground/10 pl-1.5 pr-1 text-[11px] text-muted-foreground outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring [color-scheme:inherit] hover:text-foreground disabled:cursor-default disabled:opacity-60"
 						>
 							{!CHAT_MODELS.some((o) => o.value === modelAlias(model)) && (
 								<option value={model}>{model}</option>

@@ -1,20 +1,18 @@
 import type { Editor } from "@tiptap/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-	HiOutlineBold,
-	HiOutlineCodeBracket,
-	HiOutlineItalic,
-	HiOutlineLink,
-	HiOutlineListBullet,
-	HiOutlineNumberedList,
-	HiOutlineStrikethrough,
-} from "react-icons/hi2";
-import {
-	RiCheckboxCircleLine,
-	RiCodeBoxLine,
-	RiDoubleQuotesL,
-	RiUnderline,
-} from "react-icons/ri";
+	LuBold,
+	LuCircleCheck,
+	LuCode,
+	LuItalic,
+	LuLink,
+	LuList,
+	LuListOrdered,
+	LuQuote,
+	LuSquareCode,
+	LuStrikethrough,
+	LuUnderline,
+} from "react-icons/lu";
 
 interface BubbleMenuToolbarProps {
 	editor: Editor;
@@ -210,7 +208,7 @@ function ListDropdown({ editor }: { editor: Editor }) {
 					setOpen((prev) => !prev);
 				}}
 			>
-				<HiOutlineListBullet className="size-3.5" />
+				<LuList className="size-3.5" />
 				<svg
 					className="size-3 opacity-60"
 					viewBox="0 0 12 12"
@@ -236,7 +234,7 @@ function ListDropdown({ editor }: { editor: Editor }) {
 						}`}
 						onMouseDown={(e) => handleSelect("bullet", e)}
 					>
-						<HiOutlineListBullet className="size-4" />
+						<LuList className="size-4" />
 						Bullet list
 					</button>
 					<button
@@ -246,7 +244,7 @@ function ListDropdown({ editor }: { editor: Editor }) {
 						}`}
 						onMouseDown={(e) => handleSelect("ordered", e)}
 					>
-						<HiOutlineNumberedList className="size-4" />
+						<LuListOrdered className="size-4" />
 						Numbered list
 					</button>
 					<button
@@ -256,7 +254,7 @@ function ListDropdown({ editor }: { editor: Editor }) {
 						}`}
 						onMouseDown={(e) => handleSelect("task", e)}
 					>
-						<RiCheckboxCircleLine className="size-4" />
+						<LuCircleCheck className="size-4" />
 						Checklist
 					</button>
 				</div>
@@ -295,7 +293,7 @@ export function BubbleMenuToolbar({ editor }: BubbleMenuToolbarProps) {
 	if (showLinkInput) {
 		return (
 			<div className="flex items-center gap-1 bg-popover border rounded-lg shadow-md px-1.5 py-0.5">
-				<HiOutlineLink className="size-3.5 text-muted-foreground shrink-0" />
+				<LuLink className="size-3.5 text-muted-foreground shrink-0" />
 				<input
 					ref={linkInputRef}
 					type="url"
@@ -332,7 +330,7 @@ export function BubbleMenuToolbar({ editor }: BubbleMenuToolbarProps) {
 					editor.chain().focus().toggleBold().run();
 				}}
 			>
-				<HiOutlineBold className="size-3.5" />
+				<LuBold className="size-3.5" />
 			</ToolbarButton>
 
 			<ToolbarButton
@@ -343,7 +341,7 @@ export function BubbleMenuToolbar({ editor }: BubbleMenuToolbarProps) {
 					editor.chain().focus().toggleItalic().run();
 				}}
 			>
-				<HiOutlineItalic className="size-3.5" />
+				<LuItalic className="size-3.5" />
 			</ToolbarButton>
 
 			<ToolbarButton
@@ -354,7 +352,7 @@ export function BubbleMenuToolbar({ editor }: BubbleMenuToolbarProps) {
 					editor.chain().focus().toggleUnderline().run();
 				}}
 			>
-				<RiUnderline className="size-3.5" />
+				<LuUnderline className="size-3.5" />
 			</ToolbarButton>
 
 			<ToolbarButton
@@ -365,7 +363,7 @@ export function BubbleMenuToolbar({ editor }: BubbleMenuToolbarProps) {
 					editor.chain().focus().toggleStrike().run();
 				}}
 			>
-				<HiOutlineStrikethrough className="size-3.5" />
+				<LuStrikethrough className="size-3.5" />
 			</ToolbarButton>
 
 			<ToolbarButton
@@ -376,7 +374,7 @@ export function BubbleMenuToolbar({ editor }: BubbleMenuToolbarProps) {
 					editor.chain().focus().toggleCode().run();
 				}}
 			>
-				<HiOutlineCodeBracket className="size-3.5" />
+				<LuCode className="size-3.5" />
 			</ToolbarButton>
 
 			<div className="w-px h-4 bg-border mx-0.5" />
@@ -394,7 +392,7 @@ export function BubbleMenuToolbar({ editor }: BubbleMenuToolbarProps) {
 					}
 				}}
 			>
-				<HiOutlineLink className="size-3.5" />
+				<LuLink className="size-3.5" />
 			</ToolbarButton>
 
 			<ToolbarButton
@@ -405,7 +403,7 @@ export function BubbleMenuToolbar({ editor }: BubbleMenuToolbarProps) {
 					editor.chain().focus().toggleBlockquote().run();
 				}}
 			>
-				<RiDoubleQuotesL className="size-3.5" />
+				<LuQuote className="size-3.5" />
 			</ToolbarButton>
 
 			<ToolbarButton
@@ -416,7 +414,7 @@ export function BubbleMenuToolbar({ editor }: BubbleMenuToolbarProps) {
 					editor.chain().focus().toggleCodeBlock().run();
 				}}
 			>
-				<RiCodeBoxLine className="size-3.5" />
+				<LuSquareCode className="size-3.5" />
 			</ToolbarButton>
 
 			<div className="w-px h-4 bg-border mx-0.5" />

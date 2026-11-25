@@ -115,7 +115,7 @@ function CrowModelPicker() {
 			title="The model a new chat with the raven starts on. Opus by default; Haiku is quicker and cheaper for a simple question. Kept for later chats."
 			value={known ? model : CROW_DEFAULT_MODEL}
 			onChange={(event) => setModel(event.target.value)}
-			className="h-6 shrink-0 cursor-pointer rounded-md bg-foreground/10 pl-1.5 pr-1 text-[11.5px] text-muted-foreground outline-none [color-scheme:inherit] hover:text-foreground"
+			className="h-6 shrink-0 cursor-pointer rounded-md bg-foreground/10 pl-1.5 pr-1 text-[12px] text-muted-foreground outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring [color-scheme:inherit] hover:text-foreground"
 		>
 			{CROW_MODELS.map((option) => (
 				<option key={option.value} value={option.value}>
@@ -228,7 +228,7 @@ function CrowPanel({
 							type="button"
 							title="Start a fresh conversation - this one stays under Earlier chats"
 							onClick={() => endSession(conversation.id)}
-							className="rounded-md px-2 py-0.5 text-[11.5px] text-muted-foreground hover:bg-accent hover:text-foreground"
+							className="rounded-md px-2 py-0.5 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground"
 						>
 							New chat
 						</button>
@@ -264,7 +264,7 @@ function CrowPanel({
 						type="button"
 						disabled={sending}
 						onClick={() => void send(ask)}
-						className="flex items-start gap-2 text-left text-[12.5px] text-link hover:underline"
+						className="flex items-start gap-2 text-left text-[13px] text-link hover:underline"
 					>
 						<span aria-hidden="true">↳</span>
 						{ask}
@@ -296,7 +296,7 @@ function CrowPanel({
 											setSending(false);
 										}
 									}}
-									className="flex min-w-0 flex-1 items-baseline gap-2 px-1.5 py-1 text-left text-[12.5px] disabled:opacity-50"
+									className="flex min-w-0 flex-1 items-baseline gap-2 px-1.5 py-1 text-left text-[13px] disabled:opacity-50"
 								>
 									<span className="min-w-0 flex-1 truncate text-foreground/85">
 										{chat.title}
@@ -368,7 +368,7 @@ function CrowPanel({
 					}}
 					placeholder="Got a job for me?"
 					// Grows with the text, Shift+Enter for a new line, like the chat's reply box.
-					className="max-h-40 min-w-0 flex-1 resize-none self-center bg-transparent py-0.5 text-[12.5px] text-foreground outline-none [field-sizing:content] placeholder:text-muted-foreground"
+					className="max-h-40 min-w-0 flex-1 resize-none self-center bg-transparent py-0.5 text-[13px] text-foreground outline-none [field-sizing:content] placeholder:text-muted-foreground"
 				/>
 				<button
 					type="submit"

@@ -384,6 +384,18 @@ export const HOTKEYS_REGISTRY = {
 		category: "Navigation",
 		description: "Open the picked task's session on the Today page",
 	},
+	PILOT_PEEK: {
+		key: { mac: "space", windows: "space", linux: "space" },
+		label: "Auto pilot: Open Session",
+		category: "Navigation",
+		description: "Open the Auto pilot card's session beside the page",
+	},
+	PILOT_SKIP: {
+		key: { mac: L("x"), windows: L("x"), linux: L("x") },
+		label: "Auto pilot: Skip",
+		category: "Navigation",
+		description: "Skip the Auto pilot card to the end of the queue",
+	},
 	CLOSE_WORKSPACE: {
 		key: {
 			mac: "meta+shift+backspace",

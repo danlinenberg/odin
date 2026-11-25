@@ -42,13 +42,16 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-	GoArrowUpRight,
-	GoGitBranch,
-	GoGlobe,
-	GoIssueOpened,
-} from "react-icons/go";
-import { HiCheck, HiChevronUpDown } from "react-icons/hi2";
-import { LuFolderGit, LuFolderOpen, LuGitPullRequest } from "react-icons/lu";
+	LuArrowUpRight,
+	LuCheck,
+	LuChevronsUpDown,
+	LuCircleDot,
+	LuFolderGit,
+	LuFolderOpen,
+	LuGitBranch,
+	LuGitPullRequest,
+	LuGlobe,
+} from "react-icons/lu";
 import { AgentSelect } from "renderer/components/AgentSelect";
 import { LinkedIssuePill } from "renderer/components/Chat/ChatInterface/components/ChatInputFooter/components/LinkedIssuePill";
 import { useAgentLaunchPreferences } from "renderer/hooks/useAgentLaunchPreferences";
@@ -137,7 +140,7 @@ function AttachmentButtons({
 						className={`${PILL_BUTTON_CLASS} w-[22px]`}
 						onClick={onOpenGitHubIssue}
 					>
-						<GoIssueOpened className="size-3.5" />
+						<LuCircleDot className="size-3.5" />
 					</PromptInputButton>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">Link GitHub issue</TooltipContent>
@@ -192,7 +195,7 @@ function ProjectPickerPill({
 					<span className="truncate">
 						{selectedProject?.name ?? "Select project"}
 					</span>
-					<HiChevronUpDown className="size-3 shrink-0 text-muted-foreground" />
+					<LuChevronsUpDown className="size-3 shrink-0 text-muted-foreground" />
 				</PromptInputButton>
 			</PopoverTrigger>
 			<PopoverContent
@@ -224,7 +227,7 @@ function ProjectPickerPill({
 									/>
 									{project.name}
 									{project.id === selectedProject?.id && (
-										<HiCheck className="ml-auto size-4" />
+										<LuCheck className="ml-auto size-4" />
 									)}
 								</CommandItem>
 							))}
@@ -327,7 +330,7 @@ function CompareBaseBranchPickerInline({
 					disabled={isBranchesLoading}
 					className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 min-w-0 max-w-full"
 				>
-					<GoGitBranch className="size-3 shrink-0" />
+					<LuGitBranch className="size-3 shrink-0" />
 					{isBranchesLoading ? (
 						<span className="h-2.5 w-14 rounded-sm bg-muted-foreground/15 animate-pulse" />
 					) : (
@@ -335,7 +338,7 @@ function CompareBaseBranchPickerInline({
 							{effectiveCompareBaseBranch || "..."}
 						</span>
 					)}
-					<HiChevronUpDown className="size-3 shrink-0" />
+					<LuChevronsUpDown className="size-3 shrink-0" />
 				</button>
 			</PopoverTrigger>
 			<PopoverContent
@@ -387,7 +390,7 @@ function CompareBaseBranchPickerInline({
 							let icon: React.ReactNode;
 							if (activeWorkspaceId) {
 								icon = (
-									<GoArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" />
+									<LuArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" />
 								);
 							} else if (openAction) {
 								icon = (
@@ -395,11 +398,11 @@ function CompareBaseBranchPickerInline({
 								);
 							} else if (branch.isLocal) {
 								icon = (
-									<GoGitBranch className="size-3.5 shrink-0 text-muted-foreground" />
+									<LuGitBranch className="size-3.5 shrink-0 text-muted-foreground" />
 								);
 							} else {
 								icon = (
-									<GoGlobe className="size-3.5 shrink-0 text-muted-foreground" />
+									<LuGlobe className="size-3.5 shrink-0 text-muted-foreground" />
 								);
 							}
 
@@ -449,7 +452,7 @@ function CompareBaseBranchPickerInline({
 										{/* Show checkmark for selected base branch when not hovering */}
 										{!hasExistingWorkspace &&
 											effectiveCompareBaseBranch === branch.name && (
-												<HiCheck className="size-4 text-primary group-data-[selected=true]:hidden" />
+												<LuCheck className="size-4 text-primary group-data-[selected=true]:hidden" />
 											)}
 
 										{/* Action buttons - show on hover/select */}
@@ -467,7 +470,7 @@ function CompareBaseBranchPickerInline({
 														setOpen(false);
 													}}
 												>
-													<GoArrowUpRight className="size-3.5 mr-1" />
+													<LuArrowUpRight className="size-3.5 mr-1" />
 													Open
 													<span className="ml-1 text-[10px] opacity-60">↵</span>
 												</Button>

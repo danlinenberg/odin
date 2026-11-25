@@ -8,10 +8,11 @@ import {
 	LuLoaderCircle,
 	LuMessageCircleQuestion,
 	LuPause,
+	LuPlane,
 	LuPlay,
 	LuRefreshCw,
 } from "react-icons/lu";
-import { useHotkey } from "renderer/hotkeys";
+import { useHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useTabsStore } from "renderer/stores/tabs/store";
@@ -37,6 +38,7 @@ import { phoneReply } from "./phone-resume";
 import {
 	dueLabel,
 	itemKind,
+	pilotPick,
 	rankToday,
 	type TodayEntry,
 	type TodayGroup,
@@ -155,6 +157,7 @@ const dueTone = (left: number) =>
 export function TodayOverview({
 	cards,
 	openPaneId,
+	pilot,
 	onOpen,
 	onDone,
 	onSnooze,
@@ -162,6 +165,8 @@ export function TodayOverview({
 	cards: TodayCard[];
 	/** The session open beside the page: its task is marked. */
 	openPaneId?: string;
+	/** Auto pilot: one task at a time instead of the whole page. */
+	pilot?: boolean;
 } & TodayActions) {
 	const now = Date.now();
 	const today = dayAfter(now, 0);
@@ -285,6 +290,17 @@ export function TodayOverview({
 		{ ...keys, enabled: selected >= 0 },
 	);
 
+	if (pilot)
+		return (
+			<AutoPilot
+				yours={lanes.yours}
+				moving={lanes.moving.length}
+				now={now}
+				openPaneId={openPaneId}
+				actions={actions}
+			/>
+		);
+
 	return (
 		<section
 			aria-label="Today"
@@ -307,7 +323,7 @@ export function TodayOverview({
 								disabled={!items.length || isFetching}
 								onClick={() => setRefresh(Date.now())}
 								className={cn(
-									"ml-auto inline-flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-[11.5px] font-semibold disabled:opacity-50",
+									"ml-auto inline-flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-[12px] font-semibold disabled:opacity-50",
 									BUTTON.secondary,
 								)}
 							>
@@ -354,7 +370,7 @@ export function TodayOverview({
 									<span className="text-[17px] font-semibold text-attention-ink">
 										Waiting on you
 									</span>
-									<span className="text-[12.5px] text-muted-foreground">
+									<span className="text-[13px] text-muted-foreground">
 										in the order to do them
 									</span>
 								</h2>
@@ -405,7 +421,7 @@ export function TodayOverview({
 											<span className="text-[17px] font-semibold text-working-ink">
 												Moving without you
 											</span>
-											<span className="text-[12.5px] text-muted-foreground">
+											<span className="text-[13px] text-muted-foreground">
 												nothing to do, just so you know
 											</span>
 										</h2>
@@ -446,7 +462,7 @@ export function TodayOverview({
 					)}
 					{tasks.length === 0 && <ComingUp side={side} onOpen={openSession} />}
 
-					<label className="flex items-center gap-2 border-t border-border pt-3 text-[11.5px] text-muted-foreground">
+					<label className="flex items-center gap-2 border-t border-border pt-3 text-[12px] text-muted-foreground">
 						<input
 							type="checkbox"
 							checked={enabled}
@@ -519,7 +535,7 @@ function TaskMarks({
 	const starred = task.items.some((item) => item.starred);
 	if (!due && !high && !starred) return null;
 	return (
-		<span className="inline-flex flex-wrap items-baseline gap-1.5 text-[11.5px] font-semibold">
+		<span className="inline-flex flex-wrap items-baseline gap-1.5 text-[12px] font-semibold">
 			{due && left !== null && (
 				<span className={cn(CHIP, dueTone(left))}>{dueLabel(due, left)}</span>
 			)}
@@ -609,7 +625,7 @@ function StartHere({
 					Start here
 				</span>
 				{todo[0] && (
-					<span className={cn(CHIP, "text-[11.5px] font-semibold")}>
+					<span className={cn(CHIP, "text-[12px] font-semibold")}>
 						{itemKind(todo[0])}
 					</span>
 				)}
@@ -627,7 +643,7 @@ function StartHere({
 				<span className="font-semibold">{task.name}</span>
 				{task.about && <>: {sentence(task.about)}</>}
 			</p>
-			<div className="grid select-text cursor-text gap-x-6 gap-y-2.5 text-[13.5px] leading-relaxed @2xl:grid-cols-2">
+			<div className="grid select-text cursor-text gap-x-6 gap-y-2.5 text-[14px] leading-relaxed @2xl:grid-cols-2">
 				{task.explain && (
 					<div>
 						<p className={LABEL}>Why it matters</p>
@@ -711,7 +727,7 @@ function SessionItems({
 							: `${todayGroupLabel(item.group)} - open it beside this page`
 					}
 					onClick={() => onOpen(item.key)}
-					className={cn(LINK, "text-[12.5px]")}
+					className={cn(LINK, "text-[13px]")}
 				>
 					{item.title}
 				</button>
@@ -797,7 +813,7 @@ function AnswerItem({
 		reply(`Action item ${number} (${item}): ${said}`);
 	return (
 		<li className="flex flex-col gap-1.5 rounded-lg border border-attention/35 bg-attention/[0.07] px-3 py-2">
-			<p className="flex items-baseline gap-2 select-text cursor-text text-[13.5px] leading-snug">
+			<p className="flex items-baseline gap-2 select-text cursor-text text-[14px] leading-snug">
 				<span className="font-semibold text-attention-ink">{number}.</span>
 				<span className="min-w-0 break-words">{text}</span>
 			</p>
@@ -846,7 +862,7 @@ function AnswerItem({
 									value={answer}
 									onChange={(event) => setAnswer(event.target.value)}
 									placeholder="Your answer"
-									className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-0.5 text-[12.5px]"
+									className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-0.5 text-[13px]"
 								/>
 								<button
 									type="submit"
@@ -873,7 +889,7 @@ function AnswerItem({
 }
 
 const ITEM_BUTTON =
-	"shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[11.5px] font-medium text-attention-ink hover:bg-attention/15 disabled:opacity-50";
+	"shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[12px] font-medium text-attention-ink hover:bg-attention/15 disabled:opacity-50";
 
 /** Open on board, Done and Snooze until tomorrow, for the task's first session. */
 function TaskButtons({
@@ -964,9 +980,9 @@ function YourRow({
 				<span className="w-5 shrink-0 text-[14px] font-semibold text-attention">
 					{number}
 				</span>
-				<span className="min-w-0 flex-1 text-[14.5px] font-medium leading-snug">
+				<span className="min-w-0 flex-1 text-[15px] font-medium leading-snug">
 					{todayTitle(task, todo[0])}
-					<span className="ml-2 text-[12.5px] font-normal text-muted-foreground">
+					<span className="ml-2 text-[13px] font-normal text-muted-foreground">
 						{task.name}
 					</span>
 				</span>
@@ -999,7 +1015,7 @@ function MovingRow({ task, now, picked, open, onShow }: TaskProps) {
 				title={task.about ?? "Show its summary beside the page"}
 				onClick={() => onShow(task.id)}
 				className={cn(
-					"flex w-full flex-wrap items-baseline gap-x-2 rounded-lg px-3 py-1.5 text-left text-[13.5px] text-muted-foreground hover:bg-secondary/60",
+					"flex w-full flex-wrap items-baseline gap-x-2 rounded-lg px-3 py-1.5 text-left text-[14px] text-muted-foreground hover:bg-secondary/60",
 					open && "bg-primary/10",
 					picked && "ring-2 ring-primary/60",
 				)}
@@ -1095,7 +1111,7 @@ function TodayTaskPanel({
 				{parts.map(([label, text]) => (
 					<div key={label}>
 						<p className={LABEL}>{label}</p>
-						<p className="select-text cursor-text text-[13.5px] leading-relaxed text-foreground/90">
+						<p className="select-text cursor-text text-[14px] leading-relaxed text-foreground/90">
 							{sentence(text)}
 						</p>
 					</div>
@@ -1172,10 +1188,19 @@ function ComingUp({
 	const { start, isLaunching } = useStartAllItem();
 	const panes = useTabsStore((s) => s.panes);
 	const now = Date.now();
-	const due = side.due.filter((row) => !row.started);
-	const upNext = side.upNext;
-	const waiting = side.waiting;
-	if (!due.length && !upNext.length && !waiting.length) return null;
+	const hiddenToday = useTaskMeta((s) => s.hiddenToday);
+	const hideToday = useTaskMeta((s) => s.hideToday);
+	const unhideToday = useTaskMeta((s) => s.unhideToday);
+	const hidden = new Set(hiddenToday);
+	const shown = (row: { key: string }) => !hidden.has(row.key);
+	const due = side.due.filter((row) => !row.started && shown(row));
+	const upNext = side.upNext.filter(shown);
+	const waiting = side.waiting.filter(shown);
+	const hiddenCount = [...side.due, ...side.upNext, ...side.waiting].filter(
+		(row) => hidden.has(row.key),
+	).length;
+	if (!due.length && !upNext.length && !waiting.length && !hiddenCount)
+		return null;
 	const links = (
 		key: string,
 		url: string | null,
@@ -1192,7 +1217,7 @@ function ComingUp({
 					<button
 						type="button"
 						onClick={() => onOpen(paneId)}
-						className={cn(LINK, "text-[12.5px]")}
+						className={cn(LINK, "text-[13px]")}
 					>
 						Open on board
 					</button>
@@ -1202,7 +1227,7 @@ function ComingUp({
 							type="button"
 							disabled={isLaunching}
 							onClick={() => void start(row)}
-							className={cn(LINK, "text-[12.5px]")}
+							className={cn(LINK, "text-[13px]")}
 						>
 							Start
 						</button>
@@ -1214,12 +1239,20 @@ function ComingUp({
 						<button
 							type="button"
 							onClick={() => openUrl(url)}
-							className={cn(LINK, "text-[12.5px]")}
+							className={cn(LINK, "text-[13px]")}
 						>
 							Open in {source}
 						</button>
 					</>
 				)}
+				{" · "}
+				<button
+					type="button"
+					onClick={() => hideToday(key)}
+					className={cn(LINK, "text-[13px] text-muted-foreground")}
+				>
+					Hide
+				</button>
 			</>
 		);
 	};
@@ -1228,8 +1261,17 @@ function ComingUp({
 			aria-label="Not started yet"
 			className="border-t border-border pt-5 first:border-t-0 first:pt-0"
 		>
-			<h2 className="mb-2 text-[15px] font-semibold text-muted-foreground">
+			<h2 className="mb-2 flex items-baseline gap-3 text-[15px] font-semibold text-muted-foreground">
 				Not started yet
+				{hiddenCount > 0 && (
+					<button
+						type="button"
+						onClick={unhideToday}
+						className={cn(LINK, "text-[13px] font-normal")}
+					>
+						Show {hiddenCount} hidden
+					</button>
+				)}
 			</h2>
 			<ul className="flex list-disc flex-col gap-1.5 pl-5 text-[14px] leading-relaxed marker:text-muted-foreground">
 				{due.map((row) => (
@@ -1271,3 +1313,150 @@ function ComingUp({
 		</section>
 	);
 }
+
+/** How long "Sent. Odin is on it." stays under the card. */
+const HANDOFF_MS = 2500;
+
+/**
+ * Auto pilot: Today's tasks waiting on you, one at a time, in Today's order.
+ * Answer, finish or snooze the card and the next one comes up; the session
+ * you answered keeps going on its own. Space opens the card's session beside
+ * the page, X skips the card to the end (rebindable in Settings > Keyboard).
+ */
+function AutoPilot({
+	yours,
+	moving,
+	now,
+	openPaneId,
+	actions,
+}: {
+	yours: TodayTaskView<TodayItem>[];
+	moving: number;
+	now: number;
+	openPaneId?: string;
+	actions: TodayActions;
+}) {
+	const [handled, setHandled] = useState<ReadonlySet<string>>(new Set());
+	const [skipped, setSkipped] = useState<string[]>([]);
+	const [handoff, setHandoff] = useState<string | null>(null);
+	const ids = yours.map((task) => task.id);
+	const idsKey = ids.join(" ");
+	// A task that left Waiting on you is forgotten, so it comes back as new
+	// the next time its session asks you something.
+	useEffect(() => {
+		const live = new Set(idsKey.split(" "));
+		setHandled((old) => {
+			const kept = [...old].filter((id) => live.has(id));
+			return kept.length === old.size ? old : new Set(kept);
+		});
+		setSkipped((old) => {
+			const kept = old.filter((id) => live.has(id));
+			return kept.length === old.length ? old : kept;
+		});
+	}, [idsKey]);
+	useEffect(() => {
+		if (!handoff) return;
+		const timer = setTimeout(() => setHandoff(null), HANDOFF_MS);
+		return () => clearTimeout(timer);
+	}, [handoff]);
+	const pick = pilotPick(ids, handled, skipped);
+	const task = yours.find((t) => t.id === pick) ?? null;
+	const left = ids.filter((id) => !handled.has(id)).length;
+	const acted = (id: string) => {
+		setHandled((old) => new Set(old).add(id));
+		setHandoff("Sent. Odin is on it.");
+	};
+	const skip = (id: string) => {
+		setSkipped((old) => [...old.filter((s) => s !== id), id]);
+		setHandoff("Skipped. It comes back at the end.");
+	};
+	const keys = {
+		enableOnFormTags: false,
+		enableOnContentEditable: false,
+		enabled: !!task && !openPaneId,
+	};
+	useHotkey(
+		"PILOT_PEEK",
+		() => task && actions.onOpen(task.items[0].key),
+		keys,
+	);
+	useHotkey("PILOT_SKIP", () => task && skip(task.id), keys);
+	const peekKey = useHotkeyDisplay("PILOT_PEEK").text;
+	const skipKey = useHotkeyDisplay("PILOT_SKIP").text;
+	return (
+		<section
+			aria-label="Auto pilot"
+			data-testid="auto-pilot"
+			className="min-h-0 flex-1 overflow-y-auto"
+		>
+			<div className="mx-auto flex w-full max-w-[760px] flex-col gap-4 px-6 pb-10 pt-6">
+				<header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+					<h1 className="inline-flex items-center gap-2 text-[22px] font-semibold tracking-[-.3px]">
+						<LuPlane className="size-4.5 text-primary-ink" aria-hidden />
+						Auto pilot
+					</h1>
+					<span className="text-[13px] text-muted-foreground">
+						{left} need you · {moving} moving without you
+					</span>
+				</header>
+				{ids.length > 0 && (
+					<ol aria-label="Queue" className="flex flex-wrap gap-1.5">
+						{ids.map((id) => (
+							<li
+								key={id}
+								className={cn(
+									"h-1.5 w-6 rounded-full bg-border",
+									handled.has(id) && "bg-success",
+									id === pick && "bg-primary",
+								)}
+							/>
+						))}
+					</ol>
+				)}
+				{task ? (
+					<ol>
+						<StartHere
+							key={task.id}
+							task={task}
+							now={now}
+							picked={false}
+							open={task.items.some((item) => item.key === openPaneId)}
+							actions={actions}
+							onShow={() => actions.onOpen(task.items[0].key)}
+							onActed={() => acted(task.id)}
+						/>
+					</ol>
+				) : (
+					<div className="flex flex-col gap-1 rounded-xl border border-border px-5 py-4">
+						<p className="text-[17px] font-semibold text-success-ink">
+							All clear
+						</p>
+						<p className="text-[14px] text-muted-foreground">
+							Nothing needs you right now. The next task comes up here as soon
+							as a session asks you something.
+						</p>
+					</div>
+				)}
+				<p
+					aria-live="polite"
+					className="min-h-5 text-[13px] font-medium text-success-ink"
+				>
+					{handoff}
+				</p>
+				{task && (
+					<p className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-muted-foreground">
+						<span>
+							<kbd className={KBD}>{peekKey}</kbd> open its session beside this
+						</span>
+						<span>
+							<kbd className={KBD}>{skipKey}</kbd> skip to the end
+						</span>
+					</p>
+				)}
+			</div>
+		</section>
+	);
+}
+
+const KBD =
+	"rounded border border-border border-b-2 bg-card px-1 font-mono text-[11px]";

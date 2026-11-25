@@ -11,7 +11,7 @@ import { cn } from "@odin/ui/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import type { IconType } from "react-icons";
-import { HiOutlineBolt } from "react-icons/hi2";
+import { LuZap } from "react-icons/lu";
 import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
@@ -72,7 +72,7 @@ const wrapHits = <T,>(
 
 const SOURCES: { label: string; Icon: IconType }[] = [
 	...FEED_TABS.filter(({ to }) => to !== "/all"),
-	{ label: "Automations", Icon: HiOutlineBolt },
+	{ label: "Automations", Icon: LuZap },
 ];
 const SOURCE_ICON = new Map(SOURCES.map(({ label, Icon }) => [label, Icon]));
 const BOARD = "Dev Board";
@@ -386,7 +386,7 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 						</span>
 					</span>
 					{row.snippets[0] && (
-						<span className="truncate text-[11.5px] text-muted-foreground">
+						<span className="truncate text-[12px] text-muted-foreground">
 							{row.snippets[0].text}
 						</span>
 					)}

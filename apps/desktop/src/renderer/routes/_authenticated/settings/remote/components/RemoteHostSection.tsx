@@ -17,13 +17,14 @@ import { Switch } from "@odin/ui/switch";
 import { cn } from "@odin/ui/utils";
 import { useEffect, useRef, useState } from "react";
 import {
-	HiCheckCircle,
-	HiChevronDown,
-	HiExclamationTriangle,
-	HiMinusCircle,
-	HiXCircle,
-} from "react-icons/hi2";
-import { LuCopy, LuLoaderCircle } from "react-icons/lu";
+	LuChevronDown,
+	LuCircleCheck,
+	LuCircleMinus,
+	LuCircleX,
+	LuCopy,
+	LuLoaderCircle,
+	LuTriangleAlert,
+} from "react-icons/lu";
 import {
 	type ElectronRouterOutputs,
 	electronTrpc,
@@ -989,7 +990,7 @@ export function RemoteHostSection() {
 						type="button"
 						className="flex items-center gap-1.5 px-4 py-3 text-left text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
 					>
-						<HiChevronDown
+						<LuChevronDown
 							className={`size-3.5 transition-transform ${advancedOpen ? "" : "-rotate-90"}`}
 						/>
 						Advanced
@@ -1356,10 +1357,10 @@ const HEALTH_QUERY = {
 } as const;
 
 const HEALTH_ICONS = {
-	ok: <HiCheckCircle className="size-4 shrink-0 text-emerald-500" />,
-	fail: <HiXCircle className="size-4 shrink-0 text-destructive" />,
-	warn: <HiExclamationTriangle className="size-4 shrink-0 text-amber-500" />,
-	skipped: <HiMinusCircle className="size-4 shrink-0 text-muted-foreground" />,
+	ok: <LuCircleCheck className="size-4 shrink-0 text-emerald-500" />,
+	fail: <LuCircleX className="size-4 shrink-0 text-destructive" />,
+	warn: <LuTriangleAlert className="size-4 shrink-0 text-amber-500" />,
+	skipped: <LuCircleMinus className="size-4 shrink-0 text-muted-foreground" />,
 } as const;
 
 /** A failed step's button, by its fix (main/lib/remote-host/host-health HealthFix). */

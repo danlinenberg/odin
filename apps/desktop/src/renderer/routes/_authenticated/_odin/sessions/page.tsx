@@ -210,7 +210,7 @@ function SessionsPage() {
 					value={draft}
 					onChange={(event) => setDraft(event.target.value)}
 					placeholder={`Keywords or a person - any words you remember, best matches first (e.g. datadog cost)${hint}`}
-					className="h-8 min-w-0 flex-1 rounded-lg border border-border bg-card px-3 text-[12.5px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
+					className="h-8 min-w-0 flex-1 rounded-lg border border-border bg-card px-3 text-[13px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
 				/>
 				{draft && (
 					<button
@@ -282,7 +282,7 @@ function SessionsPage() {
 								onClick={() => setOpenRow(row)}
 								className="min-w-0 flex-1 text-left"
 							>
-								<div className="truncate text-[12.5px] font-semibold text-foreground">
+								<div className="truncate text-[13px] font-semibold text-foreground">
 									<Highlight text={row.title} terms={terms} />
 								</div>
 								<div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -314,7 +314,7 @@ function SessionsPage() {
 										{row.snippets.map((snippet, index) => (
 											<div
 												key={`${index}-${snippet.role}`}
-												className="text-[11.5px] leading-relaxed text-muted-foreground"
+												className="text-[12px] leading-relaxed text-muted-foreground"
 											>
 												<span
 													className={cn(
@@ -332,7 +332,7 @@ function SessionsPage() {
 									</div>
 								) : (
 									row.prompt && (
-										<div className="mt-1.5 line-clamp-2 text-[11.5px] leading-relaxed text-muted-foreground">
+										<div className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-muted-foreground">
 											{row.prompt}
 										</div>
 									)

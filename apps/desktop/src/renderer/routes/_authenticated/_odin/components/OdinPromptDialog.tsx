@@ -369,7 +369,7 @@ export function OdinPromptDialog({
 					}}
 					rows={7}
 					placeholder={placeholder}
-					className={`w-full resize-y rounded-[7px] border bg-card px-2.5 py-2 text-[12.5px] leading-[1.5] text-foreground outline-none placeholder:text-muted-foreground ${
+					className={`w-full resize-y rounded-[7px] border bg-card px-2.5 py-2 text-[13px] leading-[1.5] text-foreground outline-none placeholder:text-muted-foreground ${
 						isDropping ? "border-primary" : "border-border focus:border-primary"
 					}`}
 				/>
@@ -433,7 +433,7 @@ export function OdinPromptDialog({
 								) : (
 									// A video, PDF or doc: nothing to draw, so the name is the
 									// thumbnail.
-									<span className="flex size-full flex-col items-center justify-center gap-0.5 bg-card px-1 text-[9px] leading-tight text-muted-foreground">
+									<span className="flex size-full flex-col items-center justify-center gap-0.5 bg-card px-1 text-[10px] leading-tight text-muted-foreground">
 										<span className="text-[13px]">
 											{/\.pdf$/i.test(file.name) || TEXT_DOC.test(file.name)
 												? "📄"
@@ -493,7 +493,7 @@ export function OdinPromptDialog({
 						type="button"
 						onClick={() => fileInput.current?.click()}
 						title="Add images, video, PDFs or .md and .txt files - you can also paste or drop them"
-						className="h-7 shrink-0 rounded-[6px] bg-secondary px-2.5 text-[11.5px] font-semibold whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground"
+						className="h-7 shrink-0 rounded-[6px] bg-secondary px-2.5 text-[12px] font-semibold whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground"
 					>
 						+ Attach
 					</button>
@@ -510,7 +510,7 @@ export function OdinPromptDialog({
 								// Chromium paints that white-on-black over any bg-* - only an
 								// inset shadow and text-fill-color beat it. color-scheme darkens
 								// the dropdown itself.
-								className={`h-7 w-[200px] min-w-[120px] shrink rounded-[6px] bg-secondary px-2.5 text-[11.5px] font-semibold outline-none [color-scheme:inherit] placeholder:font-semibold placeholder:text-muted-foreground autofill:shadow-[inset_0_0_0_1000px_var(--secondary)] autofill:[-webkit-text-fill-color:var(--foreground)] ${
+								className={`h-7 w-[200px] min-w-[120px] shrink rounded-[6px] bg-secondary px-2.5 text-[12px] font-semibold outline-none [color-scheme:inherit] placeholder:font-semibold placeholder:text-muted-foreground autofill:shadow-[inset_0_0_0_1000px_var(--secondary)] autofill:[-webkit-text-fill-color:var(--foreground)] ${
 									repo ? "text-foreground" : "text-muted-foreground"
 								}`}
 							/>
@@ -544,7 +544,7 @@ export function OdinPromptDialog({
 							aria-label="Model"
 							value={model}
 							onChange={(event) => setModel(event.target.value)}
-							className={`h-7 shrink-0 rounded-[6px] bg-secondary px-2 text-[11.5px] font-semibold outline-none [color-scheme:inherit] ${
+							className={`h-7 shrink-0 rounded-[6px] bg-secondary px-2 text-[12px] font-semibold outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring [color-scheme:inherit] ${
 								model ? "text-foreground" : "text-muted-foreground"
 							}`}
 						>
@@ -561,7 +561,7 @@ export function OdinPromptDialog({
 					{backlogToggle && (
 						<label
 							title="Add it to My Tasks instead of starting a session now"
-							className={`flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-[6px] px-2.5 text-[11.5px] font-semibold transition-colors has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-primary ${
+							className={`flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-[6px] px-2.5 text-[12px] font-semibold transition-colors has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-primary ${
 								toBacklog
 									? "bg-primary/20 text-primary"
 									: "bg-secondary text-muted-foreground hover:text-foreground"
@@ -585,7 +585,7 @@ export function OdinPromptDialog({
 						<button
 							type="button"
 							onClick={onCancel}
-							className="h-7 shrink-0 whitespace-nowrap rounded-[6px] px-2.5 text-[11.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+							className="h-7 shrink-0 whitespace-nowrap rounded-[6px] px-2.5 text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
 						>
 							Cancel
 						</button>
@@ -593,7 +593,7 @@ export function OdinPromptDialog({
 							type="button"
 							disabled={isStarting}
 							onClick={() => void start()}
-							className="flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[6px] bg-primary px-3 text-[11.5px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-default disabled:opacity-70"
+							className="flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[6px] bg-primary px-3 text-[12px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-default disabled:opacity-70"
 						>
 							{isStarting && (
 								<span className="size-[9px] animate-spin rounded-full border border-current border-t-transparent" />

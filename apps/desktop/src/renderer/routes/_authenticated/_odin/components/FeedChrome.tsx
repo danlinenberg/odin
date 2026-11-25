@@ -95,7 +95,7 @@ export function FeedSelect({
 			onChange={(e) => onChange(e.target.value)}
 			title={title}
 			className={cn(
-				"max-w-[180px] cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none",
+				"max-w-[180px] cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring",
 				value
 					? "border-primary bg-primary/15 text-foreground"
 					: "border-border bg-card text-muted-foreground hover:text-foreground",

@@ -691,7 +691,7 @@ export function WatchReply({ paneId }: { paneId: string }) {
 	return (
 		<div
 			title={ping}
-			className="mt-1 truncate text-[11.5px] font-medium text-attention"
+			className="mt-1 truncate text-[12px] font-medium text-attention"
 		>
 			<LuBellRing className="mr-1 inline size-3 align-[-2px]" aria-hidden />
 			{ping}
@@ -716,7 +716,7 @@ export function WatchRowLine({
 		<span
 			title={ping ?? undefined}
 			className={cn(
-				"truncate text-[10.5px]",
+				"truncate text-[11px]",
 				ping
 					? "font-medium text-attention"
 					: "font-normal text-faint-foreground",

@@ -53,12 +53,15 @@ export const linkUrl = (link: BriefLink | string) =>
  *             thread, a doc) - the brief only finds what the transcript quotes.
  *  - hidden:  resources the transcript surfaced that you don't want on the
  *             brief - kept under its collapsed "Hidden" section, not dropped.
+ *  - names:   what you renamed a found link to (url → name), shown instead
+ *             of the name the brief guessed from the transcript.
  */
 interface KeptBrief {
 	notes?: string;
 	todos?: BriefTodo[];
 	links?: (BriefLink | string)[];
 	hidden?: string[];
+	names?: Record<string, string>;
 }
 
 export const usePaneMeta = create<{
@@ -70,6 +73,8 @@ export const usePaneMeta = create<{
 	linksByPane: Record<string, (BriefLink | string)[]>;
 	/** URLs hidden from the brief, per pane. */
 	hiddenByPane: Record<string, string[]>;
+	/** Your own names for found links, per pane: url → name. */
+	namesByPane: Record<string, Record<string, string>>;
 	/** Task title captured at launch - Claude Code's OSC title overwrites the
 	 *  pane name/userTitle to "Claude Code", so the board reads this instead. */
 	titleByPane: Record<string, string>;
@@ -99,6 +104,8 @@ export const usePaneMeta = create<{
 	addLink: (paneId: string, url: string, name?: string) => void;
 	removeLink: (paneId: string, url: string) => void;
 	setHidden: (paneId: string, url: string, hidden: boolean) => void;
+	/** Empty name drops it, so the brief's own name shows again. */
+	setName: (paneId: string, url: string, name: string) => void;
 	setTitle: (paneId: string, title: string) => void;
 	setSessionId: (paneId: string, sessionId: string) => void;
 	setPaneForPage: (pageId: string, paneId: string) => void;
@@ -118,6 +125,7 @@ export const usePaneMeta = create<{
 			todosByPane: {},
 			linksByPane: {},
 			hiddenByPane: {},
+			namesByPane: {},
 			titleByPane: {},
 			sessionIdByPane: {},
 			paneByPage: {},
@@ -237,6 +245,17 @@ export const usePaneMeta = create<{
 						hiddenByPane: urls.length ? { ...rest, [paneId]: urls } : rest,
 					};
 				}),
+			setName: (paneId, url, name) =>
+				set((s) => {
+					const { [url]: _, ...names } = s.namesByPane[paneId] ?? {};
+					if (name.trim()) names[url] = name.trim();
+					const { [paneId]: __, ...rest } = s.namesByPane;
+					return {
+						namesByPane: Object.keys(names).length
+							? { ...rest, [paneId]: names }
+							: rest,
+					};
+				}),
 			setTitle: (paneId, title) =>
 				set((s) => ({
 					titleByPane: { ...s.titleByPane, [paneId]: title },
@@ -261,8 +280,10 @@ export const usePaneMeta = create<{
 						todos: s.todosByPane[paneId],
 						links: s.linksByPane[paneId],
 						hidden: s.hiddenByPane[paneId],
+						names: s.namesByPane[paneId],
 					};
-					const hasKept = kept.notes || kept.todos || kept.links || kept.hidden;
+					const hasKept =
+						kept.notes || kept.todos || kept.links || kept.hidden || kept.names;
 					return {
 						keptBySession:
 							sid && hasKept
@@ -274,6 +295,7 @@ export const usePaneMeta = create<{
 						todosByPane: drop(s.todosByPane),
 						linksByPane: drop(s.linksByPane),
 						hiddenByPane: drop(s.hiddenByPane),
+						namesByPane: drop(s.namesByPane),
 						titleByPane: drop(s.titleByPane),
 						sessionIdByPane: drop(s.sessionIdByPane),
 						paneByPage: Object.fromEntries(
@@ -299,6 +321,9 @@ export const usePaneMeta = create<{
 							: {}),
 						...(kept.hidden
 							? { hiddenByPane: { ...s.hiddenByPane, [paneId]: kept.hidden } }
+							: {}),
+						...(kept.names
+							? { namesByPane: { ...s.namesByPane, [paneId]: kept.names } }
 							: {}),
 					};
 				}),

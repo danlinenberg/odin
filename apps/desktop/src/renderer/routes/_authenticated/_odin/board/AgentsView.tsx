@@ -222,7 +222,7 @@ export function AgentsView({
 
 function Empty({ children }: { children: React.ReactNode }) {
 	return (
-		<div className="px-4 py-6 text-[12.5px] text-muted-foreground">
+		<div className="px-4 py-6 text-[13px] text-muted-foreground">
 			{children}
 		</div>
 	);
@@ -331,7 +331,7 @@ function AgentRow({
 								content={agent.result}
 								style="default"
 								allowHtml={false}
-								className="rounded-md bg-secondary px-3 py-2 text-[12.5px] [&_li]:whitespace-pre-wrap [&_p]:whitespace-pre-wrap"
+								className="rounded-md bg-secondary px-3 py-2 text-[13px] [&_li]:whitespace-pre-wrap [&_p]:whitespace-pre-wrap"
 							/>
 						) : (
 							<div className="text-[12px] text-muted-foreground">

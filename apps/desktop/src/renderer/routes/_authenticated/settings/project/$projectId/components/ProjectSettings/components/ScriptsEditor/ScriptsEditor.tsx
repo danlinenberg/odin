@@ -2,7 +2,7 @@ import { Button } from "@odin/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@odin/ui/tabs";
 import { cn } from "@odin/ui/utils";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { HiCheckCircle, HiDocumentArrowUp } from "react-icons/hi2";
+import { LuCircleCheck, LuFileUp } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { invalidateProjectScriptQueries } from "renderer/lib/project-scripts";
 
@@ -131,7 +131,7 @@ function ScriptTextarea({
 				{isDragOver && (
 					<div className="absolute inset-0 flex items-center justify-center bg-primary/10 rounded-lg pointer-events-none">
 						<div className="flex items-center gap-2 text-primary text-sm font-medium">
-							<HiDocumentArrowUp className="h-5 w-5" />
+							<LuFileUp className="h-5 w-5" />
 							Drop to import
 						</div>
 					</div>
@@ -144,7 +144,7 @@ function ScriptTextarea({
 				onClick={() => fileInputRef.current?.click()}
 				className="gap-1.5 text-muted-foreground"
 			>
-				<HiDocumentArrowUp className="h-3.5 w-3.5" />
+				<LuFileUp className="h-3.5 w-3.5" />
 				Import file
 			</Button>
 			<input
@@ -352,7 +352,7 @@ export function ScriptsEditor({ projectId, className }: ScriptsEditorProps) {
 					)}
 					{saveStatus === "saved" && (
 						<span className="text-xs text-success dark:text-success flex items-center gap-1">
-							<HiCheckCircle className="h-3.5 w-3.5" />
+							<LuCircleCheck className="h-3.5 w-3.5" />
 							Saved
 						</span>
 					)}

@@ -3,6 +3,7 @@ import { initSentry } from "./lib/sentry";
 initSentry();
 
 import { createRouter, RouterProvider } from "@tanstack/react-router";
+import { MotionConfig } from "framer-motion";
 import ReactDom from "react-dom/client";
 import { BootErrorBoundary } from "./components/BootErrorBoundary";
 import {
@@ -88,7 +89,10 @@ if (!rootElement) {
 		<BootErrorBoundary
 			onError={(error) => reportBootError("Render failed", error)}
 		>
-			<RouterProvider router={router} />
+			{/* framer-motion skips transform/layout animations when the OS asks for less motion. */}
+			<MotionConfig reducedMotion="user">
+				<RouterProvider router={router} />
+			</MotionConfig>
 		</BootErrorBoundary>,
 	);
 	markBootMounted();

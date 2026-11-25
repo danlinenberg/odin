@@ -5,8 +5,7 @@ import { cn } from "@odin/ui/utils";
 import { Eye, EyeOff } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useDrag, useDrop } from "react-dnd";
-import { HiMiniCommandLine } from "react-icons/hi2";
-import { LuGripVertical } from "react-icons/lu";
+import { LuGripVertical, LuSquareTerminal } from "react-icons/lu";
 import { useIsDarkTheme } from "renderer/assets/app-icons/preset-icons";
 import { resolvePresetLaunchCommands } from "renderer/lib/agent-launch-command";
 import { resolveV2PresetIcon } from "renderer/lib/preset-icon";
@@ -135,7 +134,7 @@ export function PresetRow({
 				{presetIcon ? (
 					<img src={presetIcon} alt="" className="size-4 object-contain" />
 				) : (
-					<HiMiniCommandLine className="size-4 text-muted-foreground" />
+					<LuSquareTerminal className="size-4 text-muted-foreground" />
 				)}
 			</div>
 

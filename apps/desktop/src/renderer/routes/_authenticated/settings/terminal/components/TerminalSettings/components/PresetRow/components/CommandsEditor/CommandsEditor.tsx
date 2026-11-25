@@ -1,7 +1,7 @@
 import { Button } from "@odin/ui/button";
 import { Input } from "@odin/ui/input";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { HiMiniPlus, HiMiniXMark } from "react-icons/hi2";
+import { LuPlus, LuX } from "react-icons/lu";
 
 interface CommandsEditorProps {
 	commands: string[];
@@ -102,7 +102,7 @@ export function CommandsEditor({
 							className="h-8 w-8 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 group-hover/command-row:opacity-100 group-focus-within/command-row:opacity-100"
 							aria-label={`Delete command ${index + 1}`}
 						>
-							<HiMiniXMark className="h-3.5 w-3.5" />
+							<LuX className="h-3.5 w-3.5" />
 						</Button>
 					)}
 				</div>
@@ -112,7 +112,7 @@ export function CommandsEditor({
 				onClick={handleAddCommand}
 				className="mt-1 inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none"
 			>
-				<HiMiniPlus className="h-3.5 w-3.5" />
+				<LuPlus className="h-3.5 w-3.5" />
 				Add command
 			</button>
 		</div>
