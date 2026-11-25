@@ -30,7 +30,11 @@ import {
 } from "shared/host-setup";
 import { hostServiceInstallScript } from "./host-service";
 import { hostOwners, ownerCheckScript } from "./owner";
-import { GITHUB_HELPERS_SCRIPT, ghInstallScript } from "./session";
+import {
+	GITHUB_HELPERS_SCRIPT,
+	ghInstallScript,
+	nodeInstallScript,
+} from "./session";
 import { awsClientConfig } from "./ssm";
 
 /**
@@ -480,8 +484,9 @@ export const HOST_MEMORY_GUARD_SCRIPT = [
 
 /**
  * What a host needs for Odin's sessions, installed when missing - run by SSM
- * as root, so it needs no sudo: tmux, git, curl and python3 from the
- * system's package manager, then the packages from Settings (`packages`,
+ * as root, so it needs no sudo: tmux, git, curl, python3 and ffmpeg from the
+ * system's package manager, Node 22 when the host's node is older
+ * (nodeInstallScript), then the packages from Settings (`packages`,
  * space-separated, see shared/host-setup - one install each, so one the
  * manager doesn't have costs only itself); the Odin user's own Linux user,
  * without sudo, and refused when it belongs to another Odin user
@@ -507,7 +512,8 @@ export function setUpScript(
 	return [
 		"export DEBIAN_FRONTEND=noninteractive",
 		'pkg() { if command -v apt-get >/dev/null; then apt-get install -y -q "$@" || { apt-get update -q && apt-get install -y -q "$@"; }; elif command -v dnf >/dev/null; then dnf install -y -q "$@"; elif command -v yum >/dev/null; then yum install -y -q "$@"; fi; } >/dev/null 2>&1',
-		"for p in tmux git curl python3; do command -v $p >/dev/null || pkg $p; done",
+		"for p in tmux git curl python3 ffmpeg; do command -v $p >/dev/null || pkg $p; done",
+		nodeInstallScript(),
 		...(extra.length
 			? [`for p in ${extra.map(sh).join(" ")}; do pkg "$p"; done`]
 			: []),

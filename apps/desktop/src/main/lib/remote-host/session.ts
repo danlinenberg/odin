@@ -225,6 +225,36 @@ export const ghInstallScript = [
 ].join("\n");
 
 /**
+ * A current Node for sessions on the host: an image's own node is often 20,
+ * which has no global WebSocket or Promise.withResolvers, so scripts Claude
+ * writes there failed. Host setup (run as root) puts Node 22 in
+ * HOST_NODE_DIR, pinned by SHA-256, when the host's node is missing or older
+ * than 22. The host's own node stays where it is for everything else; only a
+ * session's PATH puts this one first (NODE_ON_PATH).
+ */
+export const HOST_NODE_DIR = "/opt/odin-node";
+const NODE_VERSION = "22.23.5";
+const NODE_SHA256: Record<string, string> = {
+	arm64: "8bd3dc69eee8f3f226315a80d7d1d4faccf217a4c8fae500168ac2e38f3bdba3",
+	x64: "c54118104acc524633b5abe106bbf44a53126ec8b4e5fa105cb92b5d7de8a1a1",
+};
+/** Exits 0 when the `node` on PATH is 22 or newer. */
+const NODE_IS_CURRENT = `node -e 'process.exit(+process.versions.node.split(".")[0] < 22)' 2>/dev/null`;
+export const nodeInstallScript = (dir = HOST_NODE_DIR) =>
+	[
+		`if [ "$(${dir}/bin/node -v 2>/dev/null)" != v${NODE_VERSION} ] && ! ${NODE_IS_CURRENT}; then`,
+		`  case "$(uname -m)" in aarch64|arm64) a=arm64; sum=${NODE_SHA256.arm64};; *) a=x64; sum=${NODE_SHA256.x64};; esac`,
+		`  f=node-v${NODE_VERSION}-linux-$a; t=$(mktemp -d)`,
+		`  curl -fsSL -o "$t/node.tgz" "https://nodejs.org/dist/v${NODE_VERSION}/$f.tar.gz" &&`,
+		'  echo "$sum  $t/node.tgz" | sha256sum -c --quiet &&',
+		`  tar -xzf "$t/node.tgz" -C "$t" && rm -rf ${dir} && mv "$t/$f" ${dir}`,
+		'  rm -rf "$t"',
+		"fi",
+	].join("\n");
+/** A session's PATH: Odin's Node first, unless the host's own is current. */
+export const NODE_ON_PATH = `[ -x ${HOST_NODE_DIR}/bin/node ] && ! ${NODE_IS_CURRENT} && export PATH="${HOST_NODE_DIR}/bin:$PATH"`;
+
+/**
  * How a session on the host signs in to GitHub: never with a token in its
  * environment, which is fixed at launch and dies eight hours later with the
  * work stranded on the host. git's credential helper and gh ask Odin's host
@@ -800,6 +830,7 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 			: "",
 		resumed ? placeConversation(resumed) : "",
 		`python3 -c ${sh(SKIP_FIRST_RUN)} "$PWD"${readOdinConfig().slackSendAllowed ? " allow-send" : ""} 2>/dev/null || true`,
+		NODE_ON_PATH,
 		'export PATH="$HOME/.local/bin:$PATH"',
 		CLAUDE_LOGIN_SCRIPT,
 		ghInstallScript,
@@ -1077,6 +1108,7 @@ export function hostNote(spec: {
 						: []),
 				].join("\n"),
 		"git and gh are signed in to GitHub with my account.",
+		"This server's CPU may be ARM: check `uname -m` before you download a binary or a build for it (aarch64 takes the arm64 one). Odin's host setup installs ffmpeg, and Node 22 ahead of an older node on your PATH.",
 		// The laptop delivers this with a SessionStart hook ($ODIN_HOME_DIR/hooks/shell-rule.sh)
 		// that the host never has, so a host session would draft in its own voice and keep
 		// corrections out of Settings.
