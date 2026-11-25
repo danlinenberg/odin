@@ -132,6 +132,7 @@ import {
 	odinScreenWrite,
 	remoteConnectLine,
 	spacesForCursorForward,
+	waitForClaudeDrawn,
 } from "shared/odin-screen-status";
 import {
 	BOARD_TAGS,
@@ -6023,6 +6024,20 @@ function DevBoardPage() {
 				return;
 			}
 			try {
+				// A host pane shows its tmux bar while the run script still sets
+				// up: typed now, the text lands there (a git question), not in
+				// Claude. Wait for Claude's own screen (when the pane's screen can
+				// be read at all: the run script keeps git off the terminal too).
+				if (
+					card.pane.odinRemote &&
+					screen !== "" &&
+					!(await waitForClaudeDrawn(() => visibleScreen(card.pane.id)))
+				) {
+					toast.error(
+						`Claude has not started on ${card.pane.odinRemote} yet - look at the session's terminal`,
+					);
+					return;
+				}
 				await sendContinue(card.pane.id, prompt);
 			} catch (error) {
 				toast.error(error instanceof Error ? error.message : String(error));
