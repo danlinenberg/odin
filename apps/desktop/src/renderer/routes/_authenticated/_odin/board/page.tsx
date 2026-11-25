@@ -7220,7 +7220,9 @@ function DevBoardPage() {
 				setIsComposerOpen(false);
 				if (repoPath) useClaudeCommand.getState().addRecentRepo(repoPath);
 				// Started from the drawer's session list: land in the new session.
-				if (drawerCard) usePendingFocus.getState().focus(paneId);
+				// Not in Auto pilot: there the session beside the card is the one
+				// you are answering, and the new one runs on its own.
+				if (drawerCard && !pilotOpen) usePendingFocus.getState().focus(paneId);
 			},
 		});
 		setIsComposerOpen(false);
