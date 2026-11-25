@@ -3591,6 +3591,7 @@ function DevBoardPage() {
 	// once went stale when the window was minimized/resized, and the drawer
 	// stopped short of the rail or overran it.
 	const [drawerFraction, setDrawerFraction] = useState(1);
+	const drawerWidth = `max(${MIN_DRAWER_W}px, calc((100vw - ${RAIL_W}px) * ${drawerFraction}))`;
 	// The brief panel: open by default, because "what did I walk into?" is the
 	// question you have every single time you open a session.
 	const [isBriefOpen, setIsBriefOpen] = useState(true);
@@ -8582,6 +8583,8 @@ function DevBoardPage() {
 					cards={todayCards}
 					openPaneId={drawerCard?.pane.id}
 					pilot={pilotOpen}
+					beside={drawerCard ? drawerWidth : undefined}
+					onNew={openComposerOnCurrentRepo}
 					onOpen={(paneId) => {
 						const card = cardById(paneId);
 						if (!card) return;
@@ -8818,7 +8821,7 @@ function DevBoardPage() {
 							"right-0 top-0 h-full max-w-full border-l border-border",
 						)}
 						style={{
-							width: `max(${MIN_DRAWER_W}px, calc((100vw - ${RAIL_W}px) * ${drawerFraction}))`,
+							width: drawerWidth,
 						}}
 					>
 						{/* drag handle - resize the drawer from its left edge */}
