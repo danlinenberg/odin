@@ -104,7 +104,10 @@ import {
 	hostByName,
 	pickedHost,
 } from "main/lib/remote-host/host-by-name";
-import { hostHasConversation } from "main/lib/remote-host/host-conversations";
+import {
+	hostHasConversation,
+	withSharedHost,
+} from "main/lib/remote-host/host-conversations";
 import {
 	hostFileSources,
 	rememberHostFiles,
@@ -196,6 +199,7 @@ import {
 } from "shared/launch-gate";
 import { type OdinRule, ruleHooks } from "shared/odin-rules";
 import { remoteShellCommand } from "shared/remote-shell-command";
+import type { Client } from "ssh2";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import {
@@ -361,6 +365,19 @@ const autoSyncClaudeSetup = makeAutoSync<RemoteHost>({
 			});
 	},
 });
+
+/**
+ * Runs `fn` over one SSH connection to the host a session runs on, by its
+ * pane's host name, signing in to AWS again first when that expired.
+ */
+export async function withSessionHost<T>(
+	name: string,
+	fn: (client: Client) => Promise<T>,
+): Promise<T> {
+	const host = hostNamed(name);
+	if (!host) throw new Error("No remote host is set up.");
+	return withAwsSignIn(host, () => withSharedHost(host, fn));
+}
 
 /** The Night Agent's last alert, closed when the next one replaces it. */
 let nightNotification: Notification | null = null;
