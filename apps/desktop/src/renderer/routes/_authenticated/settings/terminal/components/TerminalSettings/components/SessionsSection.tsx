@@ -383,7 +383,10 @@ export function SessionsSection() {
 								const sessionId = pendingKillSession?.sessionId;
 								setPendingKillSession(null);
 								if (!sessionId) return;
-								killDaemonSession.mutate({ paneId: sessionId });
+								killDaemonSession.mutate({
+									paneId: sessionId,
+									source: "settings:sessions",
+								});
 							}}
 						>
 							Kill

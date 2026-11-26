@@ -450,7 +450,7 @@ export function useTerminalLifecycle({
 
 				if (options?.forceRestart) {
 					void electronTrpcClient.terminal.kill
-						.mutate({ paneId })
+						.mutate({ paneId, source: "terminal:forceRestart" })
 						.catch((err) => {
 							console.warn("[Terminal] Kill failed before restart:", err);
 						})
@@ -829,7 +829,7 @@ export function useTerminalLifecycle({
 
 			if (paneDestroyed) {
 				// Pane was explicitly destroyed - full cleanup.
-				killTerminalForPane(paneId);
+				killTerminalForPane(paneId, "terminal:unmount");
 				coldRestoreState.delete(paneId);
 				pendingDetaches.delete(paneId);
 				v1TerminalCache.dispose(paneId);

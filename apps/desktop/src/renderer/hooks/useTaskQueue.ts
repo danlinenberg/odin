@@ -208,7 +208,9 @@ async function spawnQueuedPane(client: TrpcClient, pane: Pane): Promise<void> {
 				host: pane.odinRemote ?? null,
 			})
 		: queued.command;
-	await client.terminal.kill.mutate({ paneId: pane.id }).catch(() => {});
+	await client.terminal.kill
+		.mutate({ paneId: pane.id, source: "taskQueue:spawn" })
+		.catch(() => {});
 	await client.terminal.createOrAttach.mutate({
 		paneId: pane.id,
 		tabId: pane.tabId,

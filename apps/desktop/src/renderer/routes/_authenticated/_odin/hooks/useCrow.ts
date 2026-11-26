@@ -263,7 +263,7 @@ export function useCrow() {
 		sessionId: string,
 	) => {
 		await utils.client.terminal.kill
-			.mutate({ paneId: pane.id })
+			.mutate({ paneId: pane.id, source: "crow:resumeIn" })
 			.catch(() => {});
 		await utils.client.terminal.createOrAttach.mutate({
 			paneId: pane.id,

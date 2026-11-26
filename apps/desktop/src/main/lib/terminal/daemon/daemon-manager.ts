@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { appendFile } from "node:fs";
 import { join } from "node:path";
 import { Worker } from "node:worker_threads";
 import { workspaces } from "@odin/local-db";
@@ -101,7 +102,20 @@ export class DaemonTerminalManager extends EventEmitter {
 		this.initializeClient();
 	}
 
-	private recordKilledSession(paneId: string): void {
+	/**
+	 * Every pane kill names its caller in ~/.odin/daemon.log, so a pane that
+	 * shows "Session killed" can be traced to the path that killed it.
+	 */
+	private logKill(paneId: string, source: string): void {
+		appendFile(
+			join(ODIN_HOME_DIR, "daemon.log"),
+			`${new Date().toISOString()} [pane-kill] pane=${paneId} source=${source}\n`,
+			() => {},
+		);
+	}
+
+	private recordKilledSession(paneId: string, source: string): void {
+		this.logKill(paneId, source);
 		this.killedSessionTombstones.delete(paneId);
 		this.killedSessionTombstones.set(paneId, Date.now());
 		if (this.killedSessionTombstones.size > MAX_KILLED_SESSION_TOMBSTONES) {
@@ -835,10 +849,11 @@ export class DaemonTerminalManager extends EventEmitter {
 	async kill(params: {
 		paneId: string;
 		deleteHistory?: boolean;
+		source?: string;
 	}): Promise<void> {
-		const { paneId, deleteHistory = false } = params;
+		const { paneId, deleteHistory = false, source = "unknown" } = params;
 		this.daemonAliveSessionIds.delete(paneId);
-		this.recordKilledSession(paneId);
+		this.recordKilledSession(paneId, source);
 
 		const session = this.sessions.get(paneId);
 		if (session?.isAlive) {
@@ -986,7 +1001,7 @@ export class DaemonTerminalManager extends EventEmitter {
 
 		const results = await Promise.allSettled(
 			Array.from(paneIdsToKill).map(async (paneId) => {
-				this.recordKilledSession(paneId);
+				this.recordKilledSession(paneId, "killByWorkspaceId");
 
 				const session = this.sessions.get(paneId);
 				if (session?.isAlive) {
@@ -1091,7 +1106,7 @@ export class DaemonTerminalManager extends EventEmitter {
 
 		for (const session of response.sessions) {
 			if (!session.isAlive) continue;
-			this.recordKilledSession(session.sessionId);
+			this.recordKilledSession(session.sessionId, "forceKillAll");
 
 			const localSession = this.sessions.get(session.sessionId);
 			if (localSession?.isAlive) {

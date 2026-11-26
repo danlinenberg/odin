@@ -96,7 +96,7 @@ export interface TerminalSessionOperations {
 	signal(params: { paneId: string; signal?: string }): void;
 
 	/** Kill the terminal session */
-	kill(params: { paneId: string }): Promise<void>;
+	kill(params: { paneId: string; source?: string }): Promise<void>;
 
 	/**
 	 * Detach from the terminal (keep session alive).
