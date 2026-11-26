@@ -988,11 +988,11 @@ function TaskButtons({
 			{onSkip && (
 				<button
 					type="button"
-					title="Move it to the end of the queue"
+					title="Move on to the next one; this one goes to the end of the queue"
 					onClick={onSkip}
-					className={ghost}
+					className={cn(ghost, "ml-auto")}
 				>
-					Skip for now
+					Next →
 				</button>
 			)}
 			{onNext && (
@@ -1367,6 +1367,82 @@ function ComingUp({
 	);
 }
 
+/**
+ * Auto pilot: a reply to the card's session in your own words, for a session
+ * that asks something without an action item to answer. Enter sends it and the
+ * next card comes up; Shift+Enter is a new line, Escape leaves the box.
+ */
+function PilotReply({
+	paneId,
+	inputRef,
+	onSent,
+}: {
+	paneId: string;
+	inputRef: React.RefObject<HTMLTextAreaElement | null>;
+	onSent: () => void;
+}) {
+	const send = useSendToSession();
+	const [text, setText] = useState("");
+	const [sending, setSending] = useState(false);
+	const submit = () => {
+		const said = text.trim();
+		if (!said || sending) return;
+		setSending(true);
+		send(paneId, said)
+			.then(() => {
+				setText("");
+				inputRef.current?.blur();
+				onSent();
+			})
+			.catch((error) =>
+				toast.error("Couldn't send it", {
+					description: error instanceof Error ? error.message : String(error),
+				}),
+			)
+			.finally(() => setSending(false));
+	};
+	return (
+		<form
+			className="flex items-end gap-2"
+			onSubmit={(event) => {
+				event.preventDefault();
+				submit();
+			}}
+		>
+			<textarea
+				ref={inputRef}
+				data-testid="pilot-reply"
+				value={text}
+				rows={2}
+				onChange={(event) => setText(event.target.value)}
+				onKeyDown={(event) => {
+					if (event.key === "Escape") event.currentTarget.blur();
+					if (
+						event.key === "Enter" &&
+						!event.shiftKey &&
+						!event.nativeEvent.isComposing
+					) {
+						event.preventDefault();
+						submit();
+					}
+				}}
+				placeholder="Reply to the session - Enter sends it and the next one comes up"
+				className="min-h-[44px] min-w-0 flex-1 resize-y rounded-lg border border-border bg-background px-3 py-2 text-[14px] leading-snug focus:border-primary/60 focus:outline-none"
+			/>
+			<button
+				type="submit"
+				disabled={!text.trim() || sending}
+				className={cn(
+					"rounded-[7px] px-3 py-1.5 text-[13px] font-semibold disabled:opacity-50",
+					BUTTON.secondary,
+				)}
+			>
+				Send
+			</button>
+		</form>
+	);
+}
+
 /** How long "Sent. Odin is on it." stays under the card. */
 const HANDOFF_MS = 2500;
 
@@ -1471,7 +1547,7 @@ function AutoPilot({
 	const skip = (id: string) => {
 		setSkipped((old) => [...old.filter((s) => s !== id), id]);
 		if (chosen === id) setChosen(null);
-		setHandoff("Skipped. It comes back at the end.");
+		setHandoff("Next one. That one comes back at the end.");
 	};
 	const keys = {
 		enableOnFormTags: false,
@@ -1484,8 +1560,11 @@ function AutoPilot({
 		keys,
 	);
 	useHotkey("PILOT_SKIP", () => task && skip(task.id), keys);
+	const replyRef = useRef<HTMLTextAreaElement>(null);
+	useHotkey("PILOT_REPLY", () => replyRef.current?.focus(), keys);
 	const peekKey = useHotkeyDisplay("PILOT_PEEK").text;
 	const skipKey = useHotkeyDisplay("PILOT_SKIP").text;
+	const replyKey = useHotkeyDisplay("PILOT_REPLY").text;
 	const queue = ids.filter((id) => !handled.has(id));
 	return (
 		<section
@@ -1620,7 +1699,16 @@ function AutoPilot({
 								slim={task.items.some((item) => item.key === openPaneId)}
 							/>
 						</ol>
-					) : (
+					) : null}
+					{task && (
+						<PilotReply
+							key={task.id}
+							paneId={task.items[0].key}
+							inputRef={replyRef}
+							onSent={() => acted(task.id)}
+						/>
+					)}
+					{!task && (
 						<div className="flex flex-col gap-1 rounded-xl border border-border px-5 py-4">
 							<p className="text-[17px] font-semibold text-success-ink">
 								All clear
@@ -1643,7 +1731,10 @@ function AutoPilot({
 								<kbd className={KBD}>{peekKey}</kbd> open its session
 							</span>
 							<span>
-								<kbd className={KBD}>{skipKey}</kbd> skip to the end
+								<kbd className={KBD}>{skipKey}</kbd> next
+							</span>
+							<span>
+								<kbd className={KBD}>{replyKey}</kbd> reply
 							</span>
 						</p>
 					)}
