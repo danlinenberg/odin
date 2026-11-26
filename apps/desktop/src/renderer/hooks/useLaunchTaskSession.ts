@@ -545,6 +545,12 @@ export function useLaunchTaskSession() {
 					},
 				}));
 				useStartingPanes.getState().add(paneId);
+				// The card is up and its row now says Go to session, so the other
+				// Start buttons come back now. Held for the slow part below (a
+				// worktree fetch, the PTY spawn - long on a busy Mac), every
+				// Start on the page stayed greyed out until you left and came back.
+				// `launchesInFlight` still stops a second launch of this one.
+				setIsLaunching(false);
 				onCreated?.({ tabId, paneId, sessionId });
 			}
 

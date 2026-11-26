@@ -32,6 +32,7 @@ import {
 } from "shared/machine-load";
 import { useApplyDropRules } from "./all/drop-rules";
 import { useWakeWaiting } from "./all/use-wake-waiting";
+import { GsdBackground } from "./board/GsdBackground";
 import { ClaudeSignInBanner } from "./components/ClaudeSignInBanner";
 import { CrowButton } from "./components/CrowButton";
 import { FEED_TABS } from "./components/feed-counts";
@@ -710,6 +711,7 @@ function OdinShell() {
 					/>
 					<InAppBrowser />
 					<StatusAnnouncer />
+					<GsdBackground />
 				</div>
 			</div>
 

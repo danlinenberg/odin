@@ -148,4 +148,52 @@ describe("attachScript", () => {
 		expect(seen).toEqual(["dragenter", "dragover", "drop"]);
 		expect(result).toEqual({ markdown: `draft\n${link}` });
 	});
+
+	test("stops at once when GitHub writes that the upload failed, and puts the box back", async () => {
+		class FakeTransfer {
+			files: unknown[] = [];
+			items = { add: (file: unknown) => this.files.push(file) };
+		}
+		class FakeDragEvent {
+			constructor(readonly type: string) {}
+		}
+		const box = {
+			value: "draft",
+			offsetParent: {},
+			id: "new_comment_field",
+			getAttribute: () => null,
+			parentElement: { querySelector: () => null, parentElement: null },
+			dispatchEvent(event: FakeDragEvent) {
+				if (event.type === "drop")
+					this.value += '\n<!-- Failed to upload "a.webm" -->';
+			},
+		};
+		class FakeTextArea {}
+		Object.defineProperty(FakeTextArea.prototype, "value", {
+			set(this: typeof box, value: string) {
+				this.value = value;
+			},
+		});
+		const run = new Function(
+			"document",
+			"DataTransfer",
+			"DragEvent",
+			"File",
+			"HTMLTextAreaElement",
+			"Event",
+			`return ${attachScript([{ name: "a.webm", data: png }], ["video/webm"], 60_000)}`,
+		);
+		const started = Date.now();
+		const result = await run(
+			{ querySelectorAll: () => [box] },
+			FakeTransfer,
+			FakeDragEvent,
+			class {},
+			FakeTextArea,
+			class {},
+		);
+		expect(Date.now() - started).toBeLessThan(5_000);
+		expect(result.error).toContain("Failed to upload");
+		expect(box.value).toBe("draft");
+	});
 });

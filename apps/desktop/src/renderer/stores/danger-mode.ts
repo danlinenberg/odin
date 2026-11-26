@@ -15,3 +15,17 @@ export const useDangerMode = create<{
 			return { on: on ? { ...rest, [paneId]: true } : rest };
 		}),
 }));
+
+/** Live sessions whose chat is on screen, counted: GSD Mode runs in that view. */
+export const useOpenChats = create<{
+	count: Record<string, number>;
+	open: (paneId: string, on: boolean) => void;
+}>()((set) => ({
+	count: {},
+	open: (paneId, on) =>
+		set((state) => {
+			const { [paneId]: now = 0, ...rest } = state.count;
+			const next = now + (on ? 1 : -1);
+			return { count: next > 0 ? { ...rest, [paneId]: next } : rest };
+		}),
+}));

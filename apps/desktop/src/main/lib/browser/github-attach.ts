@@ -129,6 +129,13 @@ export function attachScript(
 	const links = /https:\\/\\/github\\.com\\/user-attachments\\/assets\\//g;
 	for (const end = Date.now() + timeoutMs; Date.now() < end; ) {
 		await new Promise((r) => setTimeout(r, 500));
+		const failed = box.value.match(/Failed to upload[^\\n]*/i);
+		if (failed) {
+			const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set;
+			set.call(box, before);
+			box.dispatchEvent(new Event("input", { bubbles: true }));
+			return { error: "GitHub refused the upload: " + failed[0].replace(/[<>!-]+/g, " ").trim() };
+		}
 		if ((box.value.match(links) ?? []).length >= files.length) {
 			const markdown = box.value;
 			const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set;

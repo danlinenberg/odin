@@ -1,7 +1,7 @@
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import type { ComponentType, ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
 	LuCircleCheck,
 	LuHourglass,
@@ -10,6 +10,7 @@ import {
 	LuPause,
 	LuPlane,
 	LuPlay,
+	LuPlus,
 	LuRefreshCw,
 } from "react-icons/lu";
 import { useHotkey, useHotkeyDisplay } from "renderer/hotkeys";
@@ -158,6 +159,7 @@ export function TodayOverview({
 	cards,
 	openPaneId,
 	pilot,
+	onNew,
 	onOpen,
 	onDone,
 	onSnooze,
@@ -167,6 +169,8 @@ export function TodayOverview({
 	openPaneId?: string;
 	/** Auto pilot: one task at a time instead of the whole page. */
 	pilot?: boolean;
+	/** Auto pilot: opens the New session composer. */
+	onNew?: () => void;
 } & TodayActions) {
 	const now = Date.now();
 	const today = dayAfter(now, 0);
@@ -294,10 +298,11 @@ export function TodayOverview({
 		return (
 			<AutoPilot
 				yours={lanes.yours}
-				moving={lanes.moving.length}
+				moving={lanes.moving}
 				now={now}
 				openPaneId={openPaneId}
 				actions={actions}
+				onNew={onNew}
 			/>
 		);
 
@@ -602,15 +607,25 @@ function StartHere({
 	actions,
 	onShow,
 	onActed,
+	onSkip,
+	slim,
 }: Omit<TaskProps, "onShow"> & {
 	actions: TodayActions;
 	onShow: (taskId: string) => void;
 	/** After you answered, finished or snoozed it: the next task comes up. */
 	onActed: () => void;
+	/** Auto pilot only: moves this task to the end of the queue. */
+	onSkip?: () => void;
+	/**
+	 * Auto pilot, with its session open beside it: the session's Brief already
+	 * shows the goal, where it stands and the session's facts, so the card
+	 * keeps only the title, what to answer and the buttons.
+	 */
+	slim?: boolean;
 }) {
 	const first = task.items[0];
 	const todo = useActionItems(first.sessionId);
-	const stands = standing(task);
+	const stands = slim ? null : standing(task);
 	return (
 		<li
 			data-today-task={task.id}
@@ -621,9 +636,12 @@ function StartHere({
 			)}
 		>
 			<div className="flex flex-wrap items-center gap-2">
-				<span className="rounded-full bg-attention px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[.08em] text-background">
-					Start here
-				</span>
+				{/* Auto pilot shows one card at a time, so the badge says nothing there. */}
+				{!onSkip && (
+					<span className="rounded-full bg-attention px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[.08em] text-background">
+						Start here
+					</span>
+				)}
 				{todo[0] && (
 					<span className={cn(CHIP, "text-[12px] font-semibold")}>
 						{itemKind(todo[0])}
@@ -639,12 +657,17 @@ function StartHere({
 			>
 				{todayTitle(task, todo[0])}
 			</button>
-			<p className="select-text cursor-text text-[14px] leading-snug">
-				<span className="font-semibold">{task.name}</span>
-				{task.about && <>: {sentence(task.about)}</>}
-			</p>
-			<div className="grid select-text cursor-text gap-x-6 gap-y-2.5 text-[14px] leading-relaxed @2xl:grid-cols-2">
-				{task.explain && (
+			{!slim && (
+				<p className="select-text cursor-text text-[14px] leading-snug">
+					<span className="font-semibold">{task.name}</span>
+					{task.about && <>: {sentence(task.about)}</>}
+				</p>
+			)}
+			<div
+				hidden={slim || (!task.explain && !stands)}
+				className="grid select-text cursor-text gap-x-6 gap-y-2.5 text-[14px] leading-relaxed @2xl:grid-cols-2"
+			>
+				{!slim && task.explain && (
 					<div>
 						<p className={LABEL}>Why it matters</p>
 						<p className="text-foreground/90">{sentence(task.explain)}</p>
@@ -662,8 +685,14 @@ function StartHere({
 				onOpen={actions.onOpen}
 				onShow={() => onShow(task.id)}
 				onSent={onActed}
+				slim={slim}
 			/>
-			<TaskButtons task={task} actions={actions} onActed={onActed} />
+			<TaskButtons
+				task={task}
+				actions={actions}
+				onActed={onActed}
+				onSkip={onSkip}
+			/>
 		</li>
 	);
 }
@@ -677,12 +706,15 @@ function TaskItems({
 	onOpen,
 	onShow,
 	onSent,
+	slim,
 }: {
 	task: TodayTaskView<TodayItem>;
 	onOpen: (paneId: string) => void;
 	/** On the page: a session's title opens the task's summary, not the session. */
 	onShow?: () => void;
 	onSent?: () => void;
+	/** Leave out a lone session's title line: it is open beside the card. */
+	slim?: boolean;
 }) {
 	return (
 		<div className="flex flex-col gap-3">
@@ -694,6 +726,7 @@ function TaskItems({
 					onOpen={onShow ? () => onShow() : onOpen}
 					preview={!!onShow}
 					onSent={onSent}
+					bare={slim && task.items.length === 1}
 				/>
 			))}
 		</div>
@@ -707,6 +740,7 @@ function SessionItems({
 	onOpen,
 	preview,
 	onSent,
+	bare,
 }: {
 	item: TodayItem;
 	titled: boolean;
@@ -714,11 +748,17 @@ function SessionItems({
 	/** The title opens the task's summary beside the page. */
 	preview?: boolean;
 	onSent?: () => void;
+	/** Only the action items, without the session's title and facts line. */
+	bare?: boolean;
 }) {
 	const todo = useActionItems(item.sessionId);
+	if (bare && todo.length === 0) return null;
 	return (
 		<div className="flex flex-col gap-1.5">
-			<p className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[12px] text-muted-foreground">
+			<p
+				hidden={bare}
+				className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[12px] text-muted-foreground"
+			>
 				<button
 					type="button"
 					title={
@@ -891,16 +931,19 @@ function AnswerItem({
 const ITEM_BUTTON =
 	"shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[12px] font-medium text-attention-ink hover:bg-attention/15 disabled:opacity-50";
 
-/** Open on board, Done and Snooze until tomorrow, for the task's first session. */
+/** Open on board, Done, Snooze until tomorrow and Skip, for the task's first session. */
 function TaskButtons({
 	task,
 	actions,
 	onActed,
 	onNext,
+	onSkip,
 }: {
 	task: TodayTaskView<TodayItem>;
 	actions: TodayActions;
 	onActed: () => void;
+	/** Auto pilot only: moves the task to the end of the queue. */
+	onSkip?: () => void;
 	/** Shown in the summary panel: moves to the next task waiting on you. */
 	onNext?: () => void;
 }) {
@@ -940,6 +983,16 @@ function TaskButtons({
 					className={ghost}
 				>
 					Snooze till tomorrow
+				</button>
+			)}
+			{onSkip && (
+				<button
+					type="button"
+					title="Move it to the end of the queue"
+					onClick={onSkip}
+					className={ghost}
+				>
+					Skip for now
 				</button>
 			)}
 			{onNext && (
@@ -1318,10 +1371,14 @@ function ComingUp({
 const HANDOFF_MS = 2500;
 
 /**
- * Auto pilot: Today's tasks waiting on you, one at a time, in Today's order.
- * Answer, finish or snooze the card and the next one comes up; the session
- * you answered keeps going on its own. Space opens the card's session beside
- * the page, X skips the card to the end (rebindable in Settings > Keyboard).
+ * Auto pilot: a workspace to stay in. Left, the queue: every task waiting on
+ * you (click one to take it now), then the sessions moving without you, and
+ * New session. Middle, the task on top: answer it, finish or snooze it and the
+ * next one comes up. Right, that task's session, opened by itself, so you see
+ * its chat while you answer, unless another session is open there: that one
+ * stays. The card stays until you act on it or skip it. The session you
+ * answered keeps going on its own. X skips the card to the end, Space opens
+ * its session (rebindable in Settings > Keyboard).
  */
 function AutoPilot({
 	yours,
@@ -1329,51 +1386,97 @@ function AutoPilot({
 	now,
 	openPaneId,
 	actions,
+	onNew,
 }: {
 	yours: TodayTaskView<TodayItem>[];
-	moving: number;
+	moving: TodayTaskView<TodayItem>[];
 	now: number;
 	openPaneId?: string;
 	actions: TodayActions;
+	onNew?: () => void;
 }) {
 	const [handled, setHandled] = useState<ReadonlySet<string>>(new Set());
 	const [skipped, setSkipped] = useState<string[]>([]);
+	// The card on screen, picked from the queue or come up by itself: it stays
+	// until you act on it, skip it or it leaves the queue, so a task that jumps
+	// ahead in Today's order doesn't swap the card under you.
+	const [chosen, setChosen] = useState<string | null>(null);
 	const [handoff, setHandoff] = useState<string | null>(null);
-	const ids = yours.map((task) => task.id);
+	// Opening a session counts as seeing it, which takes it out of Waiting on
+	// you: a task stays in the queue once it was there, until you act on it,
+	// skip it, or Claude works on it again. Otherwise opening the card's
+	// session would empty the queue one card at a time.
+	const [kept, setKept] = useState<ReadonlySet<string>>(new Set());
+	const yoursKey = yours.map((task) => task.id).join(" ");
+	useEffect(() => {
+		const ids = yoursKey ? yoursKey.split(" ") : [];
+		setKept((old) =>
+			ids.every((id) => old.has(id)) ? old : new Set([...old, ...ids]),
+		);
+	}, [yoursKey]);
+	const stays = (task: TodayTaskView<TodayItem>) =>
+		kept.has(task.id) && task.group !== "running";
+	const queued = [...yours, ...moving.filter(stays)];
+	const others = moving.filter((task) => !stays(task));
+	const ids = queued.map((task) => task.id);
 	const idsKey = ids.join(" ");
-	// A task that left Waiting on you is forgotten, so it comes back as new
-	// the next time its session asks you something.
+	// A task that left the queue is forgotten, so it comes back as new the
+	// next time its session asks you something.
 	useEffect(() => {
 		const live = new Set(idsKey.split(" "));
-		setHandled((old) => {
-			const kept = [...old].filter((id) => live.has(id));
-			return kept.length === old.size ? old : new Set(kept);
+		const keep = <T,>(old: ReadonlySet<T>) => {
+			const left = [...old].filter((id) => live.has(String(id)));
+			return left.length === old.size ? old : new Set(left);
+		};
+		setHandled(keep);
+		setKept((old) => {
+			const fresh = new Set(yoursKey.split(" "));
+			const left = [...old].filter((id) => live.has(id) || fresh.has(id));
+			return left.length === old.size ? old : new Set(left);
 		});
 		setSkipped((old) => {
-			const kept = old.filter((id) => live.has(id));
-			return kept.length === old.length ? old : kept;
+			const left = old.filter((id) => live.has(id));
+			return left.length === old.length ? old : left;
 		});
-	}, [idsKey]);
+	}, [idsKey, yoursKey]);
 	useEffect(() => {
 		if (!handoff) return;
 		const timer = setTimeout(() => setHandoff(null), HANDOFF_MS);
 		return () => clearTimeout(timer);
 	}, [handoff]);
-	const pick = pilotPick(ids, handled, skipped);
-	const task = yours.find((t) => t.id === pick) ?? null;
+	const pick =
+		chosen && ids.includes(chosen) && !handled.has(chosen)
+			? chosen
+			: pilotPick(ids, handled, skipped);
+	useEffect(() => {
+		if (pick) setChosen(pick);
+	}, [pick]);
+	const task = queued.find((t) => t.id === pick) ?? null;
 	const left = ids.filter((id) => !handled.has(id)).length;
+	// The card's session opens beside it by itself, once per card, and only
+	// when no session is open: the one you are reading never gets swapped for
+	// the next card's (picking a task from the queue opens its session). Close it and it stays closed until the next card.
+	const firstKey = task?.items[0].key ?? null;
+	const openedFor = useRef<string | null>(null);
+	useEffect(() => {
+		if (!pick || !firstKey || openedFor.current === pick) return;
+		openedFor.current = pick;
+		if (!openPaneId) actions.onOpen(firstKey);
+	}, [pick, firstKey, openPaneId, actions]);
 	const acted = (id: string) => {
 		setHandled((old) => new Set(old).add(id));
+		if (chosen === id) setChosen(null);
 		setHandoff("Sent. Odin is on it.");
 	};
 	const skip = (id: string) => {
 		setSkipped((old) => [...old.filter((s) => s !== id), id]);
+		if (chosen === id) setChosen(null);
 		setHandoff("Skipped. It comes back at the end.");
 	};
 	const keys = {
 		enableOnFormTags: false,
 		enableOnContentEditable: false,
-		enabled: !!task && !openPaneId,
+		enabled: !!task,
 	};
 	useHotkey(
 		"PILOT_PEEK",
@@ -1383,76 +1486,168 @@ function AutoPilot({
 	useHotkey("PILOT_SKIP", () => task && skip(task.id), keys);
 	const peekKey = useHotkeyDisplay("PILOT_PEEK").text;
 	const skipKey = useHotkeyDisplay("PILOT_SKIP").text;
+	const queue = ids.filter((id) => !handled.has(id));
 	return (
 		<section
 			aria-label="Auto pilot"
 			data-testid="auto-pilot"
-			className="min-h-0 flex-1 overflow-y-auto"
+			className="flex min-h-0 flex-1"
 		>
-			<div className="mx-auto flex w-full max-w-[760px] flex-col gap-4 px-6 pb-10 pt-6">
-				<header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-					<h1 className="inline-flex items-center gap-2 text-[22px] font-semibold tracking-[-.3px]">
-						<LuPlane className="size-4.5 text-primary-ink" aria-hidden />
+			<nav
+				aria-label="Queue"
+				className="flex w-[280px] shrink-0 flex-col gap-4 overflow-y-auto border-r border-border px-3 pb-6 pt-5"
+			>
+				<header className="flex items-center gap-2 px-2">
+					<h1 className="inline-flex items-center gap-2 whitespace-nowrap text-[18px] font-semibold tracking-[-.3px]">
+						<LuPlane className="size-4 text-primary-ink" aria-hidden />
 						Auto pilot
 					</h1>
-					<span className="text-[13px] text-muted-foreground">
-						{left} need you · {moving} moving without you
-					</span>
+					{onNew && (
+						<button
+							type="button"
+							title="New task - describe it and start an agent on it"
+							onClick={onNew}
+							className={cn(
+								"ml-auto inline-flex items-center gap-1 whitespace-nowrap rounded-[7px] px-2 py-1 text-[12px] font-semibold",
+								BUTTON.secondary,
+							)}
+						>
+							<LuPlus className="size-3" aria-hidden />
+							New task
+						</button>
+					)}
 				</header>
-				{ids.length > 0 && (
-					<ol aria-label="Queue" className="flex flex-wrap gap-1.5">
-						{ids.map((id) => (
-							<li
-								key={id}
-								className={cn(
-									"h-1.5 w-6 rounded-full bg-border",
-									handled.has(id) && "bg-success",
-									id === pick && "bg-primary",
-								)}
-							/>
-						))}
-					</ol>
-				)}
-				{task ? (
-					<ol>
-						<StartHere
-							key={task.id}
-							task={task}
-							now={now}
-							picked={false}
-							open={task.items.some((item) => item.key === openPaneId)}
-							actions={actions}
-							onShow={() => actions.onOpen(task.items[0].key)}
-							onActed={() => acted(task.id)}
-						/>
-					</ol>
-				) : (
-					<div className="flex flex-col gap-1 rounded-xl border border-border px-5 py-4">
-						<p className="text-[17px] font-semibold text-success-ink">
-							All clear
+				<div className="flex flex-col gap-1">
+					<p className={cn(LABEL, "px-2")}>Needs you · {left}</p>
+					{queue.length === 0 && (
+						<p className="px-2 text-[13px] text-muted-foreground">
+							Nothing right now.
 						</p>
-						<p className="text-[14px] text-muted-foreground">
-							Nothing needs you right now. The next task comes up here as soon
-							as a session asks you something.
+					)}
+					<ol className="flex flex-col">
+						{queue.map((id, i) => {
+							const row = queued.find((t) => t.id === id);
+							if (!row) return null;
+							const { Icon, tone } = GROUP_MARK[row.group];
+							return (
+								<li key={id}>
+									<button
+										type="button"
+										title={`${todayGroupLabel(row.group)} - take this one now`}
+										onClick={() => {
+											// A task you pick brings its session along, even
+											// over the one open now.
+											openedFor.current = id;
+											setChosen(id);
+											actions.onOpen(row.items[0].key);
+										}}
+										className={cn(
+											"flex w-full items-baseline gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] leading-snug hover:bg-secondary/60",
+											id === pick && "bg-primary/15 font-semibold",
+										)}
+									>
+										<span className="w-4 shrink-0 text-[12px] font-semibold text-attention">
+											{i + 1}
+										</span>
+										<span className="min-w-0 flex-1 truncate">{row.name}</span>
+										<span
+											className={cn(
+												"inline-flex shrink-0 items-center gap-1 self-center text-[11px] font-normal",
+												skipped.includes(id) ? "text-muted-foreground" : tone,
+											)}
+										>
+											<Icon className="size-3" aria-hidden />
+											{skipped.includes(id)
+												? "skipped"
+												: todayGroupLabel(row.group).toLowerCase()}
+										</span>
+									</button>
+								</li>
+							);
+						})}
+					</ol>
+				</div>
+				{others.length > 0 && (
+					<div className="flex flex-col gap-1">
+						<p className={cn(LABEL, "px-2")}>
+							Moving without you · {others.length}
 						</p>
+						<ol className="flex flex-col">
+							{others.map((row) => {
+								const { Icon, tone } = GROUP_MARK[row.group];
+								const key = row.items[0].key;
+								return (
+									<li key={row.id}>
+										<button
+											type="button"
+											title={`${todayGroupLabel(row.group)} - open its session beside this`}
+											onClick={() => actions.onOpen(key)}
+											className={cn(
+												"flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-[13px] text-muted-foreground hover:bg-secondary/60",
+												row.items.some((item) => item.key === openPaneId) &&
+													"bg-primary/10 text-foreground",
+											)}
+										>
+											<Icon
+												className={cn("size-3 shrink-0", tone)}
+												aria-hidden
+											/>
+											<span className="min-w-0 flex-1 truncate">
+												{row.name}
+											</span>
+										</button>
+									</li>
+								);
+							})}
+						</ol>
 					</div>
 				)}
-				<p
-					aria-live="polite"
-					className="min-h-5 text-[13px] font-medium text-success-ink"
-				>
-					{handoff}
-				</p>
-				{task && (
-					<p className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-muted-foreground">
-						<span>
-							<kbd className={KBD}>{peekKey}</kbd> open its session beside this
-						</span>
-						<span>
-							<kbd className={KBD}>{skipKey}</kbd> skip to the end
-						</span>
+			</nav>
+			<div className="@container min-w-0 flex-1 overflow-y-auto">
+				<div className="mx-auto flex w-full max-w-[760px] flex-col gap-4 px-5 pb-10 pt-5">
+					{task ? (
+						<ol>
+							<StartHere
+								key={task.id}
+								task={task}
+								now={now}
+								picked={false}
+								open={task.items.some((item) => item.key === openPaneId)}
+								actions={actions}
+								onShow={() => actions.onOpen(task.items[0].key)}
+								onActed={() => acted(task.id)}
+								onSkip={() => skip(task.id)}
+								slim={task.items.some((item) => item.key === openPaneId)}
+							/>
+						</ol>
+					) : (
+						<div className="flex flex-col gap-1 rounded-xl border border-border px-5 py-4">
+							<p className="text-[17px] font-semibold text-success-ink">
+								All clear
+							</p>
+							<p className="text-[14px] text-muted-foreground">
+								Nothing needs you right now. The next task comes up here as soon
+								as a session asks you something.
+							</p>
+						</div>
+					)}
+					<p
+						aria-live="polite"
+						className="min-h-5 text-[13px] font-medium text-success-ink"
+					>
+						{handoff}
 					</p>
-				)}
+					{task && (
+						<p className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-muted-foreground">
+							<span>
+								<kbd className={KBD}>{peekKey}</kbd> open its session
+							</span>
+							<span>
+								<kbd className={KBD}>{skipKey}</kbd> skip to the end
+							</span>
+						</p>
+					)}
+				</div>
 			</div>
 		</section>
 	);

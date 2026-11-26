@@ -1,6 +1,7 @@
+// biome-ignore lint/style/noRestrictedImports: the Bootstrap cloud is Odin's remote-session icon
+import { BsCloud } from "react-icons/bs";
 import {
 	LuBell,
-	LuCloud,
 	LuHardDrive,
 	LuKeyboard,
 	LuListOrdered,
@@ -43,7 +44,7 @@ export const SCREENS = [
 		to: "/settings/remote",
 		label: "Remote",
 		hint: "EC2 host, auto-start, iPhone app, Remote Control",
-		icon: LuCloud,
+		icon: BsCloud,
 	},
 	{
 		to: "/settings/storage",

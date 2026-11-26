@@ -38,3 +38,23 @@ export function messageLanguages(messages: string[]): string[] {
 		.sort((a, b) => b[1] - a[1])
 		.map(([language]) => language);
 }
+
+/**
+ * The language a draft is written in, by which script has the most letters in
+ * its prose: code blocks, inline code, URLs and mentions are left out, so a
+ * Hebrew draft full of "cron" and "xvfb-run" stays Hebrew, and one Hebrew word
+ * in an English draft doesn't flip it.
+ */
+export function draftLanguage(text: string): string {
+	const prose = text
+		.replace(/(```|~~~)[\s\S]*?(\1|$)/g, " ")
+		.replace(/`[^`\n]*`/g, " ")
+		.replace(/https?:\/\/\S+|<[@#!][^>]*>/g, " ");
+	let best = "English";
+	let most = prose.match(/[A-Za-z]/g)?.length ?? 0;
+	for (const [language, script] of SCRIPTS) {
+		const n = prose.match(new RegExp(script.source, "g"))?.length ?? 0;
+		if (n > most) [best, most] = [language, n];
+	}
+	return best;
+}

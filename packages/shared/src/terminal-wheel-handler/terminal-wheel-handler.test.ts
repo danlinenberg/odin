@@ -4,8 +4,11 @@ import {
 	buildArrowSequence,
 	buildSgrWheelReport,
 	consumeWheelLines,
+	createScrollRepaint,
 	createTerminalWheelEventHandler,
 	createWheelLineState,
+	SCROLL_REPAINT_QUIET_MS,
+	SCROLL_REPAINT_WINDOW_MS,
 	type WheelLineContext,
 } from "./terminal-wheel-handler";
 
@@ -324,5 +327,72 @@ describe("createTerminalWheelEventHandler", () => {
 		} finally {
 			globals.localStorage = original;
 		}
+	});
+});
+
+describe("createScrollRepaint", () => {
+	function fakeTimers() {
+		let clock = 0;
+		let next = 1;
+		const pending = new Map<number, { at: number; fn: () => void }>();
+		return {
+			now: () => clock,
+			timers: {
+				setTimeout: ((fn: () => void, ms: number) => {
+					const id = next++;
+					pending.set(id, { at: clock + ms, fn });
+					return id;
+				}) as unknown as typeof setTimeout,
+				clearTimeout: ((id: number) => {
+					pending.delete(id);
+				}) as unknown as typeof clearTimeout,
+			},
+			advance(ms: number) {
+				clock += ms;
+				for (const [id, t] of [...pending]) {
+					if (t.at <= clock) {
+						pending.delete(id);
+						t.fn();
+					}
+				}
+			},
+		};
+	}
+
+	it("redraws once the output after a scroll goes quiet", () => {
+		const t = fakeTimers();
+		const redraw = mock(() => {});
+		const r = createScrollRepaint(redraw, t.timers, t.now);
+		r.scrolled();
+		t.advance(100);
+		r.written();
+		t.advance(100);
+		expect(redraw).not.toHaveBeenCalled();
+		t.advance(SCROLL_REPAINT_QUIET_MS);
+		expect(redraw).toHaveBeenCalledTimes(1);
+	});
+
+	it("ignores output that comes long after the last scroll", () => {
+		const t = fakeTimers();
+		const redraw = mock(() => {});
+		const r = createScrollRepaint(redraw, t.timers, t.now);
+		r.written();
+		t.advance(SCROLL_REPAINT_QUIET_MS * 2);
+		r.scrolled();
+		t.advance(SCROLL_REPAINT_WINDOW_MS + 500);
+		redraw.mockClear();
+		r.written();
+		t.advance(SCROLL_REPAINT_QUIET_MS * 2);
+		expect(redraw).not.toHaveBeenCalled();
+	});
+
+	it("dispose cancels a pending redraw", () => {
+		const t = fakeTimers();
+		const redraw = mock(() => {});
+		const r = createScrollRepaint(redraw, t.timers, t.now);
+		r.scrolled();
+		r.dispose();
+		t.advance(SCROLL_REPAINT_QUIET_MS * 2);
+		expect(redraw).not.toHaveBeenCalled();
 	});
 });

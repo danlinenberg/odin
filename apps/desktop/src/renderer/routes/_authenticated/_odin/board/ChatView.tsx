@@ -18,12 +18,13 @@ import {
 	useRef,
 	useState,
 } from "react";
+// biome-ignore lint/style/noRestrictedImports: the Bootstrap cloud is Odin's remote-session icon
+import { BsCloud } from "react-icons/bs";
 import {
 	LuBookmark,
 	LuBookmarkCheck,
 	LuChevronRight,
 	LuCircleAlert,
-	LuCloud,
 	LuDownload,
 	LuFile,
 	LuLaptop,
@@ -52,7 +53,7 @@ import {
 	useClaudeCommand,
 } from "renderer/stores/claude-command";
 import { useCompacting } from "renderer/stores/compacting";
-import { useDangerMode } from "renderer/stores/danger-mode";
+import { useDangerMode, useOpenChats } from "renderer/stores/danger-mode";
 import {
 	isDismissed,
 	useDismissedActions,
@@ -1687,7 +1688,7 @@ function UserBubble({
 			<MessageTime at={at} className="mt-1 text-right" />
 			{waitingFor && !lost && (
 				<div className="mt-1.5 flex items-center justify-end gap-1.5 text-[12px] text-muted-foreground">
-					<LuCloud className="size-3 shrink-0" />
+					<BsCloud className="size-3 shrink-0" />
 					{movingHere
 						? "Goes to Claude once the session is on this computer"
 						: `Waiting for ${waitingFor} - goes to Claude once it is back`}
@@ -3566,6 +3567,7 @@ export function ChatView({
 	onOpenSession,
 	resuming = false,
 	tldrOnly = false,
+	headless = false,
 }: {
 	paneId: string;
 	sessionId: string | null;
@@ -3603,6 +3605,8 @@ export function ChatView({
 	resuming?: boolean;
 	/** Every reply folds on its TL;DR, with no Needs you / FYI mark - the raven's panel. */
 	tldrOnly?: boolean;
+	/** Draws nothing: only runs GSD Mode for a session whose chat isn't on screen. */
+	headless?: boolean;
 }) {
 	const { data: home } = electronTrpc.window.getHomeDir.useQuery();
 	// Claude files the conversation under the directory it STARTED in - the
@@ -4582,6 +4586,13 @@ export function ChatView({
 		)
 			? compactStart
 			: null;
+	// A chat on screen runs GSD Mode itself, so the background one steps aside.
+	useEffect(() => {
+		if (headless || !onShowTerminal) return;
+		useOpenChats.getState().open(paneId, true);
+		return () => useOpenChats.getState().open(paneId, false);
+	}, [headless, onShowTerminal, paneId]);
+	if (headless) return null;
 	const starting =
 		!!onShowTerminal &&
 		!screenMenu &&
@@ -5030,7 +5041,7 @@ export function ChatView({
 											: "text-danger",
 									)}
 								>
-									<LuCloud className="size-3.5 shrink-0" />
+									<BsCloud className="size-3.5 shrink-0" />
 									<span className="select-text cursor-text">
 										{hostEvent.kind === "connected"
 											? "Connected to"
