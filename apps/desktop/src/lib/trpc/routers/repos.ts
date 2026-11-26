@@ -195,6 +195,29 @@ function diffOf(all: DiffFile[], note: string[] = []) {
 	return { files, note: note.join(" · ") };
 }
 
+/**
+ * Runs git in one checkout and resolves to its stdout. On a non-zero exit it
+ * rejects with an error carrying `stdout`, as execFile does. This computer's
+ * git by default; a remote host's session runs it on the host.
+ */
+export type GitRunner = (
+	args: string[],
+	env?: Record<string, string>,
+) => Promise<string>;
+
+/** `GitRunner` for a checkout on this computer. */
+export const localGit =
+	(cwd: string): GitRunner =>
+	async (args, env) =>
+		(
+			await execWithShellEnv("git", args, {
+				cwd,
+				env,
+				maxBuffer: 64 * 1024 * 1024,
+				timeout: 60_000,
+			})
+		).stdout;
+
 /** Most new files a diff lists in full; past it the note counts the rest. */
 const MAX_UNTRACKED = 200;
 
@@ -205,7 +228,7 @@ const MAX_UNTRACKED = 200;
  * difference, which for a new file is always.
  */
 async function untrackedFiles(
-	cwd: string,
+	git: GitRunner,
 	paths: string[],
 ): Promise<{ files: DiffFile[]; note: string[] }> {
 	const shown = paths.slice(0, MAX_UNTRACKED);
@@ -213,13 +236,7 @@ async function untrackedFiles(
 		shown.map(async (path) => {
 			const args = ["--no-pager", "diff", "--no-index", "--no-color"];
 			try {
-				return (
-					await execWithShellEnv("git", [...args, "--", "/dev/null", path], {
-						cwd,
-						maxBuffer: 64 * 1024 * 1024,
-						timeout: 30_000,
-					})
-				).stdout;
+				return await git([...args, "--", "/dev/null", path]);
 			} catch (error) {
 				const stdout = (error as { stdout?: unknown }).stdout;
 				return typeof stdout === "string" ? stdout : "";
@@ -247,16 +264,10 @@ export async function renderDiff(
 	cwd: string,
 	transcript?: string,
 	wholeFile = false,
+	run: GitRunner = localGit(cwd),
 ): Promise<RepoDiff> {
 	const context = wholeFile ? ["-U1000000"] : [];
-	const git = async (args: string[]) =>
-		(
-			await execWithShellEnv("git", ["--no-pager", ...args], {
-				cwd,
-				maxBuffer: 64 * 1024 * 1024,
-				timeout: 30_000,
-			})
-		).stdout;
+	const git = (args: string[]) => run(["--no-pager", ...args]);
 	const nothing = {
 		source: "nothing from this session",
 		cwd,
@@ -294,7 +305,7 @@ export async function renderDiff(
 	const added =
 		source === "last commit"
 			? { files: [], note: [] }
-			: await untrackedFiles(cwd, untracked);
+			: await untrackedFiles(run, untracked);
 	const note = added.note;
 	const others = all.length - tracked.length;
 	if (others)
@@ -342,20 +353,18 @@ export async function renderSinceDiff(
 	since: string,
 	transcript?: string,
 	wholeFile = false,
+	run: GitRunner = localGit(cwd),
+	snapshot: () => Promise<string> = () => snapshotTree(cwd),
 ): Promise<RepoDiff> {
-	const now = await snapshotTree(cwd);
-	const { stdout } = await execWithShellEnv(
-		"git",
-		[
-			"--no-pager",
-			"diff",
-			"--no-color",
-			...(wholeFile ? ["-U1000000"] : []),
-			since,
-			now,
-		],
-		{ cwd, maxBuffer: 64 * 1024 * 1024, timeout: 30_000 },
-	);
+	const now = await snapshot();
+	const stdout = await run([
+		"--no-pager",
+		"diff",
+		"--no-color",
+		...(wholeFile ? ["-U1000000"] : []),
+		since,
+		now,
+	]);
 	const all = splitPatch(stdout);
 	const files = all.filter(
 		(file) => transcript === undefined || transcript.includes(file.path),
@@ -379,15 +388,10 @@ export async function renderSinceDiff(
 export async function renderBranchDiff(
 	cwd: string,
 	wholeFile = false,
+	run: GitRunner = localGit(cwd),
 ): Promise<RepoDiff> {
 	const git = async (args: string[]) =>
-		(
-			await execWithShellEnv("git", ["--no-pager", ...args], {
-				cwd,
-				maxBuffer: 64 * 1024 * 1024,
-				timeout: 30_000,
-			})
-		).stdout.trim();
+		(await run(["--no-pager", ...args])).trim();
 	const tryGit = (args: string[]) => git(args).catch(() => "");
 
 	const branch =
@@ -434,7 +438,7 @@ export async function renderBranchDiff(
 	const untracked = (await git(["ls-files", "--others", "--exclude-standard"]))
 		.split("\n")
 		.filter(Boolean);
-	const added = await untrackedFiles(cwd, untracked);
+	const added = await untrackedFiles(run, untracked);
 	return {
 		...diffOf([...splitPatch(patch), ...added.files], added.note),
 		source: `${branch} vs ${base} · ${commits} ${commits === 1 ? "commit" : "commits"}`,
@@ -800,18 +804,30 @@ export const createReposRouter = (
 			.query(async ({ input }) => {
 				if (input.pr)
 					return renderPullRequestDiff(input.pr, undefined, input.wholeFile);
-				const { dir, transcript } = await sessionCheckout(input);
-				if (input.branch) return renderBranchDiff(dir, input.wholeFile);
-				return input.since
-					? renderSinceDiff(dir, input.since, transcript, input.wholeFile)
-					: renderDiff(dir, transcript, input.wholeFile);
+				return withSessionCheckout(
+					input,
+					({ dir, transcript, git, snapshot }) => {
+						if (input.branch)
+							return renderBranchDiff(dir, input.wholeFile, git);
+						return input.since
+							? renderSinceDiff(
+									dir,
+									input.since,
+									transcript,
+									input.wholeFile,
+									git,
+									snapshot,
+								)
+							: renderDiff(dir, transcript, input.wholeFile, git);
+					},
+				);
 			}),
 
 		/** A working-tree file of the session's checkout, for the Diff tab's Edit. */
 		workingFile: publicProcedure
 			.input(sessionCheckoutInput.extend({ path: z.string().min(1) }))
 			.query(async ({ input }) => {
-				const { dir } = await sessionCheckout(input);
+				const { dir } = await sessionCheckout(localOnly(input));
 				return readWorkingFile(dir, input.path);
 			}),
 
@@ -826,7 +842,7 @@ export const createReposRouter = (
 				}),
 			)
 			.mutation(async ({ input }) => {
-				const { dir } = await sessionCheckout(input);
+				const { dir } = await sessionCheckout(localOnly(input));
 				return writeWorkingFile(dir, input.path, input.content, input.mtimeMs);
 			}),
 
@@ -834,8 +850,9 @@ export const createReposRouter = (
 		reviewSnapshot: publicProcedure
 			.input(sessionCheckoutInput)
 			.mutation(async ({ input }) => {
-				const { dir } = await sessionCheckout(input);
-				return { tree: await snapshotTree(dir) };
+				return withSessionCheckout(input, async ({ snapshot }) => ({
+					tree: await snapshot(),
+				}));
 			}),
 	});
 };
@@ -961,7 +978,93 @@ const sessionCheckoutInput = z.object({
 	 */
 	claudeSessionId: z.string().nullish(),
 	workspaceId: z.string(),
+	/**
+	 * The host the session runs on (its pane's `odinRemote`), else unset.
+	 * Its checkout and transcript paths are the host's, so git runs there.
+	 */
+	host: z.string().nullish(),
 });
+
+type SessionCheckoutInput = z.infer<typeof sessionCheckoutInput>;
+
+/** Edit reads and writes files on this computer; a host session's are not here. */
+function localOnly(input: SessionCheckoutInput): SessionCheckoutInput {
+	if (input.host)
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "Edit works on sessions on this computer only.",
+		});
+	return input;
+}
+
+/** A session's checkout, with git and a snapshot that run where it lives. */
+interface SessionGit {
+	dir: string;
+	transcript: string | undefined;
+	git: GitRunner;
+	snapshot: () => Promise<string>;
+}
+
+/**
+ * Runs `fn` on the session's checkout: on this computer, or for a host
+ * session on the host, over one connection. A host session's transcript is
+ * mirrored here, but every folder it names is the host's - resolved here,
+ * none of them exists, and the Diff tab fell back to the pane's folder on
+ * this computer, showing that clone's uncommitted files instead of the
+ * worktree's on the host.
+ */
+async function withSessionCheckout<T>(
+	input: SessionCheckoutInput,
+	fn: (checkout: SessionGit) => Promise<T>,
+): Promise<T> {
+	if (!input.host) {
+		const { dir, transcript } = await sessionCheckout(input);
+		return fn({
+			dir,
+			transcript,
+			git: localGit(dir),
+			snapshot: () => snapshotTree(dir),
+		});
+	}
+	const [{ withSessionHost }, hostGitModule, sessions] = await Promise.all([
+		import("./remote-host"),
+		import("main/lib/remote-host/host-git"),
+		import("main/lib/claude-sessions"),
+	]);
+	const { clientExec, hostCheckouts, hostGit, hostSnapshot } = hostGitModule;
+	const found = input.claudeSessionId
+		? await sessions.transcriptOf(input.claudeSessionId)
+		: null;
+	const transcript = found ? await readFile(found.path, "utf-8") : undefined;
+	return withSessionHost(input.host, async (client) => {
+		const exec = clientExec(client);
+		const id = input.claudeSessionId;
+		let dir: string | null = null;
+		if (id && transcript !== undefined) {
+			const checkouts = await hostCheckouts(
+				exec,
+				sessions.transcriptDirs(transcript),
+			);
+			const root = sessions.projectsRoot();
+			dir =
+				(await sessions.workingWorktreeOf(id, root, checkouts)) ??
+				(await sessions.workingRepoOf(id, root, checkouts));
+		}
+		dir ??= input.cwd ?? null;
+		if (!dir)
+			throw new TRPCError({
+				code: "NOT_FOUND",
+				message: "No checkout known for this session on its host yet.",
+			});
+		const checkout = dir;
+		return fn({
+			dir: checkout,
+			transcript,
+			git: hostGit(exec, checkout),
+			snapshot: () => hostSnapshot(exec, checkout),
+		});
+	});
+}
 
 /** The checkout a session's changes are in, and its transcript's text. */
 async function sessionCheckout(

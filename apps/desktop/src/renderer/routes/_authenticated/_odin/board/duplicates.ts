@@ -16,6 +16,14 @@ export type LedgerRow = Pick<
 /** A Jira key or a PR link - what names one piece of work in every feed. */
 const REF =
 	/\b[A-Z][A-Z0-9]+-\d+\b|https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/g;
+/**
+ * A Slack thread, as a permalink (a reply's carries its parent in thread_ts)
+ * or as a Slack row's feed id `C0123:1795628465.453299`. A task made from a
+ * pasted thread link and the Slack row for that thread share nothing else.
+ */
+const SLACK_LINK =
+	/slack\.com\/archives\/([A-Z0-9]+)\/p(\d{10})(\d{6})(?:[^\s|>]*?[?&]thread_ts=(\d+\.\d+))?/g;
+const SLACK_ID = /^([CDG][A-Z0-9]+):(\d+\.\d+)$/;
 const KEY_PREFIX = /^[A-Z][A-Z0-9]+-\d+:\s*/;
 // Shorter than this and unrelated asks share a title ("report issue").
 const MIN_TITLE_WORDS = 4;
@@ -24,6 +32,14 @@ export function refs(...texts: (string | null | undefined)[]): string[] {
 	return [
 		...texts.flatMap((text) => text?.match(REF) ?? []),
 		...sentryRefs(...texts),
+		...texts.flatMap((text) => {
+			const id = text?.match(SLACK_ID);
+			if (id) return [`slack:${id[1]}:${id[2]}`];
+			return Array.from(
+				text?.matchAll(SLACK_LINK) ?? [],
+				(m) => `slack:${m[1]}:${m[4] ?? `${m[2]}.${m[3]}`}`,
+			);
+		}),
 	];
 }
 
@@ -58,6 +74,7 @@ export function duplicateOf(
 		refs(
 			item.launch.title,
 			item.url,
+			item.source === "Slack" ? item.launch.key : null,
 			item.source === "Slack" ? item.body : null,
 		),
 	);
