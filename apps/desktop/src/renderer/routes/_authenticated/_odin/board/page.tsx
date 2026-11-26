@@ -132,6 +132,7 @@ import {
 	odinScreenWrite,
 	remoteConnectLine,
 	spacesForCursorForward,
+	waitForClaudeDrawn,
 } from "shared/odin-screen-status";
 import {
 	BOARD_TAGS,
@@ -5937,6 +5938,13 @@ function DevBoardPage() {
 	 * dialog, so a conversation that is gone starts over from its brief with
 	 * the reply under it, instead of leaving both screens waiting on the Mac.
 	 */
+	/**
+	 * Panes Run here just moved from the remote host: their resume runs here,
+	 * whatever the transcript lookup says. A copy of the host's mirror read in
+	 * its place sent the moved session back to the host, where its shell sat in
+	 * the old worktree while its note said it ran on this computer.
+	 */
+	const movedHomeRef = useRef(new Set<string>());
 	const resumeCard = async (
 		card: BoardCard,
 		auto: boolean | "bulk" | "phone" = false,
@@ -6023,6 +6031,20 @@ function DevBoardPage() {
 				return;
 			}
 			try {
+				// A host pane shows its tmux bar while the run script still sets
+				// up: typed now, the text lands there (a git question), not in
+				// Claude. Wait for Claude's own screen (when the pane's screen can
+				// be read at all: the run script keeps git off the terminal too).
+				if (
+					card.pane.odinRemote &&
+					screen !== "" &&
+					!(await waitForClaudeDrawn(() => visibleScreen(card.pane.id)))
+				) {
+					toast.error(
+						`Claude has not started on ${card.pane.odinRemote} yet - look at the session's terminal`,
+					);
+					return;
+				}
 				await sendContinue(card.pane.id, prompt);
 			} catch (error) {
 				toast.error(error instanceof Error ? error.message : String(error));
@@ -6086,9 +6108,11 @@ function DevBoardPage() {
 				// A cluster host that did not answer may keep its folder: the
 				// main host would resume it in a fresh checkout without its files.
 				let unanswered: string | null = null;
+				const justMoved = movedHomeRef.current.delete(card.pane.id);
 				const hostName =
 					transcript.local === false &&
 					!card.pane.odinRemote &&
+					!justMoved &&
 					!(here && movedHere(transcript.path, here, transcript.cwd, sessionId))
 						? ((await utils.client.remoteHost.hostFor
 								.query({ sessionId })
@@ -6454,6 +6478,7 @@ function DevBoardPage() {
 					"The host did not answer, so the conversation moved without its code. The session may still run on the host.",
 				);
 			held = endMove(card.pane.id);
+			movedHomeRef.current.add(card.pane.id);
 			await resumeCard(
 				{ ...card, pane },
 				false,

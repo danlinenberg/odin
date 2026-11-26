@@ -277,6 +277,24 @@ export function claudeDrawn(screen: string): boolean {
 }
 
 /**
+ * Waits until Claude's own screen is drawn in a pane (`read` returns what it
+ * shows), so text typed there reaches Claude. A host session's tmux bar is up
+ * while its run script still sets up (clone, fetch, worktree), and a Continue
+ * typed then went to git's username question. False when Claude never came up.
+ */
+export async function waitForClaudeDrawn(
+	read: () => string,
+	timeoutMs = 120_000,
+	stepMs = 1000,
+): Promise<boolean> {
+	for (let waited = 0; ; waited += stepMs) {
+		if (claudeDrawn(read())) return true;
+		if (waited >= timeoutMs) return false;
+		await new Promise((resolve) => setTimeout(resolve, stepMs));
+	}
+}
+
+/**
  * What a remote session's pane says while it reaches the host - "Connecting to
  * i-0abc...", the expired AWS sign-in it waits on, or why it could not connect.
  * Undefined once Claude is drawn, or for a pane that never went remote.

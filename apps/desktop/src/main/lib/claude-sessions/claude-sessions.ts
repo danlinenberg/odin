@@ -1035,6 +1035,18 @@ async function projectOf(
 const COPIES_RESCAN_MS = 60_000;
 const copiesCache = new Map<string, { at: number; projects: string[] }>();
 
+/**
+ * A copy of this conversation was just written to a folder projectOf has not
+ * seen: the next lookup lists every folder again. A session moved here from
+ * the remote host gets its copy under its new folder while the host's mirror
+ * is the only one remembered; read from the mirror, its Resume went back to
+ * the host.
+ */
+export function forgetCopies(sessionId: string): void {
+	for (const key of copiesCache.keys())
+		if (key.endsWith(`\0${sessionId}`)) copiesCache.delete(key);
+}
+
 interface Copy {
 	project: string;
 	mtimeMs: number;

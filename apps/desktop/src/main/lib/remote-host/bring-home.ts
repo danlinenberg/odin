@@ -12,7 +12,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type { SFTPWrapper } from "ssh2";
-import { lastCwd } from "../claude-sessions/claude-sessions";
+import { forgetCopies, lastCwd } from "../claude-sessions/claude-sessions";
 import { branchKey, homePath, sh, tmuxSession, worktreeDir } from "./session";
 import { connectHost, type HostLogin, runOnHost } from "./ssh";
 
@@ -142,6 +142,7 @@ export async function bringSessionHome(
 		const dir = join(homedir(), ".claude", "projects", claudeProjectDir(cwd));
 		await mkdir(dir, { recursive: true });
 		await writeFile(join(dir, `${sessionId}.jsonl`), data);
+		forgetCopies(sessionId);
 		await runOnHost(client, killTmux(sessionId));
 		return { cwd, work };
 	} finally {
@@ -216,6 +217,7 @@ export async function bringMirrorHome(
 	const dir = join(projects, claudeProjectDir(cwd));
 	await mkdir(dir, { recursive: true });
 	if (join(dir, file) !== mirror) await copyFile(mirror, join(dir, file));
+	forgetCopies(sessionId);
 	return cwd;
 }
 
@@ -349,25 +351,34 @@ export async function checkoutPushed(
 	return { dir, branch };
 }
 
+/**
+ * The conversation still holds the host's rules (hostNote): a Linux server,
+ * `!local` for my computer, `!download` for files. Read after a move, they
+ * had Claude answer that its shell was still on the host and hand back a
+ * Run on my computer button instead of running the command.
+ */
+export const RUNS_HERE =
+	"Your shell and every tool now run on this computer, not on the remote host: run commands yourself, here. The remote host's rules from earlier in this conversation no longer apply - no `!local` or `!download` blocks, and paths on the host do not exist here.";
+
 /** What the resumed Claude is told first: it moved, and where its work is. */
 export function movedNote(
 	cwd: string,
 	work: HostWork | null,
 	branch: string | null,
 ): string {
-	const here = `You were moved from the remote host to this computer. You now run in ${cwd}`;
+	const here = `You were moved from the remote host to this computer. You now run in ${cwd}. ${RUNS_HERE}`;
 	if (branch)
-		return `${here}, on branch ${branch}. Your commits and uncommitted work from the host are here. Continue the task.`;
+		return `${here} You are on branch ${branch}. Your commits and uncommitted work from the host are here. Continue the task.`;
 	if (work?.bundle)
-		return `${here}. Your work is NOT here: it stays on the host in ${work.top}, branch ${work.branch}, because this computer has no checkout of ${work.origin ?? "that repo"}. Say so before you continue.`;
+		return `${here} Your work is NOT here: it stays on the host in ${work.top}, branch ${work.branch}, because this computer has no checkout of ${work.origin ?? "that repo"}. Say so before you continue.`;
 	if (work?.left)
-		return `${here}. Nothing moved from the host: that checkout, ${work.top}, was ${work.branch ? `on its default branch ${work.branch}` : "not on a branch"}, so its uncommitted changes and local commits stay there. Say so before you continue.`;
-	return `${here}. Paths from the host do not exist here. Continue the task.`;
+		return `${here} Nothing moved from the host: that checkout, ${work.top}, was ${work.branch ? `on its default branch ${work.branch}` : "not on a branch"}, so its uncommitted changes and local commits stay there. Say so before you continue.`;
+	return `${here} Continue the task.`;
 }
 
 /** movedNote for a session moved from its mirror: the host was unreachable. */
 export const unreachableNote = (cwd: string) =>
-	`You were moved from the remote host to this computer, which could not reach the host. You now run in ${cwd}. Your code and uncommitted work stay on the host, and paths from it do not exist here. Say so before you continue.`;
+	`You were moved from the remote host to this computer, which could not reach the host. You now run in ${cwd}. ${RUNS_HERE} Your code and uncommitted work stay on the host. Say so before you continue.`;
 
 const killTmux = (sessionId: string) =>
 	`tmux kill-session -t ${sh(tmuxSession(sessionId))} 2>/dev/null; true`;
