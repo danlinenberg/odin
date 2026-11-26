@@ -173,8 +173,8 @@ function MyTodo({
 			ref={setNodeRef}
 			style={{ transform: CSS.Transform.toString(transform), transition }}
 			className={cn(
-				"group relative flex items-start gap-2 rounded-[7px] border border-border bg-background px-2 py-1.5 text-[13px] leading-relaxed",
-				isDragging && "z-10 bg-accent",
+				"group relative flex items-start gap-2 rounded-[7px] bg-accent px-2 py-1.5 text-[14px] leading-relaxed",
+				isDragging && "z-10 shadow-md",
 			)}
 		>
 			<span
@@ -1552,7 +1552,7 @@ export function SessionBrief({
 						className="rounded-[7px] border border-border bg-background px-2 py-1 text-[12px] text-soft-foreground placeholder:text-faint-foreground focus:border-primary focus:outline-none"
 					/>
 				</div>
-				<div className="mt-2 flex flex-col gap-1.5 rounded-[9px] border border-primary/40 bg-primary/5 p-2">
+				<div className="flex flex-col gap-1.5 pt-2">
 					<div className="text-[12px] font-semibold text-foreground">
 						My notes
 					</div>
