@@ -19,6 +19,8 @@ import { openUrl } from "renderer/stores/in-app-browser";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { useTodayOverview } from "renderer/stores/today-overview";
 import { freshTldr, latestReply } from "shared/latest-reply";
+import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
+import { COMPACT_MARKDOWN } from "../components/TranscriptView";
 import { type AllItem, livePanesOn, urgencyOf } from "../all/all-items";
 import { TaskDetails } from "../all/TaskDetails";
 import { TaskSidePanel } from "../all/TaskSidePanel";
@@ -736,6 +738,7 @@ function usePilotBrief(sessionId: string | null | undefined) {
 		const messages = transcript?.messages ?? [];
 		const todo = transcript ? actionItems(messages) : [];
 		const last = latestReply(messages);
+		const full = last ? splitActionItems(last.text).body.trim() : "";
 		// Measured without its ACTION ITEMS: those are on the card already.
 		const tldr = freshTldr(
 			last && { ...last, text: splitActionItems(last.text).body },
@@ -766,6 +769,7 @@ function usePilotBrief(sessionId: string | null | undefined) {
 		return {
 			todo,
 			tldr,
+			full,
 			move,
 			settled,
 			reason: dropped ?? move,
@@ -803,7 +807,7 @@ function PilotCard({
 	reply: ReactNode;
 }) {
 	const brief = usePilotBrief(task.items[0].sessionId);
-	const { todo, tldr, settled, reason, links } = brief;
+	const { todo, tldr, full, settled, reason, links } = brief;
 	const stands = standing(task);
 	const ask = settled
 		? "Nothing needed from you"
@@ -838,6 +842,8 @@ function PilotCard({
 				)}
 				<TaskMarks task={task} now={now} />
 			</div>
+			<div className="grid items-start gap-x-8 gap-y-4 @4xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+			<div className="flex min-w-0 flex-col gap-4">
 			<div className="flex flex-col gap-1.5">
 				<h2
 					title={ask}
@@ -888,6 +894,29 @@ function PilotCard({
 					))}
 				</div>
 			)}
+			{full && full !== tldr?.last && (
+				<details className="rounded-lg border border-border" open>
+					<summary className={cn(LABEL, "cursor-pointer select-none px-4 py-2.5")}>
+						The agent's full reply
+					</summary>
+					<div className="max-h-[50vh] select-text cursor-text overflow-y-auto border-t border-border px-4 py-3">
+						<MarkdownRenderer
+							content={full}
+							style="default"
+							allowHtml={false}
+							className={COMPACT_MARKDOWN}
+						/>
+					</div>
+				</details>
+			)}
+			</div>
+			<div className="flex min-w-0 flex-col gap-4 @4xl:sticky @4xl:top-0">
+			{task.about && (tldr || stands) && (
+				<p className="select-text cursor-text text-[13px] leading-relaxed text-muted-foreground">
+					<span className={cn(LABEL, "mr-2")}>What it is</span>
+					{sentence(task.about)}
+				</p>
+			)}
 			<TaskItems
 				task={task}
 				onOpen={actions.onOpen}
@@ -904,6 +933,8 @@ function PilotCard({
 				onSkip={onSkip}
 				settled={settled}
 			/>
+			</div>
+			</div>
 		</article>
 	);
 }
@@ -1964,8 +1995,8 @@ function AutoPilot({
 				)}
 			</nav>
 			<div className="flex min-w-0 flex-1 flex-col">
-				<div className="min-h-0 flex-1 overflow-y-auto">
-					<div className="mx-auto flex w-full max-w-[760px] flex-col gap-3 px-5 pb-10 pt-6">
+				<div className="@container min-h-0 flex-1 overflow-y-auto">
+					<div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3 px-5 pb-10 pt-6 @5xl:px-8">
 						{task && (
 							<p className="flex justify-between px-1 text-[12px] text-muted-foreground tabular-nums">
 								<span>
