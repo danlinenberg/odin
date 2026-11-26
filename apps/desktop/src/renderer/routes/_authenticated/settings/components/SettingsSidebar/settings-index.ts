@@ -207,6 +207,12 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 			"today daily overview morning summary board view experimental beta",
 	},
 	{
+		label: "Auto pilot",
+		to: "/settings/advanced",
+		section: "Experimental",
+		keywords: "auto pilot autopilot one task at a time queue experimental beta",
+	},
+	{
 		label: "GSD Mode",
 		to: "/settings/advanced",
 		section: "Experimental",

@@ -49,6 +49,7 @@ function AdvancedSettingsPage() {
 				description="Early features, off until you turn them on."
 			>
 				<TodayViewRow />
+				<AutoPilotRow />
 				<GsdModeRow />
 			</SettingsSection>
 		</SettingsPage>
@@ -63,9 +64,24 @@ function TodayViewRow() {
 		<SettingRow
 			label="Today"
 			htmlFor="today-view"
-			description="Adds a Today icon beside Board view in the top bar: your open work in plain words on a page of its own, grouped by where each piece stands, with due dates. And an Auto pilot icon: the tasks that need you, one at a time."
+			description="Adds a Today icon beside Board view in the top bar: your open work in plain words on a page of its own, grouped by where each piece stands, with due dates."
 		>
 			<Switch id="today-view" checked={enabled} onCheckedChange={setEnabled} />
+		</SettingRow>
+	);
+}
+
+/** Auto pilot: off by default, no plane icon in the top bar until it is on. */
+function AutoPilotRow() {
+	const enabled = useTodayOverview((s) => s.autoPilot);
+	const setEnabled = useTodayOverview((s) => s.setAutoPilot);
+	return (
+		<SettingRow
+			label="Auto pilot"
+			htmlFor="auto-pilot"
+			description="Adds an Auto pilot icon beside Board view in the top bar: the tasks that need you, one at a time, with the session beside each one."
+		>
+			<Switch id="auto-pilot" checked={enabled} onCheckedChange={setEnabled} />
 		</SettingRow>
 	);
 }
