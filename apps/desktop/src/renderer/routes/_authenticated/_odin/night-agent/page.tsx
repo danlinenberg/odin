@@ -33,11 +33,14 @@ import type { Pane } from "shared/tabs-types";
 import { NightAgentInstructionsRow } from "../../settings/backlog/page";
 import { SettingsSection } from "../../settings/components/SettingsPage";
 import type { AllItem } from "../all/all-items";
+import { TaskDescription } from "../all/TaskDescription";
 import { SOURCE_ICON } from "../all/TaskTable";
+import { useTaskMeta } from "../all/task-meta";
 import { useNextInLineQueue } from "../board/NextInLine";
 import { useNightAgentIntro } from "../board/NightAgentIntro";
 import { FEED_TABS } from "../components/feed-counts";
 import { PILL } from "../components/pill";
+import { useOdinTasks } from "../hooks/useOdinTasks";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
 import { featuredNight, groupNights, type Night } from "./night-log";
@@ -375,42 +378,42 @@ function NextRunSection() {
 					picked.map((key, i) => {
 						const row = byKey.get(key);
 						return (
-							<div
-								key={key}
-								className="group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30"
-							>
-								<span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold tabular-nums text-primary">
-									{i + 1}
-								</span>
-								{row ? (
-									<RowTitle row={row} />
-								) : (
-									<span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-										No longer waiting - it was started, done or removed
+							<div key={key} className="group px-4 py-2.5 hover:bg-muted/30">
+								<div className="flex items-center gap-3">
+									<span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold tabular-nums text-primary">
+										{i + 1}
 									</span>
-								)}
-								<div className="flex opacity-40 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-									<IconButton
-										label="Move up"
-										disabled={i === 0}
-										onClick={() => move(i, i - 1)}
-									>
-										<LuArrowUp className="size-3.5" />
-									</IconButton>
-									<IconButton
-										label="Move down"
-										disabled={i === picked.length - 1}
-										onClick={() => move(i, i + 1)}
-									>
-										<LuArrowDown className="size-3.5" />
-									</IconButton>
-									<IconButton
-										label="Remove from the next run"
-										onClick={() => toggleNightPick(key)}
-									>
-										<LuX className="size-3.5" />
-									</IconButton>
+									{row ? (
+										<RowTitle row={row} />
+									) : (
+										<span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+											No longer waiting - it was started, done or removed
+										</span>
+									)}
+									<div className="flex opacity-40 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+										<IconButton
+											label="Move up"
+											disabled={i === 0}
+											onClick={() => move(i, i - 1)}
+										>
+											<LuArrowUp className="size-3.5" />
+										</IconButton>
+										<IconButton
+											label="Move down"
+											disabled={i === picked.length - 1}
+											onClick={() => move(i, i + 1)}
+										>
+											<LuArrowDown className="size-3.5" />
+										</IconButton>
+										<IconButton
+											label="Remove from the next run"
+											onClick={() => toggleNightPick(key)}
+										>
+											<LuX className="size-3.5" />
+										</IconButton>
+									</div>
 								</div>
+								{row && <PickNotes row={row} />}
 							</div>
 						);
 					})
@@ -521,6 +524,48 @@ function AddPicks({ rows, full }: { rows: AllItem[]; full: boolean }) {
 				)}
 			</div>
 		</div>
+	);
+}
+
+/**
+ * The pick's own Notes - the same text as the task panel's, which its session
+ * starts with - so context or guidelines can go on it right where you line up
+ * the night. Folded to one line until you open it.
+ */
+function PickNotes({ row }: { row: AllItem }) {
+	const [open, setOpen] = useState(false);
+	const task = useOdinTasks((s) =>
+		s.tasks.find((t) => `task:${t.id}` === row.key),
+	);
+	const rowNote = useTaskMeta((s) => s.notes[row.key] ?? "");
+	const notes = task ? task.notes : rowNote;
+	const save = (text: string) =>
+		task
+			? useOdinTasks.getState().setNotes(task.id, text)
+			: useTaskMeta.getState().setNote(row.key, text);
+	if (open)
+		return (
+			<div className="mt-1.5 ml-9">
+				<TaskDescription notes={notes} onSave={save} />
+				<button
+					type="button"
+					className="text-xs text-muted-foreground hover:text-foreground"
+					onClick={() => setOpen(false)}
+				>
+					Done
+				</button>
+			</div>
+		);
+	return (
+		<button
+			type="button"
+			className="mt-0.5 ml-9 block max-w-[calc(100%-2.25rem)] truncate text-left text-xs text-muted-foreground hover:text-foreground"
+			onClick={() => setOpen(true)}
+		>
+			{notes.trim()
+				? `Notes: ${notes.trim().split("\n")[0]}`
+				: "+ Notes for its session: context, guidelines"}
+		</button>
 	);
 }
 

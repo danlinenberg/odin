@@ -34,6 +34,17 @@ export type StartResult =
  * feed, or the board's Next in line. `onSlackStarted` refetches whatever
  * list the Slack row should now leave.
  */
+/**
+ * Your notes on a Slack, Jira or other row, for its session; your own tasks'
+ * notes are already their brief (launch.description).
+ */
+function myNotes(item: AllItem): string | null {
+	const note = useTaskMeta.getState().notes[item.key];
+	return note
+		? `My notes:\n${note.replaceAll(ATTACHMENT_URL, "~/.odin/attachments/")}`
+		: null;
+}
+
 export function useStartAllItem(onSlackStarted?: () => void) {
 	const navigate = useNavigate();
 	const { ensureWorkspace } = useOdinWorkspace();
@@ -85,13 +96,9 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 			toast.error(ensured.error);
 			return { ok: false, error: ensured.error };
 		}
-		// Your notes on a Slack, Jira or other row ride along; your own tasks'
-		// notes are already their brief.
-		const note = useTaskMeta.getState().notes[item.key];
 		const description = [
 			item.launch.description,
-			note &&
-				`My notes:\n${note.replaceAll(ATTACHMENT_URL, "~/.odin/attachments/")}`,
+			myNotes(item),
 			offHours?.instructions,
 		]
 			.filter(Boolean)
@@ -189,8 +196,9 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 		const plan = await planForHost({
 			...item.launch,
 			description:
-				[item.launch.description, instructions].filter(Boolean).join("\n\n") ||
-				null,
+				[item.launch.description, myNotes(item), instructions]
+					.filter(Boolean)
+					.join("\n\n") || null,
 			workspaceId: ensured.workspace.id,
 			tags: away ? [] : ["off-hours"],
 		});

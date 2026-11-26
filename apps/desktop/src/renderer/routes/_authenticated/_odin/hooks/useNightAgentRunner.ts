@@ -8,6 +8,7 @@ import {
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { awsSignInNeeded } from "shared/host-setup";
 import type { AllItem } from "../all/all-items";
+import { useTaskMeta } from "../all/task-meta";
 import type { StartResult } from "../all/use-start-item";
 import { useNextInLineQueue } from "../board/NextInLine";
 import {
@@ -304,7 +305,12 @@ export function useNightAgentRunner() {
 				window,
 				offHours.maxSessions,
 				offHours.instructions,
-				order.map((row) => row.key),
+				// Notes too, so an edit to one reaches the host now, not at the resend.
+				order.map((row) => [
+					row.key,
+					row.launch.description,
+					useTaskMeta.getState().notes[row.key],
+				]),
 				exclude,
 				picksOnly,
 			]);
