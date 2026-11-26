@@ -28,6 +28,7 @@ import {
 	type HostTokensFile,
 	hostGithubLoginFile,
 	hostServiceInstallScript,
+	lingerCurrent,
 } from "./host-service";
 import { credentialsPayload, WRITE_CREDENTIALS_PY } from "./local-credentials";
 import {
@@ -160,10 +161,12 @@ export function gitIdentityScript(identity: {
 
 /**
  * Prints "current" when this user's service is installed and runs this Odin's
- * script, and the host's memory watch runs this Odin's; read as the user.
+ * script, the host's memory watch runs this Odin's, and the user's systemd
+ * lingers (lingerScript); read as the user. A host set up before linger gets
+ * it at the next update.
  */
 export const SERVICE_CURRENT_SCRIPT = (user: string) =>
-	`[ -f /etc/systemd/system/odin-host-${user}.service ] && cmp -s /usr/local/lib/odin/host-service.py - && [ "$(md5sum < /usr/local/lib/odin/memory-watch.sh 2>/dev/null | cut -c1-32)" = ${createHash("md5").update(HOST_MEMORY_WATCH_SH).digest("hex")} ] && echo current; true`;
+	`[ -f /etc/systemd/system/odin-host-${user}.service ] && cmp -s /usr/local/lib/odin/host-service.py - && [ "$(md5sum < /usr/local/lib/odin/memory-watch.sh 2>/dev/null | cut -c1-32)" = ${createHash("md5").update(HOST_MEMORY_WATCH_SH).digest("hex")} ] && ${lingerCurrent(user)} && echo current; true`;
 
 /** Sends `body` to the user's own host service at `path`, from stdin: no sudo, and no token on a command line. */
 export const postToServiceScript = (path: string) =>

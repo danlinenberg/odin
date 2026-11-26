@@ -162,6 +162,12 @@ import {
 	sessionBranch,
 } from "main/lib/remote-host/session";
 import {
+	AUTO_SYNC_WAIT_MS,
+	makeAutoSync,
+	setupFingerprint,
+	waitAtMost,
+} from "main/lib/remote-host/setup-autosync";
+import {
 	connectHost,
 	copyFileFromHost,
 	copyFilesToHost,
@@ -302,6 +308,60 @@ async function withAwsSignIn<T>(host: RemoteHost, call: () => Promise<T>) {
 		return call();
 	}
 }
+
+/** One host per Linux user on an instance, for what it last got of the Claude setup. */
+const setupKey = (host: { instanceId: string; user: string }) =>
+	`${host.instanceId}:${host.user}`;
+
+/** The chosen parts of ~/.claude as they are now, fingerprinted (setup-autosync). */
+const claudeSetupPrint = (
+	parts: readonly (typeof CLAUDE_SETUP_PARTS)[number][],
+) => setupFingerprint(parts, join(homedir(), ".claude"));
+
+/** Records that `host` got the Claude setup as `print` fingerprints it. */
+function recordSetupSent(
+	host: { instanceId: string; user: string },
+	print: string,
+) {
+	updateOdinConfig({
+		claudeSetupSent: {
+			...readOdinConfig().claudeSetupSent,
+			[setupKey(host)]: print,
+		},
+	});
+}
+
+/**
+ * Before a session starts or resumes on a host: the parts of ~/.claude chosen
+ * in Settings go there again when they changed since its last copy, so a
+ * skill made here a minute ago works there. Nothing chosen: nothing copied.
+ */
+const autoSyncClaudeSetup = makeAutoSync<RemoteHost>({
+	parts: () =>
+		(readOdinConfig().remoteHost?.claudeSetup ?? []).filter(
+			(part): part is (typeof CLAUDE_SETUP_PARTS)[number] =>
+				(CLAUDE_SETUP_PARTS as readonly string[]).includes(part),
+		),
+	fingerprint: claudeSetupPrint,
+	keyOf: setupKey,
+	sent: (key) => readOdinConfig().claudeSetupSent?.[key],
+	record: (key, print) =>
+		updateOdinConfig({
+			claudeSetupSent: { ...readOdinConfig().claudeSetupSent, [key]: print },
+		}),
+	copy: async (host, parts) => {
+		const { dropped } = await syncClaudeSetup(host, parts);
+		const main = readOdinConfig().remoteHost;
+		if (main?.instanceId === host.instanceId && main.user === host.user)
+			updateOdinConfig({
+				remoteHost: {
+					...main,
+					claudeSetupSyncedAt: Date.now(),
+					claudeSetupDropped: dropped,
+				},
+			});
+	},
+});
 
 /** The Night Agent's last alert, closed when the next one replaces it. */
 let nightNotification: Notification | null = null;
@@ -683,13 +743,8 @@ async function addClusterMember(extra: ClusterEntry): Promise<void> {
 			member,
 			(member.connectors ?? []) as HostConnector[],
 		).catch((error) => console.warn("[remote-host] cluster tokens:", error));
-	if (member.claudeSetup?.length)
-		void syncClaudeSetup(
-			member,
-			member.claudeSetup as (typeof CLAUDE_SETUP_PARTS)[number][],
-		).catch((error) =>
-			console.warn("[remote-host] cluster Claude setup:", error),
-		);
+	// Logs its own failure; recorded, so its first session doesn't copy again.
+	void autoSyncClaudeSetup(member);
 }
 
 /**
@@ -1232,17 +1287,22 @@ export const createRemoteHostRouter = () =>
 				void requestClaudeSync(input, async (parts) => {
 					const host = readOdinConfig().remoteHost;
 					if (!host) throw new Error("No remote host is set up.");
+					// Taken first, so a change made during the copy goes with the next session.
+					const print = await claudeSetupPrint(parts).catch(() => null);
 					const { dropped } = await withAwsSignIn(host, () =>
 						syncClaudeSetup(host, parts),
 					);
+					if (print) recordSetupSent(host, print);
 					// The cluster gets the same copy; one that fails says so in the log.
 					await Promise.all(
 						clusterExtras().map((extra) =>
-							syncClaudeSetup(extra, parts).catch((error) =>
-								console.warn(
-									`[remote-host] Claude setup on ${extra.name}:`,
-									error,
-								),
+							syncClaudeSetup(extra, parts).then(
+								() => print && recordSetupSent(extra, print),
+								(error) =>
+									console.warn(
+										`[remote-host] Claude setup on ${extra.name}:`,
+										error,
+									),
 							),
 						),
 					);
@@ -1903,6 +1963,9 @@ export const createRemoteHostRouter = () =>
 					}
 				})();
 				const host = asLastRun(named, last);
+				// A skill or setting changed here since the host's last copy goes
+				// first; a slow copy carries on behind the session, never holding it.
+				await waitAtMost(autoSyncClaudeSetup(host), AUTO_SYNC_WAIT_MS);
 				const session = await buildSessionSpec(host, input);
 				mkdirSync(join(ODIN_HOME_DIR, "remote-specs"), {
 					recursive: true,

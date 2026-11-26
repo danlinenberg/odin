@@ -636,9 +636,12 @@ function StartHere({
 			)}
 		>
 			<div className="flex flex-wrap items-center gap-2">
-				<span className="rounded-full bg-attention px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[.08em] text-background">
-					Start here
-				</span>
+				{/* Auto pilot shows one card at a time, so the badge says nothing there. */}
+				{!onSkip && (
+					<span className="rounded-full bg-attention px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[.08em] text-background">
+						Start here
+					</span>
+				)}
 				{todo[0] && (
 					<span className={cn(CHIP, "text-[12px] font-semibold")}>
 						{itemKind(todo[0])}
@@ -1452,7 +1455,7 @@ function AutoPilot({
 	const left = ids.filter((id) => !handled.has(id)).length;
 	// The card's session opens beside it by itself, once per card, and only
 	// when no session is open: the one you are reading never gets swapped for
-	// the next card's. Close it and it stays closed until the next card.
+	// the next card's (picking a task from the queue opens its session). Close it and it stays closed until the next card.
 	const firstKey = task?.items[0].key ?? null;
 	const openedFor = useRef<string | null>(null);
 	useEffect(() => {
@@ -1531,7 +1534,13 @@ function AutoPilot({
 									<button
 										type="button"
 										title={`${todayGroupLabel(row.group)} - take this one now`}
-										onClick={() => setChosen(id)}
+										onClick={() => {
+											// A task you pick brings its session along, even
+											// over the one open now.
+											openedFor.current = id;
+											setChosen(id);
+											actions.onOpen(row.items[0].key);
+										}}
 										className={cn(
 											"flex w-full items-baseline gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] leading-snug hover:bg-secondary/60",
 											id === pick && "bg-primary/15 font-semibold",
