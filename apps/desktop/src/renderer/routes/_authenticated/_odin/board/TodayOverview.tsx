@@ -995,7 +995,7 @@ function TaskButtons({
 	task: TodayTaskView<TodayItem>;
 	actions: TodayActions;
 	onActed: () => void;
-	/** Auto pilot only: moves the task to the end of the queue. */
+	/** Auto pilot only: moves the task to the end of the queue; the row gets Auto pilot's quiet look. */
 	onSkip?: () => void;
 	/** Shown in the summary panel: moves to the next task waiting on you. */
 	onNext?: () => void;
@@ -1003,6 +1003,57 @@ function TaskButtons({
 	const paneId = task.items[0].key;
 	const ghost =
 		"rounded-[7px] px-2.5 py-1 text-[12px] font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground";
+	// Auto pilot's card: one quiet row under a rule, Next the only real button.
+	if (onSkip)
+		return (
+			<div className="flex items-center gap-1 whitespace-nowrap border-t border-border pt-3">
+				{actions.onDone && (
+					<button
+						type="button"
+						title="End the session and take it off the board"
+						onClick={() => {
+							actions.onDone?.(paneId);
+							onActed();
+						}}
+						className={ghost}
+					>
+						✓ Done
+					</button>
+				)}
+				{actions.onSnooze && (
+					<button
+						type="button"
+						title="Put it away; it comes back tomorrow"
+						onClick={() => {
+							actions.onSnooze?.(paneId, dayAfter(Date.now(), 1));
+							onActed();
+						}}
+						className={ghost}
+					>
+						Snooze
+					</button>
+				)}
+				<button
+					type="button"
+					title="Leave Auto pilot and open this session on the board"
+					onClick={() => actions.onOpen(paneId)}
+					className={ghost}
+				>
+					Open on board
+				</button>
+				<button
+					type="button"
+					title="Move on to the next one; this one goes to the end of the queue"
+					onClick={onSkip}
+					className={cn(
+						"ml-auto rounded-[7px] px-3 py-1 text-[12px] font-semibold",
+						BUTTON.secondary,
+					)}
+				>
+					Next →
+				</button>
+			</div>
+		);
 	return (
 		<div className="flex flex-wrap items-center gap-2">
 			<button
@@ -1036,16 +1087,6 @@ function TaskButtons({
 					className={ghost}
 				>
 					Snooze till tomorrow
-				</button>
-			)}
-			{onSkip && (
-				<button
-					type="button"
-					title="Move on to the next one; this one goes to the end of the queue"
-					onClick={onSkip}
-					className={cn(ghost, "ml-auto")}
-				>
-					Next →
 				</button>
 			)}
 			{onNext && (
