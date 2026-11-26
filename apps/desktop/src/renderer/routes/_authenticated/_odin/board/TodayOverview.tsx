@@ -18,6 +18,7 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { useTodayOverview } from "renderer/stores/today-overview";
+import { freshTldr, latestReply } from "shared/latest-reply";
 import { type AllItem, livePanesOn, urgencyOf } from "../all/all-items";
 import { TaskDetails } from "../all/TaskDetails";
 import { TaskSidePanel } from "../all/TaskSidePanel";
@@ -33,8 +34,18 @@ import {
 	isDoneItem,
 	isYouOnly,
 	itemOptions,
+	splitActionItems,
 } from "./action-items";
-import { actionItems } from "./brief";
+import {
+	actionItems,
+	artifactLinks,
+	droppedReason,
+	jiraIssue,
+	nothingLeft,
+	notionPage,
+	prLabel,
+	pullRequests,
+} from "./brief";
 import { phoneReply } from "./phone-resume";
 import {
 	dueLabel,
@@ -51,6 +62,7 @@ import {
 	todayLanes,
 	todayTasks,
 	todayTitle,
+	yourMove,
 } from "./today";
 import { moveSelection, type SideRow, todaySide } from "./today-side";
 
@@ -288,7 +300,12 @@ export function TodayOverview({
 			.querySelector(`[data-today-task="${tasks[next].id}"]`)
 			?.scrollIntoView({ block: "nearest" });
 	};
-	const keys = { enableOnFormTags: false, enableOnContentEditable: false };
+	// Auto pilot has its own keys: the page's arrows and Enter stay off there.
+	const keys = {
+		enableOnFormTags: false,
+		enableOnContentEditable: false,
+		enabled: !pilot,
+	};
 	useHotkey("TODAY_NEXT", () => step(1), keys);
 	useHotkey("TODAY_PREV", () => step(-1), keys);
 	useHotkey(
@@ -297,7 +314,7 @@ export function TodayOverview({
 			const task = tasks[selected];
 			if (task) setShown(task.id);
 		},
-		{ ...keys, enabled: selected >= 0 },
+		{ ...keys, enabled: !pilot && selected >= 0 },
 	);
 
 	if (pilot)
@@ -596,8 +613,12 @@ export interface TodayActions {
 	onOpen: (paneId: string) => void;
 	/** Closes the session open beside the page. */
 	onClose?: () => void;
-	/** Ends the session and takes it off the board, like the board's Done. */
-	onDone?: (paneId: string) => void;
+	/**
+	 * Ends the session and takes it off the board, like the board's Done.
+	 * `then` runs once it really is done: a Done you cancel in its confirm
+	 * leaves the task where it was.
+	 */
+	onDone?: (paneId: string, then?: () => void) => void;
 	/** Done for now; it comes back on `day` (YYYY-MM-DD), like Remind me. */
 	onSnooze?: (paneId: string, day: string) => void;
 }
@@ -616,7 +637,6 @@ function StartHere({
 	onShow,
 	onActed,
 	onSkip,
-	pilot,
 }: Omit<TaskProps, "onShow"> & {
 	actions: TodayActions;
 	onShow: (taskId: string) => void;
@@ -624,67 +644,10 @@ function StartHere({
 	onActed: () => void;
 	/** Auto pilot only: moves this task to the end of the queue. */
 	onSkip?: () => void;
-	/**
-	 * Auto pilot's unblock card: the agent's ask as the headline, where it
-	 * stands, the action items to answer and the buttons. The session stays
-	 * shut until you peek at it.
-	 */
-	pilot?: boolean;
 }) {
 	const first = task.items[0];
 	const todo = useActionItems(first.sessionId);
 	const stands = standing(task);
-	if (pilot)
-		return (
-			<li
-				data-today-task={task.id}
-				className={cn(
-					"@container flex flex-col gap-4 rounded-xl border border-primary/45 bg-card px-6 py-5",
-					open && "border-primary/70",
-				)}
-			>
-				<div className="flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
-					<button
-						type="button"
-						title="Peek at its session beside the card"
-						onClick={() => onShow(task.id)}
-						className="min-w-0 truncate font-medium underline-offset-2 hover:text-foreground hover:underline"
-					>
-						{task.name}
-					</button>
-					{todo[0] && (
-						<span className={cn(CHIP, "font-semibold text-attention-ink")}>
-							{itemKind(todo[0])}
-						</span>
-					)}
-					<TaskMarks task={task} now={now} />
-				</div>
-				<h2 className="select-text cursor-text text-[22px] font-semibold leading-snug tracking-[-.2px]">
-					{todayTitle(task, todo[0])}
-				</h2>
-				{(stands || task.about) && (
-					<div className="select-text cursor-text rounded-lg border border-border bg-background/60 px-4 py-3 text-[14px] leading-relaxed">
-						<p className={LABEL}>{stands ? "Where it stands" : "What it is"}</p>
-						<p className="text-foreground/90">
-							{stands ?? sentence(task.about)}
-						</p>
-					</div>
-				)}
-				<TaskItems
-					task={task}
-					onOpen={actions.onOpen}
-					onShow={() => onShow(task.id)}
-					onSent={onActed}
-					slim
-				/>
-				<TaskButtons
-					task={task}
-					actions={actions}
-					onActed={onActed}
-					onSkip={onSkip}
-				/>
-			</li>
-		);
 	return (
 		<li
 			data-today-task={task.id}
@@ -750,6 +713,201 @@ function StartHere({
 	);
 }
 
+/** A link on Auto pilot's card: where it goes and what it is called. */
+type PilotLink = { url: string; label: string };
+
+/**
+ * What Auto pilot's card reads about a session, all from queries the board
+ * already keeps warm: its action items, the brief's Your move and TL;DR of
+ * the latest reply, its links, and whether nothing is left for you.
+ */
+function usePilotBrief(sessionId: string | null | undefined) {
+	const { data: transcript } =
+		electronTrpc.terminal.readClaudeTranscript.useQuery(
+			{ sessionId: sessionId ?? "" },
+			{ enabled: !!sessionId, retry: false, staleTime: 60_000 },
+		);
+	const { data: written } =
+		electronTrpc.terminal.summarizeClaudeSession.useQuery(
+			{ sessionId: sessionId ?? "" },
+			{ enabled: !!sessionId, retry: false, staleTime: 30_000 },
+		);
+	return useMemo(() => {
+		const messages = transcript?.messages ?? [];
+		const todo = transcript ? actionItems(messages) : [];
+		const last = latestReply(messages);
+		// Measured without its ACTION ITEMS: those are on the card already.
+		const tldr = freshTldr(
+			last && { ...last, text: splitActionItems(last.text).body },
+			written,
+		);
+		const move = written?.next?.trim() || null;
+		const dropped = droppedReason(messages);
+		// Nothing for you: the agent said so, dropped the ask, or the brief's
+		// Your move says nothing is yours.
+		const settled =
+			!!transcript &&
+			todo.length === 0 &&
+			(!!dropped || nothingLeft(messages) || (!!move && !yourMove(move)));
+		const notion = notionPage(messages);
+		const jira = jiraIssue(messages);
+		const links: PilotLink[] = [
+			...pullRequests(messages)
+				.slice(-3)
+				.map((pr) => ({ url: pr.url, label: prLabel(pr) })),
+			...(notion
+				? [{ url: notion.url, label: notion.title ?? "Notion page" }]
+				: []),
+			...artifactLinks(messages)
+				.slice(-2)
+				.map((url) => ({ url, label: "Artifact" })),
+			...(jira ? [{ url: jira.url, label: jira.key }] : []),
+		];
+		return {
+			todo,
+			tldr,
+			move,
+			settled,
+			reason: dropped ?? move,
+			links,
+		};
+	}, [transcript, written]);
+}
+
+/**
+ * Auto pilot's unblock card: what the agent needs from you as the headline
+ * (its first action item, else the brief's Your move), the latest reply in
+ * short, its links, the action items to answer and a reply box, then Done,
+ * Snooze and Next. A session with nothing left for you says so and puts
+ * Done first. The session itself stays shut until you peek at it.
+ */
+function PilotCard({
+	task,
+	now,
+	open,
+	actions,
+	onPeek,
+	onActed,
+	onSkip,
+	reply,
+}: {
+	task: TodayTaskView<TodayItem>;
+	now: number;
+	/** Its session is open beside the card. */
+	open: boolean;
+	actions: TodayActions;
+	onPeek: () => void;
+	onActed: () => void;
+	onSkip: () => void;
+	/** The reply box, inside the card under the items. */
+	reply: ReactNode;
+}) {
+	const brief = usePilotBrief(task.items[0].sessionId);
+	const { todo, tldr, settled, reason, links } = brief;
+	const stands = standing(task);
+	const ask = settled
+		? "Nothing needed from you"
+		: todayTitle(task, todo[0], brief.move);
+	return (
+		<article
+			data-today-task={task.id}
+			className={cn(
+				"@container flex flex-col gap-4 rounded-xl border bg-card px-5 py-5 shadow-[0_8px_30px_-12px_color-mix(in_oklab,var(--primary)_35%,transparent)] @xl:px-7 @xl:py-6",
+				open ? "border-primary/50" : "border-border",
+			)}
+		>
+			<div className="flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
+				<button
+					type="button"
+					title="Peek at its session beside the card"
+					onClick={onPeek}
+					className="min-w-0 truncate font-medium underline-offset-2 hover:text-foreground hover:underline"
+				>
+					{task.name}
+				</button>
+				{settled ? (
+					<span className={cn(CHIP, "font-semibold text-success-ink")}>
+						Nothing needed
+					</span>
+				) : (
+					todo[0] && (
+						<span className={cn(CHIP, "font-semibold text-attention-ink")}>
+							{itemKind(todo[0])}
+						</span>
+					)
+				)}
+				<TaskMarks task={task} now={now} />
+			</div>
+			<div className="flex flex-col gap-1.5">
+				<h2
+					title={ask}
+					className="line-clamp-3 select-text cursor-text text-[18px] font-semibold leading-snug tracking-[-.2px] @xl:text-[22px]"
+				>
+					{ask}
+				</h2>
+				{settled && reason && (
+					<p className="select-text cursor-text text-[14px] text-muted-foreground">
+						{sentence(reason)}
+					</p>
+				)}
+			</div>
+			{(tldr || stands || task.about) && (
+				<div className="select-text cursor-text rounded-lg border border-border bg-background/60 px-4 py-3 text-[14px] leading-relaxed">
+					<p className={cn(LABEL, "flex items-center gap-2")}>
+						{tldr ? "Latest reply" : stands ? "Where it stands" : "What it is"}
+						{tldr?.urgency && (
+							<span
+								className={cn(
+									"rounded px-1 text-[10px] tracking-normal",
+									tldr.urgency === "needs-you"
+										? "bg-attention/15 text-attention-ink"
+										: "bg-secondary text-muted-foreground",
+								)}
+							>
+								{tldr.urgency === "needs-you" ? "Needs you" : "FYI"}
+							</span>
+						)}
+					</p>
+					<p className="text-foreground/90">
+						{tldr ? tldr.last : (stands ?? sentence(task.about))}
+					</p>
+				</div>
+			)}
+			{links.length > 0 && (
+				<div className="flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
+					{links.map((link) => (
+						<button
+							key={link.url}
+							type="button"
+							title={link.url}
+							onClick={() => openUrl(link.url)}
+							className={cn(LINK, "max-w-[260px] truncate")}
+						>
+							{link.label} ↗
+						</button>
+					))}
+				</div>
+			)}
+			<TaskItems
+				task={task}
+				onOpen={actions.onOpen}
+				onShow={onPeek}
+				onSent={onActed}
+				slim
+				pilot
+			/>
+			{reply}
+			<TaskButtons
+				task={task}
+				actions={actions}
+				onActed={onActed}
+				onSkip={onSkip}
+				settled={settled}
+			/>
+		</article>
+	);
+}
+
 /**
  * Each of the task's sessions with its action items, answerable here; the
  * session's title above them when the task has several.
@@ -760,6 +918,7 @@ function TaskItems({
 	onShow,
 	onSent,
 	slim,
+	pilot,
 }: {
 	task: TodayTaskView<TodayItem>;
 	onOpen: (paneId: string) => void;
@@ -768,6 +927,8 @@ function TaskItems({
 	onSent?: () => void;
 	/** Leave out a lone session's title line: it is open beside the card. */
 	slim?: boolean;
+	/** Auto pilot's card: choice cards, and onSent once every item is answered. */
+	pilot?: boolean;
 }) {
 	return (
 		<div className="flex flex-col gap-3">
@@ -780,6 +941,7 @@ function TaskItems({
 					preview={!!onShow}
 					onSent={onSent}
 					bare={slim && task.items.length === 1}
+					pilot={pilot}
 				/>
 			))}
 		</div>
@@ -794,6 +956,7 @@ function SessionItems({
 	preview,
 	onSent,
 	bare,
+	pilot,
 }: {
 	item: TodayItem;
 	titled: boolean;
@@ -803,8 +966,18 @@ function SessionItems({
 	onSent?: () => void;
 	/** Only the action items, without the session's title and facts line. */
 	bare?: boolean;
+	/** Auto pilot: onSent waits until every item you can answer here is answered. */
+	pilot?: boolean;
 }) {
 	const todo = useActionItems(item.sessionId);
+	// A ref, not state: two answers sent back to back both count.
+	const answered = useRef(new Set<string>());
+	const sentOne = (text: string) => {
+		if (!pilot) return onSent?.();
+		answered.current.add(text);
+		if (todo.filter(answerable).every((t) => answered.current.has(t)))
+			onSent?.();
+	};
 	if (bare && todo.length === 0) return null;
 	return (
 		<div className="flex flex-col gap-1.5">
@@ -844,7 +1017,8 @@ function SessionItems({
 							paneId={item.key}
 							item={text}
 							number={i + 1}
-							onSent={onSent}
+							onSent={() => sentOne(text)}
+							pilot={pilot}
 						/>
 					))}
 				</ol>
@@ -877,11 +1051,14 @@ function AnswerItem({
 	item,
 	number,
 	onSent,
+	pilot,
 }: {
 	paneId: string;
 	item: string;
 	number: number;
 	onSent?: () => void;
+	/** Auto pilot: a neutral choice card with a key-cap number. */
+	pilot?: boolean;
 }) {
 	const send = useSendToSession();
 	const [sent, setSent] = useState(false);
@@ -902,12 +1079,23 @@ function AnswerItem({
 				});
 			});
 	};
+	const button = pilot ? PILOT_BUTTON : ITEM_BUTTON;
 	const answerWith = (said: string) =>
 		reply(`Action item ${number} (${item}): ${said}`);
 	return (
-		<li className="flex flex-col gap-1.5 rounded-lg border border-attention/35 bg-attention/[0.07] px-3 py-2">
+		<li
+			className={
+				pilot
+					? "flex flex-col gap-2 rounded-lg border border-border bg-background/40 px-3.5 py-2.5 transition-colors hover:border-primary/50"
+					: "flex flex-col gap-1.5 rounded-lg border border-attention/35 bg-attention/[0.07] px-3 py-2"
+			}
+		>
 			<p className="flex items-baseline gap-2 select-text cursor-text text-[14px] leading-snug">
-				<span className="font-semibold text-attention-ink">{number}.</span>
+				{pilot ? (
+					<kbd className={KBD}>{number}</kbd>
+				) : (
+					<span className="font-semibold text-attention-ink">{number}.</span>
+				)}
 				<span className="min-w-0 break-words">{text}</span>
 			</p>
 			{sent ? (
@@ -917,7 +1105,7 @@ function AnswerItem({
 					{isApprovalItem(item) ? (
 						<button
 							type="button"
-							className={ITEM_BUTTON}
+							className={button}
 							onClick={() =>
 								reply(`Approved - go ahead with action item ${number}: ${item}`)
 							}
@@ -927,7 +1115,7 @@ function AnswerItem({
 					) : isDoneItem(item) ? (
 						<button
 							type="button"
-							className={ITEM_BUTTON}
+							className={button}
 							onClick={() => answerWith("Done")}
 						>
 							Done
@@ -938,7 +1126,7 @@ function AnswerItem({
 								<button
 									key={option}
 									type="button"
-									className={ITEM_BUTTON}
+									className={button}
 									onClick={() => answerWith(option)}
 								>
 									{option}
@@ -960,7 +1148,7 @@ function AnswerItem({
 								<button
 									type="submit"
 									disabled={!answer.trim()}
-									className={ITEM_BUTTON}
+									className={button}
 								>
 									Send
 								</button>
@@ -969,7 +1157,7 @@ function AnswerItem({
 					) : isYouOnly(item) ? null : (
 						<button
 							type="button"
-							className={ITEM_BUTTON}
+							className={button}
 							onClick={() => reply(`Do action item ${number} for me: ${item}`)}
 						>
 							Do it
@@ -984,6 +1172,20 @@ function AnswerItem({
 const ITEM_BUTTON =
 	"shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[12px] font-medium text-attention-ink hover:bg-attention/15 disabled:opacity-50";
 
+/** Auto pilot's answer buttons: quiet, like the rest of the card. */
+const PILOT_BUTTON = `shrink-0 rounded-[7px] px-2.5 py-1 text-[12px] font-semibold disabled:opacity-50 ${BUTTON.secondary}`;
+
+/** An item AnswerItem gives a button or a box to: all but a bare "(you only)". */
+function answerable(item: string): boolean {
+	return (
+		isApprovalItem(item) ||
+		isDoneItem(item) ||
+		isAnswerItem(item) ||
+		itemOptions(item).options.length > 0 ||
+		!isYouOnly(item)
+	);
+}
+
 /** Open on board, Done, Snooze until tomorrow and Skip, for the task's first session. */
 function TaskButtons({
 	task,
@@ -991,19 +1193,24 @@ function TaskButtons({
 	onActed,
 	onNext,
 	onSkip,
+	settled,
 }: {
 	task: TodayTaskView<TodayItem>;
 	actions: TodayActions;
 	onActed: () => void;
 	/** Auto pilot only: moves the task to the end of the queue; the row gets Auto pilot's quiet look. */
 	onSkip?: () => void;
+	/** Auto pilot: nothing is left for you, so Done is the button to press. */
+	settled?: boolean;
 	/** Shown in the summary panel: moves to the next task waiting on you. */
 	onNext?: () => void;
 }) {
 	const paneId = task.items[0].key;
 	const ghost =
 		"rounded-[7px] px-2.5 py-1 text-[12px] font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground";
-	// Auto pilot's card: one quiet row under a rule, Next the only real button.
+	// Auto pilot's card: one quiet row under a rule, one real button - Next,
+	// or Done when nothing is left for you.
+	const real = "rounded-[7px] px-3 py-1 text-[12px] font-semibold";
 	if (onSkip)
 		return (
 			<div className="flex items-center gap-1 whitespace-nowrap border-t border-border pt-3">
@@ -1011,11 +1218,8 @@ function TaskButtons({
 					<button
 						type="button"
 						title="End the session and take it off the board"
-						onClick={() => {
-							actions.onDone?.(paneId);
-							onActed();
-						}}
-						className={ghost}
+						onClick={() => actions.onDone?.(paneId, onActed)}
+						className={settled ? cn(real, BUTTON.done) : ghost}
 					>
 						✓ Done
 					</button>
@@ -1035,19 +1239,11 @@ function TaskButtons({
 				)}
 				<button
 					type="button"
-					title="Leave Auto pilot and open this session on the board"
-					onClick={() => actions.onOpen(paneId)}
-					className={ghost}
-				>
-					Open on board
-				</button>
-				<button
-					type="button"
 					title="Move on to the next one; this one goes to the end of the queue"
 					onClick={onSkip}
 					className={cn(
-						"ml-auto rounded-[7px] px-3 py-1 text-[12px] font-semibold",
-						BUTTON.secondary,
+						"ml-auto",
+						settled ? ghost : cn(real, BUTTON.secondary),
 					)}
 				>
 					Next →
@@ -1067,10 +1263,7 @@ function TaskButtons({
 				<button
 					type="button"
 					title="End the session and take it off the board"
-					onClick={() => {
-						actions.onDone?.(paneId);
-						onActed();
-					}}
+					onClick={() => actions.onDone?.(paneId, onActed)}
 					className={ghost}
 				>
 					✓ Done
@@ -1521,14 +1714,14 @@ function PilotReply({
 					}
 				}}
 				placeholder="Reply to the session - Enter sends it and the next one comes up"
-				className="min-h-[44px] min-w-0 flex-1 resize-y rounded-lg border border-border bg-background px-3 py-2 text-[14px] leading-snug focus:border-primary/60 focus:outline-none"
+				className="min-h-[44px] min-w-0 flex-1 resize-y rounded-lg border border-border bg-background/60 px-3 py-2 text-[14px] leading-snug focus:border-primary/60 focus:outline-none"
 			/>
 			<button
 				type="submit"
 				disabled={!text.trim() || sending}
 				className={cn(
 					"rounded-[7px] px-3 py-1.5 text-[13px] font-semibold disabled:opacity-50",
-					BUTTON.secondary,
+					text.trim() ? BUTTON.primary : BUTTON.secondary,
 				)}
 			>
 				Send
@@ -1631,10 +1824,23 @@ function AutoPilot({
 		if (done?.items.some((item) => item.key === openPaneId))
 			actions.onClose?.();
 	};
+	// The session a peek opened: when the card changes under it by itself
+	// (its session ran again and left the queue), that peek closes too, so a
+	// reply never goes to the session of a card that is gone.
+	const peeked = useRef<string | null>(null);
+	const openPeek = (paneId: string) => {
+		peeked.current = paneId;
+		actions.onOpen(paneId);
+	};
+	useEffect(() => {
+		const was = peeked.current;
+		if (!was || task?.items.some((item) => item.key === was)) return;
+		peeked.current = null;
+		if (openPaneId === was) actions.onClose?.();
+	}, [task, openPaneId, actions]);
 	const peek = () => {
-		if (!task) return;
-		if (peeking) actions.onClose?.();
-		else actions.onOpen(task.items[0].key);
+		if (peeking || (!task && openPaneId)) actions.onClose?.();
+		else if (task) openPeek(task.items[0].key);
 	};
 	const acted = (id: string) => {
 		closePeek(id);
@@ -1653,7 +1859,8 @@ function AutoPilot({
 		enableOnContentEditable: false,
 		enabled: !!task,
 	};
-	useHotkey("PILOT_PEEK", peek, keys);
+	// Space still closes a session left open once the queue is empty.
+	useHotkey("PILOT_PEEK", peek, { ...keys, enabled: !!task || !!openPaneId });
 	useHotkey("PILOT_SKIP", () => task && skip(task.id), keys);
 	const replyRef = useRef<HTMLTextAreaElement>(null);
 	useHotkey("PILOT_REPLY", () => replyRef.current?.focus(), keys);
@@ -1713,7 +1920,7 @@ function AutoPilot({
 										setChosen(id);
 										// Peeking stays on: the picked task's session takes the place
 										// of the one open.
-										if (peeking) actions.onOpen(row.items[0].key);
+										if (peeking) openPeek(row.items[0].key);
 									}}
 								/>
 							);
@@ -1756,64 +1963,68 @@ function AutoPilot({
 					</div>
 				)}
 			</nav>
-			<div className="@container min-w-0 flex-1 overflow-y-auto">
-				<div className="mx-auto flex w-full max-w-[760px] flex-col gap-4 px-5 pb-10 pt-5">
-					{task ? (
-						<ol>
-							<StartHere
+			<div className="flex min-w-0 flex-1 flex-col">
+				<div className="min-h-0 flex-1 overflow-y-auto">
+					<div className="mx-auto flex w-full max-w-[760px] flex-col gap-3 px-5 pb-10 pt-6">
+						{task && (
+							<p className="flex justify-between px-1 text-[12px] text-muted-foreground tabular-nums">
+								<span>
+									{queue.indexOf(task.id) + 1} of {left}
+								</span>
+								{skipped.includes(task.id) && <span>skipped once</span>}
+							</p>
+						)}
+						{task ? (
+							<PilotCard
 								key={task.id}
 								task={task}
 								now={now}
-								picked={false}
-								open={task.items.some((item) => item.key === openPaneId)}
+								open={peeking}
 								actions={actions}
-								onShow={peek}
+								onPeek={peek}
 								onActed={() => acted(task.id)}
 								onSkip={() => skip(task.id)}
-								pilot
+								reply={
+									<PilotReply
+										paneId={task.items[0].key}
+										inputRef={replyRef}
+										onSent={() => acted(task.id)}
+									/>
+								}
 							/>
-						</ol>
-					) : null}
-					{task && (
-						<PilotReply
-							key={task.id}
-							paneId={task.items[0].key}
-							inputRef={replyRef}
-							onSent={() => acted(task.id)}
-						/>
-					)}
-					{!task && (
-						<div className="flex flex-col gap-1 rounded-xl border border-border px-5 py-4">
-							<p className="text-[17px] font-semibold text-success-ink">
-								All clear
-							</p>
-							<p className="text-[14px] text-muted-foreground">
-								Nothing needs you right now. The next task comes up here as soon
-								as a session asks you something.
-							</p>
-						</div>
-					)}
-					<p
-						aria-live="polite"
-						className="min-h-5 text-[13px] font-medium text-success-ink"
-					>
-						{handoff}
-					</p>
-					{task && (
-						<p className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-muted-foreground">
-							<span>
-								<kbd className={KBD}>{peekKey}</kbd>{" "}
-								{peeking ? "close the session" : "peek at the session"}
-							</span>
-							<span>
-								<kbd className={KBD}>{skipKey}</kbd> next
-							</span>
-							<span>
-								<kbd className={KBD}>{replyKey}</kbd> reply
-							</span>
+						) : (
+							<div className="flex flex-col gap-1 rounded-xl border border-border px-5 py-4">
+								<p className="text-[17px] font-semibold text-success-ink">
+									All clear
+								</p>
+								<p className="text-[14px] text-muted-foreground">
+									Nothing needs you right now. The next task comes up here as
+									soon as a session asks you something.
+								</p>
+							</div>
+						)}
+						<p
+							aria-live="polite"
+							className="min-h-5 px-1 text-[13px] font-medium text-success-ink"
+						>
+							{handoff}
 						</p>
-					)}
+					</div>
 				</div>
+				{task && (
+					<p className="flex shrink-0 flex-wrap justify-center gap-x-5 gap-y-1 border-t border-border px-5 py-2 text-[12px] text-muted-foreground">
+						<span>
+							<kbd className={KBD}>{peekKey}</kbd>{" "}
+							{peeking ? "close the session" : "peek at the session"}
+						</span>
+						<span>
+							<kbd className={KBD}>{skipKey}</kbd> next
+						</span>
+						<span>
+							<kbd className={KBD}>{replyKey}</kbd> reply
+						</span>
+					</p>
+				)}
 			</div>
 		</section>
 	);
@@ -1837,9 +2048,11 @@ function PilotRow({
 	skipped: boolean;
 	onPick: () => void;
 }) {
-	const todo = useActionItems(task.items[0].sessionId);
+	const { todo, move, settled } = usePilotBrief(task.items[0].sessionId);
 	const { Icon, tone } = GROUP_MARK[task.group];
-	const ask = todayTitle(task, todo[0]);
+	const ask = settled
+		? "Nothing needed from you"
+		: todayTitle(task, todo[0], move);
 	return (
 		<li>
 			<button
@@ -1847,11 +2060,16 @@ function PilotRow({
 				title={`${ask} - take this one now`}
 				onClick={onPick}
 				className={cn(
-					"flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] leading-snug hover:bg-secondary/60",
-					current && "bg-primary/15",
+					"flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left text-[13px] leading-snug hover:bg-secondary/60",
+					current && BUTTON.selected,
 				)}
 			>
-				<span className="w-4 shrink-0 text-[12px] font-semibold text-attention">
+				<span
+					className={cn(
+						"w-4 shrink-0 text-[12px] font-semibold tabular-nums text-muted-foreground",
+						current && "text-primary-ink",
+					)}
+				>
 					{number}
 				</span>
 				<span className="flex min-w-0 flex-1 flex-col">
@@ -1874,6 +2092,8 @@ function PilotRow({
 				>
 					{skipped ? (
 						"skipped"
+					) : settled ? (
+						<span className="text-success-ink">nothing needed</span>
 					) : todo[0] ? (
 						itemKind(todo[0]).toLowerCase()
 					) : (

@@ -285,6 +285,17 @@ describe("todayTitle and itemKind", () => {
 			"Finish: CSV export",
 		);
 	});
+	it("the brief's Your move titles a card with no action item", () => {
+		expect(todayTitle(task, null, "pick the unlock threshold.")).toBe(
+			"Pick the unlock threshold",
+		);
+		expect(
+			todayTitle({ ...task, group: "almost-done" }, null, "Nothing - all done"),
+		).toBe("Finish: CSV export");
+		expect(todayTitle(task, "Approve the plan", "Merge it")).toBe(
+			"Approve the plan",
+		);
+	});
 	it("a kind word per item", () => {
 		expect(itemKind("Approve the plan")).toBe("Approve");
 		expect(itemKind("Pick one [A | B]")).toBe("Answer");

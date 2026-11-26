@@ -260,11 +260,13 @@ export function itemKind(item: string): string {
 /**
  * A card's title: the session's first action item (its own words, cut at a
  * word near 120 characters), else the model's next step when it is yours,
- * else the task's name ("Finish: name" when only a merge or a look is left).
+ * else the brief's Your move (`move`, unless it says nothing is yours), else
+ * the task's name ("Finish: name" when only a merge or a look is left).
  */
 export function todayTitle(
 	task: { name: string; group: TodayGroup; next: string | null },
 	firstItem?: string | null,
+	move?: string | null,
 ): string {
 	const item = firstItem ? itemOptions(firstItem).text.trim() : "";
 	if (item)
@@ -273,8 +275,16 @@ export function todayTitle(
 			: item;
 	return (
 		yourAction(task.next) ??
+		yourMove(move) ??
 		(task.group === "almost-done" ? `Finish: ${task.name}` : task.name)
 	);
+}
+
+/** The brief's Your move as a title; null when it says nothing is yours. */
+export function yourMove(move: string | null | undefined): string | null {
+	const said = move?.trim().replace(/\.$/, "");
+	if (!said || /^\W*(?:nothing|none|no action)\b/i.test(said)) return null;
+	return said[0].toUpperCase() + said.slice(1);
 }
 
 /**

@@ -8620,9 +8620,13 @@ function DevBoardPage() {
 						openDrawer(card);
 					}}
 					onClose={() => setDrawerCard(null)}
-					onDone={(paneId) => {
+					onDone={(paneId, then) => {
 						const card = cardById(paneId);
-						if (card) guardCards([card], () => markDone(card));
+						if (card)
+							guardCards([card], () => {
+								markDone(card);
+								then?.();
+							});
 					}}
 					onSnooze={(paneId, day) => {
 						const card = cardById(paneId);
