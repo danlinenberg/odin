@@ -112,7 +112,11 @@ import {
 	hostFileSources,
 	rememberHostFiles,
 } from "main/lib/remote-host/host-files";
-import { checkHostHealth, hostProbe } from "main/lib/remote-host/host-health";
+import {
+	checkHostHealth,
+	clusterServiceProblem,
+	hostProbe,
+} from "main/lib/remote-host/host-health";
 import { hostLoad } from "main/lib/remote-host/host-load";
 import {
 	HOST_CONNECTORS,
@@ -1042,7 +1046,26 @@ export const createRemoteHostRouter = () =>
 		health: publicProcedure.query(async () => {
 			const host = readOdinConfig().remoteHost;
 			if (!host) return null;
-			return checkHostHealth(host, Boolean(claudeToken()), hostProbe(host));
+			const [health, others] = await Promise.all([
+				checkHostHealth(host, Boolean(claudeToken()), hostProbe(host)),
+				Promise.all(
+					clusterExtras().map(async (extra) => ({
+						name: extra.name,
+						problem: await clusterServiceProblem(extra),
+					})),
+				),
+			]);
+			const stale = others.filter((other) => other.problem);
+			const service = health.checks.find((check) => check.id === "service");
+			if (service && others.length > 0)
+				if (stale.length === 0)
+					service.detail += " Up to date on the other cluster hosts too.";
+				else {
+					if (service.state === "ok") service.state = "warn";
+					service.fix ??= "setup";
+					service.detail += ` Out of date on ${stale.map((other) => `${other.name} (${other.problem})`).join(", ")}: your AWS role needs ssm:SendCommand there.`;
+				}
+			return health;
 		}),
 		/**
 		 * Sign in to AWS: the SSO sign-in, done once approved in the browser.
