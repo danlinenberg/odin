@@ -232,9 +232,13 @@ export const ghInstallScript = [
  * answered to this Linux user alone), and the service keeps it fresh:
  * the host's own sign-in refreshed there, or the laptop's latest copy.
  *
- * The helper tells the service the repo owner (useHttpPath), so a repo of
- * another account allowed on the host gets that account's token. `erase`
- * is git saying GitHub refused the token: the service then refreshes once.
+ * The helper tells the service the repo (useHttpPath), so a repo of another
+ * account allowed on the host gets that account's token, and an org's repo
+ * gets the account that can see it: a session pins one account
+ * (ODIN_GITHUB_LOGIN), and git in another repo on the host (a QA run in the
+ * clone of an org repo the session's account isn't in) got "Repository not
+ * found" with it. `erase` is git saying GitHub refused the token: the
+ * service then refreshes once.
  */
 const SERVICE_TOKEN_URL =
 	"http://127.0.0.1:$((40000 + $(id -u) % 10000 * 2))/token?service=github&login=$ODIN_GITHUB_LOGIN";
@@ -242,16 +246,15 @@ export const GIT_CREDENTIAL_HELPER = `#!/bin/sh
 # Odin's git credential helper on a remote host: GitHub gets the token Odin's
 # host service holds now, so a push never goes stale. See Odin's session.ts.
 url="${SERVICE_TOKEN_URL}"
-owner_of() { sed -n 's#^path=\\([^/]*\\)/.*#\\1#p' | head -1 | tr -cd 'A-Za-z0-9-'; }
+in=$(cat)
+owner=$(printf '%s\\n' "$in" | sed -n 's#^path=\\([^/]*\\)/.*#\\1#p' | head -1 | tr -cd 'A-Za-z0-9-')
+repo=$(printf '%s\\n' "$in" | sed -n 's#^path=[^/]*/\\([^/]*\\).*#\\1#p' | head -1 | sed 's/\\.git$//' | tr -cd 'A-Za-z0-9._-')
 case "$1" in
 get)
-  owner=$(owner_of)
-  t=$(curl -sf -m 10 "$url&owner=$owner") && [ -n "$t" ] && printf 'username=x-access-token\\npassword=%s\\n' "$t"
+  t=$(curl -sf -m 20 "$url&owner=$owner&repo=$repo") && [ -n "$t" ] && printf 'username=x-access-token\\npassword=%s\\n' "$t"
   ;;
 erase)
-  in=$(cat)
-  owner=$(printf %s "$in" | owner_of)
-  printf %s "$in" | sed -n 's/^password=//p' | curl -sf -m 30 --data-binary @- "$url&owner=$owner" >/dev/null
+  printf '%s\\n' "$in" | sed -n 's/^password=//p' | curl -sf -m 30 --data-binary @- "$url&owner=$owner&repo=$repo" >/dev/null
   ;;
 esac
 exit 0
@@ -266,8 +269,10 @@ exit 0
 export const GH_WRAPPER = `#!/bin/bash
 # Odin's gh on a remote host: signed in with the token Odin's host service
 # holds now, for the account of the repo here. See Odin's session.ts.
-owner=$(git config --get remote.origin.url 2>/dev/null | sed -n 's#.*github\\.com[:/]\\([^/]*\\)/.*#\\1#p' | tr -cd 'A-Za-z0-9-')
-t=$(curl -sf -m 10 "${SERVICE_TOKEN_URL}&owner=$owner") && [ -n "$t" ] && export GH_TOKEN="$t"
+origin=$(git config --get remote.origin.url 2>/dev/null)
+owner=$(printf %s "$origin" | sed -n 's#.*github\\.com[:/]\\([^/]*\\)/.*#\\1#p' | tr -cd 'A-Za-z0-9-')
+repo=$(printf %s "$origin" | sed -n 's#.*github\\.com[:/][^/]*/\\([^/]*\\)$#\\1#p' | sed 's/\\.git$//' | tr -cd 'A-Za-z0-9._-')
+t=$(curl -sf -m 20 "${SERVICE_TOKEN_URL}&owner=$owner&repo=$repo") && [ -n "$t" ] && export GH_TOKEN="$t"
 real="$HOME/.odin/bin/gh"
 if [ ! -x "$real" ]; then
   for c in $(type -aP gh); do [ "$c" -ef "$0" ] || { real=$c; break; }; done

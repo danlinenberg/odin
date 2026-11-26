@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import {
 	copyFile,
+	mkdir,
 	mkdtemp,
 	readFile,
 	realpath,
@@ -448,6 +449,7 @@ export async function renderBranchDiff(
 export async function renderPullRequestDiff(
 	url: string,
 	exec?: GhExec,
+	wholeFile = false,
 ): Promise<RepoDiff> {
 	const patch = await ghAsAnyAccount(
 		["pr", "diff", url, "--color=never"],
@@ -461,12 +463,170 @@ export async function renderPullRequestDiff(
 		});
 	}
 	// https://github.com/<owner>/<repo>/pull/<n>
-	const [, , , , repo, , number] = url.split("/");
+	const [, , , owner, repo, , number] = url.split("/");
+	const files = splitPatch(patch);
+	const whole = wholeFile
+		? await wholePullRequestFiles(`${owner}/${repo}`, number, files, exec)
+		: { files, note: [] };
 	return {
-		...diffOf(splitPatch(patch)),
+		...diffOf(whole.files, whole.note),
 		source: `${repo} PR #${number}`,
 		cwd: url,
 	};
+}
+
+/** `fn` over `items`, a few at a time: each one is a gh process or two. */
+async function inBatches<T, R>(
+	items: T[],
+	fn: (item: T) => Promise<R>,
+	size = 6,
+): Promise<R[]> {
+	const out: R[] = [];
+	for (let i = 0; i < items.length; i += size)
+		out.push(...(await Promise.all(items.slice(i, i + size).map(fn))));
+	return out;
+}
+
+/** Most files a PR's whole-file view reads from GitHub; past it, only the changes. */
+const MAX_WHOLE_PR_FILES = 60;
+
+/** A PR file's path before and after, null on the side it doesn't exist. */
+function pullRequestSides(file: DiffFile): {
+	oldPath: string | null;
+	newPath: string | null;
+} {
+	const header = file.patch.split("\n", 1)[0];
+	const oldPath =
+		/^rename from (.*)$/m.exec(file.patch)?.[1] ??
+		/^--- a\/(.*)$/m.exec(file.patch)?.[1] ??
+		header.match(/^diff --git a\/(.*) b\//)?.[1] ??
+		null;
+	return {
+		oldPath: /^new file mode/m.test(file.patch) ? null : oldPath,
+		newPath: /^deleted file mode/m.test(file.patch) ? null : file.path,
+	};
+}
+
+/**
+ * A PR's files with every line as context. GitHub's diff carries three lines
+ * around each change and no more, so each changed file is read at the merge
+ * base and at the head, and diffed here in a scratch repo. A file that can't
+ * be read keeps its changes-only patch, and the note says how many.
+ */
+export async function wholePullRequestFiles(
+	repo: string,
+	number: string,
+	files: DiffFile[],
+	exec?: GhExec,
+): Promise<{ files: DiffFile[]; note: string[] }> {
+	const note: string[] = [];
+	const api = (path: string, raw = false) =>
+		ghAsAnyAccount(
+			[
+				"api",
+				...(raw ? ["-H", "Accept: application/vnd.github.raw+json"] : []),
+				path,
+			],
+			(stdout) => stdout,
+			exec,
+		);
+	const pull = await api(`repos/${repo}/pulls/${number}`);
+	const shas = pull
+		? (JSON.parse(pull) as { base?: { sha?: string }; head?: { sha?: string } })
+		: null;
+	const compare =
+		shas?.base?.sha && shas.head?.sha
+			? await api(`repos/${repo}/compare/${shas.base.sha}...${shas.head.sha}`)
+			: null;
+	const base = compare
+		? (JSON.parse(compare) as { merge_base_commit?: { sha?: string } })
+				.merge_base_commit?.sha
+		: undefined;
+	const head = shas?.head?.sha;
+	if (!base || !head) {
+		note.push("GitHub didn't send the PR's commits - only the changes show");
+		return { files, note };
+	}
+
+	const wanted = files
+		.filter((file) => !file.binary)
+		.slice(0, MAX_WHOLE_PR_FILES);
+	const contentsAt = (path: string, ref: string) =>
+		api(
+			`repos/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${ref}`,
+			true,
+		);
+	const read = await inBatches(wanted, async (file) => {
+		const { oldPath, newPath } = pullRequestSides(file);
+		const [before, after] = await Promise.all([
+			oldPath ? contentsAt(oldPath, base) : "",
+			newPath ? contentsAt(newPath, head) : "",
+		]);
+		if (before === null || after === null) return null;
+		return { file, oldPath, newPath, before, after };
+	});
+
+	const dir = await mkdtemp(join(tmpdir(), "odin-pr-whole-"));
+	const git = async (args: string[]) =>
+		(
+			await execWithShellEnv("git", args, {
+				cwd: dir,
+				maxBuffer: 64 * 1024 * 1024,
+				timeout: 60_000,
+			})
+		).stdout.trim();
+	const whole = new Map<string, DiffFile>();
+	try {
+		await git(["init", "-q"]);
+		const snapshot = async (side: "before" | "after") => {
+			await git(["rm", "-r", "-q", "--cached", "--ignore-unmatch", "."]);
+			for (const entry of read) {
+				const path = side === "before" ? entry?.oldPath : entry?.newPath;
+				if (!entry || !path) continue;
+				const target = resolve(dir, path);
+				if (!target.startsWith(`${dir}${sep}`)) continue;
+				await mkdir(dirname(target), { recursive: true });
+				await writeFile(target, entry[side]);
+				await git(["add", "-f", "--", path]);
+			}
+			return git(["write-tree"]);
+		};
+		const before = await snapshot("before");
+		const after = await snapshot("after");
+		const patch = await git([
+			"--no-pager",
+			"diff",
+			"--no-color",
+			"--no-renames",
+			"-U1000000",
+			before,
+			after,
+		]);
+		for (const file of splitPatch(`${patch}\n`)) whole.set(file.path, file);
+	} catch (error) {
+		console.warn("[repos] whole PR files:", error);
+	} finally {
+		await rm(dir, { recursive: true, force: true });
+	}
+
+	const shown = files.map((file) => {
+		const entry = read[wanted.indexOf(file)];
+		if (!entry) return file;
+		// A deleted file is listed under its old path.
+		const full = whole.get(entry.newPath ?? entry.oldPath ?? file.path);
+		// Renames come back as a delete and an add: keep GitHub's patch there.
+		if (
+			!full ||
+			(entry.oldPath && entry.newPath && entry.oldPath !== entry.newPath)
+		)
+			return file;
+		return { ...file, patch: full.patch };
+	});
+	const partial = shown.filter(
+		(file, index) => file === files[index] && !file.binary,
+	).length;
+	if (partial) note.push(`${partial} file(s) show only the changes`);
+	return { files: shown, note };
 }
 
 export const createReposRouter = (
@@ -638,7 +798,8 @@ export const createReposRouter = (
 				}),
 			)
 			.query(async ({ input }) => {
-				if (input.pr) return renderPullRequestDiff(input.pr);
+				if (input.pr)
+					return renderPullRequestDiff(input.pr, undefined, input.wholeFile);
 				const { dir, transcript } = await sessionCheckout(input);
 				if (input.branch) return renderBranchDiff(dir, input.wholeFile);
 				return input.since

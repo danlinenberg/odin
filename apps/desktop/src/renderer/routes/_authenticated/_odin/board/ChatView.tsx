@@ -63,6 +63,7 @@ import { gsdAllow } from "renderer/stores/gsd-limits";
 import { useGsdModeEnabled } from "renderer/stores/gsd-mode-enabled";
 import { type HostEvent, useHostEvents } from "renderer/stores/host-connection";
 import {
+	currentHostScreen,
 	FRESH_VIEW_MS,
 	type HostScreen,
 	showHostScreen,
@@ -5321,7 +5322,7 @@ export async function runSessionCommand({
 	}
 	const view = viewTarget(command);
 	if (view) {
-		showHostScreen(paneId, view);
+		showHostScreen(paneId, currentHostScreen(paneId, view));
 		return;
 	}
 	const local = localCommand(command);

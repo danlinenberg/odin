@@ -50,6 +50,20 @@ export function showHostScreen(paneId: string, screen: HostScreen): void {
 }
 
 /**
+ * The screen a View on my computer button opens: the session's latest
+ * `!view`, not always the one on the button clicked. A restart of the app or
+ * of its viewer on the host gives it a new port and password, and an older
+ * reply's button pointed at the dead one and could not connect. `clicked`
+ * when the session has none on record yet.
+ */
+export function currentHostScreen(
+	paneId: string,
+	clicked: HostScreen,
+): HostScreen {
+	return useHostView.getState().byPane[paneId] ?? clicked;
+}
+
+/**
  * A reply this recent with a new `!view` block opens the app by itself; an
  * older one (a transcript read again after a restart) only brings the button
  * back, since its viewer is likely gone.
