@@ -735,6 +735,18 @@ function placeConversation(sessionId: string): string {
 	return `if [ -f ${sent} ]; then f=$(ls "$HOME"/.claude/projects/*/${id} 2>/dev/null | head -1); if [ -z "$f" ]; then d="$HOME/.claude/projects/$(printf %s "$PWD" | sed 's/[^A-Za-z0-9]/-/g')"; mkdir -p "$d" && mv -f ${sent} "$d"/${id}; elif [ "$(wc -c < ${sent})" -gt "$(wc -c < "$f")" ]; then mv -f ${sent} "$f"; fi; rm -f ${sent}; fi`;
 }
 
+/**
+ * git never asks for a username or password in a host session. The run
+ * script's setup (clone, fetch, worktree add) runs in the session's own
+ * terminal, before Claude starts: when the host could not hand git a GitHub
+ * token, git asked "Username for 'https://github.com/...'" there, and the
+ * Continue a Resume types into the session went in as the username. Exported
+ * for the whole session: a git that Claude runs could open the same terminal
+ * and hang on the same question.
+ */
+export const NO_GIT_PROMPT =
+	"export GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never";
+
 /** What runs inside tmux: tokens in, file gone, repo ready, Claude on. */
 export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 	const root = homePath(spec.reposRoot);
@@ -788,11 +800,15 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		// current token from the host service at each use (GITHUB_HELPERS_SCRIPT).
 		spec.githubLogin ? `export ODIN_GITHUB_LOGIN=${sh(spec.githubLogin)}` : "",
 		GITHUB_HELPERS_SCRIPT,
+		NO_GIT_PROMPT,
 		`mkdir -p ${root}`,
+		// Nothing typed into the session reaches git here: stdin is /dev/null.
 		spec.repoName && spec.cloneUrl
-			? `[ -d ${repo}/.git ] || git clone ${sh(spec.cloneUrl)} ${repo} || echo "Odin: could not clone ${spec.cloneUrl.replaceAll('"', "")}"`
+			? `[ -d ${repo}/.git ] || git clone ${sh(spec.cloneUrl)} ${repo} </dev/null || echo "Odin: could not clone ${spec.cloneUrl.replaceAll('"', "")}"`
 			: "",
-		spec.repoName ? `git -C ${repo} fetch --quiet origin || true` : "",
+		spec.repoName
+			? `git -C ${repo} fetch --quiet origin </dev/null || echo "Odin: could not fetch from GitHub on this host, so the session starts on the code it already has."`
+			: "",
 		spec.repoName ? addWorktree : "",
 		spec.repoName ? `cd ${worktree} 2>/dev/null || cd ${repo}` : `cd ${repo}`,
 		resumed
@@ -891,6 +907,13 @@ export function hostReplyScript(pane: string, text: string, now = false) {
 	].join("\n");
 }
 
+/**
+ * Exits 0 while the pane runs the run script's setup (or a git it started)
+ * instead of Claude: a reply pasted then would land in that, not in Claude.
+ */
+const STILL_SETTING_UP = (session: string) =>
+	`case "$(tmux display -p -t ${session} '#{pane_current_command}' 2>/dev/null)" in bash|sh|git|git-*|flock|ssh|python3) true ;; *) false ;; esac`;
+
 /** Reattach, or start the session in tmux. Runs as `bash -lc` in the terminal channel. */
 export function attachScript(
 	spec: RemoteSessionSpec,
@@ -906,7 +929,7 @@ export function attachScript(
 	const paste = pasteIntoTmux(session, promptB64(spec));
 	const reply =
 		spec.prompt && /--resume\b/.test(spec.claudeArgs)
-			? `( for _ in $(seq 1 120); do [ "$(tmux display -p -t ${session} '#{pane_current_command}' 2>/dev/null)" = claude ] && break; if [ -e ${idleMarker(spec.pane)} ]; then printf %s ${promptB64(spec)} | base64 -d > ${idlePrompt(spec.pane)} && tmux send-keys -t ${session} Enter; exit 0; fi; sleep 1; done; sleep 2; ${spec.since ? `${promptTaken(spec)} || ` : ""}{ ${paste}; }; ) >/dev/null 2>&1 & `
+			? `( for _ in $(seq 1 120); do [ "$(tmux display -p -t ${session} '#{pane_current_command}' 2>/dev/null)" = claude ] && break; if [ -e ${idleMarker(spec.pane)} ]; then printf %s ${promptB64(spec)} | base64 -d > ${idlePrompt(spec.pane)} && tmux send-keys -t ${session} Enter; exit 0; fi; sleep 1; done; ${STILL_SETTING_UP(session)} && exit 0; sleep 2; ${spec.since ? `${promptTaken(spec)} || ` : ""}{ ${paste}; }; ) >/dev/null 2>&1 & `
 			: "";
 	return [
 		// tmux sizes a window to one attached client. Its default, `latest`, is
