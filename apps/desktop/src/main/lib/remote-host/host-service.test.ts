@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
 	existsSync,
 	mkdirSync,
@@ -6,6 +7,7 @@ import {
 	readFileSync,
 	rmSync,
 	statSync,
+	symlinkSync,
 	utimesSync,
 	writeFileSync,
 } from "node:fs";
@@ -17,6 +19,8 @@ import {
 	hostGithubLoginFile,
 	hostPorts,
 	hostServiceInstallScript,
+	lingerCurrent,
+	lingerScript,
 } from "./host-service";
 
 // The real service, on spare ports, with a token file of its own.
@@ -594,6 +598,39 @@ test("setup gives each host user a service of their own, run by odin, which alon
 		"systemctl restart odin-host-odin-dan 'odin-host-*.service'",
 	);
 	expect(() => hostServiceInstallScript("x; rm -rf /")).toThrow();
+});
+
+test("setup keeps the host user's systemd up between logins, so a dropped connection ends no session", () => {
+	const script = hostServiceInstallScript("odin-dan");
+	expect(script).toContain(`  ${lingerScript("odin-dan")}\nfi`);
+	const dir = mkdtempSync(join(tmpdir(), "odin-linger-"));
+	try {
+		// A stand-in loginctl that records what it was asked.
+		writeFileSync(
+			join(dir, "loginctl"),
+			`#!/bin/sh\necho "$@" > "${dir}/asked"\n`,
+			{ mode: 0o755 },
+		);
+		execFileSync("/bin/bash", ["-c", lingerScript("odin-dan")], {
+			env: { PATH: `${dir}:/usr/bin:/bin` },
+		});
+		expect(readFileSync(join(dir, "asked"), "utf8")).toBe(
+			"enable-linger odin-dan\n",
+		);
+		// Not lingering yet: the service is out of date, and the next update turns it on.
+		const lingers = (path: string) =>
+			spawnSync("/bin/bash", ["-c", lingerCurrent("odin-nobody-here")], {
+				env: { PATH: path },
+			}).status === 0;
+		expect(lingers(`${dir}:/usr/bin:/bin`)).toBe(false);
+		// A host without logind has nothing to keep up.
+		const bare = mkdtempSync(join(tmpdir(), "odin-nologind-"));
+		symlinkSync("/bin/bash", join(bare, "bash"));
+		expect(lingers(bare)).toBe(true);
+		rmSync(bare, { recursive: true, force: true });
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
 });
 
 test("setup runs the host's memory watch, which leaves processes alone while all sessions have room", () => {

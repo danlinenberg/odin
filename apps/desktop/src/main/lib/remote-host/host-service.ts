@@ -649,6 +649,24 @@ done
 `;
 
 /**
+ * A host session lives in tmux, but its Claude and everything it starts in
+ * the background (a dev server, an app, a viewer) run in a memory scope of
+ * the host user's own systemd (session.ts MEMORY_LIMIT_SCRIPT). Without
+ * linger, systemd stops that user's systemd, and every scope in it, 10 s
+ * after the user's last login ends. A tmux server started outside a login (a
+ * Night Agent run, an SSM start) holds none, so a dropped connection ended
+ * the last one: every session there was killed with all it ran, and the
+ * reconnect started Claude over. Linger keeps the user's systemd up between
+ * logins, so only Done or Restart ends a session.
+ */
+export const lingerScript = (user: string) =>
+	`command -v loginctl >/dev/null && loginctl enable-linger ${user} >/dev/null 2>&1`;
+
+/** Whether the user's systemd outlives their logins (lingerScript), read as the user. */
+export const lingerCurrent = (user: string) =>
+	`{ ! command -v loginctl >/dev/null || [ -e /var/lib/systemd/linger/${user} ]; }`;
+
+/**
  * Root's part of setup, for one host user: the `odin` user, the service and
  * its systemd unit. Skipped without systemd; sessions then reach the laptop
  * directly. Replaces the one service all users shared before.
@@ -671,6 +689,7 @@ export function hostServiceInstallScript(user: string): string {
 		`  printf %s '${Buffer.from(HOST_MEMORY_WATCH_SH).toString("base64")}' | base64 -d > /usr/local/lib/odin/memory-watch.sh`,
 		"  printf '%s\\n' '[Unit]' 'Description=Odin: stops the biggest session process when all sessions run out of memory' '[Service]' 'ExecStart=/bin/bash /usr/local/lib/odin/memory-watch.sh' 'Restart=always' 'RestartSec=5' '[Install]' 'WantedBy=multi-user.target' > /etc/systemd/system/odin-memory-watch.service",
 		"  systemctl daemon-reload && systemctl enable odin-memory-watch >/dev/null 2>&1 && systemctl restart odin-memory-watch",
+		`  ${lingerScript(user)}`,
 		"fi",
 	].join("\n");
 }
