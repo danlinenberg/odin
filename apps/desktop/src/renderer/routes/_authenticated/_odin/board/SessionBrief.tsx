@@ -173,8 +173,8 @@ function MyTodo({
 			ref={setNodeRef}
 			style={{ transform: CSS.Transform.toString(transform), transition }}
 			className={cn(
-				"group relative flex items-start gap-2 text-[13px] leading-relaxed",
-				isDragging && "z-10 rounded bg-accent",
+				"group relative flex items-start gap-2 rounded-[7px] border border-border bg-background px-2 py-1.5 text-[13px] leading-relaxed",
+				isDragging && "z-10 bg-accent",
 			)}
 		>
 			<span
@@ -215,7 +215,7 @@ function MyTodo({
 							setEditing(false);
 						}
 					}}
-					className="min-w-0 flex-1 resize-none rounded border border-border bg-transparent px-1 text-soft-foreground outline-none [field-sizing:content]"
+					className="min-w-0 flex-1 resize-none rounded border border-border bg-transparent px-1 text-foreground outline-none [field-sizing:content]"
 				/>
 			) : (
 				<button
@@ -227,7 +227,7 @@ function MyTodo({
 						"min-w-0 flex-1 cursor-text whitespace-pre-wrap break-words text-left",
 						todo.done
 							? "text-faint-foreground line-through"
-							: "text-soft-foreground",
+							: "font-medium text-foreground",
 					)}
 				>
 					{todo.text}
