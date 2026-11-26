@@ -46,6 +46,28 @@ const jiraRun: LedgerRow = {
 };
 
 describe("duplicateOf", () => {
+	it("matches a Slack row to a task made from its thread link", () => {
+		const task: LedgerRow = {
+			source: "tasks",
+			externalId: "b8bc713e",
+			title:
+				"https://imagenai.slack.com/archives/C0BEXCP4P7H/p1795628465453299",
+			startedAt: 1,
+		};
+		const slack = item(
+			"Slack",
+			"C0BEXCP4P7H:1795628465.453299",
+			"Setting position first draft",
+		);
+		expect(duplicateOf(slack, [task])).toBe(task);
+		const reply = item("Slack", "C0BEXCP4P7H:1795628999.000100", "thoughts?", {
+			url: "https://imagenai.slack.com/archives/C0BEXCP4P7H/p1795628999000100?thread_ts=1795628465.453299&cid=C0BEXCP4P7H",
+		});
+		expect(duplicateOf(reply, [task])).toBe(task);
+		const other = item("Slack", "C0BEXCP4P7H:1795620000.000001", "another ask");
+		expect(duplicateOf(other, [task])).toBeNull();
+	});
+
 	it("matches a Jira row to the Slack ping already worked, by title", () => {
 		const jira = item(
 			"Jira",
