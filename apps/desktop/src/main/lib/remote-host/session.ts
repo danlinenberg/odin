@@ -262,9 +262,13 @@ export const NODE_ON_PATH = `[ -x ${HOST_NODE_DIR}/bin/node ] && ! ${NODE_IS_CUR
  * answered to this Linux user alone), and the service keeps it fresh:
  * the host's own sign-in refreshed there, or the laptop's latest copy.
  *
- * The helper tells the service the repo owner (useHttpPath), so a repo of
- * another account allowed on the host gets that account's token. `erase`
- * is git saying GitHub refused the token: the service then refreshes once.
+ * The helper tells the service the repo (useHttpPath), so a repo of another
+ * account allowed on the host gets that account's token, and an org's repo
+ * gets the account that can see it: a session pins one account
+ * (ODIN_GITHUB_LOGIN), and git in another repo on the host (a QA run in the
+ * clone of an org repo the session's account isn't in) got "Repository not
+ * found" with it. `erase` is git saying GitHub refused the token: the
+ * service then refreshes once.
  */
 const SERVICE_TOKEN_URL =
 	"http://127.0.0.1:$((40000 + $(id -u) % 10000 * 2))/token?service=github&login=$ODIN_GITHUB_LOGIN";
@@ -272,16 +276,15 @@ export const GIT_CREDENTIAL_HELPER = `#!/bin/sh
 # Odin's git credential helper on a remote host: GitHub gets the token Odin's
 # host service holds now, so a push never goes stale. See Odin's session.ts.
 url="${SERVICE_TOKEN_URL}"
-owner_of() { sed -n 's#^path=\\([^/]*\\)/.*#\\1#p' | head -1 | tr -cd 'A-Za-z0-9-'; }
+in=$(cat)
+owner=$(printf '%s\\n' "$in" | sed -n 's#^path=\\([^/]*\\)/.*#\\1#p' | head -1 | tr -cd 'A-Za-z0-9-')
+repo=$(printf '%s\\n' "$in" | sed -n 's#^path=[^/]*/\\([^/]*\\).*#\\1#p' | head -1 | sed 's/\\.git$//' | tr -cd 'A-Za-z0-9._-')
 case "$1" in
 get)
-  owner=$(owner_of)
-  t=$(curl -sf -m 10 "$url&owner=$owner") && [ -n "$t" ] && printf 'username=x-access-token\\npassword=%s\\n' "$t"
+  t=$(curl -sf -m 20 "$url&owner=$owner&repo=$repo") && [ -n "$t" ] && printf 'username=x-access-token\\npassword=%s\\n' "$t"
   ;;
 erase)
-  in=$(cat)
-  owner=$(printf %s "$in" | owner_of)
-  printf %s "$in" | sed -n 's/^password=//p' | curl -sf -m 30 --data-binary @- "$url&owner=$owner" >/dev/null
+  printf '%s\\n' "$in" | sed -n 's/^password=//p' | curl -sf -m 30 --data-binary @- "$url&owner=$owner&repo=$repo" >/dev/null
   ;;
 esac
 exit 0
@@ -296,8 +299,10 @@ exit 0
 export const GH_WRAPPER = `#!/bin/bash
 # Odin's gh on a remote host: signed in with the token Odin's host service
 # holds now, for the account of the repo here. See Odin's session.ts.
-owner=$(git config --get remote.origin.url 2>/dev/null | sed -n 's#.*github\\.com[:/]\\([^/]*\\)/.*#\\1#p' | tr -cd 'A-Za-z0-9-')
-t=$(curl -sf -m 10 "${SERVICE_TOKEN_URL}&owner=$owner") && [ -n "$t" ] && export GH_TOKEN="$t"
+origin=$(git config --get remote.origin.url 2>/dev/null)
+owner=$(printf %s "$origin" | sed -n 's#.*github\\.com[:/]\\([^/]*\\)/.*#\\1#p' | tr -cd 'A-Za-z0-9-')
+repo=$(printf %s "$origin" | sed -n 's#.*github\\.com[:/][^/]*/\\([^/]*\\)$#\\1#p' | sed 's/\\.git$//' | tr -cd 'A-Za-z0-9._-')
+t=$(curl -sf -m 20 "${SERVICE_TOKEN_URL}&owner=$owner&repo=$repo") && [ -n "$t" ] && export GH_TOKEN="$t"
 real="$HOME/.odin/bin/gh"
 if [ ! -x "$real" ]; then
   for c in $(type -aP gh); do [ "$c" -ef "$0" ] || { real=$c; break; }; done
@@ -765,6 +770,18 @@ function placeConversation(sessionId: string): string {
 	return `if [ -f ${sent} ]; then f=$(ls "$HOME"/.claude/projects/*/${id} 2>/dev/null | head -1); if [ -z "$f" ]; then d="$HOME/.claude/projects/$(printf %s "$PWD" | sed 's/[^A-Za-z0-9]/-/g')"; mkdir -p "$d" && mv -f ${sent} "$d"/${id}; elif [ "$(wc -c < ${sent})" -gt "$(wc -c < "$f")" ]; then mv -f ${sent} "$f"; fi; rm -f ${sent}; fi`;
 }
 
+/**
+ * git never asks for a username or password in a host session. The run
+ * script's setup (clone, fetch, worktree add) runs in the session's own
+ * terminal, before Claude starts: when the host could not hand git a GitHub
+ * token, git asked "Username for 'https://github.com/...'" there, and the
+ * Continue a Resume types into the session went in as the username. Exported
+ * for the whole session: a git that Claude runs could open the same terminal
+ * and hang on the same question.
+ */
+export const NO_GIT_PROMPT =
+	"export GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never";
+
 /** What runs inside tmux: tokens in, file gone, repo ready, Claude on. */
 export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 	const root = homePath(spec.reposRoot);
@@ -818,11 +835,15 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		// current token from the host service at each use (GITHUB_HELPERS_SCRIPT).
 		spec.githubLogin ? `export ODIN_GITHUB_LOGIN=${sh(spec.githubLogin)}` : "",
 		GITHUB_HELPERS_SCRIPT,
+		NO_GIT_PROMPT,
 		`mkdir -p ${root}`,
+		// Nothing typed into the session reaches git here: stdin is /dev/null.
 		spec.repoName && spec.cloneUrl
-			? `[ -d ${repo}/.git ] || git clone ${sh(spec.cloneUrl)} ${repo} || echo "Odin: could not clone ${spec.cloneUrl.replaceAll('"', "")}"`
+			? `[ -d ${repo}/.git ] || git clone ${sh(spec.cloneUrl)} ${repo} </dev/null || echo "Odin: could not clone ${spec.cloneUrl.replaceAll('"', "")}"`
 			: "",
-		spec.repoName ? `git -C ${repo} fetch --quiet origin || true` : "",
+		spec.repoName
+			? `git -C ${repo} fetch --quiet origin </dev/null || echo "Odin: could not fetch from GitHub on this host, so the session starts on the code it already has."`
+			: "",
 		spec.repoName ? addWorktree : "",
 		spec.repoName ? `cd ${worktree} 2>/dev/null || cd ${repo}` : `cd ${repo}`,
 		resumed
@@ -922,6 +943,13 @@ export function hostReplyScript(pane: string, text: string, now = false) {
 	].join("\n");
 }
 
+/**
+ * Exits 0 while the pane runs the run script's setup (or a git it started)
+ * instead of Claude: a reply pasted then would land in that, not in Claude.
+ */
+const STILL_SETTING_UP = (session: string) =>
+	`case "$(tmux display -p -t ${session} '#{pane_current_command}' 2>/dev/null)" in bash|sh|git|git-*|flock|ssh|python3) true ;; *) false ;; esac`;
+
 /** Reattach, or start the session in tmux. Runs as `bash -lc` in the terminal channel. */
 export function attachScript(
 	spec: RemoteSessionSpec,
@@ -937,7 +965,7 @@ export function attachScript(
 	const paste = pasteIntoTmux(session, promptB64(spec));
 	const reply =
 		spec.prompt && /--resume\b/.test(spec.claudeArgs)
-			? `( for _ in $(seq 1 120); do [ "$(tmux display -p -t ${session} '#{pane_current_command}' 2>/dev/null)" = claude ] && break; if [ -e ${idleMarker(spec.pane)} ]; then printf %s ${promptB64(spec)} | base64 -d > ${idlePrompt(spec.pane)} && tmux send-keys -t ${session} Enter; exit 0; fi; sleep 1; done; sleep 2; ${spec.since ? `${promptTaken(spec)} || ` : ""}{ ${paste}; }; ) >/dev/null 2>&1 & `
+			? `( for _ in $(seq 1 120); do [ "$(tmux display -p -t ${session} '#{pane_current_command}' 2>/dev/null)" = claude ] && break; if [ -e ${idleMarker(spec.pane)} ]; then printf %s ${promptB64(spec)} | base64 -d > ${idlePrompt(spec.pane)} && tmux send-keys -t ${session} Enter; exit 0; fi; sleep 1; done; ${STILL_SETTING_UP(session)} && exit 0; sleep 2; ${spec.since ? `${promptTaken(spec)} || ` : ""}{ ${paste}; }; ) >/dev/null 2>&1 & `
 			: "";
 	return [
 		// tmux sizes a window to one attached client. Its default, `latest`, is

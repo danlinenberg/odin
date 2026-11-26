@@ -71,6 +71,12 @@ export interface OdinFileConfig {
 		region?: string;
 		adminUser?: string;
 	}[];
+	/**
+	 * What each host last got of the Claude setup: a fingerprint of the chosen
+	 * parts of ~/.claude, by `instanceId:user` (main/lib/remote-host/setup-autosync).
+	 * A session start copies them again only when this differs.
+	 */
+	claudeSetupSent?: Record<string, string>;
 	/** The EC2 host new sessions run on, reached through SSM, while `on` is true. */
 	remoteHost?: {
 		on: boolean;

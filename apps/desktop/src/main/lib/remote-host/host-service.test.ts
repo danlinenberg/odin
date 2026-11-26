@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
 	existsSync,
 	mkdirSync,
@@ -6,6 +7,7 @@ import {
 	readFileSync,
 	rmSync,
 	statSync,
+	symlinkSync,
 	utimesSync,
 	writeFileSync,
 } from "node:fs";
@@ -17,6 +19,8 @@ import {
 	hostGithubLoginFile,
 	hostPorts,
 	hostServiceInstallScript,
+	lingerCurrent,
+	lingerScript,
 } from "./host-service";
 
 // The real service, on spare ports, with a token file of its own.
@@ -36,13 +40,26 @@ const post = (
 
 // A GitHub token endpoint of our own: each refresh rotates the pair.
 const refreshes: string[] = [];
+const repoChecks: string[] = [];
 let issued = 0;
 const github = Bun.serve({
 	port: 0,
 	hostname: "127.0.0.1",
 	fetch: async (req) => {
+		const path = new URL(req.url).pathname;
+		// GitHub's /repos/acme/private: shown to the other account's token alone.
+		if (path.startsWith("/repos/")) {
+			repoChecks.push(path);
+			return new Response("", {
+				status:
+					path === "/repos/acme/private" &&
+					req.headers.get("authorization") === "Bearer gho_copy"
+						? 200
+						: 404,
+			});
+		}
 		// GitHub's /user: 401 for a token it revoked.
-		if (new URL(req.url).pathname === "/user")
+		if (path === "/user")
 			return new Response("", {
 				status: req.headers.get("authorization")?.includes("revoked")
 					? 401
@@ -170,6 +187,7 @@ beforeAll(async () => {
 				PATH: process.env.PATH,
 				ODIN_GITHUB_TOKEN_URL: `http://127.0.0.1:${github.port}/token`,
 				ODIN_GITHUB_USER_URL: `http://127.0.0.1:${github.port}/user`,
+				ODIN_GITHUB_REPOS_URL: `http://127.0.0.1:${github.port}/repos/`,
 				ODIN_SLACK_API: `http://127.0.0.1:${slackApi.port}/api/`,
 				ODIN_JIRA_TOKEN_URL: `http://127.0.0.1:${jira.port}/oauth/token`,
 				ODIN_JIRA_API: `http://127.0.0.1:${jira.port}/ex/jira/`,
@@ -447,6 +465,31 @@ describe.skipIf(!live)("Odin's host service", () => {
 		);
 	});
 
+	test("an org's repo gets the account GitHub shows it to, not the session's, and the answer is remembered", async () => {
+		// The session pins dan-work, but only the other account is in the org that owns the repo.
+		const ask = "service=github&login=dan-work&owner=acme&repo=private";
+		expect(await (await token(ask)).text()).toBe("gho_copy");
+		expect(repoChecks).toEqual(["/repos/acme/private", "/repos/acme/private"]);
+		expect(await (await token(ask)).text()).toBe("gho_copy");
+		expect(repoChecks).toHaveLength(2);
+		// A repo no account sees: the session's own, as before.
+		expect(
+			await (
+				await token("service=github&login=dan-work&owner=acme&repo=gone")
+			).text(),
+		).toBe("gho_new2");
+		// An owner the host holds an account for is never asked about.
+		expect(
+			await (
+				await token("service=github&login=dan-work&owner=other&repo=x")
+			).text(),
+		).toBe("gho_copy");
+		expect(repoChecks).toHaveLength(4);
+		expect((await token("service=github&owner=acme&repo=a/b")).status).toBe(
+			400,
+		);
+	});
+
 	test("the token endpoint takes GitHub logins only, for GitHub only", async () => {
 		expect((await token("service=github&login=../tokens")).status).toBe(400);
 		expect((await token("service=slack")).status).toBe(404);
@@ -594,6 +637,39 @@ test("setup gives each host user a service of their own, run by odin, which alon
 		"systemctl restart odin-host-odin-dan 'odin-host-*.service'",
 	);
 	expect(() => hostServiceInstallScript("x; rm -rf /")).toThrow();
+});
+
+test("setup keeps the host user's systemd up between logins, so a dropped connection ends no session", () => {
+	const script = hostServiceInstallScript("odin-dan");
+	expect(script).toContain(`  ${lingerScript("odin-dan")}\nfi`);
+	const dir = mkdtempSync(join(tmpdir(), "odin-linger-"));
+	try {
+		// A stand-in loginctl that records what it was asked.
+		writeFileSync(
+			join(dir, "loginctl"),
+			`#!/bin/sh\necho "$@" > "${dir}/asked"\n`,
+			{ mode: 0o755 },
+		);
+		execFileSync("/bin/bash", ["-c", lingerScript("odin-dan")], {
+			env: { PATH: `${dir}:/usr/bin:/bin` },
+		});
+		expect(readFileSync(join(dir, "asked"), "utf8")).toBe(
+			"enable-linger odin-dan\n",
+		);
+		// Not lingering yet: the service is out of date, and the next update turns it on.
+		const lingers = (path: string) =>
+			spawnSync("/bin/bash", ["-c", lingerCurrent("odin-nobody-here")], {
+				env: { PATH: path },
+			}).status === 0;
+		expect(lingers(`${dir}:/usr/bin:/bin`)).toBe(false);
+		// A host without logind has nothing to keep up.
+		const bare = mkdtempSync(join(tmpdir(), "odin-nologind-"));
+		symlinkSync("/bin/bash", join(bare, "bash"));
+		expect(lingers(bare)).toBe(true);
+		rmSync(bare, { recursive: true, force: true });
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
 });
 
 test("setup runs the host's memory watch, which leaves processes alone while all sessions have room", () => {

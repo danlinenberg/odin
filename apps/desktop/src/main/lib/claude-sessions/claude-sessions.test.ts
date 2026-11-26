@@ -14,6 +14,7 @@ import {
 	activeLoop,
 	clip,
 	firstPrompt,
+	forgetCopies,
 	opensPr,
 	parseTranscript,
 	pendingPrompt,
@@ -1142,6 +1143,34 @@ describe("transcriptOf", () => {
 		expect((await transcriptOf(id, root))?.path).toContain(
 			"/-Users-dan-dev-app/",
 		);
+	});
+});
+
+describe("forgetCopies", () => {
+	test("a copy written to a new folder after a lookup wins at once, once forgotten", async () => {
+		const root = mkdtempSync(join(tmpdir(), "claude-forget-"));
+		const id = "eeee1111-2222-3333-4444-555566667777";
+		const row = `${JSON.stringify({ type: "user", cwd: "/home/ubuntu/app", message: { role: "user", content: "x" } })}\n`;
+		mkdirSync(join(root, "-home-ubuntu-app"));
+		writeFileSync(join(root, "-home-ubuntu-app", `${id}.jsonl`), row);
+		// The host's mirror, looked up (and remembered) by a polling chat view.
+		expect((await transcriptOf(id, root))?.path).toContain(
+			"/-home-ubuntu-app/",
+		);
+		// Run on this computer writes the conversation under its new folder.
+		mkdirSync(join(root, "-Users-me-app"));
+		writeFileSync(join(root, "-Users-me-app", `${id}.jsonl`), row);
+		utimesSync(
+			join(root, "-home-ubuntu-app", `${id}.jsonl`),
+			new Date("2026-10-21T14:00:00Z"),
+			new Date("2026-10-21T14:00:00Z"),
+		);
+		// Remembered folders only: the new copy is not seen yet.
+		expect((await transcriptOf(id, root))?.path).toContain(
+			"/-home-ubuntu-app/",
+		);
+		forgetCopies(id);
+		expect((await transcriptOf(id, root))?.path).toContain("/-Users-me-app/");
 	});
 });
 

@@ -10,7 +10,8 @@
  *   needs no sudo. Answered to the owning Linux user alone; the service
  *   writes the files itself, mode 0600.
  * - `GET /token?service=github` is the GitHub token a session's git and gh
- *   sign in with, read at each use (session.ts), so it never goes stale: the
+ *   sign in with, for the repo they name (an org's repo gets the account
+ *   GitHub shows it to), read at each use (session.ts), so it never goes stale: the
  *   host's own sign-in for the account, refreshed here before it expires or
  *   when GitHub refuses it, else the laptop's latest copy.
  * - Everything else (board actions, hooks, file reads) goes on to Odin on the
@@ -107,6 +108,11 @@ GITHUB_USER_URL = os.environ.get("ODIN_GITHUB_USER_URL") or "https://api.github.
 CHECK_EVERY = 5 * 60
 checked = {}
 LOGIN = re.compile(r"[A-Za-z0-9-]{1,39}")
+# An org's repo has no account of its own on the host: which account GitHub shows it to, asked once an hour.
+GITHUB_REPOS_URL = os.environ.get("ODIN_GITHUB_REPOS_URL") or "https://api.github.com/repos/"
+REPO = re.compile(r"[A-Za-z0-9._-]{1,100}")
+REPO_EVERY = 60 * 60
+repo_accounts = {}
 github_lock = threading.Lock()
 # The host's own Jira sign-in (Atlassian 3LO), beside the tokens file: the access token, the rotating
 # refresh token, the expiry, the OAuth app and the site. Refreshed here, so Jira works with the laptop shut.
@@ -259,6 +265,39 @@ def github_token(login, rejected=None):
     if not login or login == (t.get("githubLogin") or "").lower():
         return t.get("github")
     return None
+
+
+def sees_repo(token, owner, repo):
+    """True when GitHub shows owner/repo to the token, False when it answers 404 or 403, None when it can't be asked."""
+    req = urllib.request.Request(GITHUB_REPOS_URL + owner + "/" + repo, headers={"Authorization": "Bearer " + token, "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=10):
+            return True
+    except urllib.error.HTTPError as e:
+        return False if e.code in (401, 403, 404) else None
+    except Exception:
+        return None
+
+
+def account_for(login, owner, repo):
+    """The account a request gets. A repo whose owner is not an account the host holds (an org) gets the
+    first account GitHub shows the repo to, the session's own first: a session pins one account, and git
+    in another repo on the host got "Repository not found" with it. Remembered an hour per repo."""
+    first = pick_login(login, owner)
+    have, default = github_logins()
+    accounts = (have | {default}) - {""}
+    if not repo or owner.lower() in have or len(accounts) < 2:
+        return first
+    key = owner.lower() + "/" + repo.lower()
+    seen = repo_accounts.get(key)
+    if seen and time.time() - seen[0] < REPO_EVERY and seen[1] in accounts:
+        return seen[1]
+    for candidate in [first] + sorted(accounts - {first}):
+        token = github_token(candidate)
+        if token and sees_repo(token, owner, repo):
+            repo_accounts[key] = (time.time(), candidate)
+            return candidate
+    return first
 
 
 def github_refuses(token):
@@ -487,24 +526,27 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def token(self, query, raw, uid):
-        """GET /token?service=github[&login=][&owner=]: the current token for the session user's account,
+        """GET /token?service=github[&login=][&owner=][&repo=]: the current token for the session user's account,
         answered to that user alone. A POST carries the token GitHub just refused."""
         if uid != OWNER and not (uid is None and sys.platform != "linux"):
             return self.reply(403, "This is another user's Odin.\\n")
         q = {k: v[-1] for k, v in urllib.parse.parse_qs(query).items()}
         if q.get("service") != "github":
             return self.reply(404, "Only service=github has a token here.\\n")
-        login, owner = q.get("login", ""), q.get("owner", "")
+        login, owner, repo = q.get("login", ""), q.get("owner", ""), q.get("repo", "")
         if (login and not LOGIN.fullmatch(login)) or (owner and not LOGIN.fullmatch(owner)):
             return self.reply(400, "Not a GitHub login.\\n")
+        if repo and not REPO.fullmatch(repo):
+            return self.reply(400, "Not a GitHub repo name.\\n")
         rejected = raw.decode("utf-8", "replace").strip() if self.command == "POST" else ""
         fresh_from_laptop()
-        token = github_token(pick_login(login, owner), rejected or None)
+        account = account_for(login, owner, repo if owner else "")
+        token = github_token(account, rejected or None)
         if token and (token == rejected or github_refuses(token)):
             # Dead: the laptop's current copy (it checks its own and falls back to gh's), and the host's
             # own sign-in refreshed once more.
             fresh_from_laptop(force=True)
-            token = github_token(pick_login(login, owner), token) or token
+            token = github_token(account, token) or token
         if not token:
             return self.reply(404, "No GitHub token for this account on the host. Odin: Settings > Sessions > Remote host > GitHub accounts on the host.\\n")
         return self.reply(200, token)
@@ -649,6 +691,24 @@ done
 `;
 
 /**
+ * A host session lives in tmux, but its Claude and everything it starts in
+ * the background (a dev server, an app, a viewer) run in a memory scope of
+ * the host user's own systemd (session.ts MEMORY_LIMIT_SCRIPT). Without
+ * linger, systemd stops that user's systemd, and every scope in it, 10 s
+ * after the user's last login ends. A tmux server started outside a login (a
+ * Night Agent run, an SSM start) holds none, so a dropped connection ended
+ * the last one: every session there was killed with all it ran, and the
+ * reconnect started Claude over. Linger keeps the user's systemd up between
+ * logins, so only Done or Restart ends a session.
+ */
+export const lingerScript = (user: string) =>
+	`command -v loginctl >/dev/null && loginctl enable-linger ${user} >/dev/null 2>&1`;
+
+/** Whether the user's systemd outlives their logins (lingerScript), read as the user. */
+export const lingerCurrent = (user: string) =>
+	`{ ! command -v loginctl >/dev/null || [ -e /var/lib/systemd/linger/${user} ]; }`;
+
+/**
  * Root's part of setup, for one host user: the `odin` user, the service and
  * its systemd unit. Skipped without systemd; sessions then reach the laptop
  * directly. Replaces the one service all users shared before.
@@ -671,6 +731,7 @@ export function hostServiceInstallScript(user: string): string {
 		`  printf %s '${Buffer.from(HOST_MEMORY_WATCH_SH).toString("base64")}' | base64 -d > /usr/local/lib/odin/memory-watch.sh`,
 		"  printf '%s\\n' '[Unit]' 'Description=Odin: stops the biggest session process when all sessions run out of memory' '[Service]' 'ExecStart=/bin/bash /usr/local/lib/odin/memory-watch.sh' 'Restart=always' 'RestartSec=5' '[Install]' 'WantedBy=multi-user.target' > /etc/systemd/system/odin-memory-watch.service",
 		"  systemctl daemon-reload && systemctl enable odin-memory-watch >/dev/null 2>&1 && systemctl restart odin-memory-watch",
+		`  ${lingerScript(user)}`,
 		"fi",
 	].join("\n");
 }
