@@ -191,6 +191,12 @@ async function ensureHostService(
 	if (state === "current") return;
 	await updateHostService(host).catch((error: unknown) => {
 		if (required) throw error;
+		// Not fatal here, but an old service on the host breaks things later
+		// (a stale tunnel timeout, say), so say why it stayed old.
+		console.warn(
+			`[remote-host] couldn't update the host service on ${host.name ?? host.instanceId} as ${adminLogin(host).user}:`,
+			error,
+		);
 	});
 }
 
