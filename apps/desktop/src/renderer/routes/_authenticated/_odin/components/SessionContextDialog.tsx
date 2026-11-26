@@ -60,7 +60,7 @@ function Ask({ pending }: { pending: Pending }) {
 				onCancel={() => close(null)}
 				wherePicker
 				defaultOnHost={onHost}
-				onSubmit={(guidelines, images, _repo, picked) =>
+				onSubmit={(guidelines, images, picked) =>
 					close({ guidelines, images, onHost: picked })
 				}
 			/>

@@ -10,6 +10,21 @@ import { usePendingFocus } from "./usePendingFocus";
  * Start a My Tasks row as a session and jump to it on the board. Shared by the
  * row's Start button and the New task box's "Start now".
  */
+/**
+ * What a launch that threw tells the user. Most often it's a machine without
+ * Git: a fresh Windows, or a Mac without the Command Line Tools, where
+ * /usr/bin/git is a stub that opens Apple's installer and fails with
+ * xcode-select's note.
+ */
+export function launchErrorMessage(error: unknown): string {
+	const message = error instanceof Error ? error.message : String(error);
+	return /spawn git ENOENT/.test(message)
+		? "Odin needs Git to start a session. Install it from git-scm.com, then restart Odin."
+		: /xcode-select|No developer tools were found/.test(message)
+			? "Odin needs Git to start a session. macOS just opened an installer for it - click Install, wait for it to finish, then try again."
+			: `Couldn't start the session: ${message}`;
+}
+
 export function useStartTask() {
 	const { setPane } = useMyTasks();
 	const { ensureWorkspace } = useOdinWorkspace();
@@ -17,6 +32,14 @@ export function useStartTask() {
 	const navigate = useNavigate();
 
 	const startTask = async (task: OdinTask, context?: SessionContext) => {
+		try {
+			await start(task, context);
+		} catch (error) {
+			toast.error(launchErrorMessage(error));
+		}
+	};
+
+	const start = async (task: OdinTask, context?: SessionContext) => {
 		const ensured = await ensureWorkspace();
 		if (!ensured.ok) return toast.error(ensured.error);
 		const result = await launch({

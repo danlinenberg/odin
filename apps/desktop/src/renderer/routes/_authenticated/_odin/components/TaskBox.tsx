@@ -14,7 +14,10 @@ import { LuClock, LuSparkles, LuX } from "react-icons/lu";
 import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { usePersistedDraft } from "renderer/stores/chat-drafts";
-import { useClaudeCommand } from "renderer/stores/claude-command";
+import {
+	CLAUDE_MODELS,
+	useClaudeCommand,
+} from "renderer/stores/claude-command";
 import { describeCron, nextRun } from "shared/cron";
 import { getImageMimeType, isVideoFile } from "shared/file-types";
 import { MetaOptionSelect } from "../all/MetaOptionSelect";
@@ -1097,7 +1100,15 @@ export function parseSize(stored: string | null): [string, string] | null {
  * task lands on My Tasks and you go back to what you were doing; walking to
  * the list to write it down is how a task gets lost on the way.
  */
-export function QuickAddTask({ onClose }: { onClose: () => void }) {
+export function QuickAddTask({
+	onClose,
+	defaultRepo = "",
+}: {
+	onClose: () => void;
+	/** The repo to start from - the session you were in. It may arrive after
+	    the box opens, and only fills a repo you haven't picked yet. */
+	defaultRepo?: string;
+}) {
 	const { add } = useMyTasks();
 	const { startTask } = useStartTask();
 	const startNow = useClaudeCommand((state) => state.startNow);
@@ -1110,7 +1121,13 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 	// Kept until the task is added: closing the box, a reload or a restart
 	// brings it back the next time it opens.
 	const [draft, setDraft, markSent] = usePersistedDraft("quick-add-task");
-	const [repo, setRepo] = useState("");
+	const [repo, setRepo] = useState(defaultRepo);
+	const pickedRepo = useRef(false);
+	useEffect(() => {
+		if (defaultRepo && !pickedRepo.current) setRepo(defaultRepo);
+	}, [defaultRepo]);
+	const model = useClaudeCommand((state) => state.model);
+	const setModel = useClaudeCommand((state) => state.setModel);
 	const [fields, setFields] = useState(NO_NEW_TASK_FIELDS);
 	// This computer or the remote host, for the session Start now opens.
 	// Undefined until picked, so the launch keeps Settings' rule.
@@ -1241,7 +1258,10 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 						docs={docs}
 						repos={repos}
 						repo={repo}
-						onRepoChange={setRepo}
+						onRepoChange={(picked) => {
+							pickedRepo.current = true;
+							setRepo(picked);
+						}}
 						recentRepos={recentRepos.filter((path) => repos.includes(path))}
 						placeholder="What needs doing?"
 						onChange={setDraft}
@@ -1275,6 +1295,24 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 					{/* Only with Start now: a task added to the list is asked where
 					    to run when its row is started, so a pick here would be lost. */}
 					{startNow && <WherePicker value={onHost} onChange={setOnHost} />}
+					{/* The pick sticks for every later launch. */}
+					{startNow && (
+						<select
+							aria-label="Model"
+							value={model}
+							onChange={(event) => setModel(event.target.value)}
+							className={cn(
+								FIELD_MENU,
+								model ? "text-foreground" : "text-muted-foreground",
+							)}
+						>
+							{CLAUDE_MODELS.map((option) => (
+								<option key={option.value} value={option.value}>
+									{option.label}
+								</option>
+							))}
+						</select>
+					)}
 					<span className="ml-auto text-[11px] text-faint-foreground">
 						esc to cancel
 					</span>

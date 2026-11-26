@@ -3,12 +3,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { usePersistedDraft } from "renderer/stores/chat-drafts";
-import {
-	CLAUDE_MODELS,
-	useClaudeCommand,
-} from "renderer/stores/claude-command";
-
-import { matchRepos, repoLabel } from "./repo-picker";
+import { launchErrorMessage } from "../hooks/useStartTask";
 import { insertSkill, matchSkills, skillToken } from "./skill-picker";
 import { WherePicker } from "./WherePicker";
 
@@ -130,18 +125,14 @@ export function cardBody(title: string, source: string | null): string | null {
 /**
  * Session composer: a multi-line prompt plus images, videos and PDFs (paste, drop,
  * or pick). Attachments ride along as files in the workspace; the prompt
- * points the agent at their paths. Used by "Work on Odin" (Odin's own repo)
- * and the Dev Board's "New Task" (default repo).
+ * points the agent at their paths. Used where a session starts from a given
+ * brief: a dead card started over, a task started with extra context.
  */
 export function OdinPromptDialog({
 	heading = "Work on Odin",
 	note,
 	placeholder = "What should the agent do in Odin?",
 	defaultPrompt = "",
-	repoPicker = false,
-	defaultRepo = "",
-	modelPicker = false,
-	backlogToggle = false,
 	wherePicker = false,
 	defaultOnHost,
 	submitLabel = "Start task",
@@ -158,14 +149,6 @@ export function OdinPromptDialog({
 	 * so starting over doesn't mean retyping the ask. Editable like any prompt.
 	 */
 	defaultPrompt?: string;
-	/** Offer the machine's git checkouts as the session's directory. */
-	repoPicker?: boolean;
-	/** The picker's starting repo - the session you were in when you opened it. */
-	defaultRepo?: string;
-	/** Pick the session's model; the pick sticks for every later launch. */
-	modelPicker?: boolean;
-	/** Offer "Backlog": park the prompt on My Tasks instead of starting it. */
-	backlogToggle?: boolean;
 	/** This computer or the remote host, when one is set up. */
 	wherePicker?: boolean;
 	/** The picker's starting pick - one made before the dialog opened. */
@@ -180,8 +163,6 @@ export function OdinPromptDialog({
 	onSubmit: (
 		prompt: string,
 		files: PromptImage[],
-		/** Absolute repo path, or "" for the workspace default. */
-		repo: string,
 		/** The WherePicker pick; undefined leaves it to Settings. */
 		onHost?: boolean,
 	) => void | Promise<void>;
@@ -192,16 +173,8 @@ export function OdinPromptDialog({
 		defaultPrompt,
 	);
 	const [files, setFiles] = useState<PromptImage[]>([]);
-	// null until you type or click: the default may arrive after the dialog opens.
-	const [typedRepo, setTypedRepo] = useState<string | null>(null);
-	const recentRepos = useClaudeCommand((state) => state.recentRepos);
 	const [isDropping, setIsDropping] = useState(false);
 	const [isStarting, setIsStarting] = useState(false);
-	const model = useClaudeCommand((state) => state.model);
-	const setModel = useClaudeCommand((state) => state.setModel);
-	const storedToBacklog = useClaudeCommand((state) => state.toBacklog);
-	const setToBacklog = useClaudeCommand((state) => state.setToBacklog);
-	const toBacklog = backlogToggle && storedToBacklog;
 	const fileInput = useRef<HTMLInputElement>(null);
 	const [onHost, setOnHost] = useState(defaultOnHost);
 	const mounted = useRef(true);
@@ -219,7 +192,7 @@ export function OdinPromptDialog({
 		if (isStarting) return;
 		setIsStarting(true);
 		try {
-			await onSubmit(prompt, files, repo, onHost);
+			await onSubmit(prompt, files, onHost);
 			// Sent only if the submit closed the dialog: one that bailed stays
 			// open with the prompt, and Cancel must still keep it. A tick
 			// later, so the close has rendered.
@@ -228,17 +201,8 @@ export function OdinPromptDialog({
 			}, 0);
 		} catch (error) {
 			// A rejected launch used to be an unhandled rejection: the dialog just
-			// sat there. Most often it's a machine without Git: a fresh Windows, or
-			// a Mac without the Command Line Tools, where /usr/bin/git is a stub
-			// that opens Apple's installer and fails with xcode-select's note.
-			const message = error instanceof Error ? error.message : String(error);
-			toast.error(
-				/spawn git ENOENT/.test(message)
-					? "Odin needs Git to start a session. Install it from git-scm.com, then restart Odin."
-					: /xcode-select|No developer tools were found/.test(message)
-						? "Odin needs Git to start a session. macOS just opened an installer for it - click Install, wait for it to finish, then try again."
-						: `Couldn't start the session: ${message}`,
-			);
+			// sat there.
+			toast.error(launchErrorMessage(error));
 		} finally {
 			setIsStarting(false);
 		}
@@ -247,17 +211,6 @@ export function OdinPromptDialog({
 	// Skill picker: type `/` and the agent's own skills/commands are searchable.
 	// Picking one drops its `/name` into the prompt - the agent invokes it.
 	const { data: skills = [] } = electronTrpc.skills.list.useQuery();
-	const { data: repos = [] } = electronTrpc.repos.list.useQuery(undefined, {
-		enabled: repoPicker,
-	});
-	// A repo Odin doesn't list would only read "no match" - leave the pick to the agent.
-	const repoQuery =
-		typedRepo ?? (repos.includes(defaultRepo) ? defaultRepo : "");
-	const repoHits = matchRepos(repos, repoQuery);
-	const shownRecent = recentRepos.filter((path) => repos.includes(path));
-	// One hit is a pick; none or several means the session falls back to the
-	// workspace, so the dialog has to say which it is.
-	const repo = repoHits.length === 1 ? (repoHits[0] as string) : "";
 	const [menuClosed, setMenuClosed] = useState(false);
 	const [selected, setSelected] = useState(0);
 	const token = skillToken(prompt);
@@ -451,30 +404,7 @@ export function OdinPromptDialog({
 						))}
 					</div>
 				)}
-				{repoPicker && shownRecent.length > 0 && (
-					<div className="mt-3 flex flex-wrap items-center gap-1.5">
-						<span className="text-[11px] font-semibold text-muted-foreground">
-							Recent
-						</span>
-						{shownRecent.map((path) => (
-							<button
-								key={path}
-								type="button"
-								title={path}
-								aria-pressed={repo === path}
-								onClick={() => setTypedRepo(repo === path ? "" : path)}
-								className={`h-6 max-w-[160px] truncate rounded-[6px] px-2 text-[11px] font-semibold transition-colors ${
-									repo === path
-										? "bg-primary text-primary-foreground"
-										: "bg-secondary text-muted-foreground hover:text-foreground"
-								}`}
-							>
-								{path.split("/").pop()}
-							</button>
-						))}
-					</div>
-				)}
-				{/* The row wraps: with every picker on (repo, model, where, Backlog) it
+				{/* The row wraps: with the where picker on it
 				    outgrows the dialog, and a row that can't wrap pushed Cancel and
 				    Start out past the edge. */}
 				<div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -497,88 +427,7 @@ export function OdinPromptDialog({
 					>
 						+ Attach
 					</button>
-					{repoPicker && (
-						<>
-							<input
-								list="odin-repos"
-								aria-label="Repository"
-								value={repoQuery}
-								onChange={(event) => setTypedRepo(event.target.value)}
-								placeholder="Repo: agent picks"
-								title={repo || "Search your git checkouts"}
-								// Picking a <datalist> option marks the field :autofill, and
-								// Chromium paints that white-on-black over any bg-* - only an
-								// inset shadow and text-fill-color beat it. color-scheme darkens
-								// the dropdown itself.
-								className={`h-7 w-[200px] min-w-[120px] shrink rounded-[6px] bg-secondary px-2.5 text-[12px] font-semibold outline-none [color-scheme:inherit] placeholder:font-semibold placeholder:text-muted-foreground autofill:shadow-[inset_0_0_0_1000px_var(--secondary)] autofill:[-webkit-text-fill-color:var(--foreground)] ${
-									repo ? "text-foreground" : "text-muted-foreground"
-								}`}
-							/>
-							<datalist id="odin-repos">
-								{repos.map((path) => (
-									<option key={path} value={path}>
-										{repoLabel(path)}
-									</option>
-								))}
-							</datalist>
-							{/* What the typed text resolved to - a half-typed name is a
-							    valid pick, so say which repo it landed on. */}
-							{repoQuery.trim() && (
-								<span
-									title={repo}
-									className={`max-w-[180px] truncate text-[11px] font-semibold ${
-										repo ? "text-muted-foreground" : "text-danger"
-									}`}
-								>
-									{repo
-										? `→ ${repoLabel(repo)}`
-										: repoHits.length > 1
-											? `${repoHits.length} matches`
-											: "no match"}
-								</span>
-							)}
-						</>
-					)}
-					{modelPicker && (
-						<select
-							aria-label="Model"
-							value={model}
-							onChange={(event) => setModel(event.target.value)}
-							className={`h-7 shrink-0 rounded-[6px] bg-secondary px-2 text-[12px] font-semibold outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring [color-scheme:inherit] ${
-								model ? "text-foreground" : "text-muted-foreground"
-							}`}
-						>
-							{CLAUDE_MODELS.map((option) => (
-								<option key={option.value} value={option.value}>
-									{option.label}
-								</option>
-							))}
-						</select>
-					)}
-					{wherePicker && !toBacklog && (
-						<WherePicker value={onHost} onChange={setOnHost} />
-					)}
-					{backlogToggle && (
-						<label
-							title="Add it to My Tasks instead of starting a session now"
-							className={`flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-[6px] px-2.5 text-[12px] font-semibold transition-colors has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-primary ${
-								toBacklog
-									? "bg-primary/20 text-primary"
-									: "bg-secondary text-muted-foreground hover:text-foreground"
-							}`}
-						>
-							<input
-								type="checkbox"
-								checked={toBacklog}
-								onChange={(event) => setToBacklog(event.target.checked)}
-								className="sr-only"
-							/>
-							<span
-								className={`size-1.5 rounded-full ${toBacklog ? "bg-primary" : "bg-muted-foreground/50"}`}
-							/>
-							Backlog
-						</label>
-					)}
+					{wherePicker && <WherePicker value={onHost} onChange={setOnHost} />}
 					{/* One group, so a wrap moves Cancel and Start together to the
 					    next line's right edge instead of splitting them. */}
 					<div className="ml-auto flex shrink-0 items-center gap-1.5">
@@ -598,11 +447,7 @@ export function OdinPromptDialog({
 							{isStarting && (
 								<span className="size-[9px] animate-spin rounded-full border border-current border-t-transparent" />
 							)}
-							{isStarting
-								? "Starting…"
-								: toBacklog
-									? "Add to backlog"
-									: submitLabel}
+							{isStarting ? "Starting…" : submitLabel}
 						</button>
 					</div>
 				</div>

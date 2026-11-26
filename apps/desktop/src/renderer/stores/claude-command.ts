@@ -10,8 +10,6 @@ interface ClaudeCommandState {
 	model: string;
 	/** `--model` for the raven: Opus unless his panel's picker says otherwise. */
 	crowModel: string;
-	/** New Task: park the prompt on My Tasks instead of starting it. */
-	toBacklog: boolean;
 	/** New task: start a session on it right away instead of just listing it. */
 	startNow: boolean;
 	/** Remote Control: on for no session, every session, or the ones you pick. */
@@ -25,7 +23,6 @@ interface ClaudeCommandState {
 	setActive: (command: string) => void;
 	setModel: (model: string) => void;
 	setCrowModel: (model: string) => void;
-	setToBacklog: (toBacklog: boolean) => void;
 	setStartNow: (startNow: boolean) => void;
 	setRemoteControl: (remoteControl: RemoteControlMode) => void;
 	toggleRemotePane: (paneId: string) => void;
@@ -59,7 +56,6 @@ export const useClaudeCommand = create<ClaudeCommandState>()(
 			active: "",
 			model: "",
 			crowModel: CROW_DEFAULT_MODEL,
-			toBacklog: false,
 			startNow: false,
 			remoteControl: "off",
 			remotePanes: [],
@@ -75,7 +71,6 @@ export const useClaudeCommand = create<ClaudeCommandState>()(
 			setActive: (active) => set({ active }),
 			setModel: (model) => set({ model }),
 			setCrowModel: (crowModel) => set({ crowModel }),
-			setToBacklog: (toBacklog) => set({ toBacklog }),
 			setStartNow: (startNow) => set({ startNow }),
 			setRemoteControl: (remoteControl) => set({ remoteControl }),
 			toggleRemotePane: (paneId) =>

@@ -189,6 +189,18 @@ async function fill(selector: string, value: string) {
 	})()`);
 	if (!found) throw new Error(`no field ${selector}`);
 }
+/** Fill the New task dialog and start it, with Start now switched on. */
+async function startNewTask(prompt: string) {
+	const dialog = '[role="dialog"][aria-label="New task"]';
+	await fill(`${dialog} textarea`, prompt);
+	await page(`(() => {
+		const box = [...document.querySelectorAll(${JSON.stringify(`${dialog} label`)})]
+			.find((e) => e.textContent.includes("Start now"))?.querySelector("input");
+		if (box && !box.checked) box.click();
+	})()`);
+	await sleep(300);
+	await click(`${dialog} button`, "Start task");
+}
 async function waitForText(needle: string, present = true, ms = 15_000) {
 	const expr = `__text().includes(${JSON.stringify(needle.toLowerCase())})`;
 	for (const end = Date.now() + ms; Date.now() < end; await sleep(200)) {
@@ -291,11 +303,7 @@ try {
 	for (const sample of SESSIONS) {
 		await pressEscape();
 		await click("button", "Describe a task and start it");
-		await fill(
-			'textarea[placeholder^="What should the agent do?"]',
-			sample.title,
-		);
-		await click("button", "Start task");
+		await startNewTask(sample.title);
 		await waitForText(sample.title.slice(0, 20), true, 30_000);
 		let pid = 0;
 		for (const end = Date.now() + 60_000; !pid; await sleep(500)) {

@@ -322,6 +322,18 @@ async function fill(selector: string, value: string) {
 	})()`);
 	if (!found) throw new Error(`no field ${selector}`);
 }
+/** Fill the New task dialog and start it, with Start now switched on. */
+async function startNewTask(prompt: string) {
+	const dialog = '[role="dialog"][aria-label="New task"]';
+	await fill(`${dialog} textarea`, prompt);
+	await page(`(() => {
+		const box = [...document.querySelectorAll(${JSON.stringify(`${dialog} label`)})]
+			.find((e) => e.textContent.includes("Start now"))?.querySelector("input");
+		if (box && !box.checked) box.click();
+	})()`);
+	await sleep(300);
+	await click(`${dialog} button`, "Start task");
+}
 async function waitForText(needle: string, present = true, ms = 15_000) {
 	const expr = `__text().includes(${JSON.stringify(needle.toLowerCase())})`;
 	for (const end = Date.now() + ms; Date.now() < end; await sleep(200)) {
@@ -1107,8 +1119,7 @@ await step(
 		await rail("Dev Board");
 		await waitForText("next in line");
 		await click("button", "Describe a task and start it");
-		await fill('textarea[placeholder^="What should the agent do?"]', SESSION);
-		await click("button", "Start task");
+		await startNewTask(SESSION);
 		await waitForText(SESSION, true, 30_000);
 		// The crow keeps its own claude warm, so pick out the run that
 		// carries this session's prompt. The card is up before the launch gate
@@ -1511,8 +1522,7 @@ await step(
 	async () => {
 		const stamp = Date.now();
 		const start = async (prompt: string) => {
-			await fill('textarea[placeholder^="What should the agent do?"]', prompt);
-			await click("button", "Start task");
+			await startNewTask(prompt);
 			await waitForText(prompt, true, 30_000);
 		};
 		// The list shows with two sessions in flight; a queued one isn't.
@@ -1657,11 +1667,7 @@ await macStep(
 			await rail("Dev Board");
 			await waitForText("next in line");
 			await click("button", "Describe a task and start it");
-			await fill(
-				'textarea[placeholder^="What should the agent do?"]',
-				`No git ${Date.now()}`,
-			);
-			await click("button", "Start task");
+			await startNewTask(`No git ${Date.now()}`);
 			await waitForText("macOS just opened an installer", true, 30_000);
 			await page(
 				`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
