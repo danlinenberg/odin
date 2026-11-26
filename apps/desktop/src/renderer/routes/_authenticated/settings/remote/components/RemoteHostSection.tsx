@@ -14,6 +14,7 @@ import {
 } from "@odin/ui/select";
 import { toast } from "@odin/ui/sonner";
 import { Switch } from "@odin/ui/switch";
+import { Textarea } from "@odin/ui/textarea";
 import { cn } from "@odin/ui/utils";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -860,6 +861,11 @@ export function RemoteHostSection() {
 							</Button>
 						</div>
 					</SettingRow>
+					<BringCredentialsRow
+						files={current.host.bringFiles ?? []}
+						env={current.host.bringEnv ?? []}
+						onSaved={refresh}
+					/>
 				</>
 			)}
 			{!current?.host && (
@@ -1251,6 +1257,96 @@ export function RemoteHostSection() {
 				</CollapsibleContent>
 			</Collapsible>
 		</SettingsSection>
+	);
+}
+
+/** One entry per line (a path may hold spaces), or for names, commas and spaces too. */
+const listOf = (text: string, by = /\n/) =>
+	text
+		.split(by)
+		.map((entry) => entry.trim())
+		.filter(Boolean);
+const namesOf = (text: string) => listOf(text, /[\s,]+/);
+
+/**
+ * Files and env vars from this computer, brought to the host one by one: a
+ * private key, a tool's config, SNOWFLAKE_ACCOUNT. Nothing goes by default.
+ * Each file lands at the same place in your own home there, mode 0600; the
+ * env vars reach your host sessions only (main/lib/remote-host/local-credentials).
+ */
+function BringCredentialsRow({
+	files,
+	env,
+	onSaved,
+}: {
+	files: string[];
+	env: string[];
+	onSaved: () => void;
+}) {
+	const [filesDraft, setFilesDraft] = useState(files.join("\n"));
+	const [envDraft, setEnvDraft] = useState(env.join(" "));
+	const save = electronTrpc.remoteHost.setBringCredentials.useMutation({
+		onSuccess: () => {
+			toast.success("Copied to the host");
+			onSaved();
+		},
+		onError: (error) => {
+			toast.error(error.message);
+			onSaved();
+		},
+	});
+	const changed =
+		listOf(filesDraft).join("\n") !== files.join("\n") ||
+		namesOf(envDraft).join(" ") !== env.join(" ");
+	return (
+		<SettingRow
+			label="Files and env vars from this computer"
+			stacked
+			description={
+				<span className="select-text cursor-text">
+					Credentials your host sessions need, such as a private key or
+					SNOWFLAKE_ACCOUNT. Nothing goes unless you list it here. Each file is
+					copied to the same place in your own home on the host, readable only
+					by you (mode 0600); the env vars reach only your sessions there.
+				</span>
+			}
+		>
+			<div className="space-y-2">
+				<Textarea
+					aria-label="Files to bring to the host, one per line"
+					className="font-mono text-xs"
+					placeholder={"~/.snowflake/rsa_key.p8\n~/.config/tool/credentials"}
+					value={filesDraft}
+					onChange={(event) => setFilesDraft(event.target.value)}
+				/>
+				<Input
+					aria-label="Env var names to bring to the host"
+					className="font-mono text-xs"
+					placeholder="SNOWFLAKE_ACCOUNT SNOWFLAKE_USER"
+					value={envDraft}
+					onChange={(event) => setEnvDraft(event.target.value)}
+				/>
+				<div className="flex items-center justify-between gap-4">
+					<span className="text-xs text-muted-foreground">
+						{save.isPending
+							? "Copying to the host..."
+							: files.length || env.length
+								? `${files.length} ${files.length === 1 ? "file" : "files"} and ${env.length} env ${env.length === 1 ? "var" : "vars"} go to the host, again every 30 minutes`
+								: "Nothing goes to the host"}
+					</span>
+					<Button
+						size="sm"
+						variant="outline"
+						disabled={save.isPending || !changed}
+						onClick={() =>
+							save.mutate({ files: listOf(filesDraft), env: namesOf(envDraft) })
+						}
+					>
+						{save.isPending ? "Copying..." : "Save"}
+					</Button>
+				</div>
+			</div>
+		</SettingRow>
 	);
 }
 
