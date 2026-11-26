@@ -5,7 +5,7 @@ import {
 	unreadPings,
 	useReplyWatch,
 } from "../components/ReplyWatch";
-import { showsBar, ticketKey } from "./SessionReminders";
+import { monthDays, showsBar, ticketKey } from "./SessionReminders";
 
 test("ticketKey reads the leading Jira key", () => {
 	expect(ticketKey("CRR-917: Add DB field for signup endpoint")).toBe(
@@ -69,4 +69,15 @@ test("a ping shows only on its own profile's bar", () => {
 	expect(unreadPings(watches, "default").map((p) => p.key)).toEqual([
 		"jira:P-1",
 	]);
+});
+
+test("monthDays pads to Sunday and lists every day", () => {
+	// November 2026 starts on a Sunday, February 2027 on a Monday.
+	const nov = monthDays(2026, 10);
+	expect(nov[0]).toBe("2026-11-01");
+	expect(nov.length).toBe(30);
+	const feb = monthDays(2027, 1);
+	expect(feb[0]).toBeNull();
+	expect(feb[1]).toBe("2027-02-01");
+	expect(feb.at(-1)).toBe("2027-02-28");
 });

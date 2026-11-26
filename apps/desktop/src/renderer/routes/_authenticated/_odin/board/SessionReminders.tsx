@@ -3,9 +3,10 @@ import {
 	HoverCardContent,
 	HoverCardTrigger,
 } from "@odin/ui/hover-card";
+import { Popover, PopoverContent, PopoverTrigger } from "@odin/ui/popover";
 import { toast } from "@odin/ui/sonner";
 import { useNavigate } from "@tanstack/react-router";
-import { useRef } from "react";
+import { useState } from "react";
 import { LuBellRing } from "react-icons/lu";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
@@ -127,7 +128,28 @@ export function remindSession(
 	});
 }
 
-/** The bell: opens the OS date picker, tomorrow at the earliest. */
+/**
+ * The days a month's grid shows, Sunday first: leading nulls pad the first
+ * week. `month` is 0-based, like Date's.
+ */
+export function monthDays(year: number, month: number): (string | null)[] {
+	const pad = new Date(year, month, 1).getDay();
+	const count = new Date(year, month + 1, 0).getDate();
+	const mm = String(month + 1).padStart(2, "0");
+	return [
+		...Array<null>(pad).fill(null),
+		...Array.from(
+			{ length: count },
+			(_, i) => `${year}-${mm}-${String(i + 1).padStart(2, "0")}`,
+		),
+	];
+}
+
+/**
+ * The bell: a small calendar, tomorrow at the earliest. Only a click on a day
+ * picks - the OS date picker fired on its month arrows too, and a pick ends
+ * the session.
+ */
 export function RemindButton({
 	onPick,
 	className,
@@ -137,36 +159,93 @@ export function RemindButton({
 	className: string;
 	label?: string;
 }) {
-	const input = useRef<HTMLInputElement>(null);
+	const [open, setOpen] = useState(false);
+	const min = dayOf(Date.now() + 86_400_000);
+	const [view, setView] = useState(() => {
+		const d = new Date(`${min}T00:00`);
+		return { year: d.getFullYear(), month: d.getMonth() };
+	});
+	const shift = (by: number) =>
+		setView(({ year, month }) => {
+			const d = new Date(year, month + by, 1);
+			return { year: d.getFullYear(), month: d.getMonth() };
+		});
 	return (
-		<span className="relative inline-flex shrink-0">
-			<input
-				ref={input}
-				type="date"
-				min={dayOf(Date.now() + 86_400_000)}
-				value=""
-				onChange={(e) => e.target.value && onPick(e.target.value)}
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger asChild>
+				<button
+					type="button"
+					title="Remind me - done for now, back on a day you pick"
+					aria-label="Remind me"
+					// A board card is itself a button - don't open its drawer.
+					onClick={(e) => e.stopPropagation()}
+					className={className}
+				>
+					<LuBellRing className="inline size-3 align-[-2px]" aria-hidden />
+					{label && ` ${label}`}
+				</button>
+			</PopoverTrigger>
+			<PopoverContent
+				className="w-auto p-3"
+				// The portal still bubbles through React: keep clicks off the card,
+				// and mousedowns off a menu that closes on outside mousedown.
 				onClick={(e) => e.stopPropagation()}
-				tabIndex={-1}
-				aria-hidden
-				style={{ colorScheme: "dark" }}
-				className="pointer-events-none absolute inset-0 size-full opacity-0"
-			/>
-			<button
-				type="button"
-				title="Remind me - done for now, back on a day you pick"
-				aria-label="Remind me"
-				// A board card is itself a button - don't open its drawer.
-				onClick={(e) => {
-					e.stopPropagation();
-					input.current?.showPicker();
-				}}
-				className={className}
+				onMouseDown={(e) => e.stopPropagation()}
 			>
-				<LuBellRing className="inline size-3 align-[-2px]" aria-hidden />
-				{label && ` ${label}`}
-			</button>
-		</span>
+				<div className="mb-2 flex items-center justify-between text-[13px] font-semibold">
+					<button
+						type="button"
+						aria-label="Previous month"
+						onClick={() => shift(-1)}
+						className="rounded px-2 hover:bg-accent"
+					>
+						‹
+					</button>
+					{new Date(view.year, view.month).toLocaleDateString(undefined, {
+						month: "long",
+						year: "numeric",
+					})}
+					<button
+						type="button"
+						aria-label="Next month"
+						onClick={() => shift(1)}
+						className="rounded px-2 hover:bg-accent"
+					>
+						›
+					</button>
+				</div>
+				<div className="grid grid-cols-7 gap-0.5 text-center text-[12px]">
+					{["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+						<span
+							// biome-ignore lint/suspicious/noArrayIndexKey: fixed weekday row
+							key={i}
+							className="py-1 font-semibold text-muted-foreground"
+						>
+							{d}
+						</span>
+					))}
+					{monthDays(view.year, view.month).map((day, i) =>
+						day ? (
+							<button
+								key={day}
+								type="button"
+								disabled={day < min}
+								onClick={() => {
+									setOpen(false);
+									onPick(day);
+								}}
+								className="size-7 rounded hover:bg-attention/20 disabled:pointer-events-none disabled:opacity-35"
+							>
+								{Number(day.slice(8))}
+							</button>
+						) : (
+							// biome-ignore lint/suspicious/noArrayIndexKey: leading blanks
+							<span key={i} />
+						),
+					)}
+				</div>
+			</PopoverContent>
+		</Popover>
 	);
 }
 
