@@ -19,8 +19,6 @@ import { openUrl } from "renderer/stores/in-app-browser";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { useTodayOverview } from "renderer/stores/today-overview";
 import { freshTldr, latestReply } from "shared/latest-reply";
-import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
-import { COMPACT_MARKDOWN } from "../components/TranscriptView";
 import { type AllItem, livePanesOn, urgencyOf } from "../all/all-items";
 import { TaskDetails } from "../all/TaskDetails";
 import { TaskSidePanel } from "../all/TaskSidePanel";
@@ -30,6 +28,7 @@ import { useStartAllItem } from "../all/use-start-item";
 import { ROW_LIVE_BUTTON } from "../components/FeedChrome";
 import { BUTTON } from "../components/pill";
 import { daysUntil, effectiveDue, useReminders } from "../components/Reminders";
+import { TranscriptView } from "../components/TranscriptView";
 import {
 	isAnswerItem,
 	isApprovalItem,
@@ -738,7 +737,6 @@ function usePilotBrief(sessionId: string | null | undefined) {
 		const messages = transcript?.messages ?? [];
 		const todo = transcript ? actionItems(messages) : [];
 		const last = latestReply(messages);
-		const full = last ? splitActionItems(last.text).body.trim() : "";
 		// Measured without its ACTION ITEMS: those are on the card already.
 		const tldr = freshTldr(
 			last && { ...last, text: splitActionItems(last.text).body },
@@ -769,7 +767,6 @@ function usePilotBrief(sessionId: string | null | undefined) {
 		return {
 			todo,
 			tldr,
-			full,
 			move,
 			settled,
 			reason: dropped ?? move,
@@ -807,7 +804,7 @@ function PilotCard({
 	reply: ReactNode;
 }) {
 	const brief = usePilotBrief(task.items[0].sessionId);
-	const { todo, tldr, full, settled, reason, links } = brief;
+	const { todo, tldr, settled, reason, links } = brief;
 	const stands = standing(task);
 	const ask = settled
 		? "Nothing needed from you"
@@ -842,8 +839,6 @@ function PilotCard({
 				)}
 				<TaskMarks task={task} now={now} />
 			</div>
-			<div className="grid items-start gap-x-8 gap-y-4 @4xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-			<div className="flex min-w-0 flex-col gap-4">
 			<div className="flex flex-col gap-1.5">
 				<h2
 					title={ask}
@@ -894,29 +889,6 @@ function PilotCard({
 					))}
 				</div>
 			)}
-			{full && full !== tldr?.last && (
-				<details className="rounded-lg border border-border" open>
-					<summary className={cn(LABEL, "cursor-pointer select-none px-4 py-2.5")}>
-						The agent's full reply
-					</summary>
-					<div className="max-h-[50vh] select-text cursor-text overflow-y-auto border-t border-border px-4 py-3">
-						<MarkdownRenderer
-							content={full}
-							style="default"
-							allowHtml={false}
-							className={COMPACT_MARKDOWN}
-						/>
-					</div>
-				</details>
-			)}
-			</div>
-			<div className="flex min-w-0 flex-col gap-4 @4xl:sticky @4xl:top-0">
-			{task.about && (tldr || stands) && (
-				<p className="select-text cursor-text text-[13px] leading-relaxed text-muted-foreground">
-					<span className={cn(LABEL, "mr-2")}>What it is</span>
-					{sentence(task.about)}
-				</p>
-			)}
 			<TaskItems
 				task={task}
 				onOpen={actions.onOpen}
@@ -933,8 +905,6 @@ function PilotCard({
 				onSkip={onSkip}
 				settled={settled}
 			/>
-			</div>
-			</div>
 		</article>
 	);
 }
@@ -1850,6 +1820,8 @@ function AutoPilot({
 	// The card is the main view: its session stays shut until you peek at it
 	// (Space or its name on the card), and a peek ends when you move on.
 	const peeking = !!task?.items.some((item) => item.key === openPaneId);
+	// The card's session reads along beside it, unless it is open live.
+	const session = (!peeking && task?.items[0].sessionId) || null;
 	const closePeek = (id: string) => {
 		const done = queued.find((t) => t.id === id);
 		if (done?.items.some((item) => item.key === openPaneId))
@@ -1994,69 +1966,129 @@ function AutoPilot({
 					</div>
 				)}
 			</nav>
-			<div className="flex min-w-0 flex-1 flex-col">
-				<div className="@container min-h-0 flex-1 overflow-y-auto">
-					<div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3 px-5 pb-10 pt-6 @5xl:px-8">
-						{task && (
-							<p className="flex justify-between px-1 text-[12px] text-muted-foreground tabular-nums">
-								<span>
-									{queue.indexOf(task.id) + 1} of {left}
-								</span>
-								{skipped.includes(task.id) && <span>skipped once</span>}
+			<div className="@container flex min-w-0 flex-1">
+				<div
+					className={cn(
+						"flex min-w-0 flex-1 flex-col",
+						session &&
+							"@4xl:w-[480px] @4xl:flex-none @4xl:border-r @4xl:border-border @6xl:w-[560px]",
+					)}
+				>
+					<div className="min-h-0 flex-1 overflow-y-auto">
+						<div className="mx-auto flex w-full max-w-[760px] flex-col gap-3 px-5 pb-10 pt-6">
+							{task && (
+								<p className="flex justify-between px-1 text-[12px] text-muted-foreground tabular-nums">
+									<span>
+										{queue.indexOf(task.id) + 1} of {left}
+									</span>
+									{skipped.includes(task.id) && <span>skipped once</span>}
+								</p>
+							)}
+							{task ? (
+								<PilotCard
+									key={task.id}
+									task={task}
+									now={now}
+									open={peeking}
+									actions={actions}
+									onPeek={peek}
+									onActed={() => acted(task.id)}
+									onSkip={() => skip(task.id)}
+									reply={
+										<PilotReply
+											paneId={task.items[0].key}
+											inputRef={replyRef}
+											onSent={() => acted(task.id)}
+										/>
+									}
+								/>
+							) : (
+								<div className="flex flex-col gap-1 rounded-xl border border-border px-5 py-4">
+									<p className="text-[17px] font-semibold text-success-ink">
+										All clear
+									</p>
+									<p className="text-[14px] text-muted-foreground">
+										Nothing needs you right now. The next task comes up here as
+										soon as a session asks you something.
+									</p>
+								</div>
+							)}
+							<p
+								aria-live="polite"
+								className="min-h-5 px-1 text-[13px] font-medium text-success-ink"
+							>
+								{handoff}
 							</p>
-						)}
-						{task ? (
-							<PilotCard
-								key={task.id}
-								task={task}
-								now={now}
-								open={peeking}
-								actions={actions}
-								onPeek={peek}
-								onActed={() => acted(task.id)}
-								onSkip={() => skip(task.id)}
-								reply={
-									<PilotReply
-										paneId={task.items[0].key}
-										inputRef={replyRef}
-										onSent={() => acted(task.id)}
-									/>
-								}
-							/>
-						) : (
-							<div className="flex flex-col gap-1 rounded-xl border border-border px-5 py-4">
-								<p className="text-[17px] font-semibold text-success-ink">
-									All clear
-								</p>
-								<p className="text-[14px] text-muted-foreground">
-									Nothing needs you right now. The next task comes up here as
-									soon as a session asks you something.
-								</p>
-							</div>
-						)}
-						<p
-							aria-live="polite"
-							className="min-h-5 px-1 text-[13px] font-medium text-success-ink"
-						>
-							{handoff}
-						</p>
+						</div>
 					</div>
+					{task && (
+						<p className="flex shrink-0 flex-wrap justify-center gap-x-5 gap-y-1 border-t border-border px-5 py-2 text-[12px] text-muted-foreground">
+							<span>
+								<kbd className={KBD}>{peekKey}</kbd>{" "}
+								{peeking ? "close the live session" : "open the live session"}
+							</span>
+							<span>
+								<kbd className={KBD}>{skipKey}</kbd> next
+							</span>
+							<span>
+								<kbd className={KBD}>{replyKey}</kbd> reply
+							</span>
+						</p>
+					)}
 				</div>
-				{task && (
-					<p className="flex shrink-0 flex-wrap justify-center gap-x-5 gap-y-1 border-t border-border px-5 py-2 text-[12px] text-muted-foreground">
-						<span>
-							<kbd className={KBD}>{peekKey}</kbd>{" "}
-							{peeking ? "close the session" : "peek at the session"}
-						</span>
-						<span>
-							<kbd className={KBD}>{skipKey}</kbd> next
-						</span>
-						<span>
-							<kbd className={KBD}>{replyKey}</kbd> reply
-						</span>
-					</p>
+				{session && task && (
+					<PilotSession
+						key={session}
+						sessionId={session}
+						title={task.items[0].title ?? task.name}
+						onOpen={peek}
+						openKey={peekKey}
+					/>
 				)}
 			</div>
+		</section>
+	);
+}
+
+/**
+ * The card's session, read along beside it: the conversation itself, newest
+ * at the bottom, so the context is there without opening anything. Hidden
+ * while the live session is open beside the page, and on a narrow window.
+ */
+function PilotSession({
+	sessionId,
+	title,
+	onOpen,
+	openKey,
+}: {
+	sessionId: string;
+	title: string;
+	onOpen: () => void;
+	openKey: string;
+}) {
+	return (
+		<section
+			aria-label="The session"
+			className="hidden min-w-0 flex-1 flex-col @4xl:flex"
+		>
+			<header className="flex shrink-0 items-center gap-3 border-b border-border px-5 py-2.5">
+				<p className={LABEL}>The session</p>
+				<p className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
+					{title}
+				</p>
+				<button
+					type="button"
+					title="Open the live session beside the page"
+					onClick={onOpen}
+					className={cn(
+						"inline-flex items-center gap-1.5 whitespace-nowrap rounded-[7px] px-2 py-1 text-[12px] font-semibold",
+						BUTTON.secondary,
+					)}
+				>
+					Open live <kbd className={KBD}>{openKey}</kbd>
+				</button>
+			</header>
+			<TranscriptView sessionId={sessionId} />
 		</section>
 	);
 }
