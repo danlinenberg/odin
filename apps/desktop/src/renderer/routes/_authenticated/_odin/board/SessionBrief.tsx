@@ -1552,8 +1552,8 @@ export function SessionBrief({
 						className="rounded-[7px] border border-border bg-background px-2 py-1 text-[12px] text-soft-foreground placeholder:text-faint-foreground focus:border-primary focus:outline-none"
 					/>
 				</div>
-				<div className="flex flex-col gap-1 pt-2">
-					<div className="text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
+				<div className="mt-2 flex flex-col gap-1.5 rounded-[9px] border border-primary/40 bg-primary/5 p-2">
+					<div className="text-[12px] font-semibold text-foreground">
 						My notes
 					</div>
 					<MyTodos paneId={paneId} />
@@ -1567,7 +1567,7 @@ export function SessionBrief({
 						}}
 						placeholder={`Notes to yourself - saved as you type. ${sendKeys} adds it to your to-dos.`}
 						rows={4}
-						className="resize-y rounded-[7px] border border-border bg-background px-2 py-1.5 text-[13px] leading-relaxed text-soft-foreground placeholder:text-faint-foreground focus:border-primary focus:outline-none"
+						className="resize-y rounded-[7px] border border-border bg-background px-2 py-1.5 text-[13px] leading-relaxed text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
 					/>
 					{notes.trim() && (
 						<button
