@@ -42,6 +42,7 @@ import {
 	LuChevronLeft,
 	LuChevronRight,
 	LuCircleCheck,
+	LuCircleX,
 	LuClock,
 	LuCode,
 	LuCoffee,
@@ -56,6 +57,7 @@ import {
 	LuLayers,
 	LuLayoutGrid,
 	LuListChecks,
+	LuMessageCircleQuestion,
 	LuMessageSquare,
 	LuMoon,
 	LuPause,
@@ -2879,6 +2881,15 @@ const sameCard = (a: BoardCard, b: BoardCard) =>
 	a.workspaceId === b.workspaceId &&
 	a.repoPath === b.repoPath;
 
+/** The session list's status word and icon, as Auto pilot's queue shows them. */
+const STATUS_MARK: Record<PaneStatus, { Icon: typeof LuPlay; tone: string }> = {
+	permission: { Icon: LuMessageCircleQuestion, tone: "text-attention-ink" },
+	review: { Icon: LuCircleCheck, tone: "text-success-ink" },
+	working: { Icon: LuPlay, tone: "text-working-ink" },
+	idle: { Icon: LuPause, tone: "text-muted-foreground" },
+	failed: { Icon: LuCircleX, tone: "text-danger-ink" },
+};
+
 /**
  * One row of the drawer's session list. Memoized like BoardCardTile: the list
  * re-rendered every row on each board render while you read a session.
@@ -2995,30 +3006,20 @@ const SwitchRow = memo(function SwitchRow({
 					}}
 				/>
 			) : (
-				// The status dot's slot doubles as the tick box in select mode.
-				<span className="relative flex size-3.5 shrink-0 items-center justify-center">
-					{showTicks ? (
-						<input
-							type="checkbox"
-							aria-label={`Select ${title}`}
-							title="Select - shift-click selects a range"
-							checked={picked}
-							onChange={() => {}}
-							onClick={(event) => {
-								event.stopPropagation();
-								actions.tickRow(card.pane.id, event.shiftKey);
-							}}
-							className="size-3.5 cursor-pointer accent-primary"
-						/>
-					) : (
-						<span
-							className="size-2 rounded-full"
-							style={{
-								background: PANE_STATUS[card.status].dot,
-							}}
-						/>
-					)}
-				</span>
+				showTicks && (
+					<input
+						type="checkbox"
+						aria-label={`Select ${title}`}
+						title="Select - shift-click selects a range"
+						checked={picked}
+						onChange={() => {}}
+						onClick={(event) => {
+							event.stopPropagation();
+							actions.tickRow(card.pane.id, event.shiftKey);
+						}}
+						className="size-3.5 shrink-0 cursor-pointer accent-primary"
+					/>
+				)
 			)}
 			{!min && (
 				<span className="flex min-w-0 flex-1 flex-col">
@@ -3042,9 +3043,25 @@ const SwitchRow = memo(function SwitchRow({
 					<WatchRowLine paneId={card.pane.id} status={status} />
 				</span>
 			)}
+			{!min && <StatusWord status={card.status} />}
 		</div>
 	);
 });
+
+function StatusWord({ status }: { status: PaneStatus }) {
+	const { Icon, tone } = STATUS_MARK[status];
+	return (
+		<span
+			className={cn(
+				"inline-flex shrink-0 items-center gap-1 self-start pt-px text-[11px] font-normal",
+				tone,
+			)}
+		>
+			<Icon className="size-3" aria-hidden />
+			{PANE_STATUS[status].label.toLowerCase()}
+		</span>
+	);
+}
 
 const BoardCardTile = memo(
 	function BoardCardTile({
