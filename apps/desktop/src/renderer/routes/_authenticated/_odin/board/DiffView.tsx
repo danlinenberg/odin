@@ -77,8 +77,8 @@ export function DiffView({
 			return true;
 		}
 	});
-	/** Every line of each file, not only the changed hunks. Working tree only:
-	 * GitHub sends a PR's diff with three lines of context and no more. */
+	/** Every line of each file, not only the changed hunks. For a PR, Odin
+	 * reads each file from GitHub, since its diff has three lines of context. */
 	const [wholeFile, setWholeFile] = useState(false);
 	const toggleWrap = () => {
 		setWrap(!wrap);
@@ -121,7 +121,7 @@ export function DiffView({
 			workspaceId,
 			pr,
 			branch,
-			wholeFile: !pr && wholeFile,
+			wholeFile,
 			since: sinceReview,
 		},
 		{
@@ -368,20 +368,18 @@ export function DiffView({
 						{showSince ? "◷ since review" : "± all changes"}
 					</button>
 				)}
-				{!pr && (
-					<button
-						type="button"
-						onClick={() => setWholeFile(!wholeFile)}
-						title={
-							wholeFile
-								? "Showing the whole file - click to show only the changes"
-								: "Showing only the changes - click to scroll the whole file"
-						}
-						className={`${!choice && since ? "" : "ml-auto "}normal-case tracking-normal hover:underline ${wholeFile ? "text-primary" : "text-muted-foreground"}`}
-					>
-						{wholeFile ? "≡ whole file" : "± changes only"}
-					</button>
-				)}
+				<button
+					type="button"
+					onClick={() => setWholeFile(!wholeFile)}
+					title={
+						wholeFile
+							? "Showing the whole file - click to show only the changes"
+							: "Showing only the changes - click to scroll the whole file"
+					}
+					className={`${!choice && since ? "" : "ml-auto "}normal-case tracking-normal hover:underline ${wholeFile ? "text-primary" : "text-muted-foreground"}`}
+				>
+					{wholeFile ? "≡ whole file" : "± changes only"}
+				</button>
 				<button
 					type="button"
 					onClick={toggleWrap}
@@ -390,7 +388,7 @@ export function DiffView({
 							? "Long lines wrap - click to keep them on one line and scroll sideways"
 							: "Long lines run on - click to wrap them"
 					}
-					className={`${pr ? "ml-auto " : ""}normal-case tracking-normal hover:underline ${wrap ? "text-primary" : "text-muted-foreground"}`}
+					className={`normal-case tracking-normal hover:underline ${wrap ? "text-primary" : "text-muted-foreground"}`}
 				>
 					{wrap ? "↵ wrap on" : "→ wrap off"}
 				</button>
