@@ -5440,20 +5440,32 @@ function DevBoardPage() {
 				(card) => sortViewedAt[card.pane.id] ?? 0,
 			),
 		);
-	// A group in flight brings its Idle members along, so it stays together.
+	// Ungrouped, a group in flight brings its Idle members along, so it stays
+	// together. Grouped by status, Idle members stay in the folded Idle list.
 	const inFlightGroups = new Set(
-		sortedSwitchCards.flatMap((card) => card.pane.odinGroup?.name ?? []),
+		isSwitchGrouped
+			? []
+			: sortedSwitchCards.flatMap((card) => card.pane.odinGroup?.name ?? []),
 	);
 	const isWithGroup = (card: BoardCard) =>
 		inFlightGroups.has(card.pane.odinGroup?.name ?? "");
-	// Each group together, leader first, under its most urgent member's status.
-	const switchCards = keepGroupsTogether(
-		[
-			...sortedSwitchCards,
-			...(cardsByStatus.get("idle") ?? []).filter(isWithGroup),
-		],
-		groupPlace,
-	);
+	// Grouped by status, each row sits under its own status (a "Final Review"
+	// row under Needs you read as a contradiction), its group's rows together
+	// within that status, leader first. Ungrouped, each group stays together.
+	const switchCards = isSwitchGrouped
+		? (["permission", "review", "working"] as const).flatMap((status) =>
+				keepGroupsTogether(
+					sortedSwitchCards.filter((card) => card.status === status),
+					groupPlace,
+				),
+			)
+		: keepGroupsTogether(
+				[
+					...sortedSwitchCards,
+					...(cardsByStatus.get("idle") ?? []).filter(isWithGroup),
+				],
+				groupPlace,
+			);
 	// Idle sits under the list, folded until opened; remembered per machine.
 	// Not in switchCards: the next/prev keys reach it only while it's open.
 	const idleSwitchCards = (cardsByStatus.get("idle") ?? [])
@@ -9161,7 +9173,9 @@ function DevBoardPage() {
 																{
 																	switchCards.filter(
 																		(c) =>
-																			c.pane.odinGroup?.name === group.name,
+																			c.pane.odinGroup?.name === group.name &&
+																			(!isSwitchGrouped ||
+																				c.place === card.place),
 																	).length
 																}
 															</span>
