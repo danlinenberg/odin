@@ -161,6 +161,7 @@ export function TodayOverview({
 	pilot,
 	onNew,
 	onOpen,
+	onClose,
 	onDone,
 	onSnooze,
 }: {
@@ -273,7 +274,12 @@ export function TodayOverview({
 		return lanes.yours[at + 1] ?? lanes.yours.find((task) => task.id !== id);
 	};
 	const advance = (id: string) => setShown(nextAfter(id)?.id ?? null);
-	const actions: TodayActions = { onOpen: openSession, onDone, onSnooze };
+	const actions: TodayActions = {
+		onOpen: openSession,
+		onClose,
+		onDone,
+		onSnooze,
+	};
 	const step = (by: 1 | -1) => {
 		const next = moveSelection(by, selected, tasks.length);
 		if (next === null) return;
@@ -588,6 +594,8 @@ const LABEL =
 export interface TodayActions {
 	/** Opens the session in the drawer beside the page. */
 	onOpen: (paneId: string) => void;
+	/** Closes the session open beside the page. */
+	onClose?: () => void;
 	/** Ends the session and takes it off the board, like the board's Done. */
 	onDone?: (paneId: string) => void;
 	/** Done for now; it comes back on `day` (YYYY-MM-DD), like Remind me. */
@@ -608,7 +616,7 @@ function StartHere({
 	onShow,
 	onActed,
 	onSkip,
-	slim,
+	pilot,
 }: Omit<TaskProps, "onShow"> & {
 	actions: TodayActions;
 	onShow: (taskId: string) => void;
@@ -617,15 +625,66 @@ function StartHere({
 	/** Auto pilot only: moves this task to the end of the queue. */
 	onSkip?: () => void;
 	/**
-	 * Auto pilot, with its session open beside it: the session's Brief already
-	 * shows the goal, where it stands and the session's facts, so the card
-	 * keeps only the title, what to answer and the buttons.
+	 * Auto pilot's unblock card: the agent's ask as the headline, where it
+	 * stands, the action items to answer and the buttons. The session stays
+	 * shut until you peek at it.
 	 */
-	slim?: boolean;
+	pilot?: boolean;
 }) {
 	const first = task.items[0];
 	const todo = useActionItems(first.sessionId);
-	const stands = slim ? null : standing(task);
+	const stands = standing(task);
+	if (pilot)
+		return (
+			<li
+				data-today-task={task.id}
+				className={cn(
+					"@container flex flex-col gap-4 rounded-xl border border-primary/45 bg-card px-6 py-5",
+					open && "border-primary/70",
+				)}
+			>
+				<div className="flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
+					<button
+						type="button"
+						title="Peek at its session beside the card"
+						onClick={() => onShow(task.id)}
+						className="min-w-0 truncate font-medium underline-offset-2 hover:text-foreground hover:underline"
+					>
+						{task.name}
+					</button>
+					{todo[0] && (
+						<span className={cn(CHIP, "font-semibold text-attention-ink")}>
+							{itemKind(todo[0])}
+						</span>
+					)}
+					<TaskMarks task={task} now={now} />
+				</div>
+				<h2 className="select-text cursor-text text-[22px] font-semibold leading-snug tracking-[-.2px]">
+					{todayTitle(task, todo[0])}
+				</h2>
+				{(stands || task.about) && (
+					<div className="select-text cursor-text rounded-lg border border-border bg-background/60 px-4 py-3 text-[14px] leading-relaxed">
+						<p className={LABEL}>{stands ? "Where it stands" : "What it is"}</p>
+						<p className="text-foreground/90">
+							{stands ?? sentence(task.about)}
+						</p>
+					</div>
+				)}
+				<TaskItems
+					task={task}
+					onOpen={actions.onOpen}
+					onShow={() => onShow(task.id)}
+					onSent={onActed}
+					slim
+				/>
+				<TaskButtons
+					task={task}
+					actions={actions}
+					onActed={onActed}
+					onSkip={onSkip}
+				/>
+			</li>
+		);
 	return (
 		<li
 			data-today-task={task.id}
@@ -636,12 +695,9 @@ function StartHere({
 			)}
 		>
 			<div className="flex flex-wrap items-center gap-2">
-				{/* Auto pilot shows one card at a time, so the badge says nothing there. */}
-				{!onSkip && (
-					<span className="rounded-full bg-attention px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[.08em] text-background">
-						Start here
-					</span>
-				)}
+				<span className="rounded-full bg-attention px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[.08em] text-background">
+					Start here
+				</span>
 				{todo[0] && (
 					<span className={cn(CHIP, "text-[12px] font-semibold")}>
 						{itemKind(todo[0])}
@@ -657,17 +713,15 @@ function StartHere({
 			>
 				{todayTitle(task, todo[0])}
 			</button>
-			{!slim && (
-				<p className="select-text cursor-text text-[14px] leading-snug">
-					<span className="font-semibold">{task.name}</span>
-					{task.about && <>: {sentence(task.about)}</>}
-				</p>
-			)}
+			<p className="select-text cursor-text text-[14px] leading-snug">
+				<span className="font-semibold">{task.name}</span>
+				{task.about && <>: {sentence(task.about)}</>}
+			</p>
 			<div
-				hidden={slim || (!task.explain && !stands)}
+				hidden={!task.explain && !stands}
 				className="grid select-text cursor-text gap-x-6 gap-y-2.5 text-[14px] leading-relaxed @2xl:grid-cols-2"
 			>
-				{!slim && task.explain && (
+				{task.explain && (
 					<div>
 						<p className={LABEL}>Why it matters</p>
 						<p className="text-foreground/90">{sentence(task.explain)}</p>
@@ -685,7 +739,6 @@ function StartHere({
 				onOpen={actions.onOpen}
 				onShow={() => onShow(task.id)}
 				onSent={onActed}
-				slim={slim}
 			/>
 			<TaskButtons
 				task={task}
@@ -1447,14 +1500,14 @@ function PilotReply({
 const HANDOFF_MS = 2500;
 
 /**
- * Auto pilot: a workspace to stay in. Left, the queue: every task waiting on
- * you (click one to take it now), then the sessions moving without you, and
- * New session. Middle, the task on top: answer it, finish or snooze it and the
- * next one comes up. Right, that task's session, opened by itself, so you see
- * its chat while you answer, unless another session is open there: that one
- * stays. The card stays until you act on it or skip it. The session you
- * answered keeps going on its own. X skips the card to the end, Space opens
- * its session (rebindable in Settings > Keyboard).
+ * Auto pilot: a workspace to unblock agents in. Left, the queue: every task
+ * waiting on you with what it asks (click one to take it now), then the
+ * sessions moving without you, and New session. Middle, the unblock card for
+ * the task on top: answer it, finish or snooze it and the next one comes up.
+ * The session stays shut until you peek at it (Space opens and closes it
+ * beside the card); moving on closes the peek. The card stays until you act
+ * on it or skip it. The session you answered keeps going on its own. X skips
+ * the card to the end (keys rebindable in Settings > Keyboard).
  */
 function AutoPilot({
 	yours,
@@ -1529,22 +1582,27 @@ function AutoPilot({
 	}, [pick]);
 	const task = queued.find((t) => t.id === pick) ?? null;
 	const left = ids.filter((id) => !handled.has(id)).length;
-	// The card's session opens beside it by itself, once per card, and only
-	// when no session is open: the one you are reading never gets swapped for
-	// the next card's (picking a task from the queue opens its session). Close it and it stays closed until the next card.
-	const firstKey = task?.items[0].key ?? null;
-	const openedFor = useRef<string | null>(null);
-	useEffect(() => {
-		if (!pick || !firstKey || openedFor.current === pick) return;
-		openedFor.current = pick;
-		if (!openPaneId) actions.onOpen(firstKey);
-	}, [pick, firstKey, openPaneId, actions]);
+	// The card is the main view: its session stays shut until you peek at it
+	// (Space or its name on the card), and a peek ends when you move on.
+	const peeking = !!task?.items.some((item) => item.key === openPaneId);
+	const closePeek = (id: string) => {
+		const done = queued.find((t) => t.id === id);
+		if (done?.items.some((item) => item.key === openPaneId))
+			actions.onClose?.();
+	};
+	const peek = () => {
+		if (!task) return;
+		if (peeking) actions.onClose?.();
+		else actions.onOpen(task.items[0].key);
+	};
 	const acted = (id: string) => {
+		closePeek(id);
 		setHandled((old) => new Set(old).add(id));
 		if (chosen === id) setChosen(null);
 		setHandoff("Sent. Odin is on it.");
 	};
 	const skip = (id: string) => {
+		closePeek(id);
 		setSkipped((old) => [...old.filter((s) => s !== id), id]);
 		if (chosen === id) setChosen(null);
 		setHandoff("Next one. That one comes back at the end.");
@@ -1554,11 +1612,7 @@ function AutoPilot({
 		enableOnContentEditable: false,
 		enabled: !!task,
 	};
-	useHotkey(
-		"PILOT_PEEK",
-		() => task && actions.onOpen(task.items[0].key),
-		keys,
-	);
+	useHotkey("PILOT_PEEK", peek, keys);
 	useHotkey("PILOT_SKIP", () => task && skip(task.id), keys);
 	const replyRef = useRef<HTMLTextAreaElement>(null);
 	useHotkey("PILOT_REPLY", () => replyRef.current?.focus(), keys);
@@ -1607,41 +1661,20 @@ function AutoPilot({
 						{queue.map((id, i) => {
 							const row = queued.find((t) => t.id === id);
 							if (!row) return null;
-							const { Icon, tone } = GROUP_MARK[row.group];
 							return (
-								<li key={id}>
-									<button
-										type="button"
-										title={`${todayGroupLabel(row.group)} - take this one now`}
-										onClick={() => {
-											// A task you pick brings its session along, even
-											// over the one open now.
-											openedFor.current = id;
-											setChosen(id);
-											actions.onOpen(row.items[0].key);
-										}}
-										className={cn(
-											"flex w-full items-baseline gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] leading-snug hover:bg-secondary/60",
-											id === pick && "bg-primary/15 font-semibold",
-										)}
-									>
-										<span className="w-4 shrink-0 text-[12px] font-semibold text-attention">
-											{i + 1}
-										</span>
-										<span className="min-w-0 flex-1 truncate">{row.name}</span>
-										<span
-											className={cn(
-												"inline-flex shrink-0 items-center gap-1 self-center text-[11px] font-normal",
-												skipped.includes(id) ? "text-muted-foreground" : tone,
-											)}
-										>
-											<Icon className="size-3" aria-hidden />
-											{skipped.includes(id)
-												? "skipped"
-												: todayGroupLabel(row.group).toLowerCase()}
-										</span>
-									</button>
-								</li>
+								<PilotRow
+									key={id}
+									task={row}
+									number={i + 1}
+									current={id === pick}
+									skipped={skipped.includes(id)}
+									onPick={() => {
+										setChosen(id);
+										// Peeking stays on: the picked task's session takes the place
+										// of the one open.
+										if (peeking) actions.onOpen(row.items[0].key);
+									}}
+								/>
 							);
 						})}
 					</ol>
@@ -1693,10 +1726,10 @@ function AutoPilot({
 								picked={false}
 								open={task.items.some((item) => item.key === openPaneId)}
 								actions={actions}
-								onShow={() => actions.onOpen(task.items[0].key)}
+								onShow={peek}
 								onActed={() => acted(task.id)}
 								onSkip={() => skip(task.id)}
-								slim={task.items.some((item) => item.key === openPaneId)}
+								pilot
 							/>
 						</ol>
 					) : null}
@@ -1728,7 +1761,8 @@ function AutoPilot({
 					{task && (
 						<p className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-muted-foreground">
 							<span>
-								<kbd className={KBD}>{peekKey}</kbd> open its session
+								<kbd className={KBD}>{peekKey}</kbd>{" "}
+								{peeking ? "close the session" : "peek at the session"}
 							</span>
 							<span>
 								<kbd className={KBD}>{skipKey}</kbd> next
@@ -1741,6 +1775,75 @@ function AutoPilot({
 				</div>
 			</div>
 		</section>
+	);
+}
+
+/**
+ * A row in Auto pilot's queue: its number, the task, and on a second line
+ * what it asks of you, with the kind of ask (Answer, Approve, Do...) or its
+ * status when it left no action item.
+ */
+function PilotRow({
+	task,
+	number,
+	current,
+	skipped,
+	onPick,
+}: {
+	task: TodayTaskView<TodayItem>;
+	number: number;
+	current: boolean;
+	skipped: boolean;
+	onPick: () => void;
+}) {
+	const todo = useActionItems(task.items[0].sessionId);
+	const { Icon, tone } = GROUP_MARK[task.group];
+	const ask = todayTitle(task, todo[0]);
+	return (
+		<li>
+			<button
+				type="button"
+				title={`${ask} - take this one now`}
+				onClick={onPick}
+				className={cn(
+					"flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] leading-snug hover:bg-secondary/60",
+					current && "bg-primary/15",
+				)}
+			>
+				<span className="w-4 shrink-0 text-[12px] font-semibold text-attention">
+					{number}
+				</span>
+				<span className="flex min-w-0 flex-1 flex-col">
+					<span
+						className={cn("truncate font-medium", current && "font-semibold")}
+					>
+						{task.name}
+					</span>
+					{ask !== task.name && (
+						<span className="truncate text-[12px] text-muted-foreground">
+							{ask}
+						</span>
+					)}
+				</span>
+				<span
+					className={cn(
+						"mt-px inline-flex shrink-0 items-center gap-1 text-[11px]",
+						skipped ? "text-muted-foreground" : tone,
+					)}
+				>
+					{skipped ? (
+						"skipped"
+					) : todo[0] ? (
+						itemKind(todo[0]).toLowerCase()
+					) : (
+						<>
+							<Icon className="size-3" aria-hidden />
+							{todayGroupLabel(task.group).toLowerCase()}
+						</>
+					)}
+				</span>
+			</button>
+		</li>
 	);
 }
 
