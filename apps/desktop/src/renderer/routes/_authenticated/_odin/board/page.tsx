@@ -8619,6 +8619,7 @@ function DevBoardPage() {
 						// stays in view and a click on another row switches the session.
 						openDrawer(card);
 					}}
+					onClose={() => setDrawerCard(null)}
 					onDone={(paneId) => {
 						const card = cardById(paneId);
 						if (card) guardCards([card], () => markDone(card));
