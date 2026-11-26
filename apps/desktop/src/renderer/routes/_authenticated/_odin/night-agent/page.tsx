@@ -604,7 +604,7 @@ function useNights() {
 /**
  * What the last window started - the morning's question - and where each
  * session stands now. Tonight's, while the window is open. A row opens the
- * session: on the board, or in Session History once it's Done.
+ * session: on the board, or in Task History once it's Done.
  */
 function LastNightSection() {
 	const hasLog = useNextInLinePrompt((s) => s.nightLog.length > 0);
@@ -744,7 +744,7 @@ function StartedRow({
 			type="button"
 			disabled={!canOpen}
 			onClick={open}
-			title={onBoard ? "Open on the board" : "Open in Session History"}
+			title={onBoard ? "Open on the board" : "Open in Task History"}
 			className="group flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/30 disabled:cursor-default disabled:hover:bg-transparent"
 		>
 			<span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold tabular-nums text-primary">

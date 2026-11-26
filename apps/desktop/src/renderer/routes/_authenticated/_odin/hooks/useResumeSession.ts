@@ -5,7 +5,7 @@ import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { useOdinWorkspace } from "./useOdinWorkspace";
 import { usePendingFocus } from "./usePendingFocus";
 
-/** A finished conversation, as Session History and Docs know it. */
+/** A finished conversation, as Task History and Docs know it. */
 export interface ResumableSession {
 	sessionId: string;
 	/** Where it ran. Null when the transcript never recorded one. */
@@ -20,7 +20,7 @@ export interface ResumableSession {
  * the session's own directory (its original pane is long gone). The new pane's
  * id, or why it couldn't start.
  *
- * Shared by Session History, the Docs page's Back to board and the phone.
+ * Shared by Task History, the Docs page's Back to board and the phone.
  */
 export async function resumeSession(
 	row: ResumableSession,

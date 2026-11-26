@@ -7,7 +7,7 @@ type GsdLimitsState = GsdAllow & {
 };
 
 /**
- * Settings → Sessions → GSD Mode: what GSD Mode may do by itself. All off by
+ * Settings → Running tasks → GSD Mode: what GSD Mode may do by itself. All off by
  * default. Renderer localStorage: three booleans, a fixed-size singleton, and
  * the chat that runs GSD Mode is the only reader.
  */

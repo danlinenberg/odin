@@ -97,7 +97,7 @@ const firstName = () => {
 	return user && user[0].toUpperCase() + user.slice(1);
 };
 
-/** The raven's models: New Session's, less "Default model" - his own default is Opus. */
+/** The raven's models: New Task's, less "Default model" - his own default is Opus. */
 const CROW_MODELS = CLAUDE_MODELS.filter((option) => option.value);
 
 /**

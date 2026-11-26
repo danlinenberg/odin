@@ -96,8 +96,8 @@ export const Route = createFileRoute("/_authenticated/_odin/all/")({
  * sits above the bands.
  *
  * Only tasks are listed. A task with a session running says Working on its
- * own row, with Go to session beside it; every session you start by hand has
- * a task (the board's New Session adds one), so nothing running is left out.
+ * own row, with Open on board beside it; every session you start by hand has
+ * a task (the board's New Task adds one), so nothing running is left out.
  *
  * Rows are filtered from one menu - source, priority, place, status, due,
  * done - and what's applied shows as chips under the header, so the list

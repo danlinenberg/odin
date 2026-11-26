@@ -446,7 +446,7 @@ test("a task's session is found by its pane id when the names differ", () => {
 	});
 	if (!task) throw new Error("no row");
 	expect(task.paneIds).toEqual(["pane-9"]);
-	// New Session named it "/ship-status"; the task's title has no slash.
+	// New Task named it "/ship-status"; the task's title has no slash.
 	expect(
 		paneWorksOn({ id: "pane-9", odinTaskTitle: "/ship-status" }, task),
 	).toBe(true);

@@ -139,7 +139,7 @@ function DocsPage() {
 									</button>
 									<button
 										type="button"
-										title="Take it off Docs - Session History still has it"
+										title="Take it off Docs - Task History still has it"
 										onClick={() => undo(row)}
 										className="shrink-0 text-[11px] text-muted-foreground hover:text-foreground"
 									>

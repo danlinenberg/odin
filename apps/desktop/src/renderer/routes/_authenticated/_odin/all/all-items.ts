@@ -89,7 +89,7 @@ export interface AllItem {
 	/** Whatever else the source knows that the card has no room for -
 	 * label/value pairs for the hover card, in reading order. */
 	details: [string, string][];
-	/** What to hand `launch` when Start session is clicked on this row. */
+	/** What to hand `launch` when Start task is clicked on this row. */
 	launch: AllLaunch;
 	/** The same task in other feeds, folded into this row (merge-duplicates). */
 	also?: AllItem[];
@@ -98,7 +98,7 @@ export interface AllItem {
 	/**
 	 * My own tasks only: the sessions started on it. Holds the link when a
 	 * session's name no longer matches the task's - renamed, retitled from its
-	 * brief, or started from New Session with a "/skill" or "!" first line.
+	 * brief, or started from New Task with a "/skill" or "!" first line.
 	 */
 	paneIds?: string[];
 }
@@ -144,7 +144,7 @@ const paneBorn = (id: string) => Number(id.split("-")[1]) || 0;
 
 /**
  * Every session still open on this row, newest first - a task can have
- * several. Go to session takes the first.
+ * several. Open on board takes the first.
  */
 export function livePanesOn<P extends RowPane>(panes: P[], item: AllItem): P[] {
 	return panes
@@ -818,7 +818,7 @@ function withWhom(attendees: string[]): string {
  * A meeting is a task to prepare for. It's due the day it happens, so today's
  * meetings sit in Now and tomorrow's in Later, and the date column says Today
  * or Tomorrow. The time and who's in it lead the preview line; Open joins the
- * call. Start session hands the agent the agenda and the attendees to prepare
+ * call. Start task hands the agent the agenda and the attendees to prepare
  * from.
  */
 function meetingItem(meeting: Meeting): AllItem {

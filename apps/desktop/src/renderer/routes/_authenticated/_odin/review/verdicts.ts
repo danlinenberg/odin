@@ -120,7 +120,7 @@ export interface LivePane {
  * The running session working this row, if any - a DROP with one still going
  * means you're spending time on something that's done.
  *
- * Same links "Start session" uses: a task remembers its pane, Slack and Notion
+ * Same links "Start task" uses: a task remembers its pane, Slack and Notion
  * sessions carry the page id, and Jira/PR launches are titled `<key>: …`. The
  * bare title is the fallback for anything launched before those existed.
  */

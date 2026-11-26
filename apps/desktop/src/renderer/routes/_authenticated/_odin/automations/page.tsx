@@ -1216,7 +1216,7 @@ function SchedulesPanel() {
 											}}
 											className={ROW_LIVE_BUTTON}
 										>
-											Go to session →
+											Open on board →
 										</button>
 									)}
 									<button

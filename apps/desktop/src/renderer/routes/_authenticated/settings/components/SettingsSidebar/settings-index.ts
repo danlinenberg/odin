@@ -30,7 +30,7 @@ export const SCREENS = [
 	},
 	{
 		to: "/settings/sessions",
-		label: "Sessions",
+		label: "Running tasks",
 		hint: "Default folder, limits, idle close",
 		icon: LuSquareTerminal,
 	},

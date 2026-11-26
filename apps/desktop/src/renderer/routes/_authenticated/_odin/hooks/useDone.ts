@@ -21,7 +21,7 @@ export interface Doable {
 }
 
 /**
- * A session's Done: kill its PTY and take it off the board. Session History
+ * A session's Done: kill its PTY and take it off the board. Task History
  * resumes it from Claude's transcript on disk. Remote Control ends with the
  * PTY, and the pane leaves the Selected sessions list. A session on the
  * remote host ends there too: killing the PTY only detaches from its tmux.

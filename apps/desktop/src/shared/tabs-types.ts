@@ -169,7 +169,7 @@ export interface Pane {
 	/** Notion pageId this session was launched from. */
 	odinPageId?: string;
 	/** Which Odin view started this session - the board's column sections.
-	 *  Absent = started from a prompt (New Session / Work on Odin). */
+	 *  Absent = started from a prompt (New Task / Work on Odin). */
 	odinSource?: "slack" | "reactions" | "jira" | "pr" | "notion";
 	/** Free-form labels for filtering the board (right-click a card). */
 	odinTags?: string[];

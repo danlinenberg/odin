@@ -605,16 +605,16 @@ export function TaskRow({
 						{activePaneId ? (
 							<button
 								type="button"
-								aria-label="Go to session"
+								aria-label="Open on board"
 								onClick={() => rows.goToPane(activePaneId)}
 								className={cn(ROW_LIVE_BUTTON, "px-2.5")}
 							>
-								Go to session
+								Open on board
 							</button>
 						) : (
 							<button
 								type="button"
-								aria-label="Start session"
+								aria-label="Start task"
 								title={START_SESSION_TIP}
 								disabled={rows.isLaunching}
 								onClick={() => void rows.start(item)}

@@ -6,7 +6,7 @@ import { getNotificationsPort } from "./notifications/listen";
 /**
  * The Odin extension for Chrome: on any page, the sessions that worked on what
  * it shows (a design file, an email campaign, a doc), with a count on its
- * toolbar icon and a list that opens each one in Odin's Session History. It
+ * toolbar icon and a list that opens each one in Odin's Task History. It
  * asks this Odin's /sessions/for-url, which matches the page URL's ids against
  * what each session's MCP calls and links named.
  *

@@ -596,7 +596,7 @@ export function opensTerminalScreen(text: string): boolean {
 	);
 }
 
-/** The picker's models: New Session's, less "Default model". */
+/** The picker's models: New Task's, less "Default model". */
 const CHAT_MODELS = CLAUDE_MODELS.filter((option) => option.value);
 
 /** The latest `!view` block's screen and when its reply came, if any. */
@@ -3590,7 +3590,7 @@ export function ChatView({
 	onResumeWith?: (text: string) => void;
 	/** Sends a reply in place of typing it into the PTY - the raven's, which brings a dead PTY back first. */
 	onSend?: (text: string) => void;
-	/** Quits Claude and reopens this conversation (the board's Restart session), opening with `prompt` when given. */
+	/** Quits Claude and reopens this conversation (the board's Restart), opening with `prompt` when given. */
 	onRestart?: (prompt?: string) => void;
 	/** Moves a remote session whose host is down to the remote host `to`. */
 	onMoveToHost?: (to: string) => void;
@@ -4694,7 +4694,7 @@ export function ChatView({
 							<div className="flex items-center gap-3 text-[13px] text-working">
 								<WorkingMark />
 								<span className="select-text cursor-text">
-									{connecting ?? "Starting session…"}
+									{connecting ?? "Starting…"}
 								</span>
 								{awaitsAwsSignIn(connecting) && (
 									<AwsSignInButton onClick={() => void sendKeys(["\r"])} />

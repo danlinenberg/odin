@@ -30,7 +30,7 @@ describe("boardIdentity", () => {
 	};
 
 	it("gives a resumed session back the ask, the person and the feed item", () => {
-		// What Session History knows: Claude's title for the transcript, nothing else.
+		// What Task History knows: Claude's title for the transcript, nothing else.
 		expect(
 			boardIdentity({ title: "Ingest and execute Slack thread task" }, ledger),
 		).toEqual({

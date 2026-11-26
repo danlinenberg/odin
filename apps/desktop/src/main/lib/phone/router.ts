@@ -641,7 +641,7 @@ export const phoneRouter = t.router({
 		),
 
 	/**
-	 * Every session's conversation, searched as Session History does (the
+	 * Every session's conversation, searched as Task History does (the
 	 * desktop's ⌘F): titles, prompts and what was said. A session on the board
 	 * comes with its paneId, which the phone opens.
 	 */

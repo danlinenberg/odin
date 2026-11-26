@@ -5,7 +5,7 @@ import { persist } from "zustand/middleware";
  * The board's Today view. EXPERIMENT: off by default (`experiment`); Settings >
  * Advanced turns it on and adds the Today icon to the view toggle. With it on,
  * the board also switches to Today once a day, the first time it opens with
- * work on it (`enabled`; Settings → Sessions turns that off). Auto pilot is
+ * work on it (`enabled`; Settings → Running tasks turns that off). Auto pilot is
  * its own experiment (`autoPilot`), also off by default. A fixed-size
  * singleton: three switches and the last day it was shown.
  */

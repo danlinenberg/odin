@@ -7,7 +7,7 @@ import { localDb } from "main/lib/local-db";
 import { profileOf } from "shared/odin-profile";
 
 /**
- * Who asked for each session, so Session History can be searched by person.
+ * Who asked for each session, so Task History can be searched by person.
  *
  * A reporter's name is never in the transcript - the prompt is the ticket, not
  * the person - so it has to be joined in from what Odin recorded at launch.
@@ -30,7 +30,7 @@ export function sessionPeople(): Map<string, SessionPerson> {
 	}
 	// The ledger only sharpens what the panes already say, so a store that
 	// can't answer (a build predating its migration) must not take the whole of
-	// Session History down with it.
+	// Task History down with it.
 	let logged: {
 		sessionId: string | null;
 		person: string | null;
@@ -79,7 +79,7 @@ export function sessionProfileOf(): (sessionId: string) => string {
 }
 
 /**
- * What Session History searches for one profile: which sessions it lists, and
+ * What Task History searches for one profile: which sessions it lists, and
  * the people who asked for those (the chips) - another profile's sessions and
  * askers stay on that profile.
  */

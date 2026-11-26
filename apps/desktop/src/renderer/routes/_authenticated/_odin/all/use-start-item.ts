@@ -14,13 +14,13 @@ import { usePendingFocus } from "../hooks/usePendingFocus";
 import { type AllItem, livePanesOn } from "./all-items";
 import { useTaskMeta } from "./task-meta";
 
-/** Hover text on Start / Start session, in the panel and on a row. */
+/** Hover text on Start / Start task, in the panel and on a row. */
 export const START_SESSION_TIP =
-	"Start a Claude session on this task: pick where it runs, then it opens on the Dev Board with the task (and your notes) as its brief. The session stays linked to the task, so this button turns into Go to session while it runs.";
+	"Start a Claude session on this task: pick where it runs, then it opens on the Dev Board with the task (and your notes) as its brief. The session stays linked to the task, so this button turns into Open on board while it runs.";
 
 /** Hover text on Start another session, on a row or in the panel. */
 export const START_ANOTHER_TIP =
-	"Start another session on this task - it stays linked too, and Go to session opens the newest";
+	"Start another session on this task - it stays linked too, and Open on board opens the newest";
 
 export { paneWorksOn } from "./all-items";
 
@@ -50,14 +50,14 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 	/**
 	 * The pane already working this row, if there is one. Panes carry the page
 	 * id for Slack/Notion and the launch title for everything else - matching
-	 * both is what keeps Start session from opening a second agent on a ticket
+	 * both is what keeps Start task from opening a second agent on a ticket
 	 * that already has one. The brief too: it's written once at launch, while
 	 * the title gets auto-retitled and a session started from the Notion mirror
 	 * of a Slack message carries the Notion page id, not the Slack one.
 	 */
 	const livePanesFor = (item: AllItem): string[] =>
 		livePanesOn(Object.values(panes), item).map((pane) => pane.id);
-	/** The newest of them - where Go to session goes. */
+	/** The newest of them - where Open on board goes. */
 	const livePaneFor = (item: AllItem): string | null =>
 		livePanesFor(item)[0] ?? null;
 

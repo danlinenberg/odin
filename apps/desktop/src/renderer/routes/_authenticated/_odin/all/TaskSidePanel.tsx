@@ -40,7 +40,7 @@ import { START_ANOTHER_TIP, START_SESSION_TIP } from "./use-start-item";
 
 /**
  * A task in full beside a list: its fields, its text and notes, its
- * sessions' to-dos, and Start or Go to session, Read later, Drop and Done.
+ * sessions' to-dos, and Start or Open on board, Read later, Drop and Done.
  * Tasks shows it beside its list; Today shows it for a task its sessions
  * were started from.
  */
@@ -266,7 +266,7 @@ function DetailsPanel({
 						<div>
 							<div
 								className={PANEL_LABEL}
-								title="Kept in Odin only - nothing goes back to the source. Start session adds them to the brief."
+								title="Kept in Odin only - nothing goes back to the source. Start task adds them to the brief."
 							>
 								Notes
 							</div>
@@ -348,7 +348,7 @@ function DetailsActions({
 	onDrop,
 }: {
 	activePaneId: string | null;
-	/** Sessions open on this task; Go to session opens the newest. */
+	/** Sessions open on this task; Open on board opens the newest. */
 	sessionCount: number;
 	isLaunching: boolean;
 	launching: boolean;
@@ -373,7 +373,7 @@ function DetailsActions({
 						}
 						className={ROW_LIVE_BUTTON}
 					>
-						Go to session →
+						Open on board →
 					</button>
 					<button
 						type="button"
@@ -390,11 +390,11 @@ function DetailsActions({
 					type="button"
 					disabled={isLaunching}
 					onClick={onStart}
-					aria-label="Start session"
+					aria-label="Start task"
 					title={START_SESSION_TIP}
 					className={ROW_START_BUTTON}
 				>
-					{launching ? "Starting…" : "Start session"}
+					{launching ? "Starting…" : "Start task"}
 				</button>
 			)}
 			<ReadLaterButton on={reading} onClick={onReadLater} />

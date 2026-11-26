@@ -644,7 +644,7 @@ export const createReposRouter = (
 
 		/**
 		 * The checkout a session starts in when nothing else names one. Set in
-		 * Settings → Sessions; `DAN_DEFAULT_REPO` is only a fallback, so a path
+		 * Settings → Running tasks; `DAN_DEFAULT_REPO` is only a fallback, so a path
 		 * picked in the UI is never shadowed by a stale shell export. Neither set:
 		 * the folder the repos live in, detected.
 		 */

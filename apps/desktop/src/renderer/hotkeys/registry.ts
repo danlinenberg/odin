@@ -84,7 +84,7 @@ export const HOTKEYS_REGISTRY = {
 	},
 	ODIN_SESSIONS: {
 		key: { mac: L("h"), windows: L("h"), linux: L("h") },
-		label: "Session History",
+		label: "Task History",
 		category: "Navigation",
 		description: "Search past Claude sessions and resume one",
 	},

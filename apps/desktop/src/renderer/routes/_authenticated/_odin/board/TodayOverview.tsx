@@ -931,7 +931,7 @@ function AnswerItem({
 const ITEM_BUTTON =
 	"shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[12px] font-medium text-attention-ink hover:bg-attention/15 disabled:opacity-50";
 
-/** Go to session, Done, Snooze until tomorrow and Skip, for the task's first session. */
+/** Open on board, Done, Snooze until tomorrow and Skip, for the task's first session. */
 function TaskButtons({
 	task,
 	actions,
@@ -957,7 +957,7 @@ function TaskButtons({
 				onClick={() => actions.onOpen(paneId)}
 				className={ROW_LIVE_BUTTON}
 			>
-				Go to session →
+				Open on board →
 			</button>
 			{actions.onDone && (
 				<button
@@ -1089,7 +1089,7 @@ function MovingRow({ task, now, picked, open, onShow }: TaskProps) {
 /**
  * A task's summary beside the page: its action items to answer here, what
  * it is, why it matters, where it stands and who acts next, its sessions,
- * the task it was started from, and Go to session, Done, Snooze and Next.
+ * the task it was started from, and Open on board, Done, Snooze and Next.
  */
 function TodayTaskPanel({
 	task,
@@ -1272,7 +1272,7 @@ function ComingUp({
 						onClick={() => onOpen(paneId)}
 						className={cn(LINK, "text-[13px]")}
 					>
-						Go to session
+						Open on board
 					</button>
 				) : (
 					row && (
@@ -1584,7 +1584,7 @@ function AutoPilot({
 					{onNew && (
 						<button
 							type="button"
-							title="New session - describe a task and start an agent session"
+							title="New task - describe it and start an agent on it"
 							onClick={onNew}
 							className={cn(
 								"ml-auto inline-flex items-center gap-1 whitespace-nowrap rounded-[7px] px-2 py-1 text-[12px] font-semibold",
@@ -1592,7 +1592,7 @@ function AutoPilot({
 							)}
 						>
 							<LuPlus className="size-3" aria-hidden />
-							New session
+							New task
 						</button>
 					)}
 				</header>

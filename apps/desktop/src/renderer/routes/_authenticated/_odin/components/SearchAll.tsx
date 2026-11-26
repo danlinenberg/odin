@@ -50,7 +50,7 @@ import {
 /** A row from a feed or the automations list - where it lives, and its mark. */
 type PaletteRow = SearchableRow & { key: string; to: string; done: boolean };
 
-/** What Session History's search hands back, as far as the palette reads it. */
+/** What Task History's search hands back, as far as the palette reads it. */
 interface PastSession {
 	sessionId: string;
 	title: string;
@@ -76,7 +76,7 @@ const SOURCES: { label: string; Icon: IconType }[] = [
 ];
 const SOURCE_ICON = new Map(SOURCES.map(({ label, Icon }) => [label, Icon]));
 const BOARD = "Dev Board";
-const HISTORY = "Session History";
+const HISTORY = "Task History";
 
 /** Hits shown per source before "show more". */
 const CAP = 8;
@@ -113,9 +113,9 @@ function useDebounced(value: string, ms: number): string {
  * Search all (⌘⇧F by default): one palette over every row any feed holds
  * (Done'd and closed ones too, ranked after the open ones), every card on the
  * Dev Board, the automations, and - from two characters - what was said in
- * every session Session History knows. One header per source, best source
+ * every session Task History knows. One header per source, best source
  * first. A row opens its details on All, a card its drawer on the board, a
- * past session its transcript in Session History.
+ * past session its transcript in Task History.
  */
 export function SearchAll({ onClose }: { onClose: () => void }) {
 	const actionKeys = useHotkeyDisplay("ODIN_SEARCH_ROW_MENU").text;
@@ -192,7 +192,7 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 		],
 	);
 
-	// Session History's own query, input and all, so the two share a cache.
+	// Task History's own query, input and all, so the two share a cache.
 	const transcriptQuery = useDebounced(query.trim(), 250);
 	const history = electronTrpc.terminal.searchClaudeSessions.useInfiniteQuery(
 		{ query: transcriptQuery, limit: 40, profileId: activeId },
@@ -294,7 +294,7 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 	const actionsFor = (hit: Hit): Action[] => {
 		if (hit.kind === "board")
 			return [
-				{ label: "Go to session", run: () => goToPane(hit.session.paneId) },
+				{ label: "Open on board", run: () => goToPane(hit.session.paneId) },
 			];
 		if (hit.kind === "history")
 			return [
@@ -310,8 +310,8 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 				? [{ label: "Open ↗", run: () => go(() => openUrl(item.url ?? "")) }]
 				: []),
 			livePane
-				? { label: "Go to session →", run: () => goToPane(livePane) }
-				: { label: "Start session", run: () => go(() => void start(item)) },
+				? { label: "Open on board →", run: () => goToPane(livePane) }
+				: { label: "Start task", run: () => go(() => void start(item)) },
 			...(hit.row.done
 				? []
 				: [

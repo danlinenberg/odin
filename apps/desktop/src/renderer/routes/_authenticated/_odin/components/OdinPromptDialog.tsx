@@ -131,7 +131,7 @@ export function cardBody(title: string, source: string | null): string | null {
  * Session composer: a multi-line prompt plus images, videos and PDFs (paste, drop,
  * or pick). Attachments ride along as files in the workspace; the prompt
  * points the agent at their paths. Used by "Work on Odin" (Odin's own repo)
- * and the Dev Board's "New Session" (default repo).
+ * and the Dev Board's "New Task" (default repo).
  */
 export function OdinPromptDialog({
 	heading = "Work on Odin",
@@ -144,7 +144,7 @@ export function OdinPromptDialog({
 	backlogToggle = false,
 	wherePicker = false,
 	defaultOnHost,
-	submitLabel = "Start session",
+	submitLabel = "Start task",
 	draftKey,
 	onCancel,
 	onSubmit,

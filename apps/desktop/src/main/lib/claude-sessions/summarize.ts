@@ -369,7 +369,7 @@ export async function writeBrief({
 		const messages = parseTranscript(jsonl);
 		const body = digest({ title: aiTitle, prompt, messages });
 		// `claude -p` files a transcript of its own for every run, and this one runs
-		// on every card, forever - Session History filled up with thousands of
+		// on every card, forever - Task History filled up with thousands of
 		// one-message "sessions" nobody started. Name the session so its transcript
 		// can be deleted again; it is a function call, not a conversation.
 		const briefSessionId = randomUUID();

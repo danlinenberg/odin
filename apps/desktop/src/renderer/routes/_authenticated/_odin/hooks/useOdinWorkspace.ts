@@ -5,7 +5,7 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 /**
  * Workspace selection for the Odin views, with zero-friction provisioning:
  * when no workspace exists, `ensureWorkspace` creates a project + main
- * workspace from the default repo (no dialogs), so "Start session" and the
+ * workspace from the default repo (no dialogs), so "Start task" and the
  * board's new-task input always have a target.
  */
 export function useOdinWorkspace() {
@@ -62,7 +62,7 @@ export function useOdinWorkspace() {
 			if (
 				!askForFolder ||
 				!window.confirm(
-					"Pick the folder your sessions start in. Odin keeps it as the default - change it later in Settings → Sessions.",
+					"Pick the folder your sessions start in. Odin keeps it as the default - change it later in Settings → Running tasks.",
 				)
 			) {
 				return fallback("No folder picked - sessions need one to start in.");
@@ -78,7 +78,9 @@ export function useOdinWorkspace() {
 			void utils.repos.getDefault.invalidate();
 		}
 		if (!repoPath) {
-			return fallback("No default folder - set one in Settings → Sessions.");
+			return fallback(
+				"No default folder - set one in Settings → Running tasks.",
+			);
 		}
 		const result = await openFromPath.mutateAsync({ path: repoPath });
 		if ("error" in result && result.error) {

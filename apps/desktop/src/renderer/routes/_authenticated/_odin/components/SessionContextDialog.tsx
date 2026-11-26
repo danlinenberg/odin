@@ -93,7 +93,7 @@ function Ask({ pending }: { pending: Pending }) {
 					onClick={() => close({ guidelines: "", images: [], onHost })}
 					className="w-full rounded-[8px] bg-primary py-2.5 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
 				>
-					Start session
+					Start task
 				</button>
 				<button
 					type="button"

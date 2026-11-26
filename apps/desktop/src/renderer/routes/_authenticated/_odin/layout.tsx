@@ -123,7 +123,7 @@ function loadStatus(
 			: `This computer: ${load.agentCount} session(s) using ${load.agentMemoryGb} GB of memory, ${load.availableMemoryGb} GB free. Agents are on ${load.agentCpuPercent}% of the CPU · this computer is ${load.cpuPercent}% busy.`
 	}${
 		load.diskFreeGb !== null
-			? ` Disk ${load.diskFreeGb} GB free; new sessions wait below ${limits.minFreeDiskGb} GB (Settings → Sessions).`
+			? ` Disk ${load.diskFreeGb} GB free; new sessions wait below ${limits.minFreeDiskGb} GB (Settings → Running tasks).`
 			: ""
 	}`;
 	if (freeing) return { tone: "attention", bar: "Freeing disk…", detail };

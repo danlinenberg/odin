@@ -96,7 +96,7 @@ export function SearchBox({
 				type="search"
 				value={value}
 				onChange={(event) => onChange(event.target.value)}
-				placeholder="Search sessions"
+				placeholder="Search tasks"
 				enterKeyHint="search"
 				className="min-w-0 flex-1 bg-transparent text-base outline-none"
 			/>

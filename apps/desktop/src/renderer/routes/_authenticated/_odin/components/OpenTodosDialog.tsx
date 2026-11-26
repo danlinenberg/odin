@@ -38,7 +38,7 @@ export function OpenTodosDialog() {
 					</AlertDialogTitle>
 					<AlertDialogDescription>
 						{count
-							? `Tick them off here, or finish ${pending?.what ?? "it"} anyway - unticked to-dos come back if you resume it from Session History.`
+							? `Tick them off here, or finish ${pending?.what ?? "it"} anyway - unticked to-dos come back if you resume it from Task History.`
 							: `Nothing left open - Done finishes ${pending?.what ?? "it"}.`}
 					</AlertDialogDescription>
 				</AlertDialogHeader>

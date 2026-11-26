@@ -20,7 +20,7 @@ export const Route = createFileRoute("/_authenticated/_odin/calendar/")({
 /**
  * Meetings from now to the end of tomorrow, soonest first - each one a thing
  * to prepare for. Read-only: Open joins the call, Done takes the meeting out
- * of Odin (not the calendar), and Start session preps it from the agenda.
+ * of Odin (not the calendar), and Start task preps it from the agenda.
  */
 function CalendarPage() {
 	const { meetings, workConfig, syncAll, isSyncing } = useOdinFeeds();

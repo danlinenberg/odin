@@ -189,7 +189,7 @@ export function showsBar(
 /**
  * Every reminder whose day has come, above the columns, and a link to the
  * rest in Automations → Reminders. A snoozed session gets
- * Resume - the same `claude --resume` into a fresh pane Session History does;
+ * Resume - the same `claude --resume` into a fresh pane Task History does;
  * a dated card or feed row gets Open. An unread "Ping me" reply or approval
  * shows here too, until its session is opened.
  */
