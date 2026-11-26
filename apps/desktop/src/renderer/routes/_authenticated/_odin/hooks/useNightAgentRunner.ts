@@ -3,6 +3,8 @@ import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { useDoneStore } from "renderer/stores/done";
 import {
 	inOffHours,
+	pickInstructions,
+	setPickNote,
 	useNextInLinePrompt,
 } from "renderer/stores/next-in-line-prompt";
 import { useTabsStore } from "renderer/stores/tabs/store";
@@ -304,6 +306,7 @@ export function useNightAgentRunner() {
 				window,
 				offHours.maxSessions,
 				offHours.instructions,
+				offHours.pickNotes,
 				order.map((row) => row.key),
 				exclude,
 				picksOnly,
@@ -317,7 +320,7 @@ export function useNightAgentRunner() {
 			for (const item of order) {
 				const plan = await latest.current.planOnHost(
 					item,
-					offHours.instructions,
+					pickInstructions(offHours, item.key),
 				);
 				tasks.push({
 					key: item.key,
@@ -529,9 +532,12 @@ export function useNightAgentRunner() {
 						setOffHoursStarted(offHoursStarted + 1);
 						logStart(
 							item,
-							await start(item, { instructions: offHours.instructions }),
+							await start(item, {
+								instructions: pickInstructions(offHours, item.key),
+							}),
 							"pick",
 						);
+						setPickNote(item.key, "");
 						return;
 					}
 				}

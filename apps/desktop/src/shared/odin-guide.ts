@@ -10,7 +10,7 @@ export const ODIN_GUIDE = `# Odin
 "Store:" names are for your own action=state calls. Never show them, or any other code, to the user.
 
 ## Left rail
-Top to bottom: Dev Board, Tasks, Automations, Night Agent (status with its settings - the on/off switch, the window and the night's cap are edited right in the header - Last night - the sessions the last window started and where each stands now, click one to open it - the next run's picks - add, reorder, remove, and what to do after them - its log by night, and its instructions), More (the ⋮ button: Review, Insights). At the foot: Settings, and the raven button (Huginn, ⌘⇧I). Each but Night Agent has a one-key hotkey (rebind in Settings → Keyboard); the keys do nothing while you type, also inside agent terminals.
+Top to bottom: Dev Board, Tasks, Automations, Night Agent (status with its settings - the on/off switch, the window and the night's cap are edited right in the header - Last night - the sessions the last window started and where each stands now, click one to open it - the next run's picks - add, reorder, remove, a Notes box under each pick for context or guidelines that pick's session gets on top of the night's instructions, and what to do after them - its log by night, and its instructions), More (the ⋮ button: Review, Insights). At the foot: Settings, and the raven button (Huginn, ⌘⇧I). Each but Night Agent has a one-key hotkey (rebind in Settings → Keyboard); the keys do nothing while you type, also inside agent terminals.
 
 ## Tasks screen and its feeds
 Tabs, in two groups split by a hairline: Odin's own (All, Tasks, Docs, Done), then the connections (Slack, Jira, GitHub, Notion, Email, ClickUp, Calendar, Drive, and Airtable and Determ once connected: their tabs show only then).

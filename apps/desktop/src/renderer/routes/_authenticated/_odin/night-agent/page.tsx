@@ -24,6 +24,7 @@ import {
 	type NightLogEntry,
 	type NightStart,
 	type OffHours,
+	setPickNote,
 	toggleNightPick,
 	useNextInLinePrompt,
 } from "renderer/stores/next-in-line-prompt";
@@ -375,42 +376,50 @@ function NextRunSection() {
 					picked.map((key, i) => {
 						const row = byKey.get(key);
 						return (
-							<div
-								key={key}
-								className="group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30"
-							>
-								<span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold tabular-nums text-primary">
-									{i + 1}
-								</span>
-								{row ? (
-									<RowTitle row={row} />
-								) : (
-									<span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-										No longer waiting - it was started, done or removed
+							<div key={key} className="group px-4 py-2.5 hover:bg-muted/30">
+								<div className="flex items-center gap-3">
+									<span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold tabular-nums text-primary">
+										{i + 1}
 									</span>
-								)}
-								<div className="flex opacity-40 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-									<IconButton
-										label="Move up"
-										disabled={i === 0}
-										onClick={() => move(i, i - 1)}
-									>
-										<LuArrowUp className="size-3.5" />
-									</IconButton>
-									<IconButton
-										label="Move down"
-										disabled={i === picked.length - 1}
-										onClick={() => move(i, i + 1)}
-									>
-										<LuArrowDown className="size-3.5" />
-									</IconButton>
-									<IconButton
-										label="Remove from the next run"
-										onClick={() => toggleNightPick(key)}
-									>
-										<LuX className="size-3.5" />
-									</IconButton>
+									{row ? (
+										<RowTitle row={row} />
+									) : (
+										<span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+											No longer waiting - it was started, done or removed
+										</span>
+									)}
+									<div className="flex opacity-40 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+										<IconButton
+											label="Move up"
+											disabled={i === 0}
+											onClick={() => move(i, i - 1)}
+										>
+											<LuArrowUp className="size-3.5" />
+										</IconButton>
+										<IconButton
+											label="Move down"
+											disabled={i === picked.length - 1}
+											onClick={() => move(i, i + 1)}
+										>
+											<LuArrowDown className="size-3.5" />
+										</IconButton>
+										<IconButton
+											label="Remove from the next run"
+											onClick={() => toggleNightPick(key)}
+										>
+											<LuX className="size-3.5" />
+										</IconButton>
+									</div>
 								</div>
+								{row && (
+									<Input
+										aria-label={`Notes for ${row.title}`}
+										placeholder="Notes for this session: context, guidelines (optional)"
+										value={offHours.pickNotes?.[key] ?? ""}
+										onChange={(e) => setPickNote(key, e.target.value)}
+										className="mt-1.5 ml-9 h-8 w-[calc(100%-2.25rem)] text-[13px]"
+									/>
+								)}
 							</div>
 						);
 					})

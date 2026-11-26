@@ -3,6 +3,8 @@ import {
 	canPickForTonight,
 	inOffHours,
 	MAX_NIGHT_PICKS,
+	pickInstructions,
+	setPickNote,
 	toggleNightPick,
 	useNextInLinePrompt,
 } from "./next-in-line-prompt";
@@ -30,6 +32,21 @@ test("night picks toggle, and stop at the cap", () => {
 	expect(picks()).toEqual(["b"]);
 	for (let i = 0; i < MAX_NIGHT_PICKS + 5; i++) toggleNightPick(`k${i}`);
 	expect(picks().length).toBe(MAX_NIGHT_PICKS);
+});
+
+test("a pick's note rides on the night's instructions, and goes with the pick", () => {
+	const offHours = () => useNextInLinePrompt.getState().offHours;
+	useNextInLinePrompt
+		.getState()
+		.setOffHours({ picked: [], instructions: "Night." });
+	toggleNightPick("n");
+	setPickNote("n", "Use the staging DB");
+	expect(pickInstructions(offHours(), "n")).toBe(
+		"Night.\n\nMy notes for this task:\nUse the staging DB",
+	);
+	expect(pickInstructions(offHours(), "other")).toBe("Night.");
+	toggleNightPick("n");
+	expect(offHours().pickNotes).toEqual({});
 });
 
 test("only rows Next in line holds can be picked for tonight", () => {
