@@ -473,7 +473,16 @@ await step("the Today view opens from the top bar and back", async () => {
 	await todayShown(true);
 	await click("button", "Board view");
 	await todayShown(false);
-	// Auto pilot: Today one task at a time, from its own top bar button.
+	// Auto pilot: its own experiment, no button until Settings > Advanced
+	// turns it on.
+	if (await page<boolean>(`!!__find("button", "Auto pilot")`))
+		throw new Error("Auto pilot button shown while the setting is off");
+	await rail("Settings");
+	await click("a", "Advanced");
+	await waitForText("adds an auto pilot icon");
+	await page(`document.getElementById("auto-pilot")?.click()`);
+	await click("a", "Back");
+	await rail("Dev Board");
 	await click("button", "Auto pilot");
 	for (const end = Date.now() + 15_000; ; await sleep(200)) {
 		if (
@@ -491,6 +500,7 @@ await step("the Today view opens from the top bar and back", async () => {
 	await click("a", "Advanced");
 	await waitForText("adds a today icon");
 	await page(`document.getElementById("today-view")?.click()`);
+	await page(`document.getElementById("auto-pilot")?.click()`);
 	if (
 		(await page<string | null>(
 			`document.getElementById("today-view")?.getAttribute("aria-checked") ?? null`,

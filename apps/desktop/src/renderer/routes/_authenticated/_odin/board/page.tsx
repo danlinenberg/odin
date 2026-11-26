@@ -458,7 +458,7 @@ function ViewToggle({
 	onBoard: () => void;
 	/** Opens the Today view. Unset while the Today experiment is off. */
 	onToday?: () => void;
-	/** Opens Auto pilot. Unset while the Today experiment is off. */
+	/** Opens Auto pilot. Unset while the Auto pilot experiment is off. */
 	onPilot?: () => void;
 }) {
 	const segment = (active: boolean) =>
@@ -7664,10 +7664,12 @@ function DevBoardPage() {
 	// Opens by itself once a day, the first time the board has work on it.
 	// Experimental, off by default (Settings > Advanced > Today).
 	const todayExperiment = useTodayOverview((s) => s.experiment);
-	// Auto pilot is Today one task at a time: same sessions, same order.
+	// Auto pilot is Today one task at a time: same sessions, same order. Its
+	// own experiment (Settings > Advanced > Auto pilot), off by default.
+	const pilotExperiment = useTodayOverview((s) => s.autoPilot);
 	const [todayShown, setTodayShown] = useState<"today" | "pilot" | null>(null);
-	const todayOpen = todayExperiment && !!todayShown;
-	const pilotOpen = todayOpen && todayShown === "pilot";
+	const pilotOpen = pilotExperiment && todayShown === "pilot";
+	const todayOpen = pilotOpen || (todayExperiment && todayShown === "today");
 	drawerViewRef.current = todayOpen ? "today" : "list";
 	const drawerFraction = drawerFractions[drawerViewRef.current];
 	const drawerWidth = `max(${MIN_DRAWER_W}px, calc((100vw - ${RAIL_W}px) * ${drawerFraction}))`;
@@ -8403,7 +8405,7 @@ function DevBoardPage() {
 									: undefined
 							}
 							onPilot={
-								todayExperiment
+								pilotExperiment
 									? () => {
 											setDrawerCard(null);
 											setTodayShown("pilot");
