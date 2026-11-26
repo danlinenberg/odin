@@ -17,6 +17,7 @@ import {
 	SLACK_DENY_RULES,
 } from "../agent-setup/slack-tools";
 import { removeWorktreeScript } from "./bring-home";
+import { LOCAL_ENV_SCRIPT } from "./local-credentials";
 import {
 	attachScript,
 	BRANCH_RENAME_RULE,
@@ -291,7 +292,7 @@ describe("remote session scripts", () => {
 
 	test("the host's /etc/environment fills in what the session lacks, never PATH or a name it has", () => {
 		expect(runScript(spec, "/d")).toContain(
-			`${MEMORY_LIMIT_SCRIPT}\n${hostEnvScript()}\n`,
+			`${MEMORY_LIMIT_SCRIPT}\n${hostEnvScript()}\n${LOCAL_ENV_SCRIPT}\n`,
 		);
 		const dir = mkdtempSync(join(tmpdir(), "odin-env-"));
 		try {

@@ -30,6 +30,7 @@ import {
 	slackDrafts,
 	spokenText,
 	summarizeTranscript,
+	transcriptDirs,
 	transcriptLinks,
 	transcriptOf,
 	transcriptTail,
@@ -1048,6 +1049,46 @@ describe("workingRepoOf", () => {
 
 		expect(await workingRepoOf(SESSION, root)).toBe(clone);
 		expect(await workingWorktreeOf(SESSION, root)).toBe(worktree);
+	});
+
+	/**
+	 * A host session's transcript is mirrored here, but its folders are the
+	 * host's: none exists on this computer. The host's resolver answers.
+	 */
+	test("workingWorktreeOf takes a resolver for folders on a remote host", async () => {
+		const { root } = dirs();
+		const clone = "/home/odin-alex/repos/app";
+		const worktree = `${clone}/.worktrees/odin-1234abcd`;
+		transcript(root, [...Array(9).fill(clone), ...Array(3).fill(worktree)]);
+		const checkouts = {
+			rootOf: (dir: string) => dir,
+			ownerOf: (checkout: string) =>
+				checkout.startsWith(`${clone}/`) ? clone : checkout,
+		};
+		expect(await workingWorktreeOf(SESSION, root)).toBeNull();
+		expect(await workingWorktreeOf(SESSION, root, checkouts)).toBe(worktree);
+		expect(await workingRepoOf(SESSION, root, checkouts)).toBe(clone);
+	});
+
+	test("transcriptDirs lists each cwd and edited file's folder once", () => {
+		const text = [
+			JSON.stringify({ type: "assistant", cwd: "/a" }),
+			JSON.stringify({
+				type: "assistant",
+				cwd: "/a",
+				message: {
+					content: [
+						{
+							type: "tool_use",
+							name: "Edit",
+							input: { file_path: "/b/c/x.ts" },
+						},
+					],
+				},
+			}),
+			"not json",
+		].join("\n");
+		expect(transcriptDirs(text)).toEqual(["/a", "/b/c"]);
 	});
 
 	test("workingWorktreeOf is null when the session never left the clone", async () => {
