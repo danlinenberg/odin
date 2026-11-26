@@ -3,13 +3,12 @@ import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { useDoneStore } from "renderer/stores/done";
 import {
 	inOffHours,
-	pickInstructions,
-	setPickNote,
 	useNextInLinePrompt,
 } from "renderer/stores/next-in-line-prompt";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { awsSignInNeeded } from "shared/host-setup";
 import type { AllItem } from "../all/all-items";
+import { useTaskMeta } from "../all/task-meta";
 import type { StartResult } from "../all/use-start-item";
 import { useNextInLineQueue } from "../board/NextInLine";
 import {
@@ -306,8 +305,12 @@ export function useNightAgentRunner() {
 				window,
 				offHours.maxSessions,
 				offHours.instructions,
-				offHours.pickNotes,
-				order.map((row) => row.key),
+				// Notes too, so an edit to one reaches the host now, not at the resend.
+				order.map((row) => [
+					row.key,
+					row.launch.description,
+					useTaskMeta.getState().notes[row.key],
+				]),
 				exclude,
 				picksOnly,
 			]);
@@ -320,7 +323,7 @@ export function useNightAgentRunner() {
 			for (const item of order) {
 				const plan = await latest.current.planOnHost(
 					item,
-					pickInstructions(offHours, item.key),
+					offHours.instructions,
 				);
 				tasks.push({
 					key: item.key,
@@ -532,12 +535,9 @@ export function useNightAgentRunner() {
 						setOffHoursStarted(offHoursStarted + 1);
 						logStart(
 							item,
-							await start(item, {
-								instructions: pickInstructions(offHours, item.key),
-							}),
+							await start(item, { instructions: offHours.instructions }),
 							"pick",
 						);
-						setPickNote(item.key, "");
 						return;
 					}
 				}

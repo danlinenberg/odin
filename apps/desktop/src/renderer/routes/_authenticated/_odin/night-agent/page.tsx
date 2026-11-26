@@ -24,7 +24,6 @@ import {
 	type NightLogEntry,
 	type NightStart,
 	type OffHours,
-	setPickNote,
 	toggleNightPick,
 	useNextInLinePrompt,
 } from "renderer/stores/next-in-line-prompt";
@@ -34,11 +33,14 @@ import type { Pane } from "shared/tabs-types";
 import { NightAgentInstructionsRow } from "../../settings/backlog/page";
 import { SettingsSection } from "../../settings/components/SettingsPage";
 import type { AllItem } from "../all/all-items";
+import { TaskDescription } from "../all/TaskDescription";
 import { SOURCE_ICON } from "../all/TaskTable";
+import { useTaskMeta } from "../all/task-meta";
 import { useNextInLineQueue } from "../board/NextInLine";
 import { useNightAgentIntro } from "../board/NightAgentIntro";
 import { FEED_TABS } from "../components/feed-counts";
 import { PILL } from "../components/pill";
+import { useOdinTasks } from "../hooks/useOdinTasks";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
 import { featuredNight, groupNights, type Night } from "./night-log";
@@ -411,15 +413,7 @@ function NextRunSection() {
 										</IconButton>
 									</div>
 								</div>
-								{row && (
-									<Input
-										aria-label={`Notes for ${row.title}`}
-										placeholder="Notes for this session: context, guidelines (optional)"
-										value={offHours.pickNotes?.[key] ?? ""}
-										onChange={(e) => setPickNote(key, e.target.value)}
-										className="mt-1.5 ml-9 h-8 w-[calc(100%-2.25rem)] text-[13px]"
-									/>
-								)}
+								{row && <PickNotes row={row} />}
 							</div>
 						);
 					})
@@ -530,6 +524,48 @@ function AddPicks({ rows, full }: { rows: AllItem[]; full: boolean }) {
 				)}
 			</div>
 		</div>
+	);
+}
+
+/**
+ * The pick's own Notes - the same text as the task panel's, which its session
+ * starts with - so context or guidelines can go on it right where you line up
+ * the night. Folded to one line until you open it.
+ */
+function PickNotes({ row }: { row: AllItem }) {
+	const [open, setOpen] = useState(false);
+	const task = useOdinTasks((s) =>
+		s.tasks.find((t) => `task:${t.id}` === row.key),
+	);
+	const rowNote = useTaskMeta((s) => s.notes[row.key] ?? "");
+	const notes = task ? task.notes : rowNote;
+	const save = (text: string) =>
+		task
+			? useOdinTasks.getState().setNotes(task.id, text)
+			: useTaskMeta.getState().setNote(row.key, text);
+	if (open)
+		return (
+			<div className="mt-1.5 ml-9">
+				<TaskDescription notes={notes} onSave={save} />
+				<button
+					type="button"
+					className="text-xs text-muted-foreground hover:text-foreground"
+					onClick={() => setOpen(false)}
+				>
+					Done
+				</button>
+			</div>
+		);
+	return (
+		<button
+			type="button"
+			className="mt-0.5 ml-9 block max-w-[calc(100%-2.25rem)] truncate text-left text-xs text-muted-foreground hover:text-foreground"
+			onClick={() => setOpen(true)}
+		>
+			{notes.trim()
+				? `Notes: ${notes.trim().split("\n")[0]}`
+				: "+ Notes for its session: context, guidelines"}
+		</button>
 	);
 }
 

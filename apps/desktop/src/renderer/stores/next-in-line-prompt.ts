@@ -12,12 +12,6 @@ export interface OffHours {
 	instructions: string;
 	/** Rows you picked for the night, in start order. They run before anything ranked. */
 	picked: string[];
-	/**
-	 * Your note for a pick's session, by row key: context or guidelines that
-	 * session gets on top of the night's instructions. Optional because saved
-	 * settings from before it lack it.
-	 */
-	pickNotes?: Record<string, string>;
 	/** Once tonight's picks are started: stop there, or go on with the ranked queue. */
 	afterPicks: "stop" | "ranked";
 	/** Whether the first-use notice (keeps the computer awake, power only) was shown. */
@@ -90,28 +84,12 @@ export function canPickForTonight(item: { source: string }): boolean {
 	return NIGHT_SOURCES.has(item.source);
 }
 
-/** The night's instructions, plus your note on this pick when it has one. */
-export function pickInstructions(offHours: OffHours, key: string): string {
-	const note = offHours.pickNotes?.[key]?.trim();
-	return note
-		? `${offHours.instructions}\n\nMy notes for this task:\n${note}`
-		: offHours.instructions;
-}
-
-/** Sets or clears (empty text) the note on one pick. */
-export function setPickNote(key: string, note: string): void {
-	const { offHours, setOffHours } = useNextInLinePrompt.getState();
-	const { [key]: _, ...rest } = offHours.pickNotes ?? {};
-	setOffHours({ pickNotes: note ? { ...rest, [key]: note } : rest });
-}
-
 /** Adds or removes a row from tonight's picks. Adding is refused at the cap. */
 export function toggleNightPick(key: string): void {
 	const { offHours, setOffHours } = useNextInLinePrompt.getState();
 	const picked = offHours.picked;
 	if (picked.includes(key)) {
 		setOffHours({ picked: picked.filter((pick) => pick !== key) });
-		setPickNote(key, "");
 	} else if (picked.length < MAX_NIGHT_PICKS) {
 		setOffHours({ picked: [...picked, key] });
 	}
