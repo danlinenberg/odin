@@ -4451,7 +4451,7 @@ function DevBoardPage() {
 			}));
 			console.warn(`[board] closing idle session ${pane.id} (${column})`);
 			await utils.client.terminal.kill
-				.mutate({ paneId: pane.id })
+				.mutate({ paneId: pane.id, source: "board:closeIdle" })
 				.catch(() => {});
 		}
 	};
@@ -4962,7 +4962,7 @@ function DevBoardPage() {
 				},
 			}));
 			await utils.client.terminal.kill
-				.mutate({ paneId: card.pane.id })
+				.mutate({ paneId: card.pane.id, source: "board:openInVsCode" })
 				.catch(() => {});
 		};
 		const result = await moveToVsCode({
@@ -6335,7 +6335,9 @@ function DevBoardPage() {
 			}
 			// Free the pane (dead or a live cold-restored shell) so the respawn
 			// re-runs the command. Ignore errors - pane may already be dead.
-			await terminalKill.mutateAsync({ paneId: card.pane.id }).catch(() => {});
+			await terminalKill
+				.mutateAsync({ paneId: card.pane.id, source: "board:resumeCard" })
+				.catch(() => {});
 			// Same purge as openDrawer: a Resume from the open drawer never passes
 			// through it, so the respawned PTY mounted the dead one's cached xterm -
 			// a blank drawer stuck on Working until closed and reopened. Not while a

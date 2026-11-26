@@ -308,6 +308,8 @@ export const createTerminalRouter = () => {
 			.input(
 				z.object({
 					paneId: z.string(),
+					// Who asked, written to ~/.odin/daemon.log with the kill.
+					source: z.string().optional(),
 				}),
 			)
 			.mutation(async ({ input }) => {
@@ -670,7 +672,9 @@ export const createTerminalRouter = () => {
 
 			if (beforeIds.length > 0) {
 				const results = await Promise.allSettled(
-					beforeIds.map((paneId) => terminal.kill({ paneId })),
+					beforeIds.map((paneId) =>
+						terminal.kill({ paneId, source: "killAllDaemonSessions" }),
+					),
 				);
 				for (const [index, result] of results.entries()) {
 					if (result.status === "rejected") {
@@ -732,7 +736,12 @@ export const createTerminalRouter = () => {
 				if (toKill.length > 0) {
 					const paneIds = toKill.map((session) => session.sessionId);
 					const results = await Promise.allSettled(
-						paneIds.map((paneId) => terminal.kill({ paneId })),
+						paneIds.map((paneId) =>
+							terminal.kill({
+								paneId,
+								source: "killDaemonSessionsForWorkspace",
+							}),
+						),
 					);
 					for (const [index, result] of results.entries()) {
 						if (result.status === "rejected") {
