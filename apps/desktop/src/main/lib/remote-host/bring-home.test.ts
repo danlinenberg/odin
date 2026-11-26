@@ -21,9 +21,11 @@ import {
 	movedNote,
 	packScript,
 	parsePacked,
+	RUNS_HERE,
 	readTranscript,
 	removeWorktreeScript,
 	unpackWork,
+	unreachableNote,
 } from "./bring-home";
 
 const sh = (cwd: string, cmd: string, env: Record<string, string> = {}) =>
@@ -140,7 +142,7 @@ test("a session on the shared checkout's default branch moves nothing and leaves
 	expect(clean.left).toBe(false);
 	expect(
 		movedNote("/Users/me/repo", { ...clean, bundle: null }, null),
-	).toContain("Paths from the host do not exist here");
+	).toContain("paths on the host do not exist here");
 });
 
 test("a branch the host already pushed lands here on that branch, in a worktree named after it", async () => {
@@ -277,6 +279,36 @@ describe("removeWorktreeScript", () => {
 			"odin/01234567",
 		);
 		expect(sh(root, script, { HOME: root }).trim()).toBe("");
+	});
+});
+
+describe("movedNote - the resumed Claude runs here, not on the host", () => {
+	const work = {
+		top: "/home/me/repos/app",
+		sub: "",
+		origin: "https://github.com/acme/app.git",
+		branch: "fix/x",
+		bundle: Buffer.from("b"),
+		left: false,
+		own: true,
+	};
+	test("every note says its shell runs here and the host's rules are over", () => {
+		for (const note of [
+			movedNote("/Users/me/app/.worktrees/fix-x", null, "fix/x"),
+			movedNote("/Users/me", work, null),
+			movedNote("/Users/me/app", { ...work, bundle: null, left: true }, null),
+			movedNote("/Users/me/app", null, null),
+			unreachableNote("/Users/me/app"),
+		]) {
+			expect(note).toContain(RUNS_HERE);
+			expect(note).toContain("not on the remote host");
+			expect(note).toContain("no `!local` or `!download` blocks");
+		}
+	});
+	test("the folder and branch it lands in stay in the note", () => {
+		const note = movedNote("/Users/me/app/.worktrees/fix-x", null, "fix/x");
+		expect(note).toContain("You now run in /Users/me/app/.worktrees/fix-x.");
+		expect(note).toContain("You are on branch fix/x.");
 	});
 });
 

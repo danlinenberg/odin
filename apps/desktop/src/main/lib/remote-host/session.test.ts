@@ -38,6 +38,7 @@ import {
 	MEMORY_LIMIT_SCRIPT,
 	MEMORY_PRESSURE_WATCHER,
 	mainCheckoutOf,
+	NO_GIT_PROMPT,
 	PROMPT_TAKEN,
 	parseClaudeLogin,
 	pruneInstallScript,
@@ -326,6 +327,55 @@ describe("remote session scripts", () => {
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
 		}
+	});
+
+	test("git never asks for a username in the session's terminal, so a typed Continue can't answer it", () => {
+		const run = runScript({ ...spec, claudeArgs: "--resume abc" }, "/d");
+		const off = run.indexOf(NO_GIT_PROMPT);
+		expect(off).toBeGreaterThan(-1);
+		expect(off).toBeLessThan(run.indexOf("git clone"));
+		expect(off).toBeLessThan(run.indexOf("fetch --quiet origin"));
+		expect(run).toContain("fetch --quiet origin </dev/null || echo");
+		// And git really doesn't ask: no terminal question, a quick failure.
+		const dir = mkdtempSync(join(tmpdir(), "odin-noprompt-"));
+		try {
+			execFileSync("git", ["init", "-q", dir]);
+			execFileSync("git", [
+				"-C",
+				dir,
+				"remote",
+				"add",
+				"origin",
+				"http://127.0.0.1:9/acme/app.git",
+			]);
+			const fetch = spawnSync(
+				"/bin/bash",
+				[
+					"-c",
+					`${NO_GIT_PROMPT}; git -c credential.helper= -C ${sh(dir)} fetch --quiet origin </dev/null`,
+				],
+				{ timeout: 20_000 },
+			);
+			expect(fetch.status).not.toBe(0);
+			expect(fetch.stderr.toString()).not.toContain("Username for");
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test("a reply waiting for Claude is never pasted into the run script's setup", () => {
+		const attach = attachScript(
+			{ ...spec, claudeArgs: "--resume abc", prompt: "Continue" },
+			"/d",
+		);
+		const waitEnd = attach.indexOf("done; case");
+		expect(waitEnd).toBeGreaterThan(-1);
+		expect(attach.slice(waitEnd)).toMatch(
+			/in bash\|sh\|git\|git-\*\|flock\|ssh\|python3\) true ;; \*\) false ;; esac && exit 0; sleep 2;/,
+		);
+		expect(attach.indexOf("exit 0; sleep 2;")).toBeLessThan(
+			attach.indexOf("tmux load-buffer"),
+		);
 	});
 
 	test("a reply that resumes a live tmux session is pasted into it", () => {

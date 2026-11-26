@@ -16,6 +16,7 @@ import {
 	remoteConnectLine,
 	spacesForCursorForward,
 	stoppedParts,
+	waitForClaudeDrawn,
 } from "./odin-screen-status";
 
 // The screens below are trimmed from real Claude Code sessions.
@@ -595,5 +596,24 @@ describe("stoppedParts", () => {
 		expect(stoppedParts("Stopped reconnecting")).toEqual({
 			title: "Stopped reconnecting",
 		});
+	});
+});
+
+describe("waitForClaudeDrawn", () => {
+	// A host pane while its run script still sets up: the tmux bar is drawn
+	// (so agentOnScreen says yes), but git, not Claude, is reading the keys.
+	const SETTING_UP =
+		"Username for 'https://github.com/acme/app.git': \n[odin-abc12345:bash* \"host\" 10:00 24-Nov-26";
+
+	it("does not count the tmux bar over the run script's setup as Claude", async () => {
+		expect(agentOnScreen(SETTING_UP)).toBe(true);
+		expect(await waitForClaudeDrawn(() => SETTING_UP, 30, 10)).toBe(false);
+	});
+
+	it("waits for Claude's own screen before saying yes", async () => {
+		let reads = 0;
+		const read = () => (++reads < 3 ? SETTING_UP : IDLE_PROMPT);
+		expect(await waitForClaudeDrawn(read, 1000, 5)).toBe(true);
+		expect(reads).toBe(3);
 	});
 });
