@@ -76,7 +76,7 @@ const {
 const { hostNameProblem } = await import("shared/host-setup");
 const { ownerCheckScript } = await import("./owner");
 const { hostServiceInstallScript } = await import("./host-service");
-const { sh } = await import("./session");
+const { nodeInstallScript, sh } = await import("./session");
 
 const SSM_POLICY = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore";
 const HOST_POLICY = "arn:aws:iam::123456789012:policy/odin-host";
@@ -235,8 +235,9 @@ describe("aws-instances", () => {
 	test("setup installs what is missing as root, makes the user's own Linux user, and Claude and gh as that user", () => {
 		const script = setUpScript("odin-dan");
 		expect(script).toContain(
-			"for p in tmux git curl python3; do command -v $p >/dev/null || pkg $p; done",
+			"for p in tmux git curl python3 ffmpeg; do command -v $p >/dev/null || pkg $p; done",
 		);
+		expect(script).toContain(nodeInstallScript());
 		expect(script).not.toContain('do pkg "$p"; done');
 		expect(script).toContain(
 			"id 'odin-dan' >/dev/null 2>&1 || useradd --create-home --shell /bin/bash 'odin-dan'",

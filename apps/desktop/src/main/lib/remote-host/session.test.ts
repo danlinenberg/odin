@@ -40,6 +40,8 @@ import {
 	MEMORY_PRESSURE_WATCHER,
 	mainCheckoutOf,
 	NO_GIT_PROMPT,
+	NODE_ON_PATH,
+	nodeInstallScript,
 	PROMPT_TAKEN,
 	parseClaudeLogin,
 	pruneInstallScript,
@@ -1334,4 +1336,54 @@ test("a host session gets the host note back after a compaction, a resume or /cl
 	expect(runScript({ ...spec, pane: "abc" }, "/s")).toContain(
 		'rm -f "$ODIN_RULES_START"',
 	);
+});
+
+/** A bin folder whose node says `version` and whose curl logs its call and writes `body`. */
+function fakeNodeHost(version: string, body: string) {
+	const dir = mkdtempSync(join(tmpdir(), "odin-node-"));
+	mkdirSync(join(dir, "bin"));
+	writeFileSync(
+		join(dir, "bin", "node"),
+		`#!/bin/sh\n[ "$1" = -v ] && echo v${version}\n[ "$1" = -e ] && [ ${version.split(".")[0]} -lt 22 ] && exit 1\nexit 0\n`,
+		{ mode: 0o755 },
+	);
+	writeFileSync(
+		join(dir, "bin", "curl"),
+		`#!/bin/sh\necho "$*" >> "${dir}/curl.log"\nwhile [ "$1" != -o ]; do shift; done\nprintf %s ${sh(body)} > "$2"\n`,
+		{ mode: 0o755 },
+	);
+	const run = (script: string) =>
+		spawnSync("bash", ["-c", script], {
+			env: { PATH: `${join(dir, "bin")}:/usr/bin:/bin` },
+			encoding: "utf8",
+		});
+	const curled = () =>
+		existsSync(join(dir, "curl.log"))
+			? readFileSync(join(dir, "curl.log"), "utf8")
+			: "";
+	return { dir, run, curled };
+}
+
+test("host setup fetches Node 22 for the host's CPU when its node is older, and keeps nothing that fails the checksum", () => {
+	const host = fakeNodeHost("20.18.0", "not node");
+	const target = join(host.dir, "odin-node");
+	host.run(nodeInstallScript(target));
+	const arch = spawnSync("uname", ["-m"], { encoding: "utf8" }).stdout.trim();
+	expect(host.curled()).toContain(
+		`https://nodejs.org/dist/v22.23.5/node-v22.23.5-linux-${/aarch64|arm64/.test(arch) ? "arm64" : "x64"}.tar.gz`,
+	);
+	expect(existsSync(target)).toBe(false);
+});
+
+test("a host whose own node is 22 or newer gets no download, and a session's PATH keeps its node", () => {
+	const host = fakeNodeHost("24.1.0", "");
+	host.run(nodeInstallScript(join(host.dir, "odin-node")));
+	expect(host.curled()).toBe("");
+	expect(NODE_ON_PATH).toContain('export PATH="/opt/odin-node/bin:$PATH"');
+});
+
+test("the host note says the CPU may be ARM and what setup installs", () => {
+	const note = hostNote({ user: "me", name: "box", repoName: null, pane: "p" });
+	expect(note).toContain("uname -m");
+	expect(note).toContain("Node 22");
 });
