@@ -218,6 +218,83 @@ test("renderPullRequestDiff reads the PR through gh, and says when nobody can", 
 	).rejects.toThrow(/No logged-in gh account/);
 });
 
+test("renderPullRequestDiff with wholeFile reads each file at the merge base and head", async () => {
+	const patch = [
+		"diff --git a/x.ts b/x.ts",
+		"index 1111111..2222222 100644",
+		"--- a/x.ts",
+		"+++ b/x.ts",
+		"@@ -2,3 +2,3 @@",
+		" 2",
+		"-3",
+		"+three",
+		" 4",
+		"diff --git a/gone.ts b/gone.ts",
+		"deleted file mode 100644",
+		"--- a/gone.ts",
+		"+++ /dev/null",
+		"@@ -1 +0,0 @@",
+		"-bye",
+		"diff --git a/missing.ts b/missing.ts",
+		"--- a/missing.ts",
+		"+++ b/missing.ts",
+		"@@ -1 +1 @@",
+		"-a",
+		"+b",
+		"",
+	].join("\n");
+	const url = "https://github.com/acme/app/pull/7";
+	const files: Record<string, string> = {
+		"x.ts@base1": "1\n2\n3\n4\n5\n6\n",
+		"x.ts@head1": "1\n2\nthree\n4\n5\n6\n",
+		"gone.ts@base1": "bye\n",
+	};
+	const calls: string[][] = [];
+	const pr = await renderPullRequestDiff(
+		url,
+		async (args) => {
+			calls.push(args);
+			if (args[0] === "pr") return { stdout: patch };
+			const path = args[args.length - 1];
+			if (path === "repos/acme/app/pulls/7")
+				return {
+					stdout: JSON.stringify({
+						base: { sha: "b0" },
+						head: { sha: "head1" },
+					}),
+				};
+			if (path === "repos/acme/app/compare/b0...head1")
+				return {
+					stdout: JSON.stringify({ merge_base_commit: { sha: "base1" } }),
+				};
+			const hit = /^repos\/acme\/app\/contents\/(.*)\?ref=(.*)$/.exec(path);
+			const body = hit && files[`${hit[1]}@${hit[2]}`];
+			if (body === undefined || body === null) throw new Error("404");
+			return { stdout: body };
+		},
+		true,
+	);
+	expect(pr.files.map((file) => file.path)).toEqual([
+		"x.ts",
+		"gone.ts",
+		"missing.ts",
+	]);
+	// Every line is there, not only the three around the change.
+	expect(pr.files[0].patch).toContain(" 1\n");
+	expect(pr.files[0].patch).toContain(" 6\n");
+	expect(pr.files[0].patch).toContain("+three");
+	expect(pr.files[1].patch).toContain("-bye");
+	// GitHub couldn't send it whole: its changes-only patch stays.
+	expect(pr.files[2].patch).toContain("@@ -1 +1 @@");
+	expect(pr.note).toContain("1 file(s) show only the changes");
+	expect(calls).toContainEqual([
+		"api",
+		"-H",
+		"Accept: application/vnd.github.raw+json",
+		"repos/acme/app/contents/x.ts?ref=base1",
+	]);
+});
+
 test("splitPatch cuts per file, drops a commit header, and counts +/-", () => {
 	const chunks = splitPatch(
 		[
