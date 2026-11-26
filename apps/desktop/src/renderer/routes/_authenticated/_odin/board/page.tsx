@@ -2900,7 +2900,6 @@ const SwitchRow = memo(function SwitchRow({
 	card,
 	actions,
 	title,
-	status,
 	hostState,
 	picked,
 	showTicks,
@@ -2912,7 +2911,6 @@ const SwitchRow = memo(function SwitchRow({
 	card: BoardCard;
 	actions: CardActions;
 	title: string;
-	status: string | undefined;
 	hostState: HostState;
 	picked: boolean;
 	showTicks: boolean;
@@ -3040,7 +3038,7 @@ const SwitchRow = memo(function SwitchRow({
 						</span>
 					</span>
 					<LedBy paneId={card.pane.id} actions={actions} />
-					<WatchRowLine paneId={card.pane.id} status={status} />
+					<WatchRowLine paneId={card.pane.id} />
 				</span>
 			)}
 			{!min && <StatusWord status={card.status} />}
@@ -5598,19 +5596,9 @@ function DevBoardPage() {
 	// straight away rather than starting a 15s model call while you wait. The
 	// main process queues them one at a time and skips anything still cached, so
 	// re-firing this is cheap.
-	// Each brief's STATUS line by session id - the drawer's session list shows
-	// it under the title. Comes back with every warm, so no call of its own.
+	// Each brief's STATUS line by session id. Comes back with every warm, so
+	// no call of its own.
 	const [briefStatus, setBriefStatus] = useState<Record<string, string>>({});
-	const switchStatus = (card: BoardCard) => {
-		// A row in line says what it waits on: a bulk Resume parks rows here,
-		// and without this they read as if nothing had happened.
-		const queued = panes[card.pane.id]?.odinQueued;
-		if (queued) return `⏳ ${queued.reason}`;
-		const id =
-			card.pane.claudeSessionId ??
-			usePaneMeta.getState().sessionIdByPane[card.pane.id];
-		return id ? briefStatus[id] : undefined;
-	};
 	const { data: autoRename } =
 		electronTrpc.settings.getOdinAutoRenameSessions.useQuery();
 	useReadableSlackTitles();
@@ -7516,7 +7504,6 @@ function DevBoardPage() {
 			card={card}
 			actions={cardActions}
 			title={cardTitle(card)}
-			status={switchStatus(card)}
 			hostState={hostStateOf(card.pane.id)}
 			picked={pickedIds.has(card.pane.id)}
 			showTicks={showTicks}

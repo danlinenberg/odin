@@ -700,29 +700,17 @@ export function WatchReply({ paneId }: { paneId: string }) {
 }
 
 /**
- * A list row's second line: the unread ping while there is one, else the
- * row's usual status. The row is too narrow for both, and the ping is news.
+ * A list row's second line, only while there is an unread ping.
  */
-export function WatchRowLine({
-	paneId,
-	status,
-}: {
-	paneId: string;
-	status?: string | null;
-}) {
+export function WatchRowLine({ paneId }: { paneId: string }) {
 	const ping = useUnreadPing(paneId);
-	if (!ping && !status) return null;
+	if (!ping) return null;
 	return (
 		<span
-			title={ping ?? undefined}
-			className={cn(
-				"truncate text-[11px]",
-				ping
-					? "font-medium text-attention"
-					: "font-normal text-faint-foreground",
-			)}
+			title={ping}
+			className="truncate text-[11px] font-medium text-attention"
 		>
-			{ping ?? status}
+			{ping}
 		</span>
 	);
 }
