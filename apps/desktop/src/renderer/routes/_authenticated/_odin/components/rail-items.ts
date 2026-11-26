@@ -62,18 +62,11 @@ export const MORE_ITEMS = [
 		label: "Insights",
 		Icon: LuChartColumn,
 	},
-	{
-		to: "/sessions" as const,
-		hotkey: "ODIN_SESSIONS" as const,
-		label: "Task History",
-		Icon: LuClock,
-	},
 ];
 
 import {
 	LuChartColumn,
 	LuClipboardCheck,
-	LuClock,
 	LuColumns3,
 	LuMoon,
 	LuScale,

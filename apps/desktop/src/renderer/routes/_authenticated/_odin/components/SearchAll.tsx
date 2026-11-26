@@ -76,7 +76,7 @@ const SOURCES: { label: string; Icon: IconType }[] = [
 ];
 const SOURCE_ICON = new Map(SOURCES.map(({ label, Icon }) => [label, Icon]));
 const BOARD = "Dev Board";
-const HISTORY = "Task History";
+const HISTORY = "Done";
 
 /** Hits shown per source before "show more". */
 const CAP = 8;

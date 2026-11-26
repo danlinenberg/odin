@@ -8298,6 +8298,14 @@ function DevBoardPage() {
 			{/* One header row: title, launcher, filter dropdown. */}
 			<div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-[18px] pb-2 pt-2.5">
 				<h1 className="text-[15px] font-semibold">Dev Board</h1>
+				{/* Every card here is a started task; Tasks holds the backlog. */}
+				<span
+					className="text-xs text-muted-foreground"
+					title="Tasks with a session on them. The ones not started yet are on Tasks, under Backlog."
+				>
+					{[...cardsByStatus.values()].reduce((n, c) => n + c.length, 0)} in
+					progress
+				</span>
 				<button
 					type="button"
 					title="Describe a task and start it"

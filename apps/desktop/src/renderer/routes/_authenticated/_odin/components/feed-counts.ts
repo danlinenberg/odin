@@ -1,5 +1,6 @@
 import {
 	LuCalendarDays,
+	LuCircleCheck,
 	LuClipboardCheck,
 	LuFileText,
 	LuGitPullRequest,
@@ -26,6 +27,8 @@ export const FEED_TABS = [
 	{ to: "/all", label: "All", Icon: LuInbox },
 	{ to: "/my-tasks", label: "Tasks", Icon: LuClipboardCheck },
 	{ to: "/docs", label: "Docs", Icon: LuFileText },
+	// Finished tasks: every session Odin launched, to search, read and resume.
+	{ to: "/sessions", label: "Done", Icon: LuCircleCheck },
 	{ to: "/reactions", label: "Slack", Icon: SiSlack, provider: "slack" },
 	{ to: "/jira", label: "Jira", Icon: SiJira, provider: "jira" },
 	{ to: "/prs", label: "GitHub", Icon: LuGitPullRequest, provider: "github" },
@@ -120,6 +123,8 @@ export function feedCounts(input: {
 		"/all": Object.values(sources).reduce((total, n) => total + n, 0) - mine,
 		// Shown on its tab, but kept out of All: a doc is reading, not work.
 		"/docs": input.docs ?? 0,
+		// History, not work: no badge.
+		"/sessions": 0,
 	};
 }
 
