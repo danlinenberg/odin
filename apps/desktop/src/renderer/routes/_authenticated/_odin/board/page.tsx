@@ -2881,7 +2881,7 @@ const sameCard = (a: BoardCard, b: BoardCard) =>
 	a.workspaceId === b.workspaceId &&
 	a.repoPath === b.repoPath;
 
-/** The session list's status word and icon, as Auto pilot's queue shows them. */
+/** The session list's status icon; its label shows on hover. */
 const STATUS_MARK: Record<PaneStatus, { Icon: typeof LuPlay; tone: string }> = {
 	permission: { Icon: LuMessageCircleQuestion, tone: "text-attention-ink" },
 	review: { Icon: LuCircleCheck, tone: "text-success-ink" },
@@ -3041,22 +3041,19 @@ const SwitchRow = memo(function SwitchRow({
 					<WatchRowLine paneId={card.pane.id} />
 				</span>
 			)}
-			{!min && <StatusWord status={card.status} />}
+			{!min && <StatusIcon status={card.status} />}
 		</div>
 	);
 });
 
-function StatusWord({ status }: { status: PaneStatus }) {
+function StatusIcon({ status }: { status: PaneStatus }) {
 	const { Icon, tone } = STATUS_MARK[status];
 	return (
 		<span
-			className={cn(
-				"inline-flex shrink-0 items-center gap-1 self-start pt-px text-[11px] font-normal",
-				tone,
-			)}
+			className={cn("inline-flex shrink-0 self-start pt-0.5", tone)}
+			title={PANE_STATUS[status].label}
 		>
-			<Icon className="size-3" aria-hidden />
-			{PANE_STATUS[status].label.toLowerCase()}
+			<Icon className="size-3" aria-label={PANE_STATUS[status].label} />
 		</span>
 	);
 }
