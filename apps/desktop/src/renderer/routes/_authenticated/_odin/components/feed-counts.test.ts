@@ -46,6 +46,7 @@ test("counts say what's waiting, not how many rows", () => {
 		"/determ": 2,
 		"/drive": 1,
 		"/docs": 4,
+		"/sessions": 0,
 	});
 });
 

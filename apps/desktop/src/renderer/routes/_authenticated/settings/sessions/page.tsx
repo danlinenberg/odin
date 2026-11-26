@@ -246,7 +246,7 @@ function ChromeExtensionRow() {
 	return (
 		<SettingRow
 			label="Chrome extension"
-			description="Its icon counts the sessions that worked on the page you're on, and lists them: pick one to open it in Task History. Load it in Chrome from the folder this shows (chrome://extensions, Developer mode, Load unpacked). Pasting a page's link into Task History finds the same sessions without it."
+			description="Its icon counts the sessions that worked on the page you're on, and lists them: pick one to open it in Done, on Tasks. Load it in Chrome from the folder this shows (chrome://extensions, Developer mode, Load unpacked). Pasting a page's link into Done finds the same sessions without it."
 		>
 			<Button
 				variant="outline"

@@ -344,8 +344,21 @@ async function expectHealthy() {
  * slow CI runner the menu can miss the 400ms after the click, or the press
  * lands while the last page still settles - so wait for it, and press again.
  */
-const MORE_MENU = ["Review", "Insights", "Task History"];
+const MORE_MENU = ["Review", "Insights"];
 async function rail(label: string) {
+	// Done is a tab on Tasks, not a rail entry: open Tasks, then its tab.
+	if (label === "Done") {
+		await click("button", "Tasks");
+		await waitForText("waiting on you");
+		const found = await page<boolean>(`(() => {
+			const strip = __find("button", "Slack").parentElement;
+			const e = __find("button", "Done", strip);
+			e?.click();
+			return !!e;
+		})()`);
+		if (!found) throw new Error('no "Done" tab on Tasks');
+		return;
+	}
 	if (!MORE_MENU.includes(label)) return click("button", label);
 	const item = `!!__find('[role="menuitem"]', ${JSON.stringify(label)})`;
 	for (let press = 0; press < 3 && !(await page<boolean>(item)); press++) {
@@ -433,7 +446,7 @@ const SCREENS: [string, string][] = [
 	["Automations", "add automation"],
 	["Insights", "who asks"],
 	["Night Agent", "after the picks"],
-	["Task History", "every session odin launched"],
+	["Done", "every session odin launched"],
 	["Dev Board", "next in line"],
 ];
 for (const [label, line] of SCREENS) {
@@ -510,6 +523,7 @@ await step("Tasks: every feed tab opens", async () => {
 		"All",
 		"Tasks",
 		"Docs",
+		"Done",
 		"Slack",
 		"Jira",
 		"GitHub",
@@ -534,7 +548,7 @@ await step("Tasks: every feed tab opens", async () => {
 for (const [label, line] of [
 	["Tasks", "waiting on you"],
 	["Dev Board", "next in line"],
-	["Task History", "every session odin launched"],
+	["Done", "every session odin launched"],
 ]) {
 	await step(`⌘F focuses the search box on ${label}`, async () => {
 		await rail(label);

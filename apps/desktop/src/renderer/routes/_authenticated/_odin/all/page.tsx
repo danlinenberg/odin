@@ -233,10 +233,16 @@ function AllFeedPage() {
 		move,
 		waiting: parkedBy,
 	} = useTaskMeta();
+	// A task a session is working on is In progress, whatever it said before
+	// it started, unless you set a later status by hand (In review, On hold).
 	const statusOf = useCallback(
-		(item: AllItem): string =>
-			readingKeys.has(item.key) ? "reading" : (statuses[item.key] ?? "waiting"),
-		[readingKeys, statuses],
+		(item: AllItem): string => {
+			if (readingKeys.has(item.key)) return "reading";
+			const own = statuses[item.key];
+			const early = !own || own === "backlog" || own === "prioritised";
+			return early && livePaneFor(item) ? "in-progress" : (own ?? "waiting");
+		},
+		[readingKeys, statuses, livePaneFor],
 	);
 	// The compose box, same as Mine's - a task written here lands on this list.
 	const { add } = useMyTasks();
@@ -420,9 +426,25 @@ function AllFeedPage() {
 
 	// The bands. One clock per render: a row's reason and its band must agree.
 	const now = Date.now();
+	// In progress sits on top, out of Up next, Waiting on others and the bands:
+	// those are the backlog, what no session works on yet.
+	const inProgress = useMemo(
+		() =>
+			[...queued, ...parked, ...items].filter(
+				(item) => statusOf(item) === "in-progress",
+			),
+		[queued, parked, items, statusOf],
+	);
+	const inProgressKeys = useMemo(
+		() => new Set(inProgress.map((item) => item.key)),
+		[inProgress],
+	);
+	const backlogQueued = queued.filter((item) => !inProgressKeys.has(item.key));
+	const backlogParked = parked.filter((item) => !inProgressKeys.has(item.key));
 	const bands = useMemo(() => {
 		const out: Record<Band, AllItem[]> = { now: [], today: [], later: [] };
-		for (const item of items)
+		for (const item of items) {
+			if (inProgressKeys.has(item.key)) continue;
 			out[
 				bandOf(
 					item,
@@ -431,17 +453,18 @@ function AllFeedPage() {
 					readingKeys.has(item.key),
 				)
 			].push(item);
+		}
 		return out;
-	}, [items, reminders, readingKeys, now]);
+	}, [items, reminders, readingKeys, now, inProgressKeys]);
 
 	// Odin's own status, so a Read later row keeps the column its status says.
 	const boardColumns = useMemo(
 		() =>
 			groupTasks([...queued, ...parked, ...items], groupBy, {
 				types,
-				statusOf: (item) => statuses[item.key] ?? "waiting",
+				statusOf,
 			}),
-		[queued, parked, items, groupBy, types, statuses],
+		[queued, parked, items, groupBy, types, statusOf],
 	);
 	// A card dragged to another column takes that column's value.
 	const moveCard = (item: AllItem, to: string) => {
@@ -542,13 +565,10 @@ function AllFeedPage() {
 	const shown = items.length + queued.length + parked.length;
 	// Tasks with a session running on them - tasks, not sessions. A task being
 	// worked isn't also waiting on you.
-	const workingRows = allRows.filter((item) => livePaneFor(item));
-	const working = workingRows.length;
-	const waiting =
-		(statusCounts.get("waiting") ?? 0) -
-		workingRows.filter(
-			(item) => byContext.includes(item) && statusOf(item) === "waiting",
-		).length;
+	const working = allRows.filter(
+		(item) => statusOf(item) === "in-progress",
+	).length;
+	const waiting = statusCounts.get("waiting") ?? 0;
 
 	/** One row of the list. */
 	const renderRow = (
@@ -575,7 +595,7 @@ function AllFeedPage() {
 				<span className="shrink-0 text-[12px] text-muted-foreground">
 					{shown !== allRows.length ? `${shown} of ${allRows.length} · ` : ""}
 					{waiting} waiting on you
-					{working > 0 && ` · ${working} working`}
+					{working > 0 && ` · ${working} in progress`}
 					{(bands.now.length > 0 || bands.today.length > 0) &&
 						` · ${bands.now.length} now · ${bands.today.length} today`}
 				</span>
@@ -784,11 +804,27 @@ function AllFeedPage() {
 						/>
 					)}
 					{!showDone && ticks.bar}
-					{!showDone && queued.length > 0 && (
+					{!showDone && inProgress.length > 0 && (
+						<>
+							<div className={SECTION_LABEL}>
+								In progress
+								<Count n={inProgress.length} />
+								<span className={SECTION_HINT}>
+									started - its session is on the board
+								</span>
+							</div>
+							{inProgress.map((item) => renderRow(item))}
+							<div className={SECTION_LABEL}>
+								Backlog
+								<span className={SECTION_HINT}>not started yet</span>
+							</div>
+						</>
+					)}
+					{!showDone && backlogQueued.length > 0 && (
 						<>
 							<div className={SECTION_LABEL}>
 								Up next
-								<Count n={queued.length} />
+								<Count n={backlogQueued.length} />
 								<span className={SECTION_HINT}>
 									drag to reorder, 1 goes first
 								</span>
@@ -799,10 +835,10 @@ function AllFeedPage() {
 								onDragEnd={onDragEnd}
 							>
 								<SortableContext
-									items={queued.map((item) => item.key)}
+									items={backlogQueued.map((item) => item.key)}
 									strategy={verticalListSortingStrategy}
 								>
-									{queued.map((item, index) => (
+									{backlogQueued.map((item, index) => (
 										<SortableRow key={item.key} id={item.key}>
 											{(bits) => renderRow(item, { ...bits, place: index + 1 })}
 										</SortableRow>
@@ -811,16 +847,16 @@ function AllFeedPage() {
 							</DndContext>
 						</>
 					)}
-					{!showDone && parked.length > 0 && (
+					{!showDone && backlogParked.length > 0 && (
 						<>
 							<div className={SECTION_LABEL}>
 								Waiting on others
-								<Count n={parked.length} />
+								<Count n={backlogParked.length} />
 								<span className={SECTION_HINT}>
 									back on Up next on their day
 								</span>
 							</div>
-							{parked.map((item) => renderRow(item))}
+							{backlogParked.map((item) => renderRow(item))}
 						</>
 					)}
 					{showDone && (
