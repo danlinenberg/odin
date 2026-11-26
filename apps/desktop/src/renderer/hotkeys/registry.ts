@@ -392,9 +392,16 @@ export const HOTKEYS_REGISTRY = {
 	},
 	PILOT_SKIP: {
 		key: { mac: L("x"), windows: L("x"), linux: L("x") },
-		label: "Auto pilot: Skip",
+		label: "Auto pilot: Next",
 		category: "Navigation",
-		description: "Skip the Auto pilot card to the end of the queue",
+		description:
+			"Move on to the next Auto pilot card; this one goes to the end of the queue",
+	},
+	PILOT_REPLY: {
+		key: { mac: L("r"), windows: L("r"), linux: L("r") },
+		label: "Auto pilot: Reply",
+		category: "Navigation",
+		description: "Put the cursor in the Auto pilot card's reply box",
 	},
 	CLOSE_WORKSPACE: {
 		key: {
