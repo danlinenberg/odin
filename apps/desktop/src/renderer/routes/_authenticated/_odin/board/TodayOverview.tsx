@@ -1836,6 +1836,20 @@ function AutoPilot({
 		// Opens once per card (opened), so a session you open from Moving
 		// without you stays.
 	}, [taskPane, shut, openPaneId, actions]);
+	// The card follows the session open beside it: switch sessions any way
+	// (the queue, ⌘⌥↑/↓, the drawer) and the card for that session comes up.
+	// Only when the open session changes, so skipping a card keeps it skipped.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: runs on openPaneId only, see above
+	useEffect(() => {
+		if (!openPaneId) return;
+		const open = queued.find(
+			(t) =>
+				!handled.has(t.id) && t.items.some((item) => item.key === openPaneId),
+		);
+		if (!open || open.id === pick) return;
+		opened.current = open.items[0].key;
+		setChosen(open.id);
+	}, [openPaneId]);
 	const peek = () => {
 		if (peeking || (!task && openPaneId)) {
 			setShut(true);
