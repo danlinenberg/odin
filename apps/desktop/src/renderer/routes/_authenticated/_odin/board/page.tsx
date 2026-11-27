@@ -3635,6 +3635,9 @@ function DevBoardPage() {
 	// The brief panel: open by default, because "what did I walk into?" is the
 	// question you have every single time you open a session.
 	const [isBriefOpen, setIsBriefOpen] = useState(true);
+	// Beside Auto pilot the card is the brief, so the session gets the room:
+	// shut there until ⓘ Brief opens it.
+	const [isPilotBriefOpen, setIsPilotBriefOpen] = useState(false);
 	// The diff takes the terminal's place rather than a side panel - a diff needs
 	// the width, and you read one instead of watching the session, not alongside.
 	const [isDiffOpen, setIsDiffOpen] = useState(false);
@@ -3689,7 +3692,7 @@ function DevBoardPage() {
 	// the whole time, and the terminal first mounts (stale) only on this
 	// switch - so terminalPaneId and chatView are triggers too, without them
 	// the terminal opens at 80 columns and Claude's TUI wraps.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: isBriefOpen, terminalPaneId and chatView are triggers - each changes the terminal's size
+	// biome-ignore lint/correctness/useExhaustiveDependencies: isBriefOpen, isPilotBriefOpen, terminalPaneId and chatView are triggers - each changes the terminal's size
 	useEffect(() => {
 		if (!drawerCard || drawerCard.pane.type !== "terminal") return;
 		const paneId = drawerCard.pane.id;
@@ -3719,7 +3722,14 @@ function DevBoardPage() {
 		return () => {
 			for (const timer of timers) clearTimeout(timer);
 		};
-	}, [drawerCard, utils, isBriefOpen, terminalPaneId, chatView]);
+	}, [
+		drawerCard,
+		utils,
+		isBriefOpen,
+		isPilotBriefOpen,
+		terminalPaneId,
+		chatView,
+	]);
 
 	// Read by the Esc handler below, set once the helpers it needs exist.
 	const drawerEscRef = useRef<{
@@ -7649,6 +7659,7 @@ function DevBoardPage() {
 	const pilotOpen = pilotExperiment && todayShown === "pilot";
 	const todayOpen = pilotOpen || (todayExperiment && todayShown === "today");
 	drawerViewRef.current = todayOpen ? "today" : "list";
+	const briefShown = pilotOpen ? isPilotBriefOpen : isBriefOpen;
 	const drawerFraction = drawerFractions[drawerViewRef.current];
 	const drawerWidth = `max(${MIN_DRAWER_W}px, calc((100vw - ${RAIL_W}px) * ${drawerFraction}))`;
 	// The drawer's list of the other sessions, with 2 or more in flight. Not
@@ -8211,10 +8222,12 @@ function DevBoardPage() {
 				<button
 					type="button"
 					title="Toggle the session brief"
-					onClick={() => setIsBriefOpen((open) => !open)}
+					onClick={() =>
+						(pilotOpen ? setIsPilotBriefOpen : setIsBriefOpen)((open) => !open)
+					}
 					className={cn(
 						"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
-						isBriefOpen
+						briefShown
 							? "bg-primary/15 text-primary"
 							: "bg-secondary text-muted-foreground hover:text-foreground",
 					)}
@@ -9386,7 +9399,7 @@ function DevBoardPage() {
 									/>
 								)}
 							</div>
-							{isBriefOpen && (
+							{briefShown && (
 								<SessionBrief
 									key={drawerCard.pane.id}
 									paneId={drawerCard.pane.id}
