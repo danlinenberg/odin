@@ -335,3 +335,35 @@ export function hostProbe(host: HostLogin): HealthProbe {
 		},
 	};
 }
+
+/**
+ * Another cluster host's service: brought up to date when it is old. The
+ * check's own steps cover only the main host, and the half-hourly update
+ * that keeps the others current stays quiet when it fails. Null when the
+ * service is current, else why it isn't.
+ */
+export async function clusterServiceProblem(
+	host: HostLogin,
+): Promise<string | null> {
+	const isCurrent = async () => {
+		const client = await within(120_000, "The login", connectHost(host));
+		try {
+			return (
+				(await runOnHost(
+					client,
+					SERVICE_CURRENT_SCRIPT(host.user),
+					HOST_SERVICE_PY,
+				)) === "current"
+			);
+		} finally {
+			client.end();
+		}
+	};
+	try {
+		if (await isCurrent()) return null;
+		await within(120_000, "The update", updateHostService(host));
+		return (await isCurrent()) ? null : "still out of date after the update";
+	} catch (err) {
+		return firstLine(err);
+	}
+}
