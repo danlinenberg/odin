@@ -28,7 +28,6 @@ import { useStartAllItem } from "../all/use-start-item";
 import { ROW_LIVE_BUTTON } from "../components/FeedChrome";
 import { BUTTON } from "../components/pill";
 import { daysUntil, effectiveDue, useReminders } from "../components/Reminders";
-import { TranscriptView } from "../components/TranscriptView";
 import {
 	isAnswerItem,
 	isApprovalItem,
@@ -1817,42 +1816,42 @@ function AutoPilot({
 	}, [pick]);
 	const task = queued.find((t) => t.id === pick) ?? null;
 	const left = ids.filter((id) => !handled.has(id)).length;
-	// The card is the main view: its session stays shut until you peek at it
-	// (Space or its name on the card), and a peek ends when you move on.
+	// The card's session is open beside it, the same view as opening it from
+	// the board (its chat and its own prompt line), and follows the card.
+	// Space shuts it until Space again.
 	const peeking = !!task?.items.some((item) => item.key === openPaneId);
-	// The card's session reads along beside it, unless it is open live.
-	const session = (!peeking && task?.items[0].sessionId) || null;
-	const closePeek = (id: string) => {
-		const done = queued.find((t) => t.id === id);
-		if (done?.items.some((item) => item.key === openPaneId))
-			actions.onClose?.();
-	};
-	// The session a peek opened: when the card changes under it by itself
-	// (its session ran again and left the queue), that peek closes too, so a
-	// reply never goes to the session of a card that is gone.
-	const peeked = useRef<string | null>(null);
-	const openPeek = (paneId: string) => {
-		peeked.current = paneId;
-		actions.onOpen(paneId);
-	};
+	const [shut, setShut] = useState(false);
+	const opened = useRef<string | null>(null);
+	const taskPane = task?.items[0].key ?? null;
 	useEffect(() => {
-		const was = peeked.current;
-		if (!was || task?.items.some((item) => item.key === was)) return;
-		peeked.current = null;
-		if (openPaneId === was) actions.onClose?.();
-	}, [task, openPaneId, actions]);
+		if (!taskPane) {
+			// Queue empty: close the session this opened for the last card.
+			if (opened.current && opened.current === openPaneId) actions.onClose?.();
+			opened.current = null;
+			return;
+		}
+		if (shut || opened.current === taskPane) return;
+		opened.current = taskPane;
+		actions.onOpen(taskPane);
+		// Opens once per card (opened), so a session you open from Moving
+		// without you stays.
+	}, [taskPane, shut, openPaneId, actions]);
 	const peek = () => {
-		if (peeking || (!task && openPaneId)) actions.onClose?.();
-		else if (task) openPeek(task.items[0].key);
+		if (peeking || (!task && openPaneId)) {
+			setShut(true);
+			actions.onClose?.();
+		} else if (task) {
+			setShut(false);
+			opened.current = task.items[0].key;
+			actions.onOpen(task.items[0].key);
+		}
 	};
 	const acted = (id: string) => {
-		closePeek(id);
 		setHandled((old) => new Set(old).add(id));
 		if (chosen === id) setChosen(null);
 		setHandoff("Sent. Odin is on it.");
 	};
 	const skip = (id: string) => {
-		closePeek(id);
 		setSkipped((old) => [...old.filter((s) => s !== id), id]);
 		if (chosen === id) setChosen(null);
 		setHandoff("Next one. That one comes back at the end.");
@@ -1866,7 +1865,10 @@ function AutoPilot({
 	useHotkey("PILOT_PEEK", peek, { ...keys, enabled: !!task || !!openPaneId });
 	useHotkey("PILOT_SKIP", () => task && skip(task.id), keys);
 	const replyRef = useRef<HTMLTextAreaElement>(null);
-	useHotkey("PILOT_REPLY", () => replyRef.current?.focus(), keys);
+	useHotkey("PILOT_REPLY", () => replyRef.current?.focus(), {
+		...keys,
+		enabled: !!task && !peeking,
+	});
 	const peekKey = useHotkeyDisplay("PILOT_PEEK").text;
 	const skipKey = useHotkeyDisplay("PILOT_SKIP").text;
 	const replyKey = useHotkeyDisplay("PILOT_REPLY").text;
@@ -1923,7 +1925,10 @@ function AutoPilot({
 										setChosen(id);
 										// Peeking stays on: the picked task's session takes the place
 										// of the one open.
-										if (peeking) openPeek(row.items[0].key);
+										if (!shut) {
+											opened.current = row.items[0].key;
+											actions.onOpen(row.items[0].key);
+										}
 									}}
 								/>
 							);
@@ -1966,14 +1971,8 @@ function AutoPilot({
 					</div>
 				)}
 			</nav>
-			<div className="@container flex min-w-0 flex-1">
-				<div
-					className={cn(
-						"flex min-w-0 flex-1 flex-col",
-						session &&
-							"@4xl:w-[480px] @4xl:flex-none @4xl:border-r @4xl:border-border @6xl:w-[560px]",
-					)}
-				>
+			<div className="flex min-w-0 flex-1">
+				<div className="flex min-w-0 flex-1 flex-col">
 					<div className="min-h-0 flex-1 overflow-y-auto">
 						<div className="mx-auto flex w-full max-w-[760px] flex-col gap-3 px-5 pb-10 pt-6">
 							{task && (
@@ -1994,12 +1993,16 @@ function AutoPilot({
 									onPeek={peek}
 									onActed={() => acted(task.id)}
 									onSkip={() => skip(task.id)}
+									// With the session open, its own prompt line takes replies
+									// (images, files, the same box as any session).
 									reply={
-										<PilotReply
-											paneId={task.items[0].key}
-											inputRef={replyRef}
-											onSent={() => acted(task.id)}
-										/>
+										!peeking && (
+											<PilotReply
+												paneId={task.items[0].key}
+												inputRef={replyRef}
+												onSent={() => acted(task.id)}
+											/>
+										)
 									}
 								/>
 							) : (
@@ -2025,70 +2028,20 @@ function AutoPilot({
 						<p className="flex shrink-0 flex-wrap justify-center gap-x-5 gap-y-1 border-t border-border px-5 py-2 text-[12px] text-muted-foreground">
 							<span>
 								<kbd className={KBD}>{peekKey}</kbd>{" "}
-								{peeking ? "close the live session" : "open the live session"}
+								{peeking ? "hide the session" : "show the session"}
 							</span>
 							<span>
 								<kbd className={KBD}>{skipKey}</kbd> next
 							</span>
-							<span>
-								<kbd className={KBD}>{replyKey}</kbd> reply
-							</span>
+							{!peeking && (
+								<span>
+									<kbd className={KBD}>{replyKey}</kbd> reply
+								</span>
+							)}
 						</p>
 					)}
 				</div>
-				{session && task && (
-					<PilotSession
-						key={session}
-						sessionId={session}
-						title={task.items[0].title ?? task.name}
-						onOpen={peek}
-						openKey={peekKey}
-					/>
-				)}
 			</div>
-		</section>
-	);
-}
-
-/**
- * The card's session, read along beside it: the conversation itself, newest
- * at the bottom, so the context is there without opening anything. Hidden
- * while the live session is open beside the page, and on a narrow window.
- */
-function PilotSession({
-	sessionId,
-	title,
-	onOpen,
-	openKey,
-}: {
-	sessionId: string;
-	title: string;
-	onOpen: () => void;
-	openKey: string;
-}) {
-	return (
-		<section
-			aria-label="The session"
-			className="hidden min-w-0 flex-1 flex-col @4xl:flex"
-		>
-			<header className="flex shrink-0 items-center gap-3 border-b border-border px-5 py-2.5">
-				<p className={LABEL}>The session</p>
-				<p className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
-					{title}
-				</p>
-				<button
-					type="button"
-					title="Open the live session beside the page"
-					onClick={onOpen}
-					className={cn(
-						"inline-flex items-center gap-1.5 whitespace-nowrap rounded-[7px] px-2 py-1 text-[12px] font-semibold",
-						BUTTON.secondary,
-					)}
-				>
-					Open live <kbd className={KBD}>{openKey}</kbd>
-				</button>
-			</header>
-			<TranscriptView sessionId={sessionId} />
 		</section>
 	);
 }
