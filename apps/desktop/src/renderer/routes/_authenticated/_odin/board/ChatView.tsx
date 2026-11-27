@@ -5961,7 +5961,7 @@ function Composer({
 						)}
 					/>
 				</div>
-				<div className="mt-1.5 flex items-center gap-2 whitespace-nowrap">
+				<div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 whitespace-nowrap">
 					{!noTerminal && (
 						<button
 							type="button"
