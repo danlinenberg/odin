@@ -11,7 +11,7 @@ import { ATTACHMENT_URL, useMyTasks } from "../hooks/useOdinTasks";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
-import { type AllItem, livePanesOn } from "./all-items";
+import { type AllItem, livePanesOn, paneMatchRule } from "./all-items";
 import { useTaskMeta } from "./task-meta";
 
 /** Hover text on Start / Start task, in the panel and on a row. */
@@ -71,6 +71,31 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 	/** The newest of them - where Open on board goes. */
 	const livePaneFor = (item: AllItem): string | null =>
 		livePanesFor(item)[0] ?? null;
+	/**
+	 * Open on board writes which sessions matched this row, and by which rule,
+	 * to ~/.odin/session-match.log - for a row that opens another task's session.
+	 */
+	const logLivePanes = (item: AllItem): void => {
+		const cut = (s?: string) => s?.slice(0, 80);
+		console.info(
+			`[session-match] ${JSON.stringify({
+				row: item.key,
+				title: cut(item.launch.title),
+				brief: cut(item.launch.brief),
+				pageId: item.launch.pageId,
+				source: item.launch.source,
+				paneIds: item.paneIds,
+				matches: livePanesOn(Object.values(panes), item).map((pane) => ({
+					id: pane.id,
+					rule: paneMatchRule(pane, item),
+					pageId: pane.odinPageId,
+					source: pane.odinSource,
+					title: cut(pane.odinTaskTitle),
+					brief: cut(pane.odinBrief),
+				})),
+			})}`,
+		);
+	};
 
 	/**
 	 * `offHours` is the overnight runner's launch: tagged, told nobody is
@@ -211,6 +236,7 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 		startMany,
 		planOnHost,
 		livePaneFor,
+		logLivePanes,
 		livePanesFor,
 		isLaunching,
 		launchingKey,

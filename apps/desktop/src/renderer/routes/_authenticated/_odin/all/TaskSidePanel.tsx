@@ -168,7 +168,10 @@ export function TaskSidePanel({
 				isLaunching={rows.isLaunching}
 				launching={rows.launchingKey === item.launch.key}
 				onStart={() => void rows.start(item)}
-				onGoTo={onGoTo}
+				onGoTo={(paneId) => {
+					rows.logLivePanes(item);
+					onGoTo(paneId);
+				}}
 				reading={rows.readingKeys.has(item.key)}
 				onReadLater={() =>
 					rows.readingKeys.has(item.key)

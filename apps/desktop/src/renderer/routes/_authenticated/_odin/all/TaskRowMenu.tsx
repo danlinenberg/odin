@@ -149,7 +149,10 @@ function RowItems({
 		<>
 			{activePaneId ? (
 				<ContextMenuItem
-					onSelect={() => rows.goToPane(activePaneId)}
+					onSelect={() => {
+						rows.logLivePanes(item);
+						rows.goToPane(activePaneId);
+					}}
 					className={ITEM}
 				>
 					Open on board
