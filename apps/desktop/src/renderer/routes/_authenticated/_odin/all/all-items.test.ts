@@ -5,6 +5,7 @@ import {
 	bandOf,
 	livePanesOn,
 	matchesStatus,
+	paneMatchRule,
 	paneWorksOn,
 	plainText,
 	previewPastTitle,
@@ -457,6 +458,12 @@ test("a task's session is found by its pane id when the names differ", () => {
 	expect(
 		paneWorksOn({ id: "pane-2", odinTaskTitle: "ship-status" }, task),
 	).toBe(true);
+	// Open on board logs which rule matched.
+	expect(paneMatchRule({ id: "pane-9" }, task)).toBe("paneIds");
+	expect(
+		paneMatchRule({ id: "pane-2", odinTaskTitle: "ship-status" }, task),
+	).toBe("title");
+	expect(paneMatchRule({ id: "pane-1" }, task)).toBeNull();
 });
 
 test("one task, many sessions: newest first, and Done waits for the last", () => {

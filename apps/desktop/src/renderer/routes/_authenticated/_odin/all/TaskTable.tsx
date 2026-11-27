@@ -606,7 +606,10 @@ export function TaskRow({
 							<button
 								type="button"
 								aria-label="Open on board"
-								onClick={() => rows.goToPane(activePaneId)}
+								onClick={() => {
+									rows.logLivePanes(item);
+									rows.goToPane(activePaneId);
+								}}
 								className={cn(ROW_LIVE_BUTTON, "px-2.5")}
 							>
 								Open on board

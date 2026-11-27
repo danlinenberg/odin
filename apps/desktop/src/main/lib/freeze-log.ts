@@ -25,6 +25,7 @@ import { ODIN_HOME_DIR } from "./app-environment";
  */
 const LOG_PATH = join(ODIN_HOME_DIR, "freeze.log");
 const PROFILE_DIR = join(ODIN_HOME_DIR, "freeze-profiles");
+const SESSION_MATCH_LOG = join(ODIN_HOME_DIR, "session-match.log");
 const TICK_MS = 250;
 const STALL_MS = 1_000;
 /** Each profile covers this long; one with a stall in it is kept. */
@@ -218,5 +219,11 @@ export function attachWindowFreezeLog(window: BrowserWindow): void {
 	});
 	window.webContents.on("console-message", (_event, _level, message) => {
 		if (message.startsWith("[freeze] ")) write(`window ${message.slice(9)}`);
+		// Open on board's row-to-session matches (renderer all/use-start-item.ts).
+		if (message.startsWith("[session-match] "))
+			void appendFile(
+				SESSION_MATCH_LOG,
+				`${new Date().toISOString()} ${message.slice(16)}\n`,
+			).catch(() => {});
 	});
 }

@@ -103,20 +103,27 @@ export interface AllItem {
 	paneIds?: string[];
 }
 
+type MatchPane = {
+	id?: string;
+	odinPageId?: string;
+	odinSource?: string;
+	odinTaskTitle?: string;
+	odinBrief?: string;
+};
+
 /** Is this pane the session started on this row? See useStartAllItem's livePaneFor. */
-export function paneWorksOn(
-	pane: {
-		id?: string;
-		odinPageId?: string;
-		odinSource?: string;
-		odinTaskTitle?: string;
-		odinBrief?: string;
-	},
+export function paneWorksOn(pane: MatchPane, item: AllItem): boolean {
+	return paneMatchRule(pane, item) != null;
+}
+
+/** Which rule ties this pane to this row, or null: Open on board logs it. */
+export function paneMatchRule(
+	pane: MatchPane,
 	item: AllItem,
-): boolean {
-	if (pane.id != null && item.paneIds?.includes(pane.id)) return true;
+): "paneIds" | "pageId" | "title" | "brief" | null {
+	if (pane.id != null && item.paneIds?.includes(pane.id)) return "paneIds";
 	if (item.launch.pageId != null && pane.odinPageId === item.launch.pageId)
-		return true;
+		return "pageId";
 	// A session started on another message of the same source belongs to that
 	// message, even when both say the same thing (a bot posting the same text
 	// twice). Title and brief only link sessions that carry no id of this source.
@@ -127,14 +134,13 @@ export function paneWorksOn(
 		pane.odinSource != null &&
 		source(pane.odinSource) === source(item.launch.source)
 	)
-		return false;
-	return (
-		pane.odinTaskTitle === item.launch.title ||
-		pane.odinBrief === item.launch.brief
-	);
+		return null;
+	if (pane.odinTaskTitle === item.launch.title) return "title";
+	if (pane.odinBrief === item.launch.brief) return "brief";
+	return null;
 }
 
-type RowPane = Parameters<typeof paneWorksOn>[0] & {
+type RowPane = MatchPane & {
 	id: string;
 	completed?: boolean;
 };
