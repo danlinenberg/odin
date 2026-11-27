@@ -616,3 +616,14 @@
 		scroll-behavior: auto;
 	}
 }
+
+/* An empty Notes box (TaskDescription) shows its placeholder on the first line. */
+[data-notes-placeholder]
+	.ProseMirror
+	> p:only-child:has(> br:only-child)::before {
+	content: var(--notes-placeholder);
+	float: left;
+	height: 0;
+	pointer-events: none;
+	color: var(--muted-foreground);
+}

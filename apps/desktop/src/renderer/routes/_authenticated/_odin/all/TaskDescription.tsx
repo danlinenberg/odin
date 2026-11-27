@@ -10,6 +10,7 @@ import { readFile } from "../components/OdinPromptDialog";
 import { ATTACHMENT_URL } from "../hooks/useOdinTasks";
 
 const isImage = (file: File) => file.type.startsWith("image/");
+const PLACEHOLDER = "Add notes: context and guidelines for its session";
 
 /**
  * One of my own tasks' brief, edited in place: markdown with headings, lists
@@ -58,6 +59,11 @@ export function TaskDescription({
 	return (
 		<section
 			aria-label="Description"
+			// Shown in the editor's empty first line - see globals.css.
+			data-notes-placeholder
+			style={
+				{ "--notes-placeholder": `"${PLACEHOLDER}"` } as React.CSSProperties
+			}
 			className="-mx-1 min-h-[80px] rounded-[5px] px-1 text-[12px] hover:bg-secondary/50 focus-within:bg-secondary/50 focus-within:ring-1 focus-within:ring-primary/50"
 			onBlur={(event) => {
 				if (!event.currentTarget.contains(event.relatedTarget)) save();
